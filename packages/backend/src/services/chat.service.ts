@@ -13,6 +13,7 @@ import { OPENSPRINT_PATHS } from '@opensprint/shared';
 import { ProjectService } from './project.service.js';
 import { PrdService } from './prd.service.js';
 import { AgentClient } from './agent-client.js';
+import { AppError } from '../middleware/error-handler.js';
 import { hilService } from './hil-service.js';
 import { broadcastToProject } from '../websocket/index.js';
 
@@ -185,6 +186,9 @@ export class ChatService {
 
   /** Send a message to the planning agent */
   async sendMessage(projectId: string, body: ChatRequest): Promise<ChatResponse> {
+    if (body.message == null || String(body.message).trim() === '') {
+      throw new AppError(400, 'INVALID_INPUT', 'Chat message is required');
+    }
     const context = body.context ?? 'design';
     const isPlanContext = context.startsWith('plan:');
     const planId = isPlanContext ? context.slice(5) : null;
