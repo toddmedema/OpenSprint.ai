@@ -8,7 +8,12 @@ import type {
   ReviewAgentResult,
   TestResults,
 } from '@opensprint/shared';
-import { OPENSPRINT_PATHS, DEFAULT_RETRY_LIMIT, AGENT_INACTIVITY_TIMEOUT_MS } from '@opensprint/shared';
+import {
+  OPENSPRINT_PATHS,
+  DEFAULT_RETRY_LIMIT,
+  AGENT_INACTIVITY_TIMEOUT_MS,
+  getTestCommandForFramework,
+} from '@opensprint/shared';
 import { BeadsService, type BeadsIssue } from './beads.service.js';
 import { ProjectService } from './project.service.js';
 import { AgentClient } from './agent-client.js';
@@ -259,7 +264,10 @@ export class OrchestratorService {
         taskId: task.id,
         repoPath,
         branch: branchName,
-        testCommand: settings.testFramework ? `npm test` : 'echo "No test command configured"',
+        testCommand: (() => {
+          const cmd = getTestCommandForFramework(settings.testFramework);
+          return cmd || 'echo "No test command configured"';
+        })(),
         attempt: state.attempt,
         phase: 'coding',
         previousFailure: retryContext?.previousFailure ?? null,
@@ -342,7 +350,7 @@ export class OrchestratorService {
       state.lastCodingDiff = await this.branchManager.getDiff(repoPath, branchName);
 
       const settings = await this.projectService.getSettings(projectId);
-      const testCommand = settings.testFramework ? 'npm test' : undefined;
+      const testCommand = getTestCommandForFramework(settings.testFramework) || undefined;
       const testResults = await this.testRunner.runTests(repoPath, testCommand);
       if (testResults.failed > 0) {
         await this.handleTaskFailure(
@@ -390,7 +398,10 @@ export class OrchestratorService {
         taskId: task.id,
         repoPath,
         branch: branchName,
-        testCommand: settings.testFramework ? 'npm test' : 'echo "No test command configured"',
+        testCommand: (() => {
+          const cmd = getTestCommandForFramework(settings.testFramework);
+          return cmd || 'echo "No test command configured"';
+        })(),
         attempt: state.attempt,
         phase: 'review',
         previousFailure: null,

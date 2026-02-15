@@ -175,7 +175,7 @@ export class ProjectService {
       codingAgent: input.codingAgent,
       deployment: input.deployment,
       hilConfig: input.hilConfig ?? DEFAULT_HIL_CONFIG,
-      testFramework: null,
+      testFramework: input.testFramework ?? null,
     };
     const settingsPath = path.join(repoPath, OPENSPRINT_PATHS.settings);
     await this.writeJson(settingsPath, settings);

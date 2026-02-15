@@ -59,6 +59,7 @@ describe("ProjectService", () => {
     expect(settings.planningAgent.type).toBe("claude");
     expect(settings.codingAgent.type).toBe("claude");
     expect(settings.hilConfig).toEqual(DEFAULT_HIL_CONFIG);
+    expect(settings.testFramework).toBeNull();
 
     // Verify prd.json
     const prdPath = path.join(repoPath, ".opensprint", "prd.json");
@@ -119,6 +120,26 @@ describe("ProjectService", () => {
         hilConfig: DEFAULT_HIL_CONFIG,
       }),
     ).rejects.toMatchObject({ code: "INVALID_INPUT", message: "Repository path is required" });
+  });
+
+  it("should save testFramework when provided", async () => {
+    const repoPath = path.join(tempDir, "jest-project");
+
+    const project = await projectService.createProject({
+      name: "Jest Project",
+      description: "",
+      repoPath,
+      planningAgent: { type: "claude", model: null, cliCommand: null },
+      codingAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+      testFramework: "jest",
+    });
+
+    const settingsPath = path.join(repoPath, ".opensprint", "settings.json");
+    const settingsRaw = await fs.readFile(settingsPath, "utf-8");
+    const settings = JSON.parse(settingsRaw);
+    expect(settings.testFramework).toBe("jest");
   });
 
   it("should reject path that already has .opensprint", async () => {

@@ -4,15 +4,16 @@ import { Layout } from "../components/layout/Layout";
 import { FolderBrowser } from "../components/FolderBrowser";
 import { ModelSelect } from "../components/ModelSelect";
 import type { AgentType, DeploymentMode, HilNotificationMode } from "@opensprint/shared";
-import { DEFAULT_HIL_CONFIG } from "@opensprint/shared";
+import { DEFAULT_HIL_CONFIG, TEST_FRAMEWORKS } from "@opensprint/shared";
 import { api } from "../api/client";
 
-type Step = "basics" | "agents" | "deployment" | "hil" | "confirm";
+type Step = "basics" | "agents" | "deployment" | "testing" | "hil" | "confirm";
 
 const STEPS: { key: Step; label: string }[] = [
   { key: "basics", label: "Project Info" },
   { key: "agents", label: "Agent Config" },
   { key: "deployment", label: "Deployment" },
+  { key: "testing", label: "Testing" },
   { key: "hil", label: "Autonomy" },
   { key: "confirm", label: "Confirm" },
 ];
@@ -31,8 +32,13 @@ export function ProjectSetup() {
   const [codingAgentType, setCodingAgentType] = useState<AgentType>("claude");
   const [codingModel, setCodingModel] = useState("");
   const [deploymentMode, setDeploymentMode] = useState<DeploymentMode>("custom");
+  const [testFramework, setTestFramework] = useState<string>("none");
   const [hilConfig, setHilConfig] = useState(DEFAULT_HIL_CONFIG);
   const [showFolderBrowser, setShowFolderBrowser] = useState(false);
+
+  // Test framework detection
+  const [detectedFramework, setDetectedFramework] = useState<string | null>(null);
+  const [detectingFramework, setDetectingFramework] = useState(false);
 
   // API key status (for agents step)
   const [envKeys, setEnvKeys] = useState<{ anthropic: boolean; cursor: boolean } | null>(null);
@@ -50,6 +56,25 @@ export function ProjectSetup() {
       .then(setEnvKeys)
       .catch(() => setEnvKeys(null));
   }, [step]);
+
+  // Detect test framework when entering testing step with a repo path
+  useEffect(() => {
+    if (step !== "testing" || !repoPath.trim()) return;
+    setDetectingFramework(true);
+    setDetectedFramework(null);
+    api.filesystem
+      .detectTestFramework(repoPath.trim())
+      .then((result) => {
+        if (result) {
+          setDetectedFramework(result.framework);
+          setTestFramework(result.framework);
+        } else {
+          setDetectedFramework(null);
+        }
+      })
+      .catch(() => setDetectedFramework(null))
+      .finally(() => setDetectingFramework(false));
+  }, [step, repoPath]);
 
   const handleSaveKey = async (envKey: "ANTHROPIC_API_KEY" | "CURSOR_API_KEY") => {
     const value = envKey === "ANTHROPIC_API_KEY" ? keyInput.anthropic : keyInput.cursor;
@@ -81,6 +106,7 @@ export function ProjectSetup() {
         codingAgent: { type: codingAgentType, model: codingModel || null, cliCommand: null },
         deployment: { mode: deploymentMode },
         hilConfig,
+        testFramework: testFramework === "none" ? null : testFramework,
       });
       navigate(`/projects/${(project as { id: string }).id}`);
     } catch (err) {
@@ -354,6 +380,36 @@ export function ProjectSetup() {
             </div>
           )}
 
+          {step === "testing" && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">Test Framework</label>
+                <p className="text-xs text-gray-500 mb-3">
+                  OpenSprint uses this to run tests during the Build phase. We detect from your project when possible.
+                </p>
+                {detectingFramework && (
+                  <p className="text-sm text-gray-500 mb-2">Detecting from project...</p>
+                )}
+                {!detectingFramework && detectedFramework && (
+                  <p className="text-sm text-green-600 mb-2">
+                    Detected: <strong>{TEST_FRAMEWORKS.find((f) => f.id === detectedFramework)?.label ?? detectedFramework}</strong>
+                  </p>
+                )}
+                <select
+                  className="input w-full"
+                  value={testFramework}
+                  onChange={(e) => setTestFramework(e.target.value)}
+                >
+                  {TEST_FRAMEWORKS.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
           {step === "hil" && (
             <div className="space-y-4">
               <p className="text-sm text-gray-500 mb-4">
@@ -425,6 +481,14 @@ export function ProjectSetup() {
                 <div className="flex justify-between">
                   <dt className="text-gray-500">Deployment</dt>
                   <dd className="font-medium capitalize">{deploymentMode}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-gray-500">Test Framework</dt>
+                  <dd className="font-medium">
+                    {testFramework === "none"
+                      ? "None"
+                      : TEST_FRAMEWORKS.find((f) => f.id === testFramework)?.label ?? testFramework}
+                  </dd>
                 </div>
               </dl>
             </div>

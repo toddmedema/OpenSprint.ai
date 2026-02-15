@@ -1,6 +1,6 @@
 import path from 'path';
 import type { OrchestratorStatus, AgentPhase, ActiveTaskConfig } from '@opensprint/shared';
-import { DEFAULT_RETRY_LIMIT, AGENT_INACTIVITY_TIMEOUT_MS } from '@opensprint/shared';
+import { DEFAULT_RETRY_LIMIT, AGENT_INACTIVITY_TIMEOUT_MS, getTestCommandForFramework } from '@opensprint/shared';
 import { BeadsService, type BeadsIssue } from './beads.service.js';
 import { ProjectService } from './project.service.js';
 import { AgentClient } from './agent-client.js';
@@ -231,7 +231,10 @@ export class ConcurrentOrchestrator {
         taskId: task.id,
         repoPath,
         branch: branchName,
-        testCommand: settings.testFramework ? 'npm test' : 'echo "No tests"',
+        testCommand: (() => {
+          const cmd = getTestCommandForFramework(settings.testFramework);
+          return cmd || 'echo "No tests"';
+        })(),
         attempt: 1,
         phase: 'coding',
         previousFailure: null,

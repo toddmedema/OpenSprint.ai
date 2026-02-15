@@ -3,6 +3,7 @@ import { readdir, stat } from "fs/promises";
 import { join, resolve, dirname } from "path";
 import { existsSync } from "fs";
 import type { ApiResponse } from "@opensprint/shared";
+import { detectTestFramework } from "../services/test-framework.service.js";
 
 export const fsRouter = Router();
 
@@ -56,3 +57,33 @@ fsRouter.get("/browse", async (req: Request<object, object, object, { path?: str
     next(err);
   }
 });
+
+// GET /fs/detect-test-framework?path=/some/path — Detect test framework from project files
+fsRouter.get(
+  "/detect-test-framework",
+  async (req: Request<object, object, object, { path?: string }>, res, next) => {
+    try {
+      const rawPath = req.query.path?.trim();
+      if (!rawPath) {
+        res.status(400).json({
+          error: { code: "INVALID_INPUT", message: "Path query parameter is required" },
+        });
+        return;
+      }
+
+      const targetPath = resolve(rawPath);
+      if (!existsSync(targetPath)) {
+        res.status(400).json({
+          error: { code: "NOT_FOUND", message: "Directory does not exist" },
+        });
+        return;
+      }
+
+      const detected = await detectTestFramework(targetPath);
+      const body: ApiResponse<{ framework: string; testCommand: string } | null> = { data: detected };
+      res.json(body);
+    } catch (err) {
+      next(err);
+    }
+  },
+);

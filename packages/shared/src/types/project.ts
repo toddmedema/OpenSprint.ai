@@ -37,6 +37,8 @@ export interface CreateProjectRequest {
   codingAgent: AgentConfigInput;
   deployment: DeploymentConfigInput;
   hilConfig: HilConfigInput;
+  /** Detected or user-selected test framework (PRD §10.2) */
+  testFramework?: string | null;
 }
 
 // Forward references for agent/deployment config — defined in settings.ts
