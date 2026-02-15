@@ -627,7 +627,11 @@ export function ProjectSetup() {
               {creating ? "Creating..." : "Create Project"}
             </button>
           ) : (
-            <button onClick={() => setStep(STEPS[currentStepIndex + 1]?.key ?? "confirm")} className="btn-primary">
+            <button
+              onClick={() => setStep(STEPS[currentStepIndex + 1]?.key ?? "confirm")}
+              disabled={step === "basics" && (!name.trim() || !repoPath.trim())}
+              className="btn-primary disabled:opacity-50"
+            >
               Next
             </button>
           )}
