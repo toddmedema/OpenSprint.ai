@@ -10,7 +10,23 @@ export function PlanPhase({ projectId }: PlanPhaseProps) {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(true);
+  const [decomposing, setDecomposing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleDecompose = async () => {
+    setError(null);
+    setDecomposing(true);
+    try {
+      const result = await api.plans.decompose(projectId);
+      const data = await api.plans.list(projectId);
+      setPlans(data as Plan[]);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "AI decomposition failed";
+      setError(msg);
+    } finally {
+      setDecomposing(false);
+    }
+  };
 
   useEffect(() => {
     api.plans
@@ -61,7 +77,17 @@ export function PlanPhase({ projectId }: PlanPhaseProps) {
         {/* Plan Cards */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900">Feature Plans</h2>
-          <button className="btn-primary text-sm">Add Plan</button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleDecompose}
+              disabled={decomposing}
+              className="btn-primary text-sm"
+            >
+              {decomposing ? "Decomposing…" : "Decompose from PRD"}
+            </button>
+            <button className="btn-primary text-sm">Add Plan</button>
+          </div>
         </div>
 
         {loading ? (
@@ -69,8 +95,16 @@ export function PlanPhase({ projectId }: PlanPhaseProps) {
         ) : plans.length === 0 ? (
           <div className="text-center py-10">
             <p className="text-gray-500 mb-4">
-              No plans yet. Start a conversation in the Design phase to generate plans.
+              No plans yet. Use AI to decompose the PRD into feature plans and tasks, or add a plan manually.
             </p>
+            <button
+              type="button"
+              onClick={handleDecompose}
+              disabled={decomposing}
+              className="btn-primary"
+            >
+              {decomposing ? "Decomposing…" : "Decompose from PRD"}
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

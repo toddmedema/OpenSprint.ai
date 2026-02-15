@@ -86,6 +86,10 @@ export const api = {
   // ─── Plans ───
   plans: {
     list: (projectId: string) => request<unknown[]>(`/projects/${projectId}/plans`),
+    decompose: (projectId: string) =>
+      request<{ created: number; plans: unknown[] }>(`/projects/${projectId}/plans/decompose`, {
+        method: "POST",
+      }),
     get: (projectId: string, planId: string) => request<unknown>(`/projects/${projectId}/plans/${planId}`),
     create: (projectId: string, data: unknown) =>
       request<unknown>(`/projects/${projectId}/plans`, {
