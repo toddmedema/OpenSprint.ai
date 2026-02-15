@@ -2,6 +2,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "http";
 import type { ServerEvent, ClientEvent } from "@opensprint/shared";
 import { hilService } from "../services/hil-service.js";
+import { eventRelay } from "../services/event-relay.service.js";
 
 /** Map of projectId → Set of connected clients */
 const projectClients = new Map<string, Set<WebSocket>>();
@@ -12,6 +13,8 @@ const agentSubscriptions = new Map<WebSocket, Set<string>>();
 let wss: WebSocketServer;
 
 export function setupWebSocket(server: Server): void {
+  eventRelay.init(projectClients, agentSubscriptions);
+
   // No path filter — we accept /ws and /ws/projects/:id; path matching is done in the handler
   wss = new WebSocketServer({ server });
 
@@ -80,15 +83,7 @@ function handleClientEvent(ws: WebSocket, event: ClientEvent): void {
 
 /** Broadcast an event to all clients connected to a project */
 export function broadcastToProject(projectId: string, event: ServerEvent): void {
-  const clients = projectClients.get(projectId);
-  if (!clients) return;
-
-  const data = JSON.stringify(event);
-  for (const client of clients) {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(data);
-    }
-  }
+  eventRelay.broadcast(projectId, event);
 }
 
 /** Close all WebSocket connections and the server (for graceful shutdown) */
@@ -104,12 +99,5 @@ export function closeWebSocket(): void {
 
 /** Send agent output to clients subscribed to a specific task */
 export function sendAgentOutput(taskId: string, chunk: string): void {
-  const event: ServerEvent = { type: "agent.output", taskId, chunk };
-  const data = JSON.stringify(event);
-
-  for (const [ws, subscriptions] of agentSubscriptions) {
-    if (subscriptions.has(taskId) && ws.readyState === WebSocket.OPEN) {
-      ws.send(data);
-    }
-  }
+  eventRelay.sendAgentOutput(taskId, chunk);
 }
