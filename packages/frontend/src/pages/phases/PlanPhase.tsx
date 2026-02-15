@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "../../api/client";
-import type { Plan } from "@opensprint/shared";
+import type { Plan, PlanDependencyGraph } from "@opensprint/shared";
 import { AddPlanModal } from "../../components/AddPlanModal";
+import { DependencyGraph } from "../../components/DependencyGraph";
 
 interface PlanPhaseProps {
   projectId: string;
@@ -9,19 +10,28 @@ interface PlanPhaseProps {
 
 export function PlanPhase({ projectId }: PlanPhaseProps) {
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [dependencyGraph, setDependencyGraph] = useState<PlanDependencyGraph | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(true);
   const [decomposing, setDecomposing] = useState(false);
   const [showAddPlanModal, setShowAddPlanModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const refreshPlans = useCallback(async () => {
+    const [listData, depsData] = await Promise.all([
+      api.plans.list(projectId),
+      api.plans.dependencies(projectId).catch(() => null),
+    ]);
+    setPlans(listData as Plan[]);
+    setDependencyGraph(depsData as PlanDependencyGraph | null);
+  }, [projectId]);
+
   const handleDecompose = async () => {
     setError(null);
     setDecomposing(true);
     try {
-      const result = await api.plans.decompose(projectId);
-      const data = await api.plans.list(projectId);
-      setPlans(data as Plan[]);
+      await api.plans.decompose(projectId);
+      await refreshPlans();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "AI decomposition failed";
       setError(msg);
@@ -31,21 +41,27 @@ export function PlanPhase({ projectId }: PlanPhaseProps) {
   };
 
   useEffect(() => {
-    api.plans
-      .list(projectId)
-      .then((data) => setPlans(data as Plan[]))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [projectId]);
+    refreshPlans().catch(console.error).finally(() => setLoading(false));
+  }, [refreshPlans]);
 
   const handleShip = async (planId: string) => {
     setError(null);
     try {
       await api.plans.ship(projectId, planId);
-      const data = await api.plans.list(projectId);
-      setPlans(data as Plan[]);
+      await refreshPlans();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to ship plan";
+      setError(msg);
+    }
+  };
+
+  const handleReship = async (planId: string) => {
+    setError(null);
+    try {
+      await api.plans.reship(projectId, planId);
+      await refreshPlans();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to re-ship plan";
       setError(msg);
     }
   };
@@ -72,12 +88,13 @@ export function PlanPhase({ projectId }: PlanPhaseProps) {
       )}
       {/* Main content */}
       <div className="flex-1 overflow-y-auto p-6">
-        {/* Dependency Graph Placeholder */}
+        {/* Dependency Graph */}
         <div className="card p-6 mb-6">
           <h3 className="text-sm font-semibold text-gray-900 mb-3">Dependency Graph</h3>
-          <div className="h-40 flex items-center justify-center text-gray-400 text-sm border-2 border-dashed border-gray-200 rounded-lg">
-            Dependency graph visualization will be rendered here
-          </div>
+          <DependencyGraph
+            graph={dependencyGraph}
+            onPlanClick={setSelectedPlan}
+          />
         </div>
 
         {/* Plan Cards */}
@@ -161,6 +178,17 @@ export function PlanPhase({ projectId }: PlanPhaseProps) {
                     className="btn-primary text-xs w-full"
                   >
                     Ship it!
+                  </button>
+                )}
+                {plan.status === "complete" && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleReship(plan.metadata.planId);
+                    }}
+                    className="btn-secondary text-xs w-full"
+                  >
+                    Re-ship
                   </button>
                 )}
               </div>

@@ -37,8 +37,9 @@ Respond with ONLY valid JSON in this exact format. You may use a markdown code b
   "plans": [
     {
       "title": "Feature Name",
-      "content": "# Feature Name\\n\\n## Overview\\n...\\n\\n## Acceptance Criteria\\n...",
+      "content": "# Feature Name\\n\\n## Overview\\n...\\n\\n## Acceptance Criteria\\n...\\n\\n## Dependencies\\nReferences to other plans (e.g. user-authentication) if this feature depends on them.",
       "complexity": "medium",
+      "dependsOnPlans": [],
       "tasks": [
         {"title": "Task title", "description": "Task spec", "priority": 1, "dependsOn": []}
       ]
@@ -46,7 +47,7 @@ Respond with ONLY valid JSON in this exact format. You may use a markdown code b
   ]
 }
 
-complexity: low, medium, high, or very_high. priority: 0=highest. dependsOn: array of task titles this task depends on (blocked by).`;
+complexity: low, medium, high, or very_high. priority: 0=highest. dependsOn: array of task titles this task depends on (blocked by). dependsOnPlans: array of other plan titles (slugified, e.g. "user-auth") this plan depends on - use empty array if none.`;
 
 export class PlanService {
   private projectService = new ProjectService();
@@ -338,22 +339,57 @@ export class PlanService {
   async getDependencyGraph(projectId: string): Promise<PlanDependencyGraph> {
     const plans = await this.listPlans(projectId);
     const edges: PlanDependencyEdge[] = [];
+    const epicToPlan = new Map(plans.map((p) => [p.metadata.beadEpicId, p.metadata.planId]));
+    const seenEdges = new Set<string>();
 
-    // Build edges from beads dependency data
+    const addEdge = (fromPlanId: string, toPlanId: string) => {
+      if (fromPlanId === toPlanId) return;
+      const key = `${fromPlanId}->${toPlanId}`;
+      if (seenEdges.has(key)) return;
+      seenEdges.add(key);
+      edges.push({ from: fromPlanId, to: toPlanId, type: 'blocks' });
+    };
+
+    /** Epic ID from issue ID: x.y.z -> x.y when z is numeric, else self */
+    const getEpicId = (id: string): string => {
+      const m = id.match(/^(.+)\.(\d+)$/);
+      return m ? m[1] : id;
+    };
+
+    // 1. Build edges from beads: task in epic B has blocker in epic A → Plan A blocks Plan B
     const repoPath = await this.getRepoPath(projectId);
     try {
-      const allIssues = await this.beads.list(repoPath);
-      const epicIds = new Set(plans.map((p) => p.metadata.beadEpicId));
-
-      // Look for cross-epic dependencies
+      const allIssues = await this.beads.listAll(repoPath);
       for (const issue of allIssues) {
-        if (issue.type === 'epic' && epicIds.has(issue.id)) {
-          // Check if any dependency links exist between epics
-          // This is simplified — a full implementation would parse dependency data
+        const deps = (issue.dependencies as Array<{ depends_on_id: string; type: string }>) ?? [];
+        const blockers = deps.filter((d) => d.type === 'blocks').map((d) => d.depends_on_id);
+        const myEpicId = getEpicId(issue.id);
+        const toPlanId = epicToPlan.get(myEpicId);
+        if (!toPlanId) continue;
+        for (const blockerId of blockers) {
+          const blockerEpicId = getEpicId(blockerId);
+          const fromPlanId = epicToPlan.get(blockerEpicId);
+          if (fromPlanId && blockerEpicId !== myEpicId) {
+            addEdge(fromPlanId, toPlanId);
+          }
         }
       }
     } catch {
-      // If beads is not available, return empty edges
+      // If beads is not available, continue with markdown parsing
+    }
+
+    // 2. Parse Plan markdown for "## Dependencies" section referencing other plans
+    for (const plan of plans) {
+      const depsSection = plan.content.match(/## Dependencies[\s\S]*?(?=##|$)/i);
+      if (!depsSection) continue;
+      const text = depsSection[0].toLowerCase();
+      for (const other of plans) {
+        if (other.metadata.planId === plan.metadata.planId) continue;
+        const slug = other.metadata.planId.replace(/-/g, '[\\s-]*');
+        if (new RegExp(slug, 'i').test(text)) {
+          addEdge(other.metadata.planId, plan.metadata.planId);
+        }
+      }
     }
 
     return { plans, edges };
