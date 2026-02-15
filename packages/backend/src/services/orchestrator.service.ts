@@ -224,6 +224,13 @@ export class OrchestratorService {
         queueDepth: readyTasks.length - 1,
       });
 
+      broadcastToProject(projectId, {
+        type: 'agent.started',
+        taskId: task.id,
+        phase: 'coding',
+        branchName: `opensprint/${task.id}`,
+      });
+
       // 4. Execute the coding phase
       await this.executeCodingPhase(projectId, repoPath, task, undefined);
 

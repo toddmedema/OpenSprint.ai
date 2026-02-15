@@ -226,6 +226,13 @@ export class ConcurrentOrchestrator {
       };
       state.activeSlots.set(task.id, slot);
 
+      broadcastToProject(projectId, {
+        type: 'agent.started',
+        taskId: task.id,
+        phase: 'coding',
+        branchName,
+      });
+
       // Assemble and spawn (simplified for concurrent execution)
       const config: ActiveTaskConfig = {
         taskId: task.id,

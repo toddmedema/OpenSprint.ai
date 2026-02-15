@@ -17,6 +17,13 @@ export interface AgentOutputEvent {
   chunk: string;
 }
 
+export interface AgentStartedEvent {
+  type: 'agent.started';
+  taskId: string;
+  phase: AgentPhase;
+  branchName?: string;
+}
+
 export interface AgentCompletedEvent {
   type: 'agent.completed';
   taskId: string;
@@ -79,6 +86,7 @@ export interface BuildAwaitingApprovalEvent {
 export type ServerEvent =
   | TaskUpdatedEvent
   | AgentOutputEvent
+  | AgentStartedEvent
   | AgentCompletedEvent
   | PrdUpdatedEvent
   | BuildStatusEvent

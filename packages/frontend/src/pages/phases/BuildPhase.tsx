@@ -145,6 +145,14 @@ export function BuildPhase({ projectId }: BuildPhaseProps) {
         case "task.updated":
           api.tasks.list(projectId).then((data) => setTasks(data as TaskCard[]));
           break;
+        case "agent.started":
+          // Refresh task list and build status in real-time
+          api.tasks.list(projectId).then((data) => setTasks(data as TaskCard[]));
+          api.build.status(projectId).then((data: unknown) => {
+            const status = data as { running: boolean };
+            setOrchestratorRunning(status?.running ?? false);
+          });
+          break;
         case "agent.completed":
           // Refresh task list and build status (PRD §11.2)
           api.tasks.list(projectId).then((data) => setTasks(data as TaskCard[]));
