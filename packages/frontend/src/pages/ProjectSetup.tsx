@@ -29,8 +29,10 @@ export function ProjectSetup() {
   const [repoPath, setRepoPath] = useState("");
   const [planningAgentType, setPlanningAgentType] = useState<AgentType>("claude");
   const [planningModel, setPlanningModel] = useState("");
+  const [planningCliCommand, setPlanningCliCommand] = useState("");
   const [codingAgentType, setCodingAgentType] = useState<AgentType>("claude");
   const [codingModel, setCodingModel] = useState("");
+  const [codingCliCommand, setCodingCliCommand] = useState("");
   const [deploymentMode, setDeploymentMode] = useState<DeploymentMode>("custom");
   const [customDeployCommand, setCustomDeployCommand] = useState("");
   const [customDeployWebhook, setCustomDeployWebhook] = useState("");
@@ -104,8 +106,16 @@ export function ProjectSetup() {
         name,
         description,
         repoPath,
-        planningAgent: { type: planningAgentType, model: planningModel || null, cliCommand: null },
-        codingAgent: { type: codingAgentType, model: codingModel || null, cliCommand: null },
+        planningAgent: {
+          type: planningAgentType,
+          model: planningAgentType === "custom" ? null : planningModel || null,
+          cliCommand: planningAgentType === "custom" && planningCliCommand.trim() ? planningCliCommand.trim() : null,
+        },
+        codingAgent: {
+          type: codingAgentType,
+          model: codingAgentType === "custom" ? null : codingModel || null,
+          cliCommand: codingAgentType === "custom" && codingCliCommand.trim() ? codingCliCommand.trim() : null,
+        },
         deployment: {
           mode: deploymentMode,
           expoConfig: deploymentMode === "expo" ? { channel: "preview" } : undefined,
@@ -294,56 +304,94 @@ export function ProjectSetup() {
               <div>
                 <h3 className="text-sm font-semibold text-gray-900 mb-3">Planning Agent</h3>
                 <p className="text-xs text-gray-500 mb-3">Used for Design conversations and Plan decomposition</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Provider</label>
-                    <select
-                      className="input"
-                      value={planningAgentType}
-                      onChange={(e) => setPlanningAgentType(e.target.value as AgentType)}
-                    >
-                      <option value="claude">Claude</option>
-                      <option value="cursor">Cursor</option>
-                      <option value="custom">Custom CLI</option>
-                    </select>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Provider</label>
+                      <select
+                        className="input"
+                        value={planningAgentType}
+                        onChange={(e) => setPlanningAgentType(e.target.value as AgentType)}
+                      >
+                        <option value="claude">Claude</option>
+                        <option value="cursor">Cursor</option>
+                        <option value="custom">Custom CLI</option>
+                      </select>
+                    </div>
+                    {planningAgentType !== "custom" && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
+                        <ModelSelect
+                          provider={planningAgentType}
+                          value={planningModel || null}
+                          onChange={(id) => setPlanningModel(id ?? "")}
+                          refreshTrigger={modelRefreshTrigger}
+                        />
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
-                    <ModelSelect
-                      provider={planningAgentType}
-                      value={planningModel || null}
-                      onChange={(id) => setPlanningModel(id ?? "")}
-                      refreshTrigger={modelRefreshTrigger}
-                    />
-                  </div>
+                  {planningAgentType === "custom" && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">CLI command</label>
+                      <input
+                        type="text"
+                        className="input w-full font-mono text-sm"
+                        placeholder="e.g. my-agent or /usr/local/bin/my-agent --model gpt-4"
+                        value={planningCliCommand}
+                        onChange={(e) => setPlanningCliCommand(e.target.value)}
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Command invoked with prompt as argument. Must accept input and produce output.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
               <hr />
               <div>
                 <h3 className="text-sm font-semibold text-gray-900 mb-3">Coding Agent</h3>
                 <p className="text-xs text-gray-500 mb-3">Used for Build phase implementation and review</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Provider</label>
-                    <select
-                      className="input"
-                      value={codingAgentType}
-                      onChange={(e) => setCodingAgentType(e.target.value as AgentType)}
-                    >
-                      <option value="claude">Claude</option>
-                      <option value="cursor">Cursor</option>
-                      <option value="custom">Custom CLI</option>
-                    </select>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Provider</label>
+                      <select
+                        className="input"
+                        value={codingAgentType}
+                        onChange={(e) => setCodingAgentType(e.target.value as AgentType)}
+                      >
+                        <option value="claude">Claude</option>
+                        <option value="cursor">Cursor</option>
+                        <option value="custom">Custom CLI</option>
+                      </select>
+                    </div>
+                    {codingAgentType !== "custom" && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
+                        <ModelSelect
+                          provider={codingAgentType}
+                          value={codingModel || null}
+                          onChange={(id) => setCodingModel(id ?? "")}
+                          refreshTrigger={modelRefreshTrigger}
+                        />
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
-                    <ModelSelect
-                      provider={codingAgentType}
-                      value={codingModel || null}
-                      onChange={(id) => setCodingModel(id ?? "")}
-                      refreshTrigger={modelRefreshTrigger}
-                    />
-                  </div>
+                  {codingAgentType === "custom" && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">CLI command</label>
+                      <input
+                        type="text"
+                        className="input w-full font-mono text-sm"
+                        placeholder="e.g. my-agent or /usr/local/bin/my-agent --model gpt-4"
+                        value={codingCliCommand}
+                        onChange={(e) => setCodingCliCommand(e.target.value)}
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Command invoked with prompt as argument. Must accept input and produce output.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -503,13 +551,21 @@ export function ProjectSetup() {
                 <div className="flex justify-between">
                   <dt className="text-gray-500">Planning Agent</dt>
                   <dd className="font-medium capitalize">
-                    {planningAgentType} {planningModel && `(${planningModel})`}
+                    {planningAgentType === "custom"
+                      ? planningCliCommand.trim()
+                        ? `Custom: ${planningCliCommand.trim()}`
+                        : "Custom (not configured)"
+                      : `${planningAgentType}${planningModel ? ` (${planningModel})` : ""}`}
                   </dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-gray-500">Coding Agent</dt>
                   <dd className="font-medium capitalize">
-                    {codingAgentType} {codingModel && `(${codingModel})`}
+                    {codingAgentType === "custom"
+                      ? codingCliCommand.trim()
+                        ? `Custom: ${codingCliCommand.trim()}`
+                        : "Custom (not configured)"
+                      : `${codingAgentType}${codingModel ? ` (${codingModel})` : ""}`}
                   </dd>
                 </div>
                 <div className="flex justify-between">
@@ -559,7 +615,15 @@ export function ProjectSetup() {
             Back
           </button>
           {step === "confirm" ? (
-            <button onClick={handleCreate} disabled={creating} className="btn-primary">
+            <button
+              onClick={handleCreate}
+              disabled={
+                creating ||
+                (planningAgentType === "custom" && !planningCliCommand.trim()) ||
+                (codingAgentType === "custom" && !codingCliCommand.trim())
+              }
+              className="btn-primary disabled:opacity-50"
+            >
               {creating ? "Creating..." : "Create Project"}
             </button>
           ) : (

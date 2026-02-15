@@ -365,60 +365,98 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
                   <div>
                     <h3 className="text-sm font-semibold text-gray-900 mb-3">Planning Agent</h3>
                     <p className="text-xs text-gray-500 mb-3">Used for Design conversations and Plan decomposition</p>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Provider</label>
-                        <select
-                          className="input"
-                          value={planningAgent.type}
-                          onChange={(e) =>
-                            updatePlanningAgent({
-                              type: e.target.value as AgentType,
-                            })
-                          }
-                        >
-                          <option value="claude">Claude</option>
-                          <option value="cursor">Cursor</option>
-                          <option value="custom">Custom CLI</option>
-                        </select>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Provider</label>
+                          <select
+                            className="input"
+                            value={planningAgent.type}
+                            onChange={(e) =>
+                              updatePlanningAgent({
+                                type: e.target.value as AgentType,
+                              })
+                            }
+                          >
+                            <option value="claude">Claude</option>
+                            <option value="cursor">Cursor</option>
+                            <option value="custom">Custom CLI</option>
+                          </select>
+                        </div>
+                        {planningAgent.type !== "custom" && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
+                            <ModelSelect
+                              provider={planningAgent.type}
+                              value={planningAgent.model}
+                              onChange={(id) => updatePlanningAgent({ model: id })}
+                              refreshTrigger={modelRefreshTrigger}
+                            />
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
-                        <ModelSelect
-                          provider={planningAgent.type}
-                          value={planningAgent.model}
-                          onChange={(id) => updatePlanningAgent({ model: id })}
-                          refreshTrigger={modelRefreshTrigger}
-                        />
-                      </div>
+                      {planningAgent.type === "custom" && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">CLI command</label>
+                          <input
+                            type="text"
+                            className="input w-full font-mono text-sm"
+                            placeholder="e.g. my-agent or /usr/local/bin/my-agent --model gpt-4"
+                            value={planningAgent.cliCommand ?? ""}
+                            onChange={(e) => updatePlanningAgent({ cliCommand: e.target.value || null })}
+                          />
+                          <p className="mt-1 text-xs text-gray-500">
+                            Command invoked with prompt as argument. Must accept input and produce output.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <hr />
                   <div>
                     <h3 className="text-sm font-semibold text-gray-900 mb-3">Coding Agent</h3>
                     <p className="text-xs text-gray-500 mb-3">Used for Build phase implementation and review</p>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Provider</label>
-                        <select
-                          className="input"
-                          value={codingAgent.type}
-                          onChange={(e) => updateCodingAgent({ type: e.target.value as AgentType })}
-                        >
-                          <option value="claude">Claude</option>
-                          <option value="cursor">Cursor</option>
-                          <option value="custom">Custom CLI</option>
-                        </select>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Provider</label>
+                          <select
+                            className="input"
+                            value={codingAgent.type}
+                            onChange={(e) => updateCodingAgent({ type: e.target.value as AgentType })}
+                          >
+                            <option value="claude">Claude</option>
+                            <option value="cursor">Cursor</option>
+                            <option value="custom">Custom CLI</option>
+                          </select>
+                        </div>
+                        {codingAgent.type !== "custom" && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
+                            <ModelSelect
+                              provider={codingAgent.type}
+                              value={codingAgent.model}
+                              onChange={(id) => updateCodingAgent({ model: id })}
+                              refreshTrigger={modelRefreshTrigger}
+                            />
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
-                        <ModelSelect
-                          provider={codingAgent.type}
-                          value={codingAgent.model}
-                          onChange={(id) => updateCodingAgent({ model: id })}
-                          refreshTrigger={modelRefreshTrigger}
-                        />
-                      </div>
+                      {codingAgent.type === "custom" && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">CLI command</label>
+                          <input
+                            type="text"
+                            className="input w-full font-mono text-sm"
+                            placeholder="e.g. my-agent or /usr/local/bin/my-agent --model gpt-4"
+                            value={codingAgent.cliCommand ?? ""}
+                            onChange={(e) => updateCodingAgent({ cliCommand: e.target.value || null })}
+                          />
+                          <p className="mt-1 text-xs text-gray-500">
+                            Command invoked with prompt as argument. Must accept input and produce output.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -554,7 +592,16 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
           <button onClick={onClose} className="btn-secondary">
             Cancel
           </button>
-          <button onClick={handleSave} disabled={saving || loading} className="btn-primary disabled:opacity-50">
+          <button
+            onClick={handleSave}
+            disabled={
+              saving ||
+              loading ||
+              (planningAgent.type === "custom" && !(planningAgent.cliCommand ?? "").trim()) ||
+              (codingAgent.type === "custom" && !(codingAgent.cliCommand ?? "").trim())
+            }
+            className="btn-primary disabled:opacity-50"
+          >
             {saving ? "Saving..." : "Save Changes"}
           </button>
         </div>
