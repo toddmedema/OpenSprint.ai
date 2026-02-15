@@ -102,13 +102,24 @@ export function closeWebSocket(): void {
   wss.close();
 }
 
-/** Send agent output to clients subscribed to a specific task */
-export function sendAgentOutput(taskId: string, chunk: string): void {
+/** Send agent output to clients in a project who have subscribed to the task via agent.subscribe */
+export function sendAgentOutputToProject(
+  projectId: string,
+  taskId: string,
+  chunk: string,
+): void {
+  const clients = projectClients.get(projectId);
+  if (!clients) return;
+
+  const subscriptions = agentSubscriptions;
   const event: ServerEvent = { type: "agent.output", taskId, chunk };
   const data = JSON.stringify(event);
 
-  for (const [ws, subscriptions] of agentSubscriptions) {
-    if (subscriptions.has(taskId) && ws.readyState === WebSocket.OPEN) {
+  for (const ws of clients) {
+    if (
+      subscriptions.get(ws)?.has(taskId) &&
+      ws.readyState === WebSocket.OPEN
+    ) {
       ws.send(data);
     }
   }

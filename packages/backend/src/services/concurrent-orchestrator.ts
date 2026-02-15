@@ -8,7 +8,7 @@ import { BranchManager } from './branch-manager.js';
 import { ContextAssembler } from './context-assembler.js';
 import { SessionManager } from './session-manager.js';
 import { ConductorAgent } from './conductor-agent.js';
-import { broadcastToProject } from '../websocket/index.js';
+import { broadcastToProject, sendAgentOutputToProject } from '../websocket/index.js';
 
 interface AgentSlot {
   taskId: string;
@@ -271,11 +271,7 @@ export class ConcurrentOrchestrator {
         (chunk: string) => {
           slot.outputLog.push(chunk);
           slot.lastOutputTime = Date.now();
-          broadcastToProject(projectId, {
-            type: 'agent.output',
-            taskId: task.id,
-            chunk,
-          } as any);
+          sendAgentOutputToProject(projectId, task.id, chunk);
         },
         async (_code: number | null) => {
           slot.process = null;
