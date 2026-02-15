@@ -167,6 +167,15 @@ export const api = {
       request<import("@opensprint/shared").ActiveAgent[]>(`/projects/${projectId}/agents/active`),
   },
 
+  // ─── Auth ───
+  auth: {
+    login: (email: string, password: string) =>
+      request<import("@opensprint/shared").LoginResponse>("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      }),
+  },
+
   // ─── Chat ───
   chat: {
     send: (projectId: string, message: string, context?: string, prdSectionFocus?: string) =>

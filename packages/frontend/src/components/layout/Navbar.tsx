@@ -126,7 +126,7 @@ export function Navbar({ project, currentPhase, onPhaseChange }: NavbarProps) {
           </div>
         )}
 
-        {/* Right: Active agents + Status */}
+        {/* Right: Active agents + Status + Sign in */}
         <div className="flex items-center gap-3">
           {project && (
             <>
@@ -137,6 +137,9 @@ export function Navbar({ project, currentPhase, onPhaseChange }: NavbarProps) {
               </div>
             </>
           )}
+          <Link to="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900">
+            Sign in
+          </Link>
         </div>
       </div>
     </nav>
