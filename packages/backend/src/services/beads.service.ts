@@ -140,15 +140,20 @@ export class BeadsService {
   /** Show full details of an issue */
   async show(repoPath: string, id: string): Promise<BeadsIssue> {
     const stdout = await this.exec(repoPath, `show ${id} --json`);
-    return this.parseJson(stdout);
+    const parsed = this.parseJson(stdout);
+    // bd show can return array or single object depending on version
+    return Array.isArray(parsed) ? (parsed[0] as BeadsIssue) : (parsed as BeadsIssue);
   }
 
   /** Get IDs of issues that block this one (this task depends on them) */
   async getBlockers(repoPath: string, id: string): Promise<string[]> {
     try {
       const issue = await this.show(repoPath, id);
-      const deps = (issue.dependencies as Array<{ issue_id: string; depends_on_id: string; type: string }>) ?? [];
-      return deps.filter((d) => d.type === "blocks").map((d) => d.depends_on_id);
+      const deps = (issue.dependencies as Array<{ id?: string; depends_on_id?: string; type?: string; dependency_type?: string }>) ?? [];
+      return deps
+        .filter((d) => (d.type ?? d.dependency_type) === "blocks")
+        .map((d) => d.depends_on_id ?? d.id)
+        .filter((x): x is string => !!x);
     } catch {
       return [];
     }
