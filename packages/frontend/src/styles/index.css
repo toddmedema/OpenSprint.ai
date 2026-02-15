@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply text-gray-900 antialiased;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-lg bg-brand-600 px-4 py-2.5
+      text-sm font-semibold text-white shadow-sm hover:bg-brand-700
+      focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2
+      focus-visible:outline-brand-600 transition-colors;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-lg bg-white px-4 py-2.5
+      text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300
+      hover:bg-gray-50 transition-colors;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2.5
+      text-sm font-semibold text-white shadow-sm hover:bg-red-700 transition-colors;
+  }
+
+  .card {
+    @apply rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5;
+  }
+
+  .input {
+    @apply block w-full rounded-lg border-0 py-2.5 px-3 text-gray-900 shadow-sm
+      ring-1 ring-inset ring-gray-300 placeholder:text-gray-400
+      focus:ring-2 focus:ring-inset focus:ring-brand-600 sm:text-sm;
+  }
+
+  .phase-tab {
+    @apply px-4 py-2 text-sm font-medium rounded-lg transition-colors;
+  }
+
+  .phase-tab-active {
+    @apply bg-brand-600 text-white;
+  }
+
+  .phase-tab-inactive {
+    @apply text-gray-500 hover:text-gray-700 hover:bg-gray-100;
+  }
+
+  .kanban-column {
+    @apply flex flex-col gap-3 min-w-[280px] max-w-[320px];
+  }
+
+  .kanban-card {
+    @apply card p-4 cursor-pointer hover:shadow-md transition-shadow;
+  }
+}

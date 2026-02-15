@@ -1,0 +1,175 @@
+import fs from 'fs/promises';
+import path from 'path';
+import type { Prd, PrdSection, PrdChangeLogEntry, PrdSectionKey } from '@opensprint/shared';
+import { OPENSPRINT_PATHS } from '@opensprint/shared';
+import { ProjectService } from './project.service.js';
+import { AppError } from '../middleware/error-handler.js';
+
+const PRD_SECTION_KEYS: PrdSectionKey[] = [
+  'executive_summary',
+  'problem_statement',
+  'user_personas',
+  'goals_and_metrics',
+  'feature_list',
+  'technical_architecture',
+  'data_model',
+  'api_contracts',
+  'non_functional_requirements',
+  'open_questions',
+];
+
+export class PrdService {
+  private projectService = new ProjectService();
+
+  /** Get the file path for a project's PRD */
+  private async getPrdPath(projectId: string): Promise<string> {
+    const project = await this.projectService.getProject(projectId);
+    return path.join(project.repoPath, OPENSPRINT_PATHS.prd);
+  }
+
+  /** Load the PRD from disk */
+  private async loadPrd(projectId: string): Promise<Prd> {
+    const prdPath = await this.getPrdPath(projectId);
+    try {
+      const data = await fs.readFile(prdPath, 'utf-8');
+      return JSON.parse(data) as Prd;
+    } catch {
+      throw new AppError(404, 'PRD_NOT_FOUND', 'PRD not found for this project');
+    }
+  }
+
+  /** Save the PRD to disk (atomic write) */
+  private async savePrd(projectId: string, prd: Prd): Promise<void> {
+    const prdPath = await this.getPrdPath(projectId);
+    const tmpPath = prdPath + '.tmp';
+    await fs.writeFile(tmpPath, JSON.stringify(prd, null, 2));
+    await fs.rename(tmpPath, prdPath);
+  }
+
+  /** Validate a section key */
+  private validateSectionKey(key: string): void {
+    if (!PRD_SECTION_KEYS.includes(key as PrdSectionKey)) {
+      throw new AppError(
+        400,
+        'INVALID_SECTION',
+        `Invalid PRD section key '${key}'. Valid keys: ${PRD_SECTION_KEYS.join(', ')}`,
+      );
+    }
+  }
+
+  /** Compute a simple diff summary */
+  private computeDiff(oldContent: string, newContent: string): string {
+    if (!oldContent && newContent) return '[Initial content added]';
+    if (oldContent && !newContent) return '[Content removed]';
+    if (oldContent === newContent) return '[No changes]';
+    const oldLines = oldContent.split('\n').length;
+    const newLines = newContent.split('\n').length;
+    const lineDelta = newLines - oldLines;
+    const charDelta = newContent.length - oldContent.length;
+    return `[${lineDelta >= 0 ? '+' : ''}${lineDelta} lines, ${charDelta >= 0 ? '+' : ''}${charDelta} chars]`;
+  }
+
+  /** Get the full PRD */
+  async getPrd(projectId: string): Promise<Prd> {
+    return this.loadPrd(projectId);
+  }
+
+  /** Get a specific PRD section */
+  async getSection(projectId: string, sectionKey: string): Promise<PrdSection> {
+    this.validateSectionKey(sectionKey);
+    const prd = await this.loadPrd(projectId);
+    const section = prd.sections[sectionKey as PrdSectionKey];
+    if (!section) {
+      throw new AppError(404, 'SECTION_NOT_FOUND', `PRD section '${sectionKey}' not found`);
+    }
+    return section;
+  }
+
+  /** Update a specific PRD section */
+  async updateSection(
+    projectId: string,
+    sectionKey: string,
+    content: string,
+    source: PrdChangeLogEntry['source'] = 'design',
+  ): Promise<{ section: PrdSection; previousVersion: number; newVersion: number }> {
+    this.validateSectionKey(sectionKey);
+    const prd = await this.loadPrd(projectId);
+    const key = sectionKey as PrdSectionKey;
+    const now = new Date().toISOString();
+
+    const existing = prd.sections[key];
+    const previousVersion = existing ? existing.version : 0;
+    const newVersion = previousVersion + 1;
+    const diff = this.computeDiff(existing?.content ?? '', content);
+
+    const updatedSection: PrdSection = {
+      content,
+      version: newVersion,
+      updatedAt: now,
+    };
+
+    prd.sections[key] = updatedSection;
+    prd.version += 1;
+
+    prd.changeLog.push({
+      section: key,
+      version: newVersion,
+      source,
+      timestamp: now,
+      diff,
+    });
+
+    await this.savePrd(projectId, prd);
+
+    return { section: updatedSection, previousVersion, newVersion };
+  }
+
+  /** Update multiple PRD sections at once */
+  async updateSections(
+    projectId: string,
+    updates: Array<{ section: PrdSectionKey; content: string }>,
+    source: PrdChangeLogEntry['source'] = 'design',
+  ): Promise<Array<{ section: string; previousVersion: number; newVersion: number }>> {
+    const prd = await this.loadPrd(projectId);
+    const changes: Array<{ section: string; previousVersion: number; newVersion: number }> = [];
+    const now = new Date().toISOString();
+
+    for (const update of updates) {
+      const existing = prd.sections[update.section];
+      if (!existing) continue;
+
+      const previousVersion = existing.version;
+      const newVersion = previousVersion + 1;
+      const diff = this.computeDiff(existing.content, update.content);
+
+      prd.sections[update.section] = {
+        content: update.content,
+        version: newVersion,
+        updatedAt: now,
+      };
+
+      prd.changeLog.push({
+        section: update.section,
+        version: newVersion,
+        source,
+        timestamp: now,
+        diff,
+      });
+
+      changes.push({ section: update.section, previousVersion, newVersion });
+    }
+
+    if (changes.length > 0) {
+      prd.version += 1;
+      await this.savePrd(projectId, prd);
+    }
+
+    return changes;
+  }
+
+  /** Get PRD change history */
+  async getHistory(projectId: string): Promise<PrdChangeLogEntry[]> {
+    const prd = await this.loadPrd(projectId);
+    return prd.changeLog;
+  }
+}
