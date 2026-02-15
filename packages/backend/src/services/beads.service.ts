@@ -225,8 +225,8 @@ export class BeadsService {
       const deps = (issue.dependencies as Array<{ id?: string; issue_id?: string; depends_on_id?: string; type?: string; dependency_type?: string }>) ?? [];
       return deps
         .filter((d) => (d.type ?? d.dependency_type) === "blocks")
-        .map((d) => d.depends_on_id ?? d.id ?? "")
-        .filter(Boolean);
+        .map((d) => d.depends_on_id ?? d.issue_id ?? d.id ?? "")
+        .filter((x): x is string => !!x);
     } catch {
       return [];
     }
