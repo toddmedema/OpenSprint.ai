@@ -11,6 +11,7 @@ import { OPENSPRINT_PATHS, DEFAULT_RETRY_LIMIT, AGENT_INACTIVITY_TIMEOUT_MS } fr
 import { BeadsService, type BeadsIssue } from './beads.service.js';
 import { ProjectService } from './project.service.js';
 import { AgentClient } from './agent-client.js';
+import { hilService } from './hil-service.js';
 import { BranchManager } from './branch-manager.js';
 import { ContextAssembler } from './context-assembler.js';
 import { SessionManager } from './session-manager.js';
@@ -558,14 +559,20 @@ export class OrchestratorService {
           useExistingBranch: true,
         });
       } else {
-        // Retry limit reached — escalate
-        await this.handleTaskFailure(
-          projectId,
-          repoPath,
-          task,
-          branchName,
-          `Review rejected ${state.attempt - 1} times. Issues: ${result.issues?.join('; ') || result.summary}`,
-        );
+        // Retry limit reached — escalate per HIL config (PRD §9.2)
+        const reason = `Review rejected ${state.attempt - 1} times. Issues: ${result.issues?.join('; ') || result.summary}`;
+        const reviewFeedback = [result.summary, ...(result.issues ?? [])].filter(Boolean).join('\n');
+        const shouldRetry = await this.escalateRetryLimit(projectId, task.id, reason);
+
+        if (shouldRetry) {
+          state.attempt = 1;
+          await this.executeCodingPhase(projectId, repoPath, task, {
+            reviewFeedback,
+            useExistingBranch: true,
+          });
+        } else {
+          await this.handleTaskFailure(projectId, repoPath, task, branchName, reason);
+        }
       }
     } else {
       // No result.json or unexpected status
@@ -617,37 +624,74 @@ export class OrchestratorService {
         previousFailure: reason,
       });
     } else {
-      // Retry limit reached — return task to Ready queue
-      try {
-        await this.beads.update(repoPath, task.id, {
-          status: 'open',
-          assignee: '',
+      // Retry limit reached — escalate per HIL config (PRD §9.1)
+      const shouldRetry = await this.escalateRetryLimit(projectId, task.id, reason);
+
+      if (shouldRetry) {
+        state.attempt = 1;
+        await this.executeCodingPhase(projectId, repoPath, task, {
+          previousFailure: reason,
         });
-      } catch {
-        // Task might already be in the right state
-      }
+      } else {
+        // Return task to Ready queue
+        try {
+          await this.beads.update(repoPath, task.id, {
+            status: 'open',
+            assignee: '',
+          });
+        } catch {
+          // Task might already be in the right state
+        }
 
-      state.status.totalFailed += 1;
-      state.status.currentTask = null;
-      state.status.currentPhase = null;
+        state.status.totalFailed += 1;
+        state.status.currentTask = null;
+        state.status.currentPhase = null;
 
-      broadcastToProject(projectId, {
-        type: 'task.updated',
-        taskId: task.id,
-        status: 'open',
-        assignee: null,
-      });
+        broadcastToProject(projectId, {
+          type: 'task.updated',
+          taskId: task.id,
+          status: 'open',
+          assignee: null,
+        });
 
-      broadcastToProject(projectId, {
-        type: 'agent.completed',
-        taskId: task.id,
-        status: 'failed',
-        testResults: null,
-      });
+        broadcastToProject(projectId, {
+          type: 'agent.completed',
+          taskId: task.id,
+          status: 'failed',
+          testResults: null,
+        });
 
-      if (state.status.running) {
-        state.loopTimer = setTimeout(() => this.runLoop(projectId), 2000);
+        if (state.status.running) {
+          state.loopTimer = setTimeout(() => this.runLoop(projectId), 2000);
+        }
       }
     }
+  }
+
+  /**
+   * Escalate retry limit to user per HIL config (PRD §9.1, §9.2).
+   * For automated/notify_and_proceed: logs/notifies and returns false.
+   * For requires_approval: waits for user; true = retry, false = return to queue.
+   */
+  private async escalateRetryLimit(
+    projectId: string,
+    taskId: string,
+    reason: string,
+  ): Promise<boolean> {
+    const description = `Task ${taskId} reached retry limit: ${reason}`;
+    const options = [
+      { id: 'retry', label: 'Retry', description: 'Give the agent another attempt' },
+      { id: 'queue', label: 'Return to queue', description: 'Leave task in Ready for manual intervention' },
+    ];
+
+    const { approved } = await hilService.evaluateDecision(
+      projectId,
+      'testFailuresAndRetries',
+      description,
+      options,
+      false, // default: return to queue (don't retry) per PRD §9.1
+    );
+
+    return approved;
   }
 }

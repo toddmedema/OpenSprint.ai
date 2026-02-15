@@ -1,6 +1,7 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "http";
 import type { ServerEvent, ClientEvent } from "@opensprint/shared";
+import { hilService } from "../services/hil-service.js";
 
 /** Map of projectId → Set of connected clients */
 const projectClients = new Map<string, Set<WebSocket>>();
@@ -71,8 +72,7 @@ function handleClientEvent(ws: WebSocket, event: ClientEvent): void {
       break;
     }
     case "hil.respond": {
-      // TODO: Forward HIL response to orchestrator
-      console.log(`[WS] HIL response for request ${event.requestId}: ${event.approved}`);
+      hilService.respondToRequest(event.requestId, event.approved, event.notes);
       break;
     }
   }
