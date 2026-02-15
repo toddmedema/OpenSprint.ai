@@ -97,7 +97,11 @@ export function closeWebSocket(): void {
   wss.close();
 }
 
-/** Send agent output to clients subscribed to a specific task */
-export function sendAgentOutput(taskId: string, chunk: string): void {
-  eventRelay.sendAgentOutput(taskId, chunk);
+/** Send agent output to clients in a project who have subscribed to the task via agent.subscribe */
+export function sendAgentOutputToProject(
+  projectId: string,
+  taskId: string,
+  chunk: string,
+): void {
+  eventRelay.sendAgentOutputToProject(projectId, taskId, chunk);
 }

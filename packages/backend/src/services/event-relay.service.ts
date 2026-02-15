@@ -57,6 +57,30 @@ class EventRelayService {
       }
     }
   }
+
+  /**
+   * Send agent output to clients in a project who have subscribed to the task via agent.subscribe.
+   */
+  sendAgentOutputToProject(
+    projectId: string,
+    taskId: string,
+    chunk: string,
+  ): void {
+    const clients = this.projectClients?.get(projectId);
+    if (!clients) return;
+
+    const event: ServerEvent = { type: "agent.output", taskId, chunk };
+    const data = JSON.stringify(event);
+
+    for (const ws of clients) {
+      if (
+        this.agentSubscriptions?.get(ws)?.has(taskId) &&
+        ws.readyState === 1 /* WebSocket.OPEN */
+      ) {
+        ws.send(data);
+      }
+    }
+  }
 }
 
 export const eventRelay = new EventRelayService();
