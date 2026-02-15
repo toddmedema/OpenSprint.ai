@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { Project, ProjectPhase } from '@opensprint/shared';
 import { api } from '../../api/client';
 import { ActiveAgentsList } from '../ActiveAgentsList';
+import { ConnectionIndicator } from '../ConnectionIndicator';
 
 interface NavbarProps {
   project?: Project | null;
@@ -136,17 +137,17 @@ export function Navbar({ project, currentPhase, onPhaseChange }: NavbarProps) {
           </div>
         )}
 
-        {/* Right: Active agents + Status */}
+        {/* Right: Active agents + Status + Sign in */}
         <div className="flex items-center gap-3">
           {project && (
             <>
               <ActiveAgentsList projectId={project.id} />
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <div className="w-2 h-2 rounded-full bg-green-500" />
-                <span>Online</span>
-              </div>
+              <ConnectionIndicator />
             </>
           )}
+          <Link to="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900">
+            Sign in
+          </Link>
         </div>
       </div>
     </nav>
