@@ -6,6 +6,7 @@ import type {
   ActiveTaskConfig,
   CodingAgentResult,
   ReviewAgentResult,
+  TestResults,
 } from '@opensprint/shared';
 import { OPENSPRINT_PATHS, DEFAULT_RETRY_LIMIT, AGENT_INACTIVITY_TIMEOUT_MS } from '@opensprint/shared';
 import { BeadsService, type BeadsIssue } from './beads.service.js';
@@ -34,6 +35,7 @@ interface OrchestratorState {
   startedAt: string;
   attempt: number;
   lastCodingDiff: string;
+  lastTestResults: TestResults | null;
 }
 
 /**
@@ -62,6 +64,7 @@ export class OrchestratorService {
         startedAt: '',
         attempt: 1,
         lastCodingDiff: '',
+        lastTestResults: null,
       });
     }
     return this.state.get(projectId)!;
@@ -323,7 +326,7 @@ export class OrchestratorService {
 
     } catch (error) {
       console.error(`Coding phase failed for task ${task.id}:`, error);
-      await this.handleTaskFailure(projectId, repoPath, task, branchName, String(error));
+      await this.handleTaskFailure(projectId, repoPath, task, branchName, String(error), null);
     }
   }
 
@@ -352,9 +355,12 @@ export class OrchestratorService {
           task,
           branchName,
           `Tests failed: ${testResults.failed} failed, ${testResults.passed} passed`,
+          testResults,
         );
         return;
       }
+
+      state.lastTestResults = testResults;
 
       // Move to review phase
       state.status.currentPhase = 'review';
@@ -369,7 +375,7 @@ export class OrchestratorService {
     } else {
       // Coding failed
       const reason = result?.summary || `Agent exited with code ${exitCode}`;
-      await this.handleTaskFailure(projectId, repoPath, task, branchName, reason);
+      await this.handleTaskFailure(projectId, repoPath, task, branchName, reason, null);
     }
   }
 
@@ -454,7 +460,7 @@ export class OrchestratorService {
 
     } catch (error) {
       console.error(`Review phase failed for task ${task.id}:`, error);
-      await this.handleTaskFailure(projectId, repoPath, task, branchName, String(error));
+      await this.handleTaskFailure(projectId, repoPath, task, branchName, String(error), null);
     }
   }
 
@@ -487,7 +493,7 @@ export class OrchestratorService {
       // Close the task in beads
       await this.beads.close(repoPath, task.id, result.summary || 'Implemented and reviewed');
 
-      // Archive session (include coding diff for dependency context)
+      // Archive session (include coding diff and test results for Build tab display)
       const session = await this.sessionManager.createSession(repoPath, {
         taskId: task.id,
         attempt: state.attempt,
@@ -497,6 +503,7 @@ export class OrchestratorService {
         status: 'approved',
         outputLog: state.outputLog.join(''),
         gitDiff: state.lastCodingDiff,
+        testResults: state.lastTestResults ?? undefined,
         startedAt: state.startedAt,
       });
       await this.sessionManager.archiveSession(repoPath, task.id, state.attempt, session);
@@ -519,7 +526,7 @@ export class OrchestratorService {
         type: 'agent.completed',
         taskId: task.id,
         status: 'approved',
-        testResults: null,
+        testResults: state.lastTestResults,
       });
 
       // Continue the loop
@@ -571,7 +578,7 @@ export class OrchestratorService {
             useExistingBranch: true,
           });
         } else {
-          await this.handleTaskFailure(projectId, repoPath, task, branchName, reason);
+          await this.handleTaskFailure(projectId, repoPath, task, branchName, reason, null);
         }
       }
     } else {
@@ -582,6 +589,7 @@ export class OrchestratorService {
         task,
         branchName,
         `Review agent exited with code ${exitCode} without producing a valid result`,
+        null,
       );
     }
   }
@@ -592,6 +600,7 @@ export class OrchestratorService {
     task: BeadsIssue,
     branchName: string,
     reason: string,
+    testResults?: TestResults | null,
   ): Promise<void> {
     const state = this.getState(projectId);
 
@@ -610,6 +619,7 @@ export class OrchestratorService {
       status: 'failed',
       outputLog: state.outputLog.join(''),
       failureReason: reason,
+      testResults: testResults ?? undefined,
       startedAt: state.startedAt,
     });
     await this.sessionManager.archiveSession(repoPath, task.id, state.attempt, session);

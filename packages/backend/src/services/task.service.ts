@@ -1,16 +1,16 @@
-import fs from "fs/promises";
-import path from "path";
 import type { Task, AgentSession, KanbanColumn, TaskDependency } from "@opensprint/shared";
 import { OPENSPRINT_PATHS } from "@opensprint/shared";
 import { ProjectService } from "./project.service.js";
 import { BeadsService } from "./beads.service.js";
+import { SessionManager } from "./session-manager.js";
 import type { BeadsIssue } from "./beads.service.js";
 
 export class TaskService {
   private projectService = new ProjectService();
   private beads = new BeadsService();
+  private sessionManager = new SessionManager();
 
-  /** List all tasks for a project with computed kanban columns */
+  /** List all tasks for a project with computed kanban columns and test results */
   async listTasks(projectId: string): Promise<Task[]> {
     const project = await this.projectService.getProject(projectId);
     const [allIssues, readyIssues] = await Promise.all([
@@ -20,7 +20,9 @@ export class TaskService {
     const readyIds = new Set(readyIssues.map((i) => i.id));
     const idToIssue = new Map(allIssues.map((i) => [i.id, i]));
 
-    return allIssues.map((issue) => this.beadsIssueToTask(issue, readyIds, idToIssue));
+    const tasks = allIssues.map((issue) => this.beadsIssueToTask(issue, readyIds, idToIssue));
+    await this.enrichTasksWithTestResults(project.repoPath, tasks);
+    return tasks;
   }
 
   /** Get ready tasks (wraps bd ready --json) */
@@ -107,32 +109,32 @@ export class TaskService {
     return (valid.includes(t as Task["type"]) ? t : "task") as Task["type"];
   }
 
+  /** Enrich tasks with latest test results from agent sessions (PRD §8.3) */
+  private async enrichTasksWithTestResults(repoPath: string, tasks: Task[]): Promise<void> {
+    await Promise.all(
+      tasks.map(async (task) => {
+        const sessions = await this.sessionManager.listSessions(repoPath, task.id);
+        const latest = sessions[sessions.length - 1];
+        if (latest?.testResults) {
+          task.testResults = latest.testResults;
+        }
+      }),
+    );
+  }
+
   /** Get all agent sessions for a task */
   async getTaskSessions(projectId: string, taskId: string): Promise<AgentSession[]> {
     const project = await this.projectService.getProject(projectId);
-    const sessionsDir = path.join(project.repoPath, OPENSPRINT_PATHS.sessions);
-    const sessions: AgentSession[] = [];
-
-    try {
-      const files = await fs.readdir(sessionsDir);
-      for (const file of files) {
-        if (file.startsWith(`${taskId}-`) && file.endsWith(".json")) {
-          const data = await fs.readFile(path.join(sessionsDir, file), "utf-8");
-          sessions.push(JSON.parse(data) as AgentSession);
-        }
-      }
-    } catch {
-      // No sessions directory yet
-    }
-
-    return sessions.sort((a, b) => a.attempt - b.attempt);
+    return this.sessionManager.listSessions(project.repoPath, taskId);
   }
 
   /** Get a specific agent session for a task */
   async getTaskSession(projectId: string, taskId: string, attempt: number): Promise<AgentSession> {
     const project = await this.projectService.getProject(projectId);
-    const sessionPath = path.join(project.repoPath, OPENSPRINT_PATHS.sessions, `${taskId}-${attempt}.json`);
-    const data = await fs.readFile(sessionPath, "utf-8");
-    return JSON.parse(data) as AgentSession;
+    const session = await this.sessionManager.readSession(project.repoPath, taskId, attempt);
+    if (!session) {
+      throw new Error(`Session ${taskId}-${attempt} not found`);
+    }
+    return session;
   }
 }

@@ -15,6 +15,7 @@ interface TaskCard {
   priority: number;
   assignee: string | null;
   epicId: string | null;
+  testResults?: { passed: number; failed: number; skipped: number; total: number } | null;
 }
 
 const columnLabels: Record<KanbanColumn, string> = {
@@ -47,7 +48,8 @@ export function BuildPhase({ projectId }: BuildPhaseProps) {
     (event: ServerEvent) => {
       switch (event.type) {
         case "task.updated":
-          // Refresh tasks
+        case "agent.completed":
+          // Refresh tasks (agent.completed includes test results)
           api.tasks.list(projectId).then((data) => setTasks(data as TaskCard[]));
           break;
         case "agent.output":
@@ -195,6 +197,17 @@ export function BuildPhase({ projectId }: BuildPhaseProps) {
                         <span className="text-xs text-gray-500">{PRIORITY_LABELS[task.priority] ?? "Medium"}</span>
                       </div>
                       {task.assignee && <div className="mt-2 text-xs text-brand-600">{task.assignee}</div>}
+                      {task.testResults && task.testResults.total > 0 && (
+                        <div
+                          className={`mt-2 text-xs font-medium ${
+                            task.testResults.failed > 0 ? "text-red-600" : "text-green-600"
+                          }`}
+                        >
+                          {task.testResults.passed} passed
+                          {task.testResults.failed > 0 && `, ${task.testResults.failed} failed`}
+                          {task.testResults.skipped > 0 && `, ${task.testResults.skipped} skipped`}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
