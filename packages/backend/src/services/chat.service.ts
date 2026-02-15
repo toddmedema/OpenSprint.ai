@@ -6,12 +6,38 @@ import type {
   ConversationMessage,
   ChatRequest,
   ChatResponse,
+  Prd,
+  PrdSectionKey,
 } from '@opensprint/shared';
 import { OPENSPRINT_PATHS } from '@opensprint/shared';
 import { ProjectService } from './project.service.js';
+import { PrdService } from './prd.service.js';
+import { AgentClient } from './agent-client.js';
+import { broadcastToProject } from '../websocket/index.js';
+
+const DESIGN_SYSTEM_PROMPT = `You are an AI product design assistant for OpenSprint. You help users define their product vision and create a comprehensive Product Requirements Document (PRD).
+
+Your role is to:
+1. Ask clarifying questions about the user's product vision
+2. Challenge assumptions and identify edge cases
+3. Suggest architecture and technical approaches
+4. Help define user personas, success metrics, and features
+5. Proactively identify potential issues
+
+When you have enough information about a PRD section, output it as a structured update using this format:
+
+[PRD_UPDATE:section_key]
+<markdown content for the section>
+[/PRD_UPDATE]
+
+Valid section keys: executive_summary, problem_statement, user_personas, goals_and_metrics, feature_list, technical_architecture, data_model, api_contracts, non_functional_requirements, open_questions
+
+You can include multiple PRD_UPDATE blocks in a single response. Only include updates when you have substantive content to add or modify.`;
 
 export class ChatService {
   private projectService = new ProjectService();
+  private prdService = new PrdService();
+  private agentClient = new AgentClient();
 
   /** Get conversations directory for a project */
   private async getConversationsDir(projectId: string): Promise<string> {
@@ -50,10 +76,7 @@ export class ChatService {
     };
 
     await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(
-      path.join(dir, `${conversation.id}.json`),
-      JSON.stringify(conversation, null, 2),
-    );
+    await this.saveConversation(projectId, conversation);
 
     return conversation;
   }
@@ -61,10 +84,49 @@ export class ChatService {
   /** Save a conversation to disk */
   private async saveConversation(projectId: string, conversation: Conversation): Promise<void> {
     const dir = await this.getConversationsDir(projectId);
-    await fs.writeFile(
-      path.join(dir, `${conversation.id}.json`),
-      JSON.stringify(conversation, null, 2),
-    );
+    const tmpPath = path.join(dir, `${conversation.id}.json.tmp`);
+    const finalPath = path.join(dir, `${conversation.id}.json`);
+    await fs.writeFile(tmpPath, JSON.stringify(conversation, null, 2));
+    await fs.rename(tmpPath, finalPath);
+  }
+
+  /** Build context string from current PRD */
+  private async buildPrdContext(projectId: string): Promise<string> {
+    try {
+      const prd = await this.prdService.getPrd(projectId);
+      let context = '## Current PRD State\n\n';
+      for (const [key, section] of Object.entries(prd.sections)) {
+        if (section.content) {
+          context += `### ${key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}\n`;
+          context += `${section.content}\n\n`;
+        }
+      }
+      return context || 'The PRD is currently empty. Help the user define their product.';
+    } catch {
+      return 'No PRD exists yet. Help the user define their product.';
+    }
+  }
+
+  /** Parse PRD updates from agent response */
+  private parsePrdUpdates(content: string): Array<{ section: PrdSectionKey; content: string }> {
+    const updates: Array<{ section: PrdSectionKey; content: string }> = [];
+    const regex = /\[PRD_UPDATE:(\w+)\]([\s\S]*?)\[\/PRD_UPDATE\]/g;
+    let match;
+
+    while ((match = regex.exec(content)) !== null) {
+      const section = match[1] as PrdSectionKey;
+      const sectionContent = match[2].trim();
+      updates.push({ section, content: sectionContent });
+    }
+
+    return updates;
+  }
+
+  /** Strip PRD update blocks from response for display */
+  private stripPrdUpdates(content: string): string {
+    return content
+      .replace(/\[PRD_UPDATE:\w+\][\s\S]*?\[\/PRD_UPDATE\]/g, '')
+      .trim();
   }
 
   /** Send a message to the planning agent */
@@ -80,23 +142,83 @@ export class ChatService {
     };
     conversation.messages.push(userMessage);
 
-    // TODO: Invoke the configured planning agent with conversation history + PRD context
-    // TODO: Parse agent response for PRD changes
-    // TODO: Apply PRD changes if present
-    // TODO: Broadcast prd.updated event via WebSocket
+    // Get agent config
+    const settings = await this.projectService.getSettings(projectId);
+    const agentConfig = settings.planningAgent;
 
-    // Placeholder response
+    // Build context
+    const prdContext = await this.buildPrdContext(projectId);
+
+    // Assemble conversation history for agent
+    const history = conversation.messages.slice(0, -1).map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    let responseContent: string;
+
+    try {
+      // Invoke the planning agent
+      const response = await this.agentClient.invoke({
+        config: agentConfig,
+        prompt: body.message,
+        systemPrompt: DESIGN_SYSTEM_PROMPT + '\n\n' + prdContext,
+        conversationHistory: history,
+        cwd: (await this.projectService.getProject(projectId)).repoPath,
+      });
+
+      responseContent = response.content;
+    } catch (error) {
+      // If agent invocation fails, provide a graceful fallback
+      console.error('Agent invocation failed:', error);
+      responseContent = 'I apologize, but I was unable to connect to the configured planning agent. Please check your agent configuration in project settings. Error: ' +
+        (error instanceof Error ? error.message : String(error));
+    }
+
+    // Parse any PRD updates from the response
+    const prdUpdates = this.parsePrdUpdates(responseContent);
+    const displayContent = this.stripPrdUpdates(responseContent) || responseContent;
+
+    // Apply PRD updates if present
+    const prdChanges: ChatResponse['prdChanges'] = [];
+    if (prdUpdates.length > 0) {
+      const changes = await this.prdService.updateSections(projectId, prdUpdates, 'design');
+      for (const change of changes) {
+        prdChanges.push({
+          section: change.section,
+          previousVersion: change.previousVersion,
+          newVersion: change.newVersion,
+        });
+
+        // Broadcast PRD update via WebSocket
+        broadcastToProject(projectId, {
+          type: 'prd.updated',
+          section: change.section,
+          version: change.newVersion,
+        });
+      }
+    }
+
+    // Add assistant message
     const assistantMessage: ConversationMessage = {
       role: 'assistant',
-      content: 'Agent integration pending. This is a placeholder response.',
+      content: displayContent,
       timestamp: new Date().toISOString(),
+      prdChanges: prdChanges.length > 0
+        ? prdChanges.map((c) => ({
+            section: c.section,
+            previousVersion: c.previousVersion,
+            newVersion: c.newVersion,
+          }))
+        : undefined,
     };
     conversation.messages.push(assistantMessage);
 
     await this.saveConversation(projectId, conversation);
 
     return {
-      message: assistantMessage.content,
+      message: displayContent,
+      prdChanges: prdChanges.length > 0 ? prdChanges : undefined,
     };
   }
 

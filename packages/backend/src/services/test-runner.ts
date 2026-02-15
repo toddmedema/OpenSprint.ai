@@ -1,0 +1,171 @@
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import type { TestResults, TestResultDetail } from '@opensprint/shared';
+
+const execAsync = promisify(exec);
+
+/**
+ * Configurable test execution service.
+ * Detects or uses user-configured test framework.
+ * Parses test output into TestResults structure.
+ */
+export class TestRunner {
+  /**
+   * Run tests for a project and return structured results.
+   */
+  async runTests(
+    repoPath: string,
+    testCommand?: string,
+  ): Promise<TestResults> {
+    const command = testCommand || await this.detectTestCommand(repoPath);
+
+    if (!command) {
+      return {
+        passed: 0,
+        failed: 0,
+        skipped: 0,
+        total: 0,
+        details: [],
+      };
+    }
+
+    try {
+      const { stdout, stderr } = await execAsync(command, {
+        cwd: repoPath,
+        timeout: 300000, // 5 min timeout for tests
+        maxBuffer: 10 * 1024 * 1024,
+        env: { ...process.env, CI: 'true', FORCE_COLOR: '0' },
+      });
+
+      return this.parseTestOutput(stdout + '\n' + stderr, command);
+    } catch (error: unknown) {
+      const err = error as { stdout?: string; stderr?: string; code?: number };
+      // Tests might have failed (non-zero exit) but still produced output
+      const output = (err.stdout || '') + '\n' + (err.stderr || '');
+      const results = this.parseTestOutput(output, command);
+
+      if (results.total === 0) {
+        // No parseable output — treat as complete failure
+        return {
+          passed: 0,
+          failed: 1,
+          skipped: 0,
+          total: 1,
+          details: [{
+            name: 'Test execution',
+            status: 'failed',
+            duration: 0,
+            error: err.stderr || 'Test command failed with no output',
+          }],
+        };
+      }
+
+      return results;
+    }
+  }
+
+  /**
+   * Detect the test command from project configuration.
+   */
+  private async detectTestCommand(repoPath: string): Promise<string | null> {
+    try {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const pkgPath = path.join(repoPath, 'package.json');
+      const raw = await fs.readFile(pkgPath, 'utf-8');
+      const pkg = JSON.parse(raw);
+
+      if (pkg.scripts?.test && pkg.scripts.test !== 'echo "Error: no test specified" && exit 1') {
+        return 'npm test';
+      }
+    } catch {
+      // No package.json
+    }
+
+    // Check for common test configs
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const configs = [
+      { file: 'vitest.config.ts', cmd: 'npx vitest run' },
+      { file: 'jest.config.js', cmd: 'npx jest' },
+      { file: 'jest.config.ts', cmd: 'npx jest' },
+      { file: 'pytest.ini', cmd: 'pytest' },
+      { file: 'setup.py', cmd: 'python -m pytest' },
+    ];
+
+    for (const { file, cmd } of configs) {
+      try {
+        await fs.access(path.join(repoPath, file));
+        return cmd;
+      } catch {
+        // Config not found
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Parse test output into structured results.
+   * Handles Vitest, Jest, and generic patterns.
+   */
+  private parseTestOutput(output: string, command: string): TestResults {
+    const details: TestResultDetail[] = [];
+    let passed = 0;
+    let failed = 0;
+    let skipped = 0;
+
+    // Vitest/Jest summary pattern: "Tests: X passed, Y failed, Z skipped, W total"
+    const summaryMatch = output.match(
+      /Tests?:\s*(?:(\d+)\s+passed)?(?:,?\s*(\d+)\s+failed)?(?:,?\s*(\d+)\s+skipped)?(?:,?\s*(\d+)\s+total)?/i,
+    );
+
+    if (summaryMatch) {
+      passed = parseInt(summaryMatch[1] || '0', 10);
+      failed = parseInt(summaryMatch[2] || '0', 10);
+      skipped = parseInt(summaryMatch[3] || '0', 10);
+    }
+
+    // Parse individual test results (Vitest/Jest format)
+    const testLineRegex = /\s*(✓|✗|○|PASS|FAIL|SKIP)\s+(.+?)(?:\s+\((\d+)\s*ms\))?$/gm;
+    let match;
+    while ((match = testLineRegex.exec(output)) !== null) {
+      const indicator = match[1];
+      const name = match[2].trim();
+      const duration = match[3] ? parseInt(match[3], 10) : 0;
+
+      let status: 'passed' | 'failed' | 'skipped';
+      if (indicator === '✓' || indicator === 'PASS') {
+        status = 'passed';
+      } else if (indicator === '✗' || indicator === 'FAIL') {
+        status = 'failed';
+      } else {
+        status = 'skipped';
+      }
+
+      details.push({ name, status, duration });
+    }
+
+    // If we couldn't parse individual tests but have a summary
+    const total = passed + failed + skipped;
+    if (total === 0 && details.length === 0) {
+      // Check for pytest-style output
+      const pytestMatch = output.match(/(\d+) passed(?:,\s*(\d+) failed)?(?:,\s*(\d+) skipped)?/);
+      if (pytestMatch) {
+        passed = parseInt(pytestMatch[1] || '0', 10);
+        failed = parseInt(pytestMatch[2] || '0', 10);
+        skipped = parseInt(pytestMatch[3] || '0', 10);
+      }
+    }
+
+    return {
+      passed,
+      failed,
+      skipped,
+      total: passed + failed + skipped || details.length,
+      details,
+    };
+  }
+}
+
+export const testRunner = new TestRunner();
