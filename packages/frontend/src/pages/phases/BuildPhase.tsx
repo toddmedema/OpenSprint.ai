@@ -42,18 +42,36 @@ export function BuildPhase({ projectId }: BuildPhaseProps) {
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
   const [agentOutput, setAgentOutput] = useState<string[]>([]);
+  const [completionState, setCompletionState] = useState<{
+    status: string;
+    testResults: { passed: number; failed: number; skipped: number; total: number } | null;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleWsEvent = useCallback(
     (event: ServerEvent) => {
       switch (event.type) {
         case "task.updated":
-        case "agent.completed":
-          // Refresh tasks (agent.completed includes test results)
           api.tasks.list(projectId).then((data) => setTasks(data as TaskCard[]));
+          break;
+        case "agent.completed":
+          // Refresh task list and build status (PRD §11.2)
+          api.tasks.list(projectId).then((data) => setTasks(data as TaskCard[]));
+          api.build.status(projectId).then((data: unknown) => {
+            const status = data as { running: boolean };
+            setOrchestratorRunning(status?.running ?? false);
+          });
+          // Show completion state when viewing the completed task
+          if (event.taskId === selectedTask) {
+            setCompletionState({
+              status: event.status,
+              testResults: event.testResults,
+            });
+          }
           break;
         case "agent.output":
           if (event.taskId === selectedTask) {
+            setCompletionState(null); // Agent running again (e.g. retry)
             setAgentOutput((prev) => [...prev, event.chunk]);
           }
           break;
@@ -64,6 +82,11 @@ export function BuildPhase({ projectId }: BuildPhaseProps) {
     },
     [projectId, selectedTask],
   );
+
+  // Clear completion state when switching tasks
+  useEffect(() => {
+    setCompletionState(null);
+  }, [selectedTask]);
 
   const { connected, subscribeToAgent, unsubscribeFromAgent } = useWebSocket({
     projectId,
@@ -229,6 +252,24 @@ export function BuildPhase({ projectId }: BuildPhaseProps) {
           <pre className="p-4 text-xs font-mono whitespace-pre-wrap">
             {agentOutput.length > 0 ? agentOutput.join("") : "Waiting for agent output..."}
           </pre>
+          {completionState && (
+            <div className="px-4 pb-4 border-t border-gray-700 pt-3 mt-2">
+              <div
+                className={`text-sm font-medium ${
+                  completionState.status === "approved" ? "text-green-400" : "text-amber-400"
+                }`}
+              >
+                Agent completed: {completionState.status}
+              </div>
+              {completionState.testResults && completionState.testResults.total > 0 && (
+                <div className="text-xs text-gray-400 mt-1">
+                  {completionState.testResults.passed} passed
+                  {completionState.testResults.failed > 0 && `, ${completionState.testResults.failed} failed`}
+                  {completionState.testResults.skipped > 0 && `, ${completionState.testResults.skipped} skipped`}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
