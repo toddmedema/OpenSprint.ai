@@ -51,3 +51,21 @@ export const PRIORITY_LABELS: Record<number, string> = {
   3: 'Low',
   4: 'Lowest',
 };
+
+/** Test framework options for setup (PRD §8.3, §10.2) */
+export const TEST_FRAMEWORKS = [
+  { id: 'jest', label: 'Jest', command: 'npm test' },
+  { id: 'vitest', label: 'Vitest', command: 'npx vitest run' },
+  { id: 'playwright', label: 'Playwright', command: 'npx playwright test' },
+  { id: 'cypress', label: 'Cypress', command: 'npx cypress run' },
+  { id: 'pytest', label: 'pytest', command: 'pytest' },
+  { id: 'mocha', label: 'Mocha', command: 'npm test' },
+  { id: 'none', label: 'None / Configure later', command: '' },
+] as const;
+
+/** Get test command for a framework id, or empty string for none */
+export function getTestCommandForFramework(framework: string | null): string {
+  if (!framework || framework === 'none') return '';
+  const found = TEST_FRAMEWORKS.find((f) => f.id === framework);
+  return found?.command ?? '';
+}

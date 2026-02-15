@@ -6,15 +6,30 @@ import type {
   ActiveTaskConfig,
   CodingAgentResult,
   ReviewAgentResult,
+  TestResults,
 } from '@opensprint/shared';
-import { OPENSPRINT_PATHS, DEFAULT_RETRY_LIMIT, AGENT_INACTIVITY_TIMEOUT_MS } from '@opensprint/shared';
+import {
+  OPENSPRINT_PATHS,
+  DEFAULT_RETRY_LIMIT,
+  AGENT_INACTIVITY_TIMEOUT_MS,
+  getTestCommandForFramework,
+} from '@opensprint/shared';
 import { BeadsService, type BeadsIssue } from './beads.service.js';
 import { ProjectService } from './project.service.js';
 import { AgentClient } from './agent-client.js';
+import { deploymentService } from './deployment-service.js';
+import { hilService } from './hil-service.js';
 import { BranchManager } from './branch-manager.js';
 import { ContextAssembler } from './context-assembler.js';
 import { SessionManager } from './session-manager.js';
+import { TestRunner } from './test-runner.js';
 import { broadcastToProject } from '../websocket/index.js';
+
+interface RetryContext {
+  previousFailure?: string;
+  reviewFeedback?: string;
+  useExistingBranch?: boolean;
+}
 
 interface OrchestratorState {
   status: OrchestratorStatus;
@@ -25,6 +40,9 @@ interface OrchestratorState {
   outputLog: string[];
   startedAt: string;
   attempt: number;
+  lastCodingDiff: string;
+  lastCodingSummary: string;
+  lastTestResults: TestResults | null;
 }
 
 /**
@@ -39,6 +57,7 @@ export class OrchestratorService {
   private branchManager = new BranchManager();
   private contextAssembler = new ContextAssembler();
   private sessionManager = new SessionManager();
+  private testRunner = new TestRunner();
 
   private getState(projectId: string): OrchestratorState {
     if (!this.state.has(projectId)) {
@@ -51,6 +70,9 @@ export class OrchestratorService {
         outputLog: [],
         startedAt: '',
         attempt: 1,
+        lastCodingDiff: '',
+        lastCodingSummary: '',
+        lastTestResults: null,
       });
     }
     return this.state.get(projectId)!;
@@ -121,6 +143,30 @@ export class OrchestratorService {
     return this.getState(projectId).status;
   }
 
+  /** Resolve plan content for a task from its parent epic. task.description is the task spec, not a path. */
+  private async getPlanContentForTask(repoPath: string, task: BeadsIssue): Promise<string> {
+    const parentId = this.beads.getParentId(task.id);
+    if (parentId) {
+      try {
+        const parent = await this.beads.show(repoPath, parentId);
+        const desc = parent.description as string;
+        if (desc?.startsWith('.opensprint/plans/')) {
+          const planId = path.basename(desc, '.md');
+          return this.contextAssembler.readPlanContent(repoPath, planId);
+        }
+      } catch {
+        // Parent might not exist
+      }
+    }
+    return '';
+  }
+
+  /** Get IDs of tasks that block this one (must complete before this task) */
+  private async getBlockingDependencyIds(repoPath: string, taskId: string): Promise<string[]> {
+    const blockers = await this.beads.getBlockers(repoPath, taskId);
+    return blockers;
+  }
+
   // ─── Main Orchestrator Loop ───
 
   private async runLoop(projectId: string): Promise<void> {
@@ -132,7 +178,11 @@ export class OrchestratorService {
       const repoPath = await this.projectService.getRepoPath(projectId);
 
       // 1. Poll bd ready for next task
-      const readyTasks = await this.beads.ready(repoPath);
+      let readyTasks = await this.beads.ready(repoPath);
+
+      // Filter out Plan approval gate tasks — they are closed by user "Ship it!", not by agents
+      readyTasks = readyTasks.filter((t) => (t.title ?? '') !== 'Plan approval gate');
+
       state.status.queueDepth = readyTasks.length;
 
       if (readyTasks.length === 0) {
@@ -174,8 +224,15 @@ export class OrchestratorService {
         queueDepth: readyTasks.length - 1,
       });
 
+      broadcastToProject(projectId, {
+        type: 'agent.started',
+        taskId: task.id,
+        phase: 'coding',
+        branchName: `opensprint/${task.id}`,
+      });
+
       // 4. Execute the coding phase
-      await this.executeCodingPhase(projectId, repoPath, task);
+      await this.executeCodingPhase(projectId, repoPath, task, undefined);
 
     } catch (error) {
       console.error(`Orchestrator loop error for project ${projectId}:`, error);
@@ -191,33 +248,40 @@ export class OrchestratorService {
     projectId: string,
     repoPath: string,
     task: BeadsIssue,
+    retryContext?: RetryContext,
   ): Promise<void> {
     const state = this.getState(projectId);
     const settings = await this.projectService.getSettings(projectId);
     const branchName = `opensprint/${task.id}`;
 
     try {
-      // Create task branch
-      await this.branchManager.createBranch(repoPath, branchName);
+      // Create or checkout task branch (use existing when retrying after review rejection)
+      if (retryContext?.useExistingBranch) {
+        await this.branchManager.createOrCheckoutBranch(repoPath, branchName);
+      } else {
+        await this.branchManager.createBranch(repoPath, branchName);
+      }
 
       // Assemble context
       const prdExcerpt = await this.contextAssembler.extractPrdExcerpt(repoPath);
-      const planContent = task.description?.startsWith('.opensprint/plans/')
-        ? await this.contextAssembler.readPlanContent(
-            repoPath,
-            path.basename(task.description, '.md'),
-          )
-        : task.description || '';
+      const planContent = await this.getPlanContentForTask(repoPath, task);
+      const dependencyOutputs = await this.contextAssembler.collectDependencyOutputs(
+        repoPath,
+        await this.getBlockingDependencyIds(repoPath, task.id),
+      );
 
       const config: ActiveTaskConfig = {
         taskId: task.id,
         repoPath,
         branch: branchName,
-        testCommand: settings.testFramework ? `npm test` : 'echo "No test command configured"',
+        testCommand: (() => {
+          const cmd = getTestCommandForFramework(settings.testFramework);
+          return cmd || 'echo "No test command configured"';
+        })(),
         attempt: state.attempt,
         phase: 'coding',
-        previousFailure: null,
-        reviewFeedback: null,
+        previousFailure: retryContext?.previousFailure ?? null,
+        reviewFeedback: retryContext?.reviewFeedback ?? null,
       };
 
       await this.contextAssembler.assembleTaskDirectory(repoPath, task.id, config, {
@@ -226,7 +290,7 @@ export class OrchestratorService {
         description: task.description || '',
         planContent,
         prdExcerpt,
-        dependencyOutputs: [],
+        dependencyOutputs,
       });
 
       state.startedAt = new Date().toISOString();
@@ -276,7 +340,7 @@ export class OrchestratorService {
 
     } catch (error) {
       console.error(`Coding phase failed for task ${task.id}:`, error);
-      await this.handleTaskFailure(projectId, repoPath, task, branchName, String(error));
+      await this.handleTaskFailure(projectId, repoPath, task, branchName, String(error), null);
     }
   }
 
@@ -293,17 +357,25 @@ export class OrchestratorService {
     const result = await this.sessionManager.readResult(repoPath, task.id) as CodingAgentResult | null;
 
     if (result && result.status === 'success') {
-      // Archive the coding session
-      const session = await this.sessionManager.createSession(repoPath, {
-        taskId: task.id,
-        attempt: state.attempt,
-        agentType: (await this.projectService.getSettings(projectId)).codingAgent.type,
-        agentModel: (await this.projectService.getSettings(projectId)).codingAgent.model || '',
-        gitBranch: branchName,
-        status: 'success',
-        outputLog: state.outputLog.join(''),
-        startedAt: state.startedAt,
-      });
+      state.lastCodingDiff = await this.branchManager.getDiff(repoPath, branchName);
+      state.lastCodingSummary = result.summary ?? '';
+
+      const settings = await this.projectService.getSettings(projectId);
+      const testCommand = getTestCommandForFramework(settings.testFramework) || undefined;
+      const testResults = await this.testRunner.runTests(repoPath, testCommand);
+      if (testResults.failed > 0) {
+        await this.handleTaskFailure(
+          projectId,
+          repoPath,
+          task,
+          branchName,
+          `Tests failed: ${testResults.failed} failed, ${testResults.passed} passed`,
+          testResults,
+        );
+        return;
+      }
+
+      state.lastTestResults = testResults;
 
       // Move to review phase
       state.status.currentPhase = 'review';
@@ -318,7 +390,7 @@ export class OrchestratorService {
     } else {
       // Coding failed
       const reason = result?.summary || `Agent exited with code ${exitCode}`;
-      await this.handleTaskFailure(projectId, repoPath, task, branchName, reason);
+      await this.handleTaskFailure(projectId, repoPath, task, branchName, reason, null);
     }
   }
 
@@ -337,7 +409,10 @@ export class OrchestratorService {
         taskId: task.id,
         repoPath,
         branch: branchName,
-        testCommand: settings.testFramework ? 'npm test' : 'echo "No test command configured"',
+        testCommand: (() => {
+          const cmd = getTestCommandForFramework(settings.testFramework);
+          return cmd || 'echo "No test command configured"';
+        })(),
         attempt: state.attempt,
         phase: 'review',
         previousFailure: null,
@@ -350,13 +425,14 @@ export class OrchestratorService {
         JSON.stringify(config, null, 2),
       );
 
-      // Generate review prompt
+      // Generate review prompt (resolve plan from parent epic, same as coding phase)
       const prdExcerpt = await this.contextAssembler.extractPrdExcerpt(repoPath);
+      const planContent = await this.getPlanContentForTask(repoPath, task);
       await this.contextAssembler.assembleTaskDirectory(repoPath, task.id, config, {
         taskId: task.id,
         title: task.title,
         description: task.description || '',
-        planContent: '',
+        planContent,
         prdExcerpt,
         dependencyOutputs: [],
       });
@@ -403,7 +479,7 @@ export class OrchestratorService {
 
     } catch (error) {
       console.error(`Review phase failed for task ${task.id}:`, error);
-      await this.handleTaskFailure(projectId, repoPath, task, branchName, String(error));
+      await this.handleTaskFailure(projectId, repoPath, task, branchName, String(error), null);
     }
   }
 
@@ -436,7 +512,7 @@ export class OrchestratorService {
       // Close the task in beads
       await this.beads.close(repoPath, task.id, result.summary || 'Implemented and reviewed');
 
-      // Archive session
+      // Archive session (include coding diff, summary, and test results for Build tab display and dependency context)
       const session = await this.sessionManager.createSession(repoPath, {
         taskId: task.id,
         attempt: state.attempt,
@@ -445,6 +521,9 @@ export class OrchestratorService {
         gitBranch: branchName,
         status: 'approved',
         outputLog: state.outputLog.join(''),
+        gitDiff: state.lastCodingDiff,
+        summary: state.lastCodingSummary || undefined,
+        testResults: state.lastTestResults ?? undefined,
         startedAt: state.startedAt,
       });
       await this.sessionManager.archiveSession(repoPath, task.id, state.attempt, session);
@@ -467,7 +546,12 @@ export class OrchestratorService {
         type: 'agent.completed',
         taskId: task.id,
         status: 'approved',
-        testResults: null,
+        testResults: state.lastTestResults,
+      });
+
+      // Trigger deployment after Build completion (PRD §6.4)
+      deploymentService.deploy(projectId).catch((err) => {
+        console.warn(`Deployment trigger failed for project ${projectId}:`, err);
       });
 
       // Continue the loop
@@ -497,18 +581,30 @@ export class OrchestratorService {
         });
         await this.sessionManager.archiveSession(repoPath, task.id, state.attempt - 1, session);
 
-        // Re-execute coding phase with review feedback
-        // (The context assembler will include the feedback in the prompt)
-        await this.executeCodingPhase(projectId, repoPath, task);
+        const reviewFeedback = [
+          result.summary,
+          ...(result.issues ?? []),
+        ].filter(Boolean).join('\n');
+
+        await this.executeCodingPhase(projectId, repoPath, task, {
+          reviewFeedback,
+          useExistingBranch: true,
+        });
       } else {
-        // Retry limit reached — escalate
-        await this.handleTaskFailure(
-          projectId,
-          repoPath,
-          task,
-          branchName,
-          `Review rejected ${state.attempt - 1} times. Issues: ${result.issues?.join('; ') || result.summary}`,
-        );
+        // Retry limit reached — escalate per HIL config (PRD §9.2)
+        const reason = `Review rejected ${state.attempt - 1} times. Issues: ${result.issues?.join('; ') || result.summary}`;
+        const reviewFeedback = [result.summary, ...(result.issues ?? [])].filter(Boolean).join('\n');
+        const shouldRetry = await this.escalateRetryLimit(projectId, task.id, reason);
+
+        if (shouldRetry) {
+          state.attempt = 1;
+          await this.executeCodingPhase(projectId, repoPath, task, {
+            reviewFeedback,
+            useExistingBranch: true,
+          });
+        } else {
+          await this.handleTaskFailure(projectId, repoPath, task, branchName, reason, null);
+        }
       }
     } else {
       // No result.json or unexpected status
@@ -518,6 +614,7 @@ export class OrchestratorService {
         task,
         branchName,
         `Review agent exited with code ${exitCode} without producing a valid result`,
+        null,
       );
     }
   }
@@ -528,6 +625,7 @@ export class OrchestratorService {
     task: BeadsIssue,
     branchName: string,
     reason: string,
+    testResults?: TestResults | null,
   ): Promise<void> {
     const state = this.getState(projectId);
 
@@ -535,16 +633,6 @@ export class OrchestratorService {
 
     // Revert changes and return to main
     await this.branchManager.revertAndReturnToMain(repoPath, branchName);
-
-    // Return task to open (Ready queue)
-    try {
-      await this.beads.update(repoPath, task.id, {
-        status: 'open',
-        assignee: '',
-      });
-    } catch {
-      // Task might already be in the right state
-    }
 
     // Archive failure session
     const session = await this.sessionManager.createSession(repoPath, {
@@ -556,31 +644,89 @@ export class OrchestratorService {
       status: 'failed',
       outputLog: state.outputLog.join(''),
       failureReason: reason,
+      testResults: testResults ?? undefined,
       startedAt: state.startedAt,
     });
     await this.sessionManager.archiveSession(repoPath, task.id, state.attempt, session);
 
-    state.status.totalFailed += 1;
-    state.status.currentTask = null;
-    state.status.currentPhase = null;
+    const retryLimit = DEFAULT_RETRY_LIMIT;
+    const canRetry = state.attempt <= retryLimit;
 
-    broadcastToProject(projectId, {
-      type: 'task.updated',
-      taskId: task.id,
-      status: 'open',
-      assignee: null,
-    });
+    if (canRetry) {
+      state.attempt += 1;
+      console.log(`Coding failed for ${task.id}, retrying (attempt ${state.attempt})`);
+      await this.executeCodingPhase(projectId, repoPath, task, {
+        previousFailure: reason,
+      });
+    } else {
+      // Retry limit reached — escalate per HIL config (PRD §9.1)
+      const shouldRetry = await this.escalateRetryLimit(projectId, task.id, reason);
 
-    broadcastToProject(projectId, {
-      type: 'agent.completed',
-      taskId: task.id,
-      status: 'failed',
-      testResults: null,
-    });
+      if (shouldRetry) {
+        state.attempt = 1;
+        await this.executeCodingPhase(projectId, repoPath, task, {
+          previousFailure: reason,
+        });
+      } else {
+        // Return task to Ready queue
+        try {
+          await this.beads.update(repoPath, task.id, {
+            status: 'open',
+            assignee: '',
+          });
+        } catch {
+          // Task might already be in the right state
+        }
 
-    // Continue the loop
-    if (state.status.running) {
-      state.loopTimer = setTimeout(() => this.runLoop(projectId), 2000);
+        state.status.totalFailed += 1;
+        state.status.currentTask = null;
+        state.status.currentPhase = null;
+
+        broadcastToProject(projectId, {
+          type: 'task.updated',
+          taskId: task.id,
+          status: 'open',
+          assignee: null,
+        });
+
+        broadcastToProject(projectId, {
+          type: 'agent.completed',
+          taskId: task.id,
+          status: 'failed',
+          testResults: null,
+        });
+
+        if (state.status.running) {
+          state.loopTimer = setTimeout(() => this.runLoop(projectId), 2000);
+        }
+      }
     }
+  }
+
+  /**
+   * Escalate retry limit to user per HIL config (PRD §9.1, §9.2).
+   * For automated/notify_and_proceed: logs/notifies and returns false.
+   * For requires_approval: waits for user; true = retry, false = return to queue.
+   */
+  private async escalateRetryLimit(
+    projectId: string,
+    taskId: string,
+    reason: string,
+  ): Promise<boolean> {
+    const description = `Task ${taskId} reached retry limit: ${reason}`;
+    const options = [
+      { id: 'retry', label: 'Retry', description: 'Give the agent another attempt' },
+      { id: 'queue', label: 'Return to queue', description: 'Leave task in Ready for manual intervention' },
+    ];
+
+    const { approved } = await hilService.evaluateDecision(
+      projectId,
+      'testFailuresAndRetries',
+      description,
+      options,
+      false, // default: return to queue (don't retry) per PRD §9.1
+    );
+
+    return approved;
   }
 }

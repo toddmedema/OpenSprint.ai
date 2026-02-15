@@ -80,6 +80,17 @@ describe('HilService', () => {
     expect(result.notes).toBe('Approved');
   });
 
+  it('should return defaultApproved for automated when provided', async () => {
+    const result = await hilService.evaluateDecision(
+      'test-project',
+      'testFailuresAndRetries',
+      'Task failed after retry limit',
+      undefined,
+      false,
+    );
+    expect(result.approved).toBe(false);
+  });
+
   it('should handle rejection', async () => {
     const promise = hilService.evaluateDecision(
       'test-project',

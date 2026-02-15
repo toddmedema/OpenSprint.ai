@@ -8,6 +8,7 @@ interface ProjectCard {
   name: string;
   currentPhase: string;
   updatedAt: string;
+  progressPercent?: number;
 }
 
 export function Home() {
@@ -80,6 +81,11 @@ export function Home() {
                     {new Date(project.updatedAt).toLocaleDateString()}
                   </span>
                 </div>
+                {project.progressPercent !== undefined && (
+                  <div className="mt-2 text-sm text-gray-500">
+                    {project.progressPercent}% complete
+                  </div>
+                )}
               </Link>
             ))}
           </div>

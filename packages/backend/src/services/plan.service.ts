@@ -4,11 +4,57 @@ import type { Plan, PlanMetadata, PlanDependencyGraph, PlanDependencyEdge } from
 import { OPENSPRINT_PATHS } from '@opensprint/shared';
 import { ProjectService } from './project.service.js';
 import { BeadsService, type BeadsIssue } from './beads.service.js';
+import { ChatService } from './chat.service.js';
+import { PrdService } from './prd.service.js';
+import { AgentClient } from './agent-client.js';
 import { AppError } from '../middleware/error-handler.js';
+
+const DECOMPOSE_SYSTEM_PROMPT = `You are an AI planning assistant for OpenSprint. You analyze Product Requirements Documents (PRDs) and suggest a breakdown into discrete, implementable features (Plans).
+
+Your task: Given the full PRD, produce a feature decomposition. For each feature:
+1. Create a Plan with a clear title and full markdown specification
+2. Break the Plan into granular, atomic tasks that an AI coding agent can implement
+3. Specify task dependencies (dependsOn) where one task must complete before another
+4. Recommend implementation order (foundational/risky first)
+
+Plan markdown must follow this structure (PRD §7.2.3):
+- Feature Title
+- Overview
+- Acceptance Criteria (testable conditions)
+- Technical Approach
+- Dependencies (references to other Plans if any)
+- Data Model Changes
+- API Specification
+- UI/UX Requirements
+- Edge Cases and Error Handling
+- Testing Strategy
+- Estimated Complexity (low/medium/high/very_high)
+
+Tasks should be atomic, implementable in one agent session, with clear acceptance criteria in the description.
+
+Respond with ONLY valid JSON in this exact format. You may use a markdown code block with language "json" for readability. The JSON structure:
+{
+  "plans": [
+    {
+      "title": "Feature Name",
+      "content": "# Feature Name\\n\\n## Overview\\n...\\n\\n## Acceptance Criteria\\n...\\n\\n## Dependencies\\nReferences to other plans (e.g. user-authentication) if this feature depends on them.",
+      "complexity": "medium",
+      "dependsOnPlans": [],
+      "tasks": [
+        {"title": "Task title", "description": "Task spec", "priority": 1, "dependsOn": []}
+      ]
+    }
+  ]
+}
+
+complexity: low, medium, high, or very_high. priority: 0=highest. dependsOn: array of task titles this task depends on (blocked by). dependsOnPlans: array of other plan titles (slugified, e.g. "user-auth") this plan depends on - use empty array if none.`;
 
 export class PlanService {
   private projectService = new ProjectService();
   private beads = new BeadsService();
+  private chatService = new ChatService();
+  private prdService = new PrdService();
+  private agentClient = new AgentClient();
 
   /** Get the plans directory for a project */
   private async getPlansDir(projectId: string): Promise<string> {
@@ -234,6 +280,14 @@ export class PlanService {
       plan.metadata,
     );
 
+    // Living PRD sync: invoke planning agent to review Plan vs PRD and update affected sections (PRD §15.1)
+    try {
+      await this.chatService.syncPrdFromPlanShip(projectId, planId, plan.content);
+    } catch (err) {
+      console.error('[plan] PRD sync on ship failed:', err);
+      // Ship succeeds even if PRD sync fails; user can manually update PRD
+    }
+
     return { ...plan, status: 'shipped' };
   }
 
@@ -285,24 +339,141 @@ export class PlanService {
   async getDependencyGraph(projectId: string): Promise<PlanDependencyGraph> {
     const plans = await this.listPlans(projectId);
     const edges: PlanDependencyEdge[] = [];
+    const epicToPlan = new Map(plans.map((p) => [p.metadata.beadEpicId, p.metadata.planId]));
+    const seenEdges = new Set<string>();
 
-    // Build edges from beads dependency data
+    const addEdge = (fromPlanId: string, toPlanId: string) => {
+      if (fromPlanId === toPlanId) return;
+      const key = `${fromPlanId}->${toPlanId}`;
+      if (seenEdges.has(key)) return;
+      seenEdges.add(key);
+      edges.push({ from: fromPlanId, to: toPlanId, type: 'blocks' });
+    };
+
+    /** Epic ID from issue ID: x.y.z -> x.y when z is numeric, else self */
+    const getEpicId = (id: string): string => {
+      const m = id.match(/^(.+)\.(\d+)$/);
+      return m ? m[1] : id;
+    };
+
+    // 1. Build edges from beads: task in epic B has blocker in epic A → Plan A blocks Plan B
     const repoPath = await this.getRepoPath(projectId);
     try {
-      const allIssues = await this.beads.list(repoPath);
-      const epicIds = new Set(plans.map((p) => p.metadata.beadEpicId));
-
-      // Look for cross-epic dependencies
+      const allIssues = await this.beads.listAll(repoPath);
       for (const issue of allIssues) {
-        if (issue.type === 'epic' && epicIds.has(issue.id)) {
-          // Check if any dependency links exist between epics
-          // This is simplified — a full implementation would parse dependency data
+        const deps = (issue.dependencies as Array<{ depends_on_id: string; type: string }>) ?? [];
+        const blockers = deps.filter((d) => d.type === 'blocks').map((d) => d.depends_on_id);
+        const myEpicId = getEpicId(issue.id);
+        const toPlanId = epicToPlan.get(myEpicId);
+        if (!toPlanId) continue;
+        for (const blockerId of blockers) {
+          const blockerEpicId = getEpicId(blockerId);
+          const fromPlanId = epicToPlan.get(blockerEpicId);
+          if (fromPlanId && blockerEpicId !== myEpicId) {
+            addEdge(fromPlanId, toPlanId);
+          }
         }
       }
     } catch {
-      // If beads is not available, return empty edges
+      // If beads is not available, continue with markdown parsing
+    }
+
+    // 2. Parse Plan markdown for "## Dependencies" section referencing other plans
+    for (const plan of plans) {
+      const depsSection = plan.content.match(/## Dependencies[\s\S]*?(?=##|$)/i);
+      if (!depsSection) continue;
+      const text = depsSection[0].toLowerCase();
+      for (const other of plans) {
+        if (other.metadata.planId === plan.metadata.planId) continue;
+        const slug = other.metadata.planId.replace(/-/g, '[\\s-]*');
+        if (new RegExp(slug, 'i').test(text)) {
+          addEdge(other.metadata.planId, plan.metadata.planId);
+        }
+      }
     }
 
     return { plans, edges };
+  }
+
+  /** Build PRD context string for agent prompts */
+  private async buildPrdContext(projectId: string): Promise<string> {
+    try {
+      const prd = await this.prdService.getPrd(projectId);
+      let context = '';
+      for (const [key, section] of Object.entries(prd.sections)) {
+        if (section.content) {
+          context += `### ${key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}\n`;
+          context += `${section.content}\n\n`;
+        }
+      }
+      return context || 'The PRD is currently empty.';
+    } catch {
+      return 'No PRD exists yet.';
+    }
+  }
+
+  /**
+   * AI-assisted decomposition: Planning agent analyzes PRD and suggests feature breakdown.
+   * Creates Plans + tasks from AI. PRD §7.2.2
+   */
+  async decomposeFromPrd(projectId: string): Promise<{ created: number; plans: Plan[] }> {
+    const repoPath = await this.getRepoPath(projectId);
+    const settings = await this.projectService.getSettings(projectId);
+
+    const prdContext = await this.buildPrdContext(projectId);
+
+    const prompt = `Analyze the PRD below and produce a feature decomposition. Output valid JSON with a "plans" array. Each plan has: title, content (full markdown), complexity (low|medium|high|very_high), and tasks array. Each task has: title, description, priority (0-4), dependsOn (array of task titles it depends on).`;
+
+    const response = await this.agentClient.invoke({
+      config: settings.planningAgent,
+      prompt,
+      systemPrompt: DECOMPOSE_SYSTEM_PROMPT + '\n\n## Current PRD\n\n' + prdContext,
+      cwd: repoPath,
+    });
+
+    // Extract JSON from response (may be wrapped in ```json ... ```)
+    const jsonMatch = response.content.match(/\{[\s\S]*"plans"[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new AppError(
+        400,
+        'DECOMPOSE_PARSE_FAILED',
+        'Planning agent did not return valid decomposition JSON. Response: ' + response.content.slice(0, 500),
+      );
+    }
+
+    let parsed: { plans?: Array<{
+      title: string;
+      content: string;
+      complexity?: string;
+      tasks?: Array<{ title: string; description: string; priority?: number; dependsOn?: string[] }>;
+    }> };
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch {
+      throw new AppError(400, 'DECOMPOSE_JSON_INVALID', 'Could not parse decomposition JSON from agent response');
+    }
+
+    const planSpecs = parsed.plans ?? [];
+    if (planSpecs.length === 0) {
+      throw new AppError(400, 'DECOMPOSE_EMPTY', 'Planning agent returned no plans. Ensure the PRD has sufficient content.');
+    }
+
+    const created: Plan[] = [];
+    for (const spec of planSpecs) {
+      const plan = await this.createPlan(projectId, {
+        title: spec.title || 'Untitled Feature',
+        content: spec.content || '# Untitled Feature\n\nNo content.',
+        complexity: (spec.complexity as PlanMetadata['complexity']) || 'medium',
+        tasks: (spec.tasks ?? []).map((t) => ({
+          title: t.title || 'Untitled task',
+          description: t.description || '',
+          priority: t.priority ?? 2,
+          dependsOn: t.dependsOn ?? [],
+        })),
+      });
+      created.push(plan);
+    }
+
+    return { created: created.length, plans: created };
   }
 }

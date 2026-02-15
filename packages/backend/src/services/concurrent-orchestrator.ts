@@ -1,5 +1,6 @@
+import path from 'path';
 import type { OrchestratorStatus, AgentPhase, ActiveTaskConfig } from '@opensprint/shared';
-import { DEFAULT_RETRY_LIMIT, AGENT_INACTIVITY_TIMEOUT_MS } from '@opensprint/shared';
+import { DEFAULT_RETRY_LIMIT, AGENT_INACTIVITY_TIMEOUT_MS, getTestCommandForFramework } from '@opensprint/shared';
 import { BeadsService, type BeadsIssue } from './beads.service.js';
 import { ProjectService } from './project.service.js';
 import { AgentClient } from './agent-client.js';
@@ -134,7 +135,10 @@ export class ConcurrentOrchestrator {
       const availableSlots = state.maxAgents - state.activeSlots.size;
 
       if (availableSlots > 0) {
-        const readyTasks = await this.beads.ready(repoPath);
+        let readyTasks = await this.beads.ready(repoPath);
+
+        // Filter out Plan approval gate tasks — they are closed by user "Ship it!", not by agents
+        readyTasks = readyTasks.filter((t: BeadsIssue) => (t.title ?? '') !== 'Plan approval gate');
 
         // Filter out tasks that are already being worked on
         const activeTasks = new Set(state.activeSlots.keys());
@@ -154,6 +158,24 @@ export class ConcurrentOrchestrator {
     if (state.running) {
       state.loopTimer = setTimeout(() => this.runLoop(projectId), 5000);
     }
+  }
+
+  /** Resolve plan content for a task from its parent epic. task.description is the task spec, not a path. */
+  private async getPlanContentForTask(repoPath: string, task: BeadsIssue): Promise<string> {
+    const parentId = this.beads.getParentId(task.id);
+    if (parentId) {
+      try {
+        const parent = await this.beads.show(repoPath, parentId);
+        const desc = parent.description as string;
+        if (desc?.startsWith('.opensprint/plans/')) {
+          const planId = path.basename(desc, '.md');
+          return this.contextAssembler.readPlanContent(repoPath, planId);
+        }
+      } catch {
+        // Parent might not exist
+      }
+    }
+    return '';
   }
 
   private async assignTask(
@@ -176,6 +198,9 @@ export class ConcurrentOrchestrator {
       // Create branch
       await this.branchManager.createBranch(repoPath, branchName);
 
+      // Resolve plan content from parent epic (task.description is spec, not path)
+      const planContent = await this.getPlanContentForTask(repoPath, task);
+
       // Use conductor agent for context summarization (v2.0 feature)
       const prdExcerpt = await this.contextAssembler.extractPrdExcerpt(repoPath);
       const optimizedContext = await this.conductorAgent.summarizeContext(
@@ -183,7 +208,7 @@ export class ConcurrentOrchestrator {
         repoPath,
         task.title,
         task.description || '',
-        '',
+        planContent,
         prdExcerpt,
         [],
       );
@@ -201,12 +226,22 @@ export class ConcurrentOrchestrator {
       };
       state.activeSlots.set(task.id, slot);
 
+      broadcastToProject(projectId, {
+        type: 'agent.started',
+        taskId: task.id,
+        phase: 'coding',
+        branchName,
+      });
+
       // Assemble and spawn (simplified for concurrent execution)
       const config: ActiveTaskConfig = {
         taskId: task.id,
         repoPath,
         branch: branchName,
-        testCommand: settings.testFramework ? 'npm test' : 'echo "No tests"',
+        testCommand: (() => {
+          const cmd = getTestCommandForFramework(settings.testFramework);
+          return cmd || 'echo "No tests"';
+        })(),
         attempt: 1,
         phase: 'coding',
         previousFailure: null,

@@ -17,9 +17,14 @@ export type DeploymentMode = 'expo' | 'custom';
 export interface DeploymentConfig {
   mode: DeploymentMode;
   expoConfig?: {
-    projectId: string;
+    projectId?: string;
+    /** OTA update channel (default: preview) */
+    channel?: string;
   };
+  /** Shell command to run after Build completion (custom mode) */
   customCommand?: string;
+  /** Webhook URL to POST after Build completion (custom mode) */
+  webhookUrl?: string;
 }
 
 export type DeploymentConfigInput = DeploymentConfig;

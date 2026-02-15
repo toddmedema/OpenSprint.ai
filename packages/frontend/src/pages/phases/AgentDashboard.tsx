@@ -43,8 +43,9 @@ export function AgentDashboard({ projectId }: AgentDashboardProps) {
       case 'build.status':
         setOrchestratorRunning(event.running);
         break;
+      case 'agent.started':
       case 'agent.completed':
-        // Refresh agent list
+        // Refresh agent list and status in real-time
         loadStatus();
         break;
     }

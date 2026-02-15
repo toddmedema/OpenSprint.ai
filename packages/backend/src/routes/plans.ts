@@ -9,6 +9,17 @@ export const plansRouter = Router({ mergeParams: true });
 type ProjectParams = { projectId: string };
 type PlanParams = { projectId: string; planId: string };
 
+// POST /projects/:projectId/plans/decompose — AI decompose PRD into plans + tasks (must be before :planId)
+plansRouter.post('/decompose', async (req: Request<ProjectParams>, res, next) => {
+  try {
+    const result = await planService.decomposeFromPrd(req.params.projectId);
+    const body: ApiResponse<{ created: number; plans: Plan[] }> = { data: result };
+    res.status(201).json(body);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /projects/:projectId/plans — List all Plans
 plansRouter.get('/', async (req: Request<ProjectParams>, res, next) => {
   try {

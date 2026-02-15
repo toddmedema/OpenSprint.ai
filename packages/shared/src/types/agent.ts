@@ -39,6 +39,8 @@ export interface AgentSession {
   gitDiff: string | null;
   testResults: TestResults | null;
   failureReason: string | null;
+  /** Coding agent summary (for approved sessions); used for dependency context propagation (PRD §7.3.2) */
+  summary?: string;
 }
 
 /** Test execution results */
@@ -79,6 +81,14 @@ export interface ReviewAgentResult {
 /** Union type for agent results */
 export type AgentResult = CodingAgentResult | ReviewAgentResult;
 
+/** Active agent (from GET /projects/:id/agents/active) */
+export interface ActiveAgent {
+  id: string;
+  phase: string;
+  label: string;
+  startedAt: string;
+}
+
 /** Build orchestrator status */
 export interface OrchestratorStatus {
   running: boolean;
@@ -87,4 +97,6 @@ export interface OrchestratorStatus {
   queueDepth: number;
   totalCompleted: number;
   totalFailed: number;
+  /** True when paused waiting for HIL approval (PRD §6.5) */
+  awaitingApproval?: boolean;
 }

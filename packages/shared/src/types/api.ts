@@ -29,6 +29,8 @@ export interface PaginatedResponse<T> {
 export interface ChatRequest {
   message: string;
   context?: string;
+  /** PRD section key to add as context to this message (PRD §7.1.5 click-to-focus) */
+  prdSectionFocus?: string;
 }
 
 /** Chat message response */
@@ -58,4 +60,16 @@ export interface FeedbackSubmitRequest {
 /** Plan ship request */
 export interface PlanShipRequest {
   planId: string;
+}
+
+/** Login request */
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+/** Login response */
+export interface LoginResponse {
+  token: string;
+  expiresAt: string;
 }

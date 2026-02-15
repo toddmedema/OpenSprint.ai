@@ -26,6 +26,8 @@ export interface Task {
   kanbanColumn: KanbanColumn;
   createdAt: string;
   updatedAt: string;
+  /** Latest test results from agent sessions (PRD §8.3) */
+  testResults?: { passed: number; failed: number; skipped: number; total: number } | null;
 }
 
 /** Dependency relationship between tasks */

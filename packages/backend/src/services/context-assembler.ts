@@ -113,7 +113,25 @@ export class ContextAssembler {
   }
 
   /**
-   * Collect dependency outputs from completed tasks.
+   * Extract a markdown section by heading (e.g. "Acceptance Criteria", "Technical Approach").
+   * Returns content between ## Section and the next ## or end of document.
+   */
+  private extractPlanSection(planContent: string, sectionName: string): string {
+    const heading = `## ${sectionName}`;
+    const idx = planContent.indexOf(heading);
+    if (idx === -1) return '';
+
+    const start = idx + heading.length;
+    const rest = planContent.slice(start);
+    const nextHeading = rest.match(/\n##\s+/);
+    const end = nextHeading ? nextHeading.index! : rest.length;
+    return rest.slice(0, end).trim();
+  }
+
+  /**
+   * Collect diffs/summaries from completed dependency tasks for context assembly (PRD §7.3.2).
+   * Only uses approved sessions (tasks that reached Done); skips gating tasks and failed attempts.
+   * Sessions are stored at .opensprint/sessions/<task-id>-<attempt>/session.json
    */
   async collectDependencyOutputs(
     repoPath: string,
@@ -123,19 +141,34 @@ export class ContextAssembler {
 
     for (const depId of dependencyTaskIds) {
       try {
-        // Look for archived sessions
         const sessionsDir = path.join(repoPath, OPENSPRINT_PATHS.sessions);
-        const files = await fs.readdir(sessionsDir);
-        const sessionFile = files.find((f) => f.startsWith(depId + '-') && f.endsWith('.json'));
-
-        if (sessionFile) {
-          const raw = await fs.readFile(path.join(sessionsDir, sessionFile), 'utf-8');
-          const session = JSON.parse(raw);
-          outputs.push({
-            taskId: depId,
-            diff: session.gitDiff || '',
-            summary: session.summary || `Task ${depId} completed.`,
+        const entries = await fs.readdir(sessionsDir, { withFileTypes: true });
+        const sessionDirs = entries
+          .filter((e) => e.isDirectory() && e.name.startsWith(depId + '-'))
+          .map((e) => e.name)
+          .sort((a, b) => {
+            const attemptA = parseInt(a.slice((depId + '-').length) || '0', 10);
+            const attemptB = parseInt(b.slice((depId + '-').length) || '0', 10);
+            return attemptB - attemptA;
           });
+
+        // Find the latest approved session (completed task output)
+        for (const dir of sessionDirs) {
+          const sessionPath = path.join(sessionsDir, dir, 'session.json');
+          const raw = await fs.readFile(sessionPath, 'utf-8');
+          const session = JSON.parse(raw) as {
+            gitDiff?: string;
+            summary?: string;
+            status?: string;
+          };
+          if (session.status === 'approved') {
+            outputs.push({
+              taskId: depId,
+              diff: session.gitDiff || '',
+              summary: session.summary || `Task ${depId} completed.`,
+            });
+            break;
+          }
         }
       } catch {
         // Skip if we can't read dependency output
@@ -153,9 +186,20 @@ export class ContextAssembler {
     prompt += `- \`context/plan.md\` — the full feature specification\n`;
     prompt += `- \`context/prd_excerpt.md\` — relevant product requirements\n`;
     prompt += `- \`context/deps/\` — output from tasks this depends on\n\n`;
+
+    const acceptanceCriteria = this.extractPlanSection(context.planContent, 'Acceptance Criteria');
+    if (acceptanceCriteria) {
+      prompt += `## Acceptance Criteria\n\n${acceptanceCriteria}\n\n`;
+    }
+
+    const technicalApproach = this.extractPlanSection(context.planContent, 'Technical Approach');
+    if (technicalApproach) {
+      prompt += `## Technical Approach\n\n${technicalApproach}\n\n`;
+    }
+
     prompt += `## Instructions\n\n`;
     prompt += `1. Work on branch \`${config.branch}\` (already checked out).\n`;
-    prompt += `2. Implement the task according to the specification.\n`;
+    prompt += `2. Implement the task according to the acceptance criteria.\n`;
     prompt += `3. Write comprehensive tests (unit, and integration where applicable).\n`;
     prompt += `4. Run \`${config.testCommand}\` and ensure all tests pass.\n`;
     prompt += `5. Commit your changes with a descriptive message.\n`;
@@ -179,17 +223,23 @@ export class ContextAssembler {
     prompt += `## Objective\n\n`;
     prompt += `Review the implementation of this task against its specification and acceptance criteria.\n\n`;
     prompt += `## Task Specification\n\n${context.description}\n\n`;
+
+    const acceptanceCriteria = this.extractPlanSection(context.planContent, 'Acceptance Criteria');
+    if (acceptanceCriteria) {
+      prompt += `## Acceptance Criteria\n\n${acceptanceCriteria}\n\n`;
+    }
+
     prompt += `## Implementation\n\n`;
     prompt += `The coding agent has committed changes on branch \`${config.branch}\`.\n`;
     prompt += `Run \`git diff main...${config.branch}\` to review the changes.\n\n`;
     prompt += `## Instructions\n\n`;
-    prompt += `1. Review the diff between main and the task branch.\n`;
-    prompt += `2. Verify the implementation meets the specification.\n`;
-    prompt += `3. Verify tests exist and cover the ticket scope.\n`;
+    prompt += `1. Review the diff between main and the task branch using \`git diff main...${config.branch}\`.\n`;
+    prompt += `2. Verify the implementation meets ALL acceptance criteria.\n`;
+    prompt += `3. Verify tests exist and cover the ticket scope (not just happy paths).\n`;
     prompt += `4. Run \`${config.testCommand}\` and confirm all tests pass.\n`;
-    prompt += `5. Check code quality: no obvious bugs, reasonable error handling.\n`;
-    prompt += `6. If approving: merge the branch to main and write result.json with status "approved".\n`;
-    prompt += `7. If rejecting: do NOT merge. Write result.json with status "rejected" and specific feedback.\n\n`;
+    prompt += `5. Check code quality: no obvious bugs, reasonable error handling, consistent style.\n`;
+    prompt += `6. If approving: merge the branch to main (\`git checkout main && git merge ${config.branch}\`) and write your result to \`.opensprint/active/${config.taskId}/result.json\` with status "approved".\n`;
+    prompt += `7. If rejecting: do NOT merge. Write your result to \`.opensprint/active/${config.taskId}/result.json\` with status "rejected" and provide specific, actionable feedback.\n\n`;
 
     return prompt;
   }

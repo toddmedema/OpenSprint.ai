@@ -33,12 +33,15 @@ export class HilService {
    * Evaluate a decision against the HIL config.
    * Returns immediately for 'automated' and 'notify_and_proceed'.
    * Blocks (via promise) for 'requires_approval' until user responds.
+   * @param defaultApproved - When mode is automated/notify_and_proceed, return this value (default: true).
+   *   Use false for escalation cases where the default is "don't proceed" (e.g. retry limit reached).
    */
   async evaluateDecision(
     projectId: string,
     category: HilCategory,
     description: string,
     options?: Array<{ id: string; label: string; description: string }>,
+    defaultApproved = true,
   ): Promise<{ approved: boolean; notes?: string }> {
     const settings = await this.projectService.getSettings(projectId);
     const mode = settings.hilConfig[category];
@@ -50,12 +53,12 @@ export class HilService {
 
     switch (mode) {
       case 'automated':
-        // Log and proceed automatically
+        // Log and proceed automatically with default
         console.log(`[HIL] Automated decision for ${category}: ${description}`);
-        return { approved: true };
+        return { approved: defaultApproved };
 
       case 'notify_and_proceed': {
-        // Notify user but proceed immediately
+        // Notify user but proceed immediately with default (PRD §6.5.2)
         const request = this.createRequest(projectId, category, description, defaultOptions);
         broadcastToProject(projectId, {
           type: 'hil.request',
@@ -63,13 +66,14 @@ export class HilService {
           category,
           description,
           options: defaultOptions,
+          blocking: false,
         });
         console.log(`[HIL] Notify-and-proceed for ${category}: ${description}`);
-        return { approved: true };
+        return { approved: defaultApproved };
       }
 
       case 'requires_approval': {
-        // Block until user responds
+        // Block until user responds (PRD §6.5.2)
         const request = this.createRequest(projectId, category, description, defaultOptions);
         broadcastToProject(projectId, {
           type: 'hil.request',
@@ -77,6 +81,13 @@ export class HilService {
           category,
           description,
           options: defaultOptions,
+          blocking: true,
+        });
+        broadcastToProject(projectId, {
+          type: 'build.awaiting_approval',
+          awaiting: true,
+          category,
+          description,
         });
 
         console.log(`[HIL] Waiting for approval on ${category}: ${description}`);
@@ -89,7 +100,7 @@ export class HilService {
       }
 
       default:
-        return { approved: true };
+        return { approved: defaultApproved };
     }
   }
 
@@ -103,6 +114,11 @@ export class HilService {
       console.warn(`[HIL] Unknown request ID: ${requestId}`);
       return;
     }
+
+    broadcastToProject(request.projectId, {
+      type: 'build.awaiting_approval',
+      awaiting: false,
+    });
 
     request.resolved = true;
     request.approved = approved;

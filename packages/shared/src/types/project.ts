@@ -10,12 +10,15 @@ export interface Project {
   currentPhase: ProjectPhase;
   createdAt: string;
   updatedAt: string;
+  /** Overall progress 0–100 (build tasks done / total). PRD §6.1 */
+  progressPercent?: number;
 }
 
 /** Entry in the global project index (~/.opensprint/projects.json) */
 export interface ProjectIndexEntry {
   id: string;
   name: string;
+  description: string;
   repoPath: string;
   createdAt: string;
 }
@@ -34,6 +37,8 @@ export interface CreateProjectRequest {
   codingAgent: AgentConfigInput;
   deployment: DeploymentConfigInput;
   hilConfig: HilConfigInput;
+  /** Detected or user-selected test framework (PRD §10.2) */
+  testFramework?: string | null;
 }
 
 // Forward references for agent/deployment config — defined in settings.ts
