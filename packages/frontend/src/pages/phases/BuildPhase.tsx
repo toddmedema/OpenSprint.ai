@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "../../api/client";
-import { useWebSocket } from "../../hooks/useWebSocket";
+import { useProjectWebSocket } from "../../contexts/ProjectWebSocketContext";
 import type { ServerEvent, KanbanColumn, AgentSession } from "@opensprint/shared";
 import { KANBAN_COLUMNS, PRIORITY_LABELS } from "@opensprint/shared";
 
@@ -167,10 +167,12 @@ export function BuildPhase({ projectId }: BuildPhaseProps) {
     setArchivedSessions([]);
   }, [selectedTask]);
 
-  const { connected, subscribeToAgent, unsubscribeFromAgent } = useWebSocket({
-    projectId,
-    onEvent: handleWsEvent,
-  });
+  const { connected, subscribeToAgent, unsubscribeFromAgent, registerEventHandler } =
+    useProjectWebSocket();
+
+  useEffect(() => {
+    return registerEventHandler(handleWsEvent);
+  }, [registerEventHandler, handleWsEvent]);
 
   useEffect(() => {
     api.tasks
