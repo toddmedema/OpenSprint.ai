@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { api } from "../../api/client";
 import type { Plan } from "@opensprint/shared";
+import { AddPlanModal } from "../../components/AddPlanModal";
 
 interface PlanPhaseProps {
   projectId: string;
@@ -11,6 +12,7 @@ export function PlanPhase({ projectId }: PlanPhaseProps) {
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(true);
   const [decomposing, setDecomposing] = useState(false);
+  const [showAddPlanModal, setShowAddPlanModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleDecompose = async () => {
@@ -46,6 +48,10 @@ export function PlanPhase({ projectId }: PlanPhaseProps) {
       const msg = err instanceof Error ? err.message : "Failed to ship plan";
       setError(msg);
     }
+  };
+
+  const handlePlanCreated = (plan: Plan) => {
+    setPlans((prev) => [...prev, plan]);
   };
 
   const statusColors: Record<string, string> = {
@@ -86,7 +92,13 @@ export function PlanPhase({ projectId }: PlanPhaseProps) {
             >
               {decomposing ? "Decomposing…" : "Decompose from PRD"}
             </button>
-            <button className="btn-primary text-sm">Add Plan</button>
+            <button
+              type="button"
+              onClick={() => setShowAddPlanModal(true)}
+              className="btn-primary text-sm"
+            >
+              Add Plan
+            </button>
           </div>
         </div>
 
@@ -97,14 +109,23 @@ export function PlanPhase({ projectId }: PlanPhaseProps) {
             <p className="text-gray-500 mb-4">
               No plans yet. Use AI to decompose the PRD into feature plans and tasks, or add a plan manually.
             </p>
-            <button
-              type="button"
-              onClick={handleDecompose}
-              disabled={decomposing}
-              className="btn-primary"
-            >
-              {decomposing ? "Decomposing…" : "Decompose from PRD"}
-            </button>
+            <div className="flex gap-2 justify-center">
+              <button
+                type="button"
+                onClick={handleDecompose}
+                disabled={decomposing}
+                className="btn-primary"
+              >
+                {decomposing ? "Decomposing…" : "Decompose from PRD"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAddPlanModal(true)}
+                className="btn-primary"
+              >
+                Add Plan
+              </button>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -147,6 +168,14 @@ export function PlanPhase({ projectId }: PlanPhaseProps) {
           </div>
         )}
       </div>
+
+      {showAddPlanModal && (
+        <AddPlanModal
+          projectId={projectId}
+          onClose={() => setShowAddPlanModal(false)}
+          onCreated={handlePlanCreated}
+        />
+      )}
 
       {/* Sidebar: Plan Detail / Chat */}
       {selectedPlan && (
