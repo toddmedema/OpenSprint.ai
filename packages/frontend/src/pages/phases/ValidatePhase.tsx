@@ -37,25 +37,15 @@ export function ValidatePhase({ projectId }: ValidatePhaseProps) {
   }, [projectId]);
 
   useEffect(() => {
-    const handleFeedbackMapped = (event: FeedbackMappedEvent) => {
-      setFeedback((prev) =>
-        prev.map((item) =>
-          item.id === event.feedbackId
-            ? {
-                ...item,
-                mappedPlanId: event.planId || item.mappedPlanId,
-                createdTaskIds: event.taskIds,
-                status: "mapped" as const,
-              }
-            : item,
-        ),
-      );
+    const handleFeedbackMapped = (_event: FeedbackMappedEvent) => {
+      // Refetch from server to ensure frontend reflects server state in real-time
+      api.feedback.list(projectId).then((data) => setFeedback(data as FeedbackItem[]));
     };
     const unregister = registerEventHandler((e) => {
       if (e.type === "feedback.mapped") handleFeedbackMapped(e);
     });
     return unregister;
-  }, [registerEventHandler]);
+  }, [projectId, registerEventHandler]);
 
   const handleSubmit = async () => {
     if (!input.trim() || submitting) return;

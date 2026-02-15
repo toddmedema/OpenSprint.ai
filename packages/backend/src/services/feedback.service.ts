@@ -159,6 +159,12 @@ export class FeedbackService {
 
           if (!approved) {
             item.status = 'mapped';
+            broadcastToProject(projectId, {
+              type: 'feedback.mapped',
+              feedbackId: item.id,
+              planId: item.mappedPlanId || '',
+              taskIds: item.createdTaskIds,
+            });
             await this.saveFeedback(projectId, item);
             return;
           }
@@ -212,6 +218,12 @@ export class FeedbackService {
     } catch (error) {
       console.error(`AI categorization failed for feedback ${item.id}:`, error);
       item.status = 'mapped';
+      broadcastToProject(projectId, {
+        type: 'feedback.mapped',
+        feedbackId: item.id,
+        planId: item.mappedPlanId || '',
+        taskIds: item.createdTaskIds,
+      });
     }
 
     await this.saveFeedback(projectId, item);
