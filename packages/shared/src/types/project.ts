@@ -16,6 +16,7 @@ export interface Project {
 export interface ProjectIndexEntry {
   id: string;
   name: string;
+  description: string;
   repoPath: string;
   createdAt: string;
 }
