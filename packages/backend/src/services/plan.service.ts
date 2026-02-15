@@ -184,11 +184,12 @@ export class PlanService {
     await fs.writeFile(path.join(plansDir, `${planId}.md`), body.content);
 
     // Create beads epic
-    const epicResult = await this.beads.create(repoPath, body.title, {
-      type: 'epic',
-      description: `.opensprint/plans/${planId}.md`,
-    });
+    const epicResult = await this.beads.create(repoPath, body.title, { type: 'epic' });
     const epicId = epicResult.id;
+
+    // Set epic description to Plan file path (PRD §7.2.2)
+    const planPath = `${OPENSPRINT_PATHS.plans}/${planId}.md`;
+    await this.beads.update(repoPath, epicId, { description: planPath });
 
     // Create gating task
     const gateResult = await this.beads.create(repoPath, 'Plan approval gate', {
