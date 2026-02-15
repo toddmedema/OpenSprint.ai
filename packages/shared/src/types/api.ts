@@ -29,6 +29,8 @@ export interface PaginatedResponse<T> {
 export interface ChatRequest {
   message: string;
   context?: string;
+  /** PRD section key to add as context to this message (PRD §7.1.5 click-to-focus) */
+  prdSectionFocus?: string;
 }
 
 /** Chat message response */

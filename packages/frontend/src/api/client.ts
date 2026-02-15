@@ -163,10 +163,10 @@ export const api = {
 
   // ─── Chat ───
   chat: {
-    send: (projectId: string, message: string, context?: string) =>
+    send: (projectId: string, message: string, context?: string, prdSectionFocus?: string) =>
       request<unknown>(`/projects/${projectId}/chat`, {
         method: "POST",
-        body: JSON.stringify({ message, context }),
+        body: JSON.stringify({ message, context, prdSectionFocus }),
       }),
     history: (projectId: string, context?: string) =>
       request<unknown>(`/projects/${projectId}/chat/history${context ? `?context=${context}` : ""}`),

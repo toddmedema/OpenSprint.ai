@@ -85,6 +85,7 @@ export function DesignPhase({ projectId }: DesignPhaseProps) {
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
   const [savingSection, setSavingSection] = useState<string | null>(null);
+  const [focusedSection, setFocusedSection] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const refetchPrd = useCallback(async () => {
@@ -143,7 +144,9 @@ export function DesignPhase({ projectId }: DesignPhaseProps) {
     setError(null);
 
     try {
-      const response = (await api.chat.send(projectId, userMessage.content, "design")) as {
+      const prdFocus = focusedSection;
+      setFocusedSection(null);
+      const response = (await api.chat.send(projectId, userMessage.content, "design", prdFocus ?? undefined)) as {
         message: string;
         prdChanges?: { section: string; previousVersion: number; newVersion: number }[];
       };
@@ -280,16 +283,39 @@ export function DesignPhase({ projectId }: DesignPhaseProps) {
             {getOrderedSections(prdContent).map((sectionKey) => (
               <div
                 key={sectionKey}
-                className="bg-white rounded-lg border border-gray-200 p-4"
+                role="button"
+                tabIndex={0}
+                onClick={() => {
+                  if (editingSection !== sectionKey) {
+                    setFocusedSection((prev) => (prev === sectionKey ? null : sectionKey));
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (editingSection !== sectionKey && (e.key === "Enter" || e.key === " ")) {
+                    e.preventDefault();
+                    setFocusedSection((prev) => (prev === sectionKey ? null : sectionKey));
+                  }
+                }}
+                className={`rounded-lg border p-4 transition-colors cursor-pointer select-none ${
+                  focusedSection === sectionKey
+                    ? "bg-brand-50 border-brand-400 ring-2 ring-brand-200"
+                    : "bg-white border-gray-200 hover:border-gray-300"
+                }`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-semibold text-gray-700">
                     {formatSectionKey(sectionKey)}
+                    {focusedSection === sectionKey && (
+                      <span className="ml-2 text-xs font-normal text-brand-600">(added to next message)</span>
+                    )}
                   </h3>
                   {editingSection !== sectionKey ? (
                     <button
                       type="button"
-                      onClick={() => handleStartEdit(sectionKey)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStartEdit(sectionKey);
+                      }}
                       className="text-xs text-brand-600 hover:text-brand-700 font-medium"
                     >
                       Edit

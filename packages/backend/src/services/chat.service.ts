@@ -134,7 +134,23 @@ export class ChatService {
     const context = body.context ?? 'design';
     const conversation = await this.getOrCreateConversation(projectId, context);
 
-    // Add user message
+    // Build prompt for agent; add PRD section context if user clicked to focus (PRD §7.1.5)
+    let agentPrompt = body.message;
+    if (body.prdSectionFocus) {
+      const prd = await this.prdService.getPrd(projectId);
+      const section = prd.sections[body.prdSectionFocus as keyof typeof prd.sections];
+      const sectionLabel = body.prdSectionFocus
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+      if (section?.content) {
+        agentPrompt =
+          `[User is focusing on the ${sectionLabel} section]\n\n` +
+          `Current content:\n${section.content}\n\n---\n\n` +
+          body.message;
+      }
+    }
+
+    // Add user message (store original for display; agent receives agentPrompt)
     const userMessage: ConversationMessage = {
       role: 'user',
       content: body.message,
@@ -158,11 +174,11 @@ export class ChatService {
     let responseContent: string;
 
     try {
-      console.log('[chat] Invoking agent', { type: agentConfig.type, model: agentConfig.model ?? 'default', historyLen: history.length, promptLen: body.message.length });
+      console.log('[chat] Invoking agent', { type: agentConfig.type, model: agentConfig.model ?? 'default', historyLen: history.length, promptLen: agentPrompt.length });
       // Invoke the planning agent
       const response = await this.agentClient.invoke({
         config: agentConfig,
-        prompt: body.message,
+        prompt: agentPrompt,
         systemPrompt: DESIGN_SYSTEM_PROMPT + '\n\n' + prdContext,
         conversationHistory: history,
         cwd: (await this.projectService.getProject(projectId)).repoPath,
