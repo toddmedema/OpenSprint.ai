@@ -10,6 +10,8 @@ export interface Project {
   currentPhase: ProjectPhase;
   createdAt: string;
   updatedAt: string;
+  /** Overall progress 0–100 (build tasks done / total). PRD §6.1 */
+  progressPercent?: number;
 }
 
 /** Entry in the global project index (~/.opensprint/projects.json) */

@@ -51,6 +51,24 @@ export class ProjectService {
     await fs.rename(tmpPath, filePath);
   }
 
+  /** Compute overall progress from beads tasks (done / total, excluding epics and gating tasks) */
+  private async computeProgressPercent(repoPath: string): Promise<number> {
+    try {
+      const issues = await this.beads.listAll(repoPath);
+      const buildTasks = issues.filter(
+        (i) =>
+          (i.type ?? i.issue_type) !== "epic" &&
+          !/\.0$/.test(i.id) &&
+          i.id.includes("."),
+      );
+      const done = buildTasks.filter((i) => (i.status as string) === "closed").length;
+      const total = buildTasks.length;
+      return total > 0 ? Math.round((done / total) * 100) : 0;
+    } catch {
+      return 0;
+    }
+  }
+
   /** List all projects */
   async listProjects(): Promise<Project[]> {
     const index = await this.loadIndex();
@@ -60,6 +78,7 @@ export class ProjectService {
       try {
         const settingsPath = path.join(entry.repoPath, OPENSPRINT_PATHS.settings);
         const stat = await fs.stat(settingsPath);
+        const progressPercent = await this.computeProgressPercent(entry.repoPath);
         projects.push({
           id: entry.id,
           name: entry.name,
@@ -68,6 +87,7 @@ export class ProjectService {
           currentPhase: "design",
           createdAt: entry.createdAt,
           updatedAt: stat.mtime.toISOString(),
+          progressPercent,
         });
       } catch {
         // Project directory may no longer exist — skip it
