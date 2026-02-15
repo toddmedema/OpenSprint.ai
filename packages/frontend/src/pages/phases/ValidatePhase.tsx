@@ -99,6 +99,12 @@ export function ValidatePhase({ projectId }: ValidatePhaseProps) {
           className="input min-h-[100px] mb-3"
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+              e.preventDefault();
+              handleSubmit();
+            }
+          }}
           placeholder="Describe a bug, suggest a feature, or report a UX issue..."
           disabled={submitting}
         />
