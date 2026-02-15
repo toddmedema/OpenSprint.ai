@@ -16,7 +16,9 @@ interface ProjectWebSocketContextValue {
   unsubscribeFromAgent: (taskId: string) => void;
   registerEventHandler: (handler: (event: ServerEvent) => void) => () => void;
   hilRequest: HilRequestEvent | null;
+  hilNotification: HilRequestEvent | null;
   clearHilRequest: () => void;
+  clearHilNotification: () => void;
   respondToHil: (requestId: string, approved: boolean, notes?: string) => void;
 }
 
@@ -39,10 +41,18 @@ export function ProjectWebSocketProvider({ projectId, children }: ProjectWebSock
 
   const onEvent = useCallback((event: ServerEvent) => {
     if (event.type === "hil.request") {
-      setHilRequest(event);
+      if (event.blocking) {
+        setHilRequest(event);
+        setHilNotification(null);
+      } else {
+        setHilNotification(event);
+        setHilRequest(null);
+      }
     }
     handlersRef.current.forEach((h) => h(event));
   }, []);
+
+  const [hilNotification, setHilNotification] = useState<HilRequestEvent | null>(null);
 
   const { connected, send, subscribeToAgent, unsubscribeFromAgent } = useWebSocket({
     projectId,
@@ -57,6 +67,7 @@ export function ProjectWebSocketProvider({ projectId, children }: ProjectWebSock
   }, []);
 
   const clearHilRequest = useCallback(() => setHilRequest(null), []);
+  const clearHilNotification = useCallback(() => setHilNotification(null), []);
 
   const respondToHil = useCallback(
     (requestId: string, approved: boolean, notes?: string) => {
@@ -73,7 +84,9 @@ export function ProjectWebSocketProvider({ projectId, children }: ProjectWebSock
     unsubscribeFromAgent,
     registerEventHandler,
     hilRequest,
+    hilNotification,
     clearHilRequest,
+    clearHilNotification,
     respondToHil,
   };
 

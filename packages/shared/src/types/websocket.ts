@@ -35,6 +35,8 @@ export interface BuildStatusEvent {
   running: boolean;
   currentTask: string | null;
   queueDepth: number;
+  /** True when orchestrator is paused waiting for HIL approval (PRD §6.5) */
+  awaitingApproval?: boolean;
 }
 
 export interface HilRequestEvent {
@@ -43,6 +45,8 @@ export interface HilRequestEvent {
   category: string;
   description: string;
   options: HilOption[];
+  /** True = blocking modal (requires_approval); false = dismissible notification (notify_and_proceed) */
+  blocking?: boolean;
 }
 
 export interface HilOption {
@@ -63,6 +67,14 @@ export interface PlanUpdatedEvent {
   planId: string;
 }
 
+/** Emitted when orchestrator pauses for HIL approval or resumes after response (PRD §6.5) */
+export interface BuildAwaitingApprovalEvent {
+  type: 'build.awaiting_approval';
+  awaiting: boolean;
+  category?: string;
+  description?: string;
+}
+
 /** All server-to-client WebSocket event types */
 export type ServerEvent =
   | TaskUpdatedEvent
@@ -70,6 +82,7 @@ export type ServerEvent =
   | AgentCompletedEvent
   | PrdUpdatedEvent
   | BuildStatusEvent
+  | BuildAwaitingApprovalEvent
   | HilRequestEvent
   | FeedbackMappedEvent
   | PlanUpdatedEvent;

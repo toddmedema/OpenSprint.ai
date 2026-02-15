@@ -137,6 +137,7 @@ export function BuildPhase({ projectId }: BuildPhaseProps) {
   const [taskDetail, setTaskDetail] = useState<Task | null>(null);
   const [taskDetailLoading, setTaskDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [awaitingApproval, setAwaitingApproval] = useState(false);
 
   const handleWsEvent = useCallback(
     (event: ServerEvent) => {
@@ -167,6 +168,12 @@ export function BuildPhase({ projectId }: BuildPhaseProps) {
           break;
         case "build.status":
           setOrchestratorRunning(event.running);
+          if ("awaitingApproval" in event) {
+            setAwaitingApproval(Boolean(event.awaitingApproval));
+          }
+          break;
+        case "build.awaiting_approval":
+          setAwaitingApproval(event.awaiting);
           break;
       }
     },
@@ -348,8 +355,11 @@ export function BuildPhase({ projectId }: BuildPhaseProps) {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {awaitingApproval && (
+              <span className="text-sm font-medium text-amber-600">Awaiting approval…</span>
+            )}
             {orchestratorRunning ? (
-              <button onClick={handlePauseBuild} className="btn-secondary text-sm">
+              <button onClick={handlePauseBuild} className="btn-secondary text-sm" disabled={awaitingApproval}>
                 Pause Build
               </button>
             ) : (

@@ -58,7 +58,7 @@ export class HilService {
         return { approved: defaultApproved };
 
       case 'notify_and_proceed': {
-        // Notify user but proceed immediately with default
+        // Notify user but proceed immediately with default (PRD §6.5.2)
         const request = this.createRequest(projectId, category, description, defaultOptions);
         broadcastToProject(projectId, {
           type: 'hil.request',
@@ -66,13 +66,14 @@ export class HilService {
           category,
           description,
           options: defaultOptions,
+          blocking: false,
         });
         console.log(`[HIL] Notify-and-proceed for ${category}: ${description}`);
         return { approved: defaultApproved };
       }
 
       case 'requires_approval': {
-        // Block until user responds
+        // Block until user responds (PRD §6.5.2)
         const request = this.createRequest(projectId, category, description, defaultOptions);
         broadcastToProject(projectId, {
           type: 'hil.request',
@@ -80,6 +81,13 @@ export class HilService {
           category,
           description,
           options: defaultOptions,
+          blocking: true,
+        });
+        broadcastToProject(projectId, {
+          type: 'build.awaiting_approval',
+          awaiting: true,
+          category,
+          description,
         });
 
         console.log(`[HIL] Waiting for approval on ${category}: ${description}`);
@@ -106,6 +114,11 @@ export class HilService {
       console.warn(`[HIL] Unknown request ID: ${requestId}`);
       return;
     }
+
+    broadcastToProject(request.projectId, {
+      type: 'build.awaiting_approval',
+      awaiting: false,
+    });
 
     request.resolved = true;
     request.approved = approved;

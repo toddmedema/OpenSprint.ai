@@ -13,7 +13,10 @@ import { OPENSPRINT_PATHS } from '@opensprint/shared';
 import { ProjectService } from './project.service.js';
 import { PrdService } from './prd.service.js';
 import { AgentClient } from './agent-client.js';
+import { hilService } from './hil-service.js';
 import { broadcastToProject } from '../websocket/index.js';
+
+const ARCHITECTURE_SECTIONS = ['technical_architecture', 'data_model', 'api_contracts'] as const;
 
 const DESIGN_SYSTEM_PROMPT = `You are an AI product design assistant for OpenSprint. You help users define their product vision and create a comprehensive Product Requirements Document (PRD).
 
@@ -377,7 +380,10 @@ Only output PRD_UPDATE blocks for sections that need changes. If no updates are 
     const prdUpdates = this.parsePrdUpdates(response.content);
     if (prdUpdates.length === 0) return;
 
-    const changes = await this.prdService.updateSections(projectId, prdUpdates, 'plan');
+    const filtered = await this.filterArchitectureUpdatesWithHil(projectId, prdUpdates, `Plan "${planId}" updates`);
+    if (filtered.length === 0) return;
+
+    const changes = await this.prdService.updateSections(projectId, filtered, 'plan');
     for (const change of changes) {
       broadcastToProject(projectId, {
         type: 'prd.updated',
@@ -425,7 +431,14 @@ Only output PRD_UPDATE blocks for sections that need changes. If no updates are 
     const prdUpdates = this.parsePrdUpdates(response.content);
     if (prdUpdates.length === 0) return;
 
-    const changes = await this.prdService.updateSections(projectId, prdUpdates, 'validate');
+    const filtered = await this.filterArchitectureUpdatesWithHil(
+      projectId,
+      prdUpdates,
+      `Scope change feedback: "${feedbackText.slice(0, 80)}${feedbackText.length > 80 ? '…' : ''}"`,
+    );
+    if (filtered.length === 0) return;
+
+    const changes = await this.prdService.updateSections(projectId, filtered, 'validate');
     for (const change of changes) {
       broadcastToProject(projectId, {
         type: 'prd.updated',
@@ -433,5 +446,37 @@ Only output PRD_UPDATE blocks for sections that need changes. If no updates are 
         version: change.newVersion,
       });
     }
+  }
+
+  /**
+   * Filter PRD updates: apply HIL for architecture sections (PRD §6.5.1).
+   * Returns only updates that are approved (non-architecture pass through; architecture requires HIL approval).
+   */
+  private async filterArchitectureUpdatesWithHil(
+    projectId: string,
+    prdUpdates: Array<{ section: PrdSectionKey; content: string }>,
+    contextDescription: string,
+  ): Promise<Array<{ section: PrdSectionKey; content: string }>> {
+    const archUpdates = prdUpdates.filter((u) =>
+      ARCHITECTURE_SECTIONS.includes(u.section as (typeof ARCHITECTURE_SECTIONS)[number]),
+    );
+    const nonArchUpdates = prdUpdates.filter(
+      (u) => !ARCHITECTURE_SECTIONS.includes(u.section as (typeof ARCHITECTURE_SECTIONS)[number]),
+    );
+
+    if (archUpdates.length === 0) return prdUpdates;
+
+    const { approved } = await hilService.evaluateDecision(
+      projectId,
+      'architectureDecisions',
+      `PRD architecture update: ${contextDescription}. Sections: ${archUpdates.map((u) => u.section).join(', ')}`,
+      [
+        { id: 'approve', label: 'Approve', description: 'Apply architecture changes to PRD' },
+        { id: 'reject', label: 'Reject', description: 'Skip architecture updates' },
+      ],
+      true, // default: apply when automated/notify_and_proceed
+    );
+
+    return approved ? prdUpdates : nonArchUpdates;
   }
 }

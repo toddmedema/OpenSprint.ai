@@ -89,4 +89,6 @@ export interface OrchestratorStatus {
   queueDepth: number;
   totalCompleted: number;
   totalFailed: number;
+  /** True when paused waiting for HIL approval (PRD §6.5) */
+  awaitingApproval?: boolean;
 }
