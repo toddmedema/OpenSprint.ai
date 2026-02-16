@@ -8,6 +8,7 @@ import { ChatService } from "./chat.service.js";
 import { PrdService } from "./prd.service.js";
 import { AgentClient } from "./agent-client.js";
 import { AppError } from "../middleware/error-handler.js";
+import { broadcastToProject } from "../websocket/index.js";
 
 const DECOMPOSE_SYSTEM_PROMPT = `You are an AI planning assistant for OpenSprint. You analyze Product Requirements Documents (PRDs) and suggest a breakdown into discrete, implementable features (Plans).
 

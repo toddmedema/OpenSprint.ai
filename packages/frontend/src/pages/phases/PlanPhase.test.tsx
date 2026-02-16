@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, userEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import { PlanPhase } from "./PlanPhase";
@@ -123,6 +124,7 @@ function createStore() {
 describe("PlanPhase archive", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    Element.prototype.scrollIntoView = vi.fn();
   });
 
   it("renders archive icon button in plan details sidebar when a plan is selected", async () => {

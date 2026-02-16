@@ -5,7 +5,7 @@ import {
   setupWebSocket,
   closeWebSocket,
   broadcastToProject,
-  sendAgentOutput,
+  sendAgentOutputToProject,
 } from "../websocket/index.js";
 
 vi.mock("../services/hil-service.js", () => ({
@@ -114,7 +114,7 @@ describe("WebSocket server and connection handling", () => {
     await new Promise<void>((resolve) => ws.on("open", () => resolve()));
     ws.send(JSON.stringify({ type: "agent.subscribe", taskId: "task-abc" }));
     await new Promise((r) => setTimeout(r, 30));
-    sendAgentOutput("task-abc", "Hello from agent");
+    sendAgentOutputToProject("proj-789", "task-abc", "Hello from agent");
     await msgPromise;
     await waitForClose(ws);
   });
@@ -130,7 +130,7 @@ describe("WebSocket server and connection handling", () => {
     ws.send(JSON.stringify({ type: "agent.subscribe", taskId: "task-x" }));
     ws.send(JSON.stringify({ type: "agent.unsubscribe", taskId: "task-x" }));
     await new Promise((r) => setTimeout(r, 30));
-    sendAgentOutput("task-x", "Should not be received");
+    sendAgentOutputToProject("proj-sub", "task-x", "Should not be received");
     await new Promise((r) => setTimeout(r, 50));
     ws.close();
     await waitForClose(ws);
