@@ -11,7 +11,7 @@ import { setupWebSocket, closeWebSocket } from "./websocket/index.js";
 import { DEFAULT_API_PORT } from "@opensprint/shared";
 import { ProjectService } from "./services/project.service.js";
 import { BeadsService } from "./services/beads.service.js";
-import { concurrentOrchestrator } from "./services/concurrent-orchestrator.js";
+import { orchestratorService } from "./services/orchestrator.service.js";
 
 const port = parseInt(process.env.PORT || String(DEFAULT_API_PORT), 10);
 
@@ -37,7 +37,7 @@ async function logOrchestratorStatus(): Promise<void> {
     for (const project of projects) {
       try {
         // Auto-start orchestrator for each project (always-on)
-        await concurrentOrchestrator.start(project.id);
+        await orchestratorService.start(project.id);
 
         const allTasks = await beads.list(project.repoPath);
         const nonEpicTasks = allTasks.filter(
@@ -46,15 +46,15 @@ async function logOrchestratorStatus(): Promise<void> {
         const inProgress = nonEpicTasks.filter((t) => t.status === "in_progress");
         const open = nonEpicTasks.filter((t) => t.status === "open");
 
-        const orchestratorStatus = await concurrentOrchestrator.getStatus(project.id);
-        const activeAgents = concurrentOrchestrator.getAgentDetails(project.id);
+        const status = await orchestratorService.getStatus(project.id);
+        const agentRunning = status.currentTask !== null;
 
         const parts: string[] = [
           `[orchestrator] "${project.name}"`,
           `${open.length} open task(s)`,
           `${inProgress.length} in-progress`,
-          `${activeAgents.length} agent(s) running`,
-          orchestratorStatus.running ? "loop ACTIVE" : "loop IDLE",
+          agentRunning ? "1 agent running" : "0 agents running",
+          status.running ? "loop ACTIVE" : "loop IDLE",
         ];
         console.log(parts.join(" | "));
 

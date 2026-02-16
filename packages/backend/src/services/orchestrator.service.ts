@@ -264,12 +264,8 @@ export class OrchestratorService {
     const branchName = `opensprint/${task.id}`;
 
     try {
-      // Create or checkout task branch (use existing when retrying after review rejection)
-      if (retryContext?.useExistingBranch) {
-        await this.branchManager.createOrCheckoutBranch(repoPath, branchName);
-      } else {
-        await this.branchManager.createBranch(repoPath, branchName);
-      }
+      // Create branch if new, or checkout existing (e.g. retrying after failure/review rejection)
+      await this.branchManager.createOrCheckoutBranch(repoPath, branchName);
 
       // Assemble context via ContextBuilder (given taskId)
       const context = await this.contextAssembler.buildContext(repoPath, task.id, this.beads, this.branchManager);

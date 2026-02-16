@@ -1,5 +1,5 @@
 import { Router, Request } from 'express';
-import { concurrentOrchestrator } from '../services/concurrent-orchestrator.js';
+import { orchestratorService } from '../services/orchestrator.service.js';
 import { TaskService } from '../services/task.service.js';
 import type { ApiResponse, OrchestratorStatus } from '@opensprint/shared';
 
@@ -31,7 +31,7 @@ buildRouter.post('/start', async (req: Request<ProjectParams>, res, next) => {
   try {
     const { projectId } = req.params;
     console.log('[build] POST /start received', { projectId });
-    const status = await concurrentOrchestrator.start(projectId);
+    const status = await orchestratorService.start(projectId);
     console.log('[build] Orchestrator started', { projectId, running: status });
     const body: ApiResponse<OrchestratorStatus> = { data: status };
     res.json(body);
@@ -43,7 +43,7 @@ buildRouter.post('/start', async (req: Request<ProjectParams>, res, next) => {
 // POST /projects/:projectId/build/pause — Pause the build orchestrator
 buildRouter.post('/pause', async (req: Request<ProjectParams>, res, next) => {
   try {
-    const status = await concurrentOrchestrator.pause(req.params.projectId);
+    const status = await orchestratorService.pause(req.params.projectId);
     const body: ApiResponse<OrchestratorStatus> = { data: status };
     res.json(body);
   } catch (err) {
@@ -54,7 +54,7 @@ buildRouter.post('/pause', async (req: Request<ProjectParams>, res, next) => {
 // GET /projects/:projectId/build/status — Get orchestrator status
 buildRouter.get('/status', async (req: Request<ProjectParams>, res, next) => {
   try {
-    const status = await concurrentOrchestrator.getStatus(req.params.projectId);
+    const status = await orchestratorService.getStatus(req.params.projectId);
     const body: ApiResponse<OrchestratorStatus> = { data: status };
     res.json(body);
   } catch (err) {
