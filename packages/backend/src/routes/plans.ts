@@ -96,3 +96,14 @@ plansRouter.post("/:planId/reship", async (req: Request<PlanParams>, res, next) 
     next(err);
   }
 });
+
+// POST /projects/:projectId/plans/:planId/archive — Archive plan (close all ready/open tasks)
+plansRouter.post("/:planId/archive", async (req: Request<PlanParams>, res, next) => {
+  try {
+    const plan = await planService.archivePlan(req.params.projectId, req.params.planId);
+    const body: ApiResponse<Plan> = { data: plan };
+    res.json(body);
+  } catch (err) {
+    next(err);
+  }
+});

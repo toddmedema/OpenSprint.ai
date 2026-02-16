@@ -7,12 +7,7 @@ import { fetchProject, resetProject } from "../store/slices/projectSlice";
 import { resetWebsocket, clearHilRequest, clearHilNotification } from "../store/slices/websocketSlice";
 import { fetchDreamChat, fetchPrd, fetchPrdHistory, resetDream } from "../store/slices/dreamSlice";
 import { fetchPlans, resetPlan } from "../store/slices/planSlice";
-import {
-  fetchTasks,
-  fetchBuildStatus,
-  resetBuild,
-  setSelectedTaskId,
-} from "../store/slices/buildSlice";
+import { fetchTasks, fetchBuildStatus, resetBuild, setSelectedTaskId } from "../store/slices/buildSlice";
 import { fetchFeedback, resetVerify } from "../store/slices/verifySlice";
 import { wsConnect, wsDisconnect } from "../store/middleware/websocketMiddleware";
 import { wsSend } from "../store/middleware/websocketMiddleware";
@@ -67,7 +62,8 @@ export function ProjectView() {
       dispatch(resetBuild());
       dispatch(resetVerify());
     };
-  }, [projectId, redirectTo, dispatch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, redirectTo]);
 
   if (!projectId) return null;
   if (redirectTo) return <Navigate to={redirectTo} replace />;
@@ -128,12 +124,7 @@ export function ProjectView() {
             {phase === "dream" && (
               <DreamPhase projectId={projectId} onNavigateToPlan={() => handlePhaseChange("plan")} />
             )}
-            {phase === "plan" && (
-              <PlanPhase
-                projectId={projectId}
-                onNavigateToBuildTask={handleNavigateToBuildTask}
-              />
-            )}
+            {phase === "plan" && <PlanPhase projectId={projectId} onNavigateToBuildTask={handleNavigateToBuildTask} />}
             {phase === "build" && <BuildPhase projectId={projectId} />}
             {phase === "verify" && (
               <VerifyPhase projectId={projectId} onNavigateToBuildTask={handleNavigateToBuildTask} />

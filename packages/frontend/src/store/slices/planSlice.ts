@@ -19,6 +19,8 @@ export interface PlanState {
   shippingPlanId: string | null;
   /** Plan ID currently being reshipped (Rebuild) — for loading state */
   reshippingPlanId: string | null;
+  /** Plan ID currently being archived — for loading state */
+  archivingPlanId: string | null;
   error: string | null;
 }
 
@@ -31,6 +33,7 @@ const initialState: PlanState = {
   decomposing: false,
   shippingPlanId: null,
   reshippingPlanId: null,
+  archivingPlanId: null,
   error: null,
 };
 
@@ -57,6 +60,13 @@ export const reshipPlan = createAsyncThunk(
   "plan/reship",
   async ({ projectId, planId }: { projectId: string; planId: string }) => {
     await api.plans.reship(projectId, planId);
+  },
+);
+
+export const archivePlan = createAsyncThunk(
+  "plan/archive",
+  async ({ projectId, planId }: { projectId: string; planId: string }) => {
+    return (await api.plans.archive(projectId, planId)) as Plan;
   },
 );
 
@@ -157,6 +167,18 @@ const planSlice = createSlice({
       .addCase(reshipPlan.rejected, (state, action) => {
         state.reshippingPlanId = null;
         state.error = action.error.message ?? "Failed to rebuild plan";
+      })
+      // archivePlan
+      .addCase(archivePlan.pending, (state, action) => {
+        state.archivingPlanId = action.meta.arg.planId;
+        state.error = null;
+      })
+      .addCase(archivePlan.fulfilled, (state) => {
+        state.archivingPlanId = null;
+      })
+      .addCase(archivePlan.rejected, (state, action) => {
+        state.archivingPlanId = null;
+        state.error = action.error.message ?? "Failed to archive plan";
       })
       // fetchPlanChat
       .addCase(fetchPlanChat.fulfilled, (state, action) => {

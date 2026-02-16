@@ -513,6 +513,43 @@ export class PlanService {
     return this.listPlansWithDependencyGraph(projectId);
   }
 
+  /**
+   * Archive a plan: close all ready/open tasks to done. Tasks in progress remain unchanged.
+   */
+  async archivePlan(projectId: string, planId: string): Promise<Plan> {
+    const plan = await this.getPlan(projectId, planId);
+    const repoPath = await this.getRepoPath(projectId);
+
+    if (!plan.metadata.beadEpicId) {
+      throw new AppError(400, "NO_EPIC", "Plan has no epic; cannot archive");
+    }
+
+    const allIssues = await this.beads.listAll(repoPath);
+    const planTasks = allIssues.filter(
+      (issue: BeadsIssue) =>
+        issue.id.startsWith(plan.metadata.beadEpicId + ".") &&
+        issue.id !== plan.metadata.gateTaskId &&
+        (issue.issue_type ?? issue.type) !== "epic",
+    );
+
+    for (const task of planTasks) {
+      const status = (task.status as string) ?? "open";
+      if (status === "open") {
+        await this.beads.close(repoPath, task.id, "Archived plan");
+        await this.beads.sync(repoPath);
+        broadcastToProject(projectId, {
+          type: "task.updated",
+          taskId: task.id,
+          status: "closed",
+          assignee: null,
+        });
+      }
+      // in_progress tasks are left unchanged
+    }
+
+    return this.getPlan(projectId, planId);
+  }
+
   /** Build PRD context string for agent prompts */
   private async buildPrdContext(projectId: string): Promise<string> {
     try {

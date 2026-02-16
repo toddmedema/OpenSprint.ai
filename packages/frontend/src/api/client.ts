@@ -127,6 +127,10 @@ export const api = {
       request<unknown>(`/projects/${projectId}/plans/${planId}/reship`, {
         method: "POST",
       }),
+    archive: (projectId: string, planId: string) =>
+      request<unknown>(`/projects/${projectId}/plans/${planId}/archive`, {
+        method: "POST",
+      }),
     dependencies: (projectId: string) => request<unknown>(`/projects/${projectId}/plans/dependencies`),
   },
 

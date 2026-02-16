@@ -7,6 +7,7 @@ import {
   fetchPlans,
   shipPlan,
   reshipPlan,
+  archivePlan,
   fetchPlanChat,
   sendPlanMessage,
   fetchSinglePlan,
@@ -16,6 +17,7 @@ import {
 } from "../../store/slices/planSlice";
 import { AddPlanModal } from "../../components/AddPlanModal";
 import { DependencyGraph } from "../../components/DependencyGraph";
+import { fetchTasks } from "../../store/slices/buildSlice";
 
 interface PlanPhaseProps {
   projectId: string;
@@ -33,6 +35,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   const loading = useAppSelector((s) => s.plan.loading);
   const shippingPlanId = useAppSelector((s) => s.plan.shippingPlanId);
   const reshippingPlanId = useAppSelector((s) => s.plan.reshippingPlanId);
+  const archivingPlanId = useAppSelector((s) => s.plan.archivingPlanId);
   const error = useAppSelector((s) => s.plan.error);
   const buildTasks = useAppSelector((s) => s.build.tasks);
 
@@ -83,6 +86,16 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
     const result = await dispatch(reshipPlan({ projectId, planId }));
     if (reshipPlan.fulfilled.match(result)) {
       dispatch(fetchPlans(projectId));
+    }
+  };
+
+  const handleArchive = async (planId: string) => {
+    dispatch(setPlanError(null));
+    const result = await dispatch(archivePlan({ projectId, planId }));
+    if (archivePlan.fulfilled.match(result)) {
+      dispatch(fetchPlans(projectId));
+      dispatch(fetchTasks(projectId));
+      dispatch(fetchSinglePlan({ projectId, planId }));
     }
   };
 
@@ -234,9 +247,35 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
         <div className="w-[420px] border-l border-gray-200 flex flex-col bg-gray-50">
           <div className="flex items-center justify-between p-4 border-b border-gray-200 shrink-0">
             <h3 className="font-semibold text-gray-900">{selectedPlan.metadata.planId.replace(/-/g, " ")}</h3>
-            <button onClick={handleClosePlan} className="text-gray-400 hover:text-gray-600">
-              Close
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleArchive(selectedPlan.metadata.planId)}
+                disabled={!!archivingPlanId}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-200/50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Archive plan (mark all ready/open tasks as done)"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="M21 8v13H3V8" />
+                  <path d="M1 3h22v5H1z" />
+                  <path d="M10 12h4" />
+                </svg>
+              </button>
+              <button onClick={handleClosePlan} className="text-gray-400 hover:text-gray-600">
+                Close
+              </button>
+            </div>
           </div>
 
           {/* Scrollable content area: plan + mockups + chat messages */}

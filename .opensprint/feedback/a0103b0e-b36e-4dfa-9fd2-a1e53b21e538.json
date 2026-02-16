@@ -1,0 +1,13 @@
+{
+  "id": "a0103b0e-b36e-4dfa-9fd2-a1e53b21e538",
+  "text": "Replace all \"Close\" buttons with just an \"X\" button to simplify the UI",
+  "category": "ux",
+  "mappedPlanId": "agent-invocation-service",
+  "createdTaskIds": ["opensprint.dev-z0v.5", "opensprint.dev-z0v.6"],
+  "status": "mapped",
+  "createdAt": "2026-02-16T09:18:04.148Z",
+  "taskTitles": [
+    "Replace Close buttons with X icon across UI",
+    "Standardize modal and panel close controls to X icon"
+  ]
+}

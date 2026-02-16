@@ -4,7 +4,14 @@ import type { ServerEvent, ClientEvent } from "@opensprint/shared";
 import { setConnected, setHilRequest, setHilNotification } from "../slices/websocketSlice";
 import { fetchPrd, fetchPrdHistory, fetchDreamChat } from "../slices/dreamSlice";
 import { fetchPlans, fetchSinglePlan } from "../slices/planSlice";
-import { fetchTasks, fetchBuildStatus, appendAgentOutput, setOrchestratorRunning, setAwaitingApproval, setCompletionState } from "../slices/buildSlice";
+import {
+  fetchTasks,
+  fetchBuildStatus,
+  appendAgentOutput,
+  setOrchestratorRunning,
+  setAwaitingApproval,
+  setCompletionState,
+} from "../slices/buildSlice";
 import { fetchFeedback } from "../slices/verifySlice";
 
 type StoreDispatch = ThunkDispatch<unknown, unknown, UnknownAction>;
@@ -39,6 +46,11 @@ export const websocketMiddleware: Middleware = (storeApi) => {
   }
 
   function connect(projectId: string) {
+    // Skip if already connected to the same project
+    if (currentProjectId === projectId && ws && ws.readyState === WebSocket.OPEN) {
+      return;
+    }
+
     cleanup();
     intentionalClose = false;
     currentProjectId = projectId;
@@ -46,14 +58,15 @@ export const websocketMiddleware: Middleware = (storeApi) => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const url = `${protocol}//${window.location.host}/ws/projects/${projectId}`;
 
-    ws = new WebSocket(url);
+    const socket = new WebSocket(url);
+    ws = socket;
 
-    ws.onopen = () => {
+    socket.onopen = () => {
       reconnectAttempt = 0;
       dispatch(setConnected(true));
     };
 
-    ws.onmessage = (event) => {
+    socket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data) as ServerEvent;
         handleServerEvent(dispatch, projectId, data);
@@ -62,14 +75,16 @@ export const websocketMiddleware: Middleware = (storeApi) => {
       }
     };
 
-    ws.onclose = () => {
+    socket.onclose = () => {
+      // Ignore if this is a stale socket (replaced by a newer connection)
+      if (socket !== ws) return;
       dispatch(setConnected(false));
       if (!intentionalClose && currentProjectId) {
         scheduleReconnect(projectId);
       }
     };
 
-    ws.onerror = () => {
+    socket.onerror = () => {
       // onclose will fire after onerror
     };
   }
@@ -84,11 +99,7 @@ export const websocketMiddleware: Middleware = (storeApi) => {
     }, delay);
   }
 
-  function handleServerEvent(
-    d: StoreDispatch,
-    projectId: string,
-    event: ServerEvent,
-  ) {
+  function handleServerEvent(d: StoreDispatch, projectId: string, event: ServerEvent) {
     switch (event.type) {
       case "hil.request":
         if (event.blocking) {

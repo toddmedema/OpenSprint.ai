@@ -4,7 +4,6 @@ import path from "path";
 import os from "os";
 import { FeedbackService } from "../services/feedback.service.js";
 import { ProjectService } from "../services/project.service.js";
-import type { FeedbackItem } from "@opensprint/shared";
 import { DEFAULT_HIL_CONFIG, OPENSPRINT_PATHS } from "@opensprint/shared";
 
 const mockInvoke = vi.fn();
@@ -20,6 +19,21 @@ vi.mock("../services/hil-service.js", () => ({
 
 vi.mock("../websocket/index.js", () => ({
   broadcastToProject: vi.fn(),
+}));
+
+const mockBeadsCreate = vi.fn().mockResolvedValue({ id: "mock-task-1", title: "Mock task", status: "open" });
+vi.mock("../services/beads.service.js", () => ({
+  BeadsService: vi.fn().mockImplementation(() => ({
+    init: vi.fn().mockResolvedValue(undefined),
+    create: (...args: unknown[]) => mockBeadsCreate(...args),
+    listAll: vi.fn().mockResolvedValue([]),
+    list: vi.fn().mockResolvedValue([]),
+    ready: vi.fn().mockResolvedValue([]),
+    show: vi.fn().mockResolvedValue({}),
+    update: vi.fn().mockResolvedValue({}),
+    close: vi.fn().mockResolvedValue({}),
+    sync: vi.fn().mockResolvedValue(undefined),
+  })),
 }));
 
 describe("FeedbackService", () => {
@@ -125,18 +139,19 @@ describe("FeedbackService", () => {
     expect(item.status).toBe("pending");
     expect(item.id).toBeDefined();
 
-    // Wait for async categorization
-    await new Promise((r) => setTimeout(r, 50));
+    // Wait for async categorization + task creation
+    await new Promise((r) => setTimeout(r, 200));
 
     const updated = await feedbackService.getFeedback(projectId, item.id);
     expect(updated.status).toBe("mapped");
     expect(updated.category).toBe("feature");
     expect(updated.mappedPlanId).toBe("auth-plan");
-    expect((updated as FeedbackItem & { taskTitles?: string[] }).taskTitles).toEqual([
+    expect(updated.taskTitles).toEqual([
       "Add dark mode toggle",
       "Implement theme persistence",
     ]);
-    expect(updated.createdTaskIds).toEqual([]);
+    // BeadsService.create is mocked — tasks should be created
+    expect(updated.createdTaskIds).toEqual(["mock-task-1", "mock-task-1"]);
 
     expect(mockInvoke).toHaveBeenCalledTimes(1);
     const prompt = mockInvoke.mock.calls[0][0]?.prompt ?? "";
@@ -158,11 +173,11 @@ describe("FeedbackService", () => {
       text: "Login button broken",
     });
 
-    await new Promise((r) => setTimeout(r, 50));
+    await new Promise((r) => setTimeout(r, 200));
 
     const updated = await feedbackService.getFeedback(projectId, item.id);
     expect(updated.category).toBe("bug");
-    expect((updated as FeedbackItem & { taskTitles?: string[] }).taskTitles).toEqual(["Fix login button"]);
+    expect(updated.taskTitles).toEqual(["Fix login button"]);
   });
 
   it("should fallback to bug and first plan when agent returns invalid JSON", async () => {
@@ -172,12 +187,12 @@ describe("FeedbackService", () => {
       text: "Something broke",
     });
 
-    await new Promise((r) => setTimeout(r, 50));
+    await new Promise((r) => setTimeout(r, 200));
 
     const updated = await feedbackService.getFeedback(projectId, item.id);
     expect(updated.status).toBe("mapped");
     expect(updated.category).toBe("bug");
-    expect((updated as FeedbackItem & { taskTitles?: string[] }).taskTitles).toEqual(["Something broke"]);
+    expect(updated.taskTitles).toEqual(["Something broke"]);
   });
 
   it("should fallback to bug when agent throws", async () => {
@@ -187,11 +202,11 @@ describe("FeedbackService", () => {
       text: "Random feedback",
     });
 
-    await new Promise((r) => setTimeout(r, 50));
+    await new Promise((r) => setTimeout(r, 200));
 
     const updated = await feedbackService.getFeedback(projectId, item.id);
     expect(updated.status).toBe("mapped");
     expect(updated.category).toBe("bug");
-    expect((updated as FeedbackItem & { taskTitles?: string[] }).taskTitles).toEqual(["Random feedback"]);
+    expect(updated.taskTitles).toEqual(["Random feedback"]);
   });
 });

@@ -1,0 +1,13 @@
+{
+  "id": "8393c212-7847-4a50-ab15-e013cd0c23dd",
+  "text": "When viewing task details in the build view, there should be a link at the top (just under task name) to the plan it's associated to. Only show this link if the task is associated to a plan.",
+  "category": "ux",
+  "mappedPlanId": "build-phase-kanban-and-task-listing",
+  "createdTaskIds": ["opensprint.dev-cxx.7", "opensprint.dev-cxx.8"],
+  "status": "mapped",
+  "createdAt": "2026-02-16T09:19:49.049Z",
+  "taskTitles": [
+    "Add plan link to task detail panel in Build view",
+    "Show associated plan link in task details when task has plan"
+  ]
+}

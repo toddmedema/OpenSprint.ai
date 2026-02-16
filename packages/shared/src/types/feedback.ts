@@ -13,4 +13,6 @@ export interface FeedbackItem {
   createdTaskIds: string[];
   status: FeedbackStatus;
   createdAt: string;
+  /** Suggested task titles from AI categorization */
+  taskTitles?: string[];
 }
