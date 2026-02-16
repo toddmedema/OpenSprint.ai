@@ -51,11 +51,17 @@ prdRouter.get('/:section', async (req: Request<SectionParams>, res, next) => {
 // PUT /projects/:projectId/prd/:section — Update a specific PRD section (direct edit)
 prdRouter.put('/:section', async (req: Request<SectionParams>, res, next) => {
   try {
-    const { content, source } = req.body as { content: string; source?: string };
+    const { content, source } = req.body as { content?: string; source?: string };
+    if (content === undefined || content === null) {
+      res.status(400).json({
+        error: { code: 'INVALID_INPUT', message: 'Request body must include "content" field' },
+      });
+      return;
+    }
     const result = await prdService.updateSection(
       req.params.projectId,
       req.params.section,
-      content,
+      String(content),
       (source as 'design' | 'plan' | 'build' | 'validate') || 'design',
     );
 
