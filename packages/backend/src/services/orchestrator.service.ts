@@ -23,6 +23,7 @@ import { BranchManager } from "./branch-manager.js";
 import { ContextAssembler } from "./context-assembler.js";
 import { SessionManager } from "./session-manager.js";
 import { TestRunner } from "./test-runner.js";
+import { orphanRecoveryService } from "./orphan-recovery.service.js";
 import { broadcastToProject, sendAgentOutputToProject } from "../websocket/index.js";
 
 interface RetryContext {
