@@ -160,7 +160,7 @@ export class BeadsService {
   ): Promise<BeadsIssue> {
     let cmd = `update ${id} --json`;
     if (options.status) cmd += ` --status ${options.status}`;
-    if (options.assignee) cmd += ` --assignee "${options.assignee}"`;
+    if (options.assignee !== undefined) cmd += ` --assignee "${options.assignee}"`;
     if (options.description) cmd += ` -d "${options.description.replace(/"/g, '\\"')}"`;
     if (options.priority !== undefined) cmd += ` -p ${options.priority}`;
     if (options.claim) cmd += ` --claim`;

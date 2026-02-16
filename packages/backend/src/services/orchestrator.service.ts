@@ -346,8 +346,20 @@ export class OrchestratorService {
     const state = this.getState(projectId);
     const repoPath = await this.projectService.getRepoPath(projectId);
 
-    // Crash recovery: check for persisted state from a previous run
+    // Orphan recovery: reset in_progress tasks with agent assignee but no active process
     const persisted = await this.loadPersistedState(repoPath);
+    const excludeTaskId =
+      persisted?.currentTaskId && persisted.agentPid && isPidAlive(persisted.agentPid)
+        ? persisted.currentTaskId
+        : undefined;
+    const { recovered } = await orphanRecoveryService.recoverOrphanedTasks(repoPath, excludeTaskId);
+    if (recovered.length > 0) {
+      console.warn(
+        `[orchestrator] Recovered ${recovered.length} orphaned task(s) on startup: ${recovered.join(", ")}`,
+      );
+    }
+
+    // Crash recovery: check for persisted state from a previous run
     if (persisted && persisted.currentTaskId) {
       await this.recoverFromPersistedState(projectId, repoPath, persisted);
     } else if (persisted) {
