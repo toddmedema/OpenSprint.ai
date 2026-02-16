@@ -4,12 +4,100 @@ import type { TestResults, TestResultDetail } from '@opensprint/shared';
 
 const execAsync = promisify(exec);
 
+export interface ScopedTestResult extends TestResults {
+  /** Raw stdout+stderr output from the test run */
+  rawOutput: string;
+}
+
 /**
  * Configurable test execution service.
  * Detects or uses user-configured test framework.
  * Parses test output into TestResults structure.
  */
 export class TestRunner {
+  /**
+   * Run only tests related to changed files. Falls back to full suite if
+   * no test files were changed or if scoping is not possible.
+   * Returns results plus raw output for richer retry context.
+   */
+  async runScopedTests(
+    repoPath: string,
+    changedFiles: string[],
+    testCommand?: string,
+  ): Promise<ScopedTestResult> {
+    const testFiles = changedFiles.filter(f =>
+      /\.(test|spec)\.(ts|tsx|js|jsx)$/.test(f),
+    );
+
+    let command: string | undefined;
+    if (testFiles.length > 0 && testCommand?.includes('vitest')) {
+      command = `npx vitest run ${testFiles.join(' ')}`;
+    } else if (testFiles.length > 0 && testCommand?.includes('jest')) {
+      command = `npx jest ${testFiles.join(' ')}`;
+    } else {
+      command = testCommand;
+    }
+
+    const result = await this.runTestsWithOutput(repoPath, command);
+    return result;
+  }
+
+  /**
+   * Run tests and return both structured results and raw output.
+   */
+  async runTestsWithOutput(
+    repoPath: string,
+    testCommand?: string,
+  ): Promise<ScopedTestResult> {
+    const command = testCommand || await this.detectTestCommand(repoPath);
+
+    if (!command) {
+      return {
+        passed: 0,
+        failed: 0,
+        skipped: 0,
+        total: 0,
+        details: [],
+        rawOutput: '',
+      };
+    }
+
+    try {
+      const { stdout, stderr } = await execAsync(command, {
+        cwd: repoPath,
+        timeout: 300000,
+        maxBuffer: 10 * 1024 * 1024,
+        env: { ...process.env, CI: 'true', FORCE_COLOR: '0' },
+      });
+
+      const rawOutput = stdout + '\n' + stderr;
+      const parsed = this.parseTestOutput(rawOutput, command);
+      return { ...parsed, rawOutput };
+    } catch (error: unknown) {
+      const err = error as { stdout?: string; stderr?: string; code?: number };
+      const rawOutput = (err.stdout || '') + '\n' + (err.stderr || '');
+      const results = this.parseTestOutput(rawOutput, command);
+
+      if (results.total === 0) {
+        return {
+          passed: 0,
+          failed: 1,
+          skipped: 0,
+          total: 1,
+          details: [{
+            name: 'Test execution',
+            status: 'failed',
+            duration: 0,
+            error: err.stderr || 'Test command failed with no output',
+          }],
+          rawOutput,
+        };
+      }
+
+      return { ...results, rawOutput };
+    }
+  }
+
   /**
    * Run tests for a project and return structured results.
    */

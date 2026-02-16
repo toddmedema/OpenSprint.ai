@@ -51,6 +51,9 @@ export interface HilConfig {
 
 export type HilConfigInput = HilConfig;
 
+/** Review mode controls when the review agent is invoked after coding */
+export type ReviewMode = 'always' | 'never' | 'on-failure-only';
+
 /** Full project settings stored at .opensprint/settings.json */
 export interface ProjectSettings {
   planningAgent: AgentConfig;
@@ -60,6 +63,8 @@ export interface ProjectSettings {
   deployment: DeploymentConfig;
   hilConfig: HilConfig;
   testFramework: string | null;
+  /** When to invoke the review agent after coding completes (default: "never") */
+  reviewMode?: ReviewMode;
 }
 
 /**

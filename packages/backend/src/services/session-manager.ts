@@ -28,6 +28,19 @@ export class SessionManager {
   }
 
   /**
+   * Remove stale result.json from a previous run so the orchestrator
+   * doesn't mistakenly read it after a new agent invocation.
+   */
+  async clearResult(repoPath: string, taskId: string): Promise<void> {
+    const resultPath = path.join(this.getActiveDir(repoPath, taskId), 'result.json');
+    try {
+      await fs.unlink(resultPath);
+    } catch {
+      // File may not exist
+    }
+  }
+
+  /**
    * Create and save an agent session record.
    */
   async createSession(

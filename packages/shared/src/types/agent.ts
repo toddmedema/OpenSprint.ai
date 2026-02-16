@@ -23,6 +23,12 @@ export interface ActiveTaskConfig {
   phase: AgentPhase;
   previousFailure: string | null;
   reviewFeedback: string | null;
+  /** Full test runner output from the previous failed attempt */
+  previousTestOutput?: string | null;
+  /** Git diff from the previous attempt (when branch was preserved) */
+  previousDiff?: string | null;
+  /** Whether this retry reuses an existing branch with prior commits */
+  useExistingBranch?: boolean;
 }
 
 /** Agent session record (.opensprint/sessions/<task-id>-<attempt>.json) */

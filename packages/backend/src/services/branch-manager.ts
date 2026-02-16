@@ -296,7 +296,15 @@ export class BranchManager {
    * Handles both root node_modules and any per-package node_modules
    * (e.g. .vite caches in workspace packages).
    */
-  private async symlinkNodeModules(repoPath: string, wtPath: string): Promise<void> {
+  async symlinkNodeModules(repoPath: string, wtPath: string): Promise<void> {
+    // Safety: never symlink into the main repo itself
+    const resolvedRepo = await fs.realpath(repoPath).catch(() => repoPath);
+    const resolvedWt = await fs.realpath(wtPath).catch(() => wtPath);
+    if (resolvedRepo === resolvedWt) {
+      console.warn("[branch-manager] symlinkNodeModules: wtPath equals repoPath, skipping to avoid circular symlinks");
+      return;
+    }
+
     // Symlink root node_modules
     const srcRoot = path.join(repoPath, "node_modules");
     const destRoot = path.join(wtPath, "node_modules");
@@ -332,10 +340,24 @@ export class BranchManager {
    * Create a symlink, removing any existing file/symlink at the destination first.
    */
   private async forceSymlink(target: string, linkPath: string): Promise<void> {
+    // Safety: never create a symlink that points to itself
+    const resolvedTarget = await fs.realpath(target).catch(() => path.resolve(target));
+    const resolvedLink = path.resolve(linkPath);
+    if (resolvedTarget === resolvedLink) {
+      console.warn(`[branch-manager] forceSymlink: target === linkPath (${resolvedTarget}), skipping circular symlink`);
+      return;
+    }
+
     try {
       await fs.symlink(target, linkPath, "junction");
     } catch (err: any) {
       if (err.code === "EEXIST") {
+        // Don't delete a real directory that isn't a symlink
+        const stat = await fs.lstat(linkPath);
+        if (stat.isDirectory() && !stat.isSymbolicLink()) {
+          console.warn(`[branch-manager] forceSymlink: ${linkPath} is a real directory, refusing to replace`);
+          return;
+        }
         await fs.rm(linkPath, { recursive: true, force: true });
         await fs.symlink(target, linkPath, "junction");
       } else {
@@ -359,6 +381,22 @@ export class BranchManager {
       } catch {
         // Nothing to clean up
       }
+    }
+  }
+
+  /**
+   * Get the number of commits a branch is ahead of main.
+   * Returns 0 if the branch doesn't exist or has no commits beyond main.
+   */
+  async getCommitCountAhead(repoPath: string, branchName: string): Promise<number> {
+    try {
+      const { stdout } = await execAsync(
+        `git rev-list --count main..${branchName}`,
+        { cwd: repoPath },
+      );
+      return parseInt(stdout.trim(), 10) || 0;
+    } catch {
+      return 0;
     }
   }
 

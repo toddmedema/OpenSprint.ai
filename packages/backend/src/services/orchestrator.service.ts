@@ -27,10 +27,35 @@ import { TestRunner } from "./test-runner.js";
 import { orphanRecoveryService } from "./orphan-recovery.service.js";
 import { broadcastToProject, sendAgentOutputToProject } from "../websocket/index.js";
 
+/**
+ * Failure types for smarter recovery routing.
+ * Only agent-attributable failures count toward progressive backoff.
+ */
+type FailureType =
+  | "test_failure"
+  | "review_rejection"
+  | "agent_crash"
+  | "timeout"
+  | "no_result"
+  | "merge_conflict"
+  | "coding_failure";
+
+/** Failures caused by infrastructure, not the agent's work quality */
+const INFRA_FAILURE_TYPES: FailureType[] = ["agent_crash", "timeout", "merge_conflict"];
+
+/** Max number of free infrastructure retries before counting toward backoff */
+const MAX_INFRA_RETRIES = 2;
+
 interface RetryContext {
   previousFailure?: string;
   reviewFeedback?: string;
   useExistingBranch?: boolean;
+  /** Full test runner output from the previous attempt */
+  previousTestOutput?: string;
+  /** Git diff from the previous attempt */
+  previousDiff?: string;
+  /** Type of failure that triggered this retry */
+  failureType?: FailureType;
 }
 
 /** Watchdog interval: 5 minutes (PRDv2 §5.7) */
@@ -92,6 +117,10 @@ interface OrchestratorState {
   activeTaskTitle: string | null;
   /** Filesystem path of the active task's git worktree (null when idle) */
   activeWorktreePath: string | null;
+  /** Number of infrastructure-caused retries for the current task (not counted toward backoff) */
+  infraRetries: number;
+  /** Raw test output from the last test run (for richer retry context) */
+  lastTestOutput: string;
 }
 
 /**
@@ -126,6 +155,8 @@ export class OrchestratorService {
         activeBranchName: null,
         activeTaskTitle: null,
         activeWorktreePath: null,
+        infraRetries: 0,
+        lastTestOutput: "",
       });
     }
     return this.state.get(projectId)!;
@@ -273,13 +304,14 @@ export class OrchestratorService {
   }
 
   /**
-   * Crash recovery: clear state, clean up worktree, requeue task.
+   * Crash recovery with checkpoint detection.
+   *
+   * Instead of always wiping everything, checks if the branch has meaningful
+   * committed work. If it does, preserves the branch so the next attempt can
+   * build on the progress. Only deletes the branch if there are no commits
+   * beyond main (nothing worth preserving).
    *
    * CRITICAL: persisted state is cleared FIRST before any file-mutating operations.
-   * This ensures that even if tsx restarts during cleanup, the new process sees no
-   * state to recover and starts fresh. Orphan recovery will catch any leftover tasks.
-   *
-   * No `git checkout` operations are performed in the main working tree.
    */
   private async performCrashRecovery(
     projectId: string,
@@ -294,38 +326,52 @@ export class OrchestratorService {
     // 1. Clear persisted state FIRST — breaks any restart loop
     await this.clearPersistedState(repoPath);
 
-    // 2. Capture diff without checkout (for logging/archival)
+    // 2. Check for committed work on the branch (checkpoint detection)
+    const commitCount = await this.branchManager.getCommitCountAhead(repoPath, branchName);
     const diff = await this.branchManager.captureBranchDiff(repoPath, branchName);
     if (diff) {
-      console.log(`[orchestrator] Recovery: captured ${diff.length} bytes of diff from ${branchName}`);
+      console.log(`[orchestrator] Recovery: captured ${diff.length} bytes of diff from ${branchName} (${commitCount} commits ahead)`);
     }
 
-    // 3. Clean up worktree (no main working tree changes)
+    // 3. Clean up worktree (always — it may be corrupted)
     try {
       await this.branchManager.removeTaskWorktree(repoPath, taskId);
     } catch (err) {
       console.warn("[orchestrator] Recovery: worktree cleanup failed:", err);
     }
 
-    // 4. Delete the task branch (safe: main WT stays on main)
-    try {
-      await this.branchManager.deleteBranch(repoPath, branchName);
-    } catch {
-      // Branch may not exist or may have already been deleted
+    // 4. Decide whether to preserve or delete the branch
+    if (commitCount > 0) {
+      // Branch has committed work — PRESERVE it for the next attempt
+      console.log(`[orchestrator] Recovery: preserving branch ${branchName} with ${commitCount} commits`);
+      try {
+        await this.beads.comment(
+          repoPath,
+          taskId,
+          `Agent crashed (backend restart). Branch preserved with ${commitCount} commits for next attempt.`,
+        );
+      } catch (err) {
+        console.warn("[orchestrator] Recovery: failed to add comment:", err);
+      }
+    } else {
+      // No commits — delete the branch (nothing to preserve)
+      try {
+        await this.branchManager.deleteBranch(repoPath, branchName);
+      } catch {
+        // Branch may not exist
+      }
+      try {
+        await this.beads.comment(
+          repoPath,
+          taskId,
+          "Agent crashed (backend restart). No committed work found, task requeued.",
+        );
+      } catch (err) {
+        console.warn("[orchestrator] Recovery: failed to add comment:", err);
+      }
     }
 
-    // 5. Add failure comment to the task
-    try {
-      await this.beads.comment(
-        repoPath,
-        taskId,
-        "Agent process crashed (backend restart). Worktree cleaned up, task requeued.",
-      );
-    } catch (err) {
-      console.warn("[orchestrator] Recovery: failed to add comment:", err);
-    }
-
-    // 6. Requeue the task (set back to open/unassigned)
+    // 5. Requeue the task (set back to open/unassigned)
     try {
       await this.beads.update(repoPath, taskId, {
         status: "open",
@@ -579,9 +625,14 @@ export class OrchestratorService {
     const branchName = `opensprint/${task.id}`;
 
     try {
-      // Create an isolated worktree for the agent (no checkout in main WT)
+      // Create an isolated worktree for the agent (no checkout in main WT).
+      // createTaskWorktree already handles existing branches — it reuses the
+      // branch if it exists, preserving committed work from prior attempts.
       const wtPath = await this.branchManager.createTaskWorktree(repoPath, task.id);
       state.activeWorktreePath = wtPath;
+
+      // Pre-flight health check: ensure environment is ready before spawning agent
+      await this.preflightCheck(repoPath, wtPath, task.id);
 
       // Context assembly: read from main repo (PRD, plans, deps), write prompt to worktree
       const context = await this.contextAssembler.buildContext(repoPath, task.id, this.beads, this.branchManager);
@@ -598,6 +649,9 @@ export class OrchestratorService {
         phase: "coding",
         previousFailure: retryContext?.previousFailure ?? null,
         reviewFeedback: retryContext?.reviewFeedback ?? null,
+        previousTestOutput: retryContext?.previousTestOutput ?? null,
+        previousDiff: retryContext?.previousDiff ?? null,
+        useExistingBranch: retryContext?.useExistingBranch ?? false,
       };
 
       // Write prompt/config to worktree, read context from main repo
@@ -651,7 +705,10 @@ export class OrchestratorService {
       }, 30000);
     } catch (error) {
       console.error(`Coding phase failed for task ${task.id}:`, error);
-      await this.handleTaskFailure(projectId, repoPath, task, branchName, String(error), null);
+      await this.handleTaskFailure(
+        projectId, repoPath, task, branchName,
+        String(error), null, "agent_crash",
+      );
     }
   }
 
@@ -676,56 +733,81 @@ export class OrchestratorService {
       }
     }
 
-    if (result && result.status === "success") {
+    // Determine failure type when agent didn't produce a result
+    if (!result) {
+      const failureType: FailureType = exitCode === 143 || exitCode === 137
+        ? "agent_crash" : "no_result";
+      await this.handleTaskFailure(
+        projectId, repoPath, task, branchName,
+        `Agent exited with code ${exitCode} without producing a result`,
+        null, failureType,
+      );
+      return;
+    }
+
+    if (result.status === "success") {
       // Get diff without checkout (works across worktree boundaries)
       state.lastCodingDiff = await this.branchManager.captureBranchDiff(repoPath, branchName);
       state.lastCodingSummary = result.summary ?? "";
 
-      // Run tests in the worktree
+      // Run scoped tests (only files changed by this task) in the worktree
       const settings = await this.projectService.getSettings(projectId);
       const testCommand = getTestCommandForFramework(settings.testFramework) || undefined;
-      const testResults = await this.testRunner.runTests(wtPath, testCommand);
-      if (testResults.failed > 0) {
+      let changedFiles: string[] = [];
+      try {
+        changedFiles = await this.branchManager.getChangedFiles(repoPath, branchName);
+      } catch {
+        // Fall back to full suite
+      }
+      const scopedResult = await this.testRunner.runScopedTests(wtPath, changedFiles, testCommand);
+      state.lastTestOutput = scopedResult.rawOutput;
+
+      if (scopedResult.failed > 0) {
         await this.handleTaskFailure(
-          projectId,
-          repoPath,
-          task,
-          branchName,
-          `Tests failed: ${testResults.failed} failed, ${testResults.passed} passed`,
-          testResults,
+          projectId, repoPath, task, branchName,
+          `Tests failed: ${scopedResult.failed} failed, ${scopedResult.passed} passed`,
+          scopedResult, "test_failure",
         );
         return;
       }
 
-      state.lastTestResults = testResults;
+      state.lastTestResults = scopedResult;
 
-      // Commit any uncommitted changes in worktree before review
+      // Commit any uncommitted changes in worktree before review/merge
       await this.branchManager.commitWip(wtPath, task.id);
 
-      // Move to review phase (coding-to-review transition)
-      state.status.currentPhase = "review";
+      // Check reviewMode setting to decide whether to invoke the review agent
+      const reviewMode = settings.reviewMode ?? "never";
 
-      // Persist state: coding → review transition (PRDv2 §5.8)
-      await this.persistState(projectId, repoPath);
+      if (reviewMode === "never") {
+        // Skip review — go straight to merge
+        await this.performMergeAndComplete(projectId, repoPath, task, branchName);
+      } else {
+        // Move to review phase (coding-to-review transition)
+        state.status.currentPhase = "review";
+        await this.persistState(projectId, repoPath);
 
-      broadcastToProject(projectId, {
-        type: "task.updated",
-        taskId: task.id,
-        status: "in_progress",
-        assignee: "agent-1",
-      });
-      broadcastToProject(projectId, {
-        type: "build.status",
-        currentTask: task.id,
-        currentPhase: "review",
-        queueDepth: state.status.queueDepth,
-      });
+        broadcastToProject(projectId, {
+          type: "task.updated",
+          taskId: task.id,
+          status: "in_progress",
+          assignee: "agent-1",
+        });
+        broadcastToProject(projectId, {
+          type: "build.status",
+          currentTask: task.id,
+          currentPhase: "review",
+          queueDepth: state.status.queueDepth,
+        });
 
-      await this.executeReviewPhase(projectId, repoPath, task, branchName);
+        await this.executeReviewPhase(projectId, repoPath, task, branchName);
+      }
     } else {
       // Coding failed
-      const reason = result?.summary || `Agent exited with code ${exitCode}`;
-      await this.handleTaskFailure(projectId, repoPath, task, branchName, reason, null);
+      const reason = result.summary || `Agent exited with code ${exitCode}`;
+      await this.handleTaskFailure(
+        projectId, repoPath, task, branchName, reason, null, "coding_failure",
+      );
     }
   }
 
@@ -814,7 +896,9 @@ export class OrchestratorService {
       }, 30000);
     } catch (error) {
       console.error(`Review phase failed for task ${task.id}:`, error);
-      await this.handleTaskFailure(projectId, repoPath, task, branchName, String(error), null);
+      await this.handleTaskFailure(
+        projectId, repoPath, task, branchName, String(error), null, "agent_crash",
+      );
     }
   }
 
@@ -830,99 +914,10 @@ export class OrchestratorService {
     const result = (await this.sessionManager.readResult(wtPath, task.id)) as ReviewAgentResult | null;
 
     if (result && result.status === "approved") {
-      // Wait for any lingering git operations in the worktree to finish
-      await this.branchManager.waitForGitReady(wtPath);
-
-      // Commit any remaining changes in worktree before merge
-      await this.branchManager.commitWip(wtPath, task.id);
-
-      // Merge to main from the main working tree (no checkout needed)
-      try {
-        await this.branchManager.mergeToMain(repoPath, branchName);
-      } catch (mergeErr) {
-        console.warn("[orchestrator] Merge to main failed:", mergeErr);
-        // Verify merge didn't happen at all before treating as failure
-        const merged = await this.branchManager.verifyMerge(repoPath, branchName);
-        if (!merged) {
-          await this.handleTaskFailure(
-            projectId,
-            repoPath,
-            task,
-            branchName,
-            `Merge to main failed: ${mergeErr}`,
-            null,
-          );
-          return;
-        }
-      }
-
-      // Close the task in beads
-      await this.beads.close(repoPath, task.id, result.summary || "Implemented and reviewed");
-
-      // Archive session from worktree to main repo sessions dir
-      const session = await this.sessionManager.createSession(repoPath, {
-        taskId: task.id,
-        attempt: state.attempt,
-        agentType: (await this.projectService.getSettings(projectId)).codingAgent.type,
-        agentModel: (await this.projectService.getSettings(projectId)).codingAgent.model || "",
-        gitBranch: branchName,
-        status: "approved",
-        outputLog: state.outputLog.join(""),
-        gitDiff: state.lastCodingDiff,
-        summary: state.lastCodingSummary || undefined,
-        testResults: state.lastTestResults ?? undefined,
-        startedAt: state.startedAt,
-      });
-      await this.sessionManager.archiveSession(repoPath, task.id, state.attempt, session, wtPath);
-
-      // Clean up worktree then delete branch
-      await this.branchManager.removeTaskWorktree(repoPath, task.id);
-      await this.branchManager.deleteBranch(repoPath, branchName);
-
-      // Push main to remote so completed work reaches origin
-      await this.branchManager.pushMain(repoPath).catch((err) => {
-        console.warn("[orchestrator] pushMain failed after merge:", err);
-      });
-
-      state.status.totalCompleted += 1;
-      state.status.currentTask = null;
-      state.status.currentPhase = null;
-      state.activeBranchName = null;
-      state.activeTaskTitle = null;
-      state.activeWorktreePath = null;
-
-      // Clear persisted state: task completed successfully (PRDv2 §5.8)
-      await this.clearPersistedState(repoPath);
-
-      broadcastToProject(projectId, {
-        type: "task.updated",
-        taskId: task.id,
-        status: "closed",
-        assignee: null,
-      });
-
-      broadcastToProject(projectId, {
-        type: "agent.completed",
-        taskId: task.id,
-        status: "approved",
-        testResults: state.lastTestResults,
-      });
-
-      // Trigger deployment after Build completion (PRD §6.4)
-      deploymentService.deploy(projectId).catch((err) => {
-        console.warn(`Deployment trigger failed for project ${projectId}:`, err);
-      });
-
-      // Mark loop as idle, then re-trigger after a short delay to let git settle
-      state.loopActive = false;
-      state.loopTimer = setTimeout(() => {
-        state.loopTimer = null;
-        this.nudge(projectId);
-      }, 3000);
+      await this.performMergeAndComplete(projectId, repoPath, task, branchName);
     } else if (result && result.status === "rejected") {
       // Review rejected — treat as a failure for progressive backoff (PRDv2 §9.1)
       const reason = `Review rejected: ${result.issues?.join("; ") || result.summary}`;
-      const reviewFeedback = [result.summary, ...(result.issues ?? [])].filter(Boolean).join("\n");
 
       // Archive rejection session before handling failure
       const session = await this.sessionManager.createSession(repoPath, {
@@ -938,31 +933,131 @@ export class OrchestratorService {
       });
       await this.sessionManager.archiveSession(repoPath, task.id, state.attempt, session, wtPath);
 
-      // Delegate to progressive backoff handler (which will retry, demote, or block)
-      await this.handleTaskFailure(projectId, repoPath, task, branchName, reason, null);
-    } else {
-      // No result.json or unexpected status
       await this.handleTaskFailure(
-        projectId,
-        repoPath,
-        task,
-        branchName,
+        projectId, repoPath, task, branchName, reason, null, "review_rejection",
+      );
+    } else {
+      const failureType: FailureType = exitCode === 143 || exitCode === 137
+        ? "agent_crash" : "no_result";
+      await this.handleTaskFailure(
+        projectId, repoPath, task, branchName,
         `Review agent exited with code ${exitCode} without producing a valid result`,
-        null,
+        null, failureType,
       );
     }
   }
 
   /**
-   * Progressive backoff error handler (PRDv2 §9.1).
+   * Merge to main, close task, archive session, clean up.
+   * Shared by both the direct-merge path (reviewMode: "never") and the review-approved path.
+   */
+  private async performMergeAndComplete(
+    projectId: string,
+    repoPath: string,
+    task: BeadsIssue,
+    branchName: string,
+  ): Promise<void> {
+    const state = this.getState(projectId);
+    const wtPath = state.activeWorktreePath ?? repoPath;
+
+    // Wait for any lingering git operations in the worktree to finish
+    await this.branchManager.waitForGitReady(wtPath);
+
+    // Commit any remaining changes in worktree before merge
+    await this.branchManager.commitWip(wtPath, task.id);
+
+    // Merge to main from the main working tree (no checkout needed)
+    try {
+      await this.branchManager.mergeToMain(repoPath, branchName);
+    } catch (mergeErr) {
+      console.warn("[orchestrator] Merge to main failed:", mergeErr);
+      const merged = await this.branchManager.verifyMerge(repoPath, branchName);
+      if (!merged) {
+        await this.handleTaskFailure(
+          projectId, repoPath, task, branchName,
+          `Merge to main failed: ${mergeErr}`, null, "merge_conflict",
+        );
+        return;
+      }
+    }
+
+    // Close the task in beads
+    await this.beads.close(repoPath, task.id, state.lastCodingSummary || "Implemented and tested");
+
+    // Archive session
+    const session = await this.sessionManager.createSession(repoPath, {
+      taskId: task.id,
+      attempt: state.attempt,
+      agentType: (await this.projectService.getSettings(projectId)).codingAgent.type,
+      agentModel: (await this.projectService.getSettings(projectId)).codingAgent.model || "",
+      gitBranch: branchName,
+      status: "approved",
+      outputLog: state.outputLog.join(""),
+      gitDiff: state.lastCodingDiff,
+      summary: state.lastCodingSummary || undefined,
+      testResults: state.lastTestResults ?? undefined,
+      startedAt: state.startedAt,
+    });
+    await this.sessionManager.archiveSession(repoPath, task.id, state.attempt, session, wtPath);
+
+    // Clean up worktree then delete branch
+    await this.branchManager.removeTaskWorktree(repoPath, task.id);
+    await this.branchManager.deleteBranch(repoPath, branchName);
+
+    // Push main to remote so completed work reaches origin
+    await this.branchManager.pushMain(repoPath).catch((err) => {
+      console.warn("[orchestrator] pushMain failed after merge:", err);
+    });
+
+    state.status.totalCompleted += 1;
+    state.status.currentTask = null;
+    state.status.currentPhase = null;
+    state.activeBranchName = null;
+    state.activeTaskTitle = null;
+    state.activeWorktreePath = null;
+
+    // Clear persisted state: task completed successfully (PRDv2 §5.8)
+    await this.clearPersistedState(repoPath);
+
+    broadcastToProject(projectId, {
+      type: "task.updated",
+      taskId: task.id,
+      status: "closed",
+      assignee: null,
+    });
+
+    broadcastToProject(projectId, {
+      type: "agent.completed",
+      taskId: task.id,
+      status: "approved",
+      testResults: state.lastTestResults,
+    });
+
+    // Trigger deployment after Build completion (PRD §6.4)
+    deploymentService.deploy(projectId).catch((err) => {
+      console.warn(`Deployment trigger failed for project ${projectId}:`, err);
+    });
+
+    // Mark loop as idle, then re-trigger after a short delay to let git settle
+    state.loopActive = false;
+    state.loopTimer = setTimeout(() => {
+      state.loopTimer = null;
+      this.nudge(projectId);
+    }, 3000);
+  }
+
+  /**
+   * Progressive backoff error handler (PRDv2 §9.1) with failure classification.
    *
-   * No checkout operations are performed on the main working tree.
-   * The worktree is cleaned up and the branch is deleted.
-   *
-   * Backoff cadence:
-   *   - Attempts where (cumulative % 3 !== 0): immediate retry with failure context
-   *   - Every 3rd failure: deprioritize the task (beads priority += 1)
-   *   - At priority 4 on a 3rd failure: add `blocked` label, emit `task.blocked`
+   * Key improvements:
+   *   - Infrastructure failures (crash, timeout, merge_conflict) get free retries
+   *     and don't count toward the progressive backoff budget.
+   *   - On immediate retries, the branch and worktree are PRESERVED so the agent
+   *     can build on its previous work rather than starting from scratch.
+   *   - On demotion points (every 3rd backoff-eligible failure), branch is deleted
+   *     for a clean slate.
+   *   - Richer retry context: test output, diff, and failure type are passed to
+   *     the next coding attempt.
    */
   private async handleTaskFailure(
     projectId: string,
@@ -971,23 +1066,24 @@ export class OrchestratorService {
     branchName: string,
     reason: string,
     testResults?: TestResults | null,
+    failureType: FailureType = "coding_failure",
   ): Promise<void> {
     const state = this.getState(projectId);
     const cumulativeAttempts = state.attempt;
     const wtPath = state.activeWorktreePath;
+    const isInfraFailure = INFRA_FAILURE_TYPES.includes(failureType);
 
-    console.error(`Task ${task.id} failed (cumulative attempt ${cumulativeAttempts}): ${reason}`);
+    console.error(`Task ${task.id} failed [${failureType}] (attempt ${cumulativeAttempts}): ${reason}`);
 
-    // Clean up worktree (no main working tree changes)
-    if (wtPath) {
-      await this.branchManager.removeTaskWorktree(repoPath, task.id);
-      state.activeWorktreePath = null;
+    // Capture diff before any cleanup (for richer retry context)
+    let previousDiff = "";
+    try {
+      previousDiff = await this.branchManager.captureBranchDiff(repoPath, branchName);
+    } catch {
+      // Branch may not exist
     }
 
-    // Delete branch (safe: main WT stays on main)
-    await this.branchManager.deleteBranch(repoPath, branchName);
-
-    // Archive failure session (to main repo sessions dir)
+    // Archive failure session (always, even on immediate retry)
     const session = await this.sessionManager.createSession(repoPath, {
       taskId: task.id,
       attempt: cumulativeAttempts,
@@ -1002,36 +1098,78 @@ export class OrchestratorService {
     });
     await this.sessionManager.archiveSession(repoPath, task.id, cumulativeAttempts, session);
 
-    // Persist cumulative attempt count on the bead issue (PRDv2 §9.1)
-    await this.beads.setCumulativeAttempts(repoPath, task.id, cumulativeAttempts);
-
     // Add failure comment for audit trail
     await this.beads
-      .comment(repoPath, task.id, `Attempt ${cumulativeAttempts} failed: ${reason.slice(0, 500)}`)
+      .comment(repoPath, task.id, `Attempt ${cumulativeAttempts} failed [${failureType}]: ${reason.slice(0, 500)}`)
       .catch((err) => console.warn("[orchestrator] Failed to add failure comment:", err));
+
+    // Infrastructure failures get free retries (up to MAX_INFRA_RETRIES)
+    if (isInfraFailure && state.infraRetries < MAX_INFRA_RETRIES) {
+      state.infraRetries += 1;
+      state.attempt = cumulativeAttempts + 1;
+      console.log(
+        `[orchestrator] Infrastructure retry ${state.infraRetries}/${MAX_INFRA_RETRIES} for ${task.id} [${failureType}]`,
+      );
+
+      // Clean up worktree but keep the branch for retry
+      if (wtPath) {
+        await this.branchManager.removeTaskWorktree(repoPath, task.id);
+        state.activeWorktreePath = null;
+      }
+
+      await this.persistState(projectId, repoPath);
+      await this.executeCodingPhase(projectId, repoPath, task, {
+        previousFailure: reason,
+        useExistingBranch: true,
+        previousDiff,
+        previousTestOutput: state.lastTestOutput || undefined,
+        failureType,
+      });
+      return;
+    }
+
+    // Reset infra retry counter for agent-attributable failures
+    if (!isInfraFailure) {
+      state.infraRetries = 0;
+    }
+
+    // Persist cumulative attempt count on the bead issue (PRDv2 §9.1)
+    await this.beads.setCumulativeAttempts(repoPath, task.id, cumulativeAttempts);
 
     const isDemotionPoint = cumulativeAttempts % BACKOFF_FAILURE_THRESHOLD === 0;
 
     if (!isDemotionPoint) {
-      // Immediate retry with failure context
-      state.attempt = cumulativeAttempts + 1;
-      console.log(`[orchestrator] Retrying ${task.id} (attempt ${state.attempt})`);
+      // Immediate retry — KEEP the branch so agent builds on previous work
+      if (wtPath) {
+        await this.branchManager.removeTaskWorktree(repoPath, task.id);
+        state.activeWorktreePath = null;
+      }
 
-      // Persist state: retry attempt transition (PRDv2 §5.8)
+      state.attempt = cumulativeAttempts + 1;
+      console.log(`[orchestrator] Retrying ${task.id} (attempt ${state.attempt}), preserving branch`);
+
       await this.persistState(projectId, repoPath);
 
       await this.executeCodingPhase(projectId, repoPath, task, {
         previousFailure: reason,
+        useExistingBranch: true,
+        previousDiff,
+        previousTestOutput: state.lastTestOutput || undefined,
+        failureType,
       });
     } else {
-      // Demotion point: deprioritize or block
+      // Demotion point: clean slate — delete branch and worktree
+      if (wtPath) {
+        await this.branchManager.removeTaskWorktree(repoPath, task.id);
+        state.activeWorktreePath = null;
+      }
+      await this.branchManager.deleteBranch(repoPath, branchName);
+
       const currentPriority = task.priority ?? 2;
 
       if (currentPriority >= MAX_PRIORITY_BEFORE_BLOCK) {
-        // At max priority — block the task
         await this.blockTask(projectId, repoPath, task, cumulativeAttempts, reason);
       } else {
-        // Deprioritize and requeue for later pickup
         const newPriority = currentPriority + 1;
         console.log(
           `[orchestrator] Demoting ${task.id} priority ${currentPriority} → ${newPriority} after ${cumulativeAttempts} failures`,
@@ -1054,7 +1192,6 @@ export class OrchestratorService {
         state.activeTaskTitle = null;
         state.activeWorktreePath = null;
 
-        // Clear persisted state: task returned to queue (PRDv2 §5.8)
         await this.clearPersistedState(repoPath);
 
         broadcastToProject(projectId, {
@@ -1071,7 +1208,6 @@ export class OrchestratorService {
           testResults: null,
         });
 
-        // Mark loop idle and schedule next iteration
         state.loopActive = false;
         state.loopTimer = setTimeout(() => {
           state.loopTimer = null;
@@ -1079,6 +1215,33 @@ export class OrchestratorService {
         }, 2000);
       }
     }
+  }
+
+  // ─── Pre-Flight Health Check ───
+
+  /**
+   * Validate the worktree environment before spawning an agent.
+   * Fixes recoverable issues (missing symlinks, stale result.json) in-place.
+   * If pre-flight fails, the issue is environmental — not the agent's fault.
+   */
+  private async preflightCheck(
+    repoPath: string,
+    wtPath: string,
+    taskId: string,
+  ): Promise<void> {
+    // 1. Ensure git is ready (no stale locks)
+    await this.branchManager.waitForGitReady(wtPath);
+
+    // 2. Ensure node_modules symlink is intact
+    try {
+      await fs.access(path.join(wtPath, "node_modules"));
+    } catch {
+      console.warn("[orchestrator] Pre-flight: node_modules missing, re-symlinking");
+      await this.branchManager.symlinkNodeModules(repoPath, wtPath);
+    }
+
+    // 3. Clear stale result.json from a previous run
+    await this.sessionManager.clearResult(wtPath, taskId);
   }
 
   /**

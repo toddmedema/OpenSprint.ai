@@ -288,11 +288,18 @@ export class ContextAssembler {
 
     prompt += `## Instructions\n\n`;
     prompt += `1. Work on branch \`${config.branch}\` (already checked out in this worktree).\n`;
-    prompt += `2. Implement the task according to the acceptance criteria.\n`;
-    prompt += `3. Write comprehensive tests (unit, and integration where applicable).\n`;
-    prompt += `4. Run \`${config.testCommand}\` and ensure all tests pass.\n`;
-    prompt += `5. Commit your changes with a descriptive message.\n`;
-    prompt += `6. Write your result to \`.opensprint/active/${config.taskId}/result.json\` using this exact JSON format:\n`;
+
+    if (config.useExistingBranch) {
+      prompt += `2. **This branch contains work from a previous attempt.** Review the existing code before making changes. Build on what's already there rather than starting from scratch.\n`;
+      prompt += `3. Implement or fix the task according to the acceptance criteria.\n`;
+    } else {
+      prompt += `2. Implement the task according to the acceptance criteria.\n`;
+    }
+
+    prompt += `${config.useExistingBranch ? '4' : '3'}. Write comprehensive tests (unit, and integration where applicable).\n`;
+    prompt += `${config.useExistingBranch ? '5' : '4'}. **Commit early and often** — after each logical unit of work (e.g., after implementing a function, after writing its tests). Use descriptive commit messages. This protects your work if the process is interrupted.\n`;
+    prompt += `${config.useExistingBranch ? '6' : '5'}. Run \`${config.testCommand}\` and ensure all tests pass.\n`;
+    prompt += `${config.useExistingBranch ? '7' : '6'}. Write your result to \`.opensprint/active/${config.taskId}/result.json\` using this exact JSON format:\n`;
     prompt += `   \`\`\`json\n`;
     prompt += `   { "status": "success", "summary": "Brief description of what you implemented" }\n`;
     prompt += `   \`\`\`\n`;
@@ -301,7 +308,12 @@ export class ContextAssembler {
 
     if (config.previousFailure) {
       prompt += `## Previous Attempt\n\n`;
-      prompt += `This is a retry. The previous attempt failed:\n${config.previousFailure}\n\n`;
+      prompt += `This is attempt ${config.attempt}. The previous attempt failed:\n${config.previousFailure}\n\n`;
+
+      if (config.previousTestOutput) {
+        prompt += `### Test Output\n\n\`\`\`\n${config.previousTestOutput.slice(0, 5000)}\n\`\`\`\n\n`;
+        prompt += `Fix the failing tests without breaking the passing ones.\n\n`;
+      }
     }
 
     if (config.reviewFeedback) {
