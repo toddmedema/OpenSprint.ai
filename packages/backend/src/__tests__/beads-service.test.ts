@@ -126,6 +126,36 @@ describe('BeadsService', () => {
       // Service replaces " with \"
       expect(true).toBe(true); // No throw = command built correctly
     });
+
+    it('should handle bd close returning array of closed issues', async () => {
+      mockStdout = JSON.stringify([
+        { id: 'task-1', status: 'closed', close_reason: 'Done' },
+      ]);
+      const result = await beads.close('/repo', 'task-1', 'Done');
+      expect(result.id).toBe('task-1');
+      expect(result.status).toBe('closed');
+    });
+
+    it('should fall back to show when close returns empty and verify status', async () => {
+      let callCount = 0;
+      mockExecImpl = async (cmd: string) => {
+        callCount++;
+        if (cmd.includes('close')) {
+          return { stdout: '[]', stderr: '' };
+        }
+        if (cmd.includes('show')) {
+          return {
+            stdout: JSON.stringify({ id: 'task-1', status: 'closed' }),
+            stderr: '',
+          };
+        }
+        return { stdout: '{}', stderr: '' };
+      };
+      const result = await beads.close('/repo', 'task-1', 'Done');
+      expect(result.id).toBe('task-1');
+      expect(result.status).toBe('closed');
+      expect(callCount).toBeGreaterThanOrEqual(2);
+    });
   });
 
   describe('list', () => {
@@ -161,6 +191,21 @@ describe('BeadsService', () => {
       expect(result.id).toBe('task-1');
       expect(result.title).toBe('Implement login');
       expect(result.description).toBe('Add JWT auth');
+    });
+
+    it('should throw when issue not found', async () => {
+      mockStdout = '[]';
+      await expect(beads.show('/repo', 'nonexistent')).rejects.toThrow(
+        /Issue nonexistent not found/,
+      );
+    });
+
+    it('should handle bd show returning array format', async () => {
+      mockStdout = JSON.stringify([
+        { id: 'task-1', title: 'Task', status: 'open' },
+      ]);
+      const result = await beads.show('/repo', 'task-1');
+      expect(result.id).toBe('task-1');
     });
   });
 
