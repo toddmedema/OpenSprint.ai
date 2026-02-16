@@ -36,6 +36,9 @@ async function logOrchestratorStatus(): Promise<void> {
 
     for (const project of projects) {
       try {
+        // Auto-start orchestrator for each project (always-on)
+        await concurrentOrchestrator.start(project.id);
+
         const allTasks = await beads.list(project.repoPath);
         const nonEpicTasks = allTasks.filter(
           (t) => (t.issue_type ?? (t as Record<string, unknown>).type) !== "epic",
