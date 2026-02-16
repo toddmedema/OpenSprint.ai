@@ -179,7 +179,7 @@ export class PlanService {
   }
 
   /** Build dependency edges from beads and plan markdown (reads files directly to avoid recursion) */
-  private async buildDependencyEdges(projectId: string): Promise<PlanDependencyEdge[]> {
+  private async buildDependencyEdgesFromProject(projectId: string): Promise<PlanDependencyEdge[]> {
     const plansDir = await this.getPlansDir(projectId);
     const repoPath = await this.getRepoPath(projectId);
     const edges: PlanDependencyEdge[] = [];
@@ -306,7 +306,7 @@ export class PlanService {
       status = total > 0 && completed === total ? 'complete' : 'shipped';
     }
 
-    const edges = await this.buildDependencyEdges(projectId);
+    const edges = await this.buildDependencyEdgesFromProject(projectId);
     const dependencyCount = edges.filter((e) => e.to === planId).length;
 
     return {

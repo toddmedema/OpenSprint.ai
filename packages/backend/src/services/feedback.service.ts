@@ -7,7 +7,7 @@ import { AppError } from '../middleware/error-handler.js';
 import { ProjectService } from './project.service.js';
 import { AgentClient } from './agent-client.js';
 import { BeadsService } from './beads.service.js';
-import { HilService } from './hil-service.js';
+import { hilService } from './hil-service.js';
 import { ChatService } from './chat.service.js';
 import { PlanService } from './plan.service.js';
 import { broadcastToProject } from '../websocket/index.js';
@@ -31,7 +31,7 @@ export class FeedbackService {
   private projectService = new ProjectService();
   private agentClient = new AgentClient();
   private beads = new BeadsService();
-  private hilService = new HilService();
+  private hilService = hilService;
   private chatService = new ChatService();
   private planService = new PlanService();
 

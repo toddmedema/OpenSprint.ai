@@ -1,0 +1,9 @@
+{
+  "id": "4527b665-abf8-4071-9b0b-1b322739e3c6",
+  "text": "Change the name of \"Validate\" and all references to it to \"Verify\"",
+  "category": "bug",
+  "mappedPlanId": null,
+  "createdTaskIds": [],
+  "status": "pending",
+  "createdAt": "2026-02-16T01:42:13.175Z"
+}
