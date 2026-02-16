@@ -341,6 +341,14 @@ export class OrchestratorService {
     // Check for result.json
     const result = (await this.sessionManager.readResult(repoPath, task.id)) as CodingAgentResult | null;
 
+    // Normalize status: agents sometimes write "completed"/"done" instead of "success"
+    if (result && result.status) {
+      const normalized = result.status.toLowerCase().trim();
+      if (["completed", "complete", "done", "passed"].includes(normalized)) {
+        (result as { status: string }).status = "success";
+      }
+    }
+
     if (result && result.status === "success") {
       state.lastCodingDiff = await this.branchManager.getDiff(repoPath, branchName);
       state.lastCodingSummary = result.summary ?? "";

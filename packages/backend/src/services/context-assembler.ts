@@ -292,7 +292,12 @@ export class ContextAssembler {
     prompt += `3. Write comprehensive tests (unit, and integration where applicable).\n`;
     prompt += `4. Run \`${config.testCommand}\` and ensure all tests pass.\n`;
     prompt += `5. Commit your changes with a descriptive message.\n`;
-    prompt += `6. Write your completion summary to \`.opensprint/active/${config.taskId}/result.json\`.\n\n`;
+    prompt += `6. Write your result to \`.opensprint/active/${config.taskId}/result.json\` using this exact JSON format:\n`;
+    prompt += `   \`\`\`json\n`;
+    prompt += `   { "status": "success", "summary": "Brief description of what you implemented" }\n`;
+    prompt += `   \`\`\`\n`;
+    prompt += `   Use \`"status": "success"\` when the task is complete, or \`"status": "failed"\` if you could not complete it.\n`;
+    prompt += `   The \`status\` field MUST be exactly \`"success"\` or \`"failed"\` — no other values.\n\n`;
 
     if (config.previousFailure) {
       prompt += `## Previous Attempt\n\n`;
