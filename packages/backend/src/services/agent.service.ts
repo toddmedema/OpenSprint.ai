@@ -25,10 +25,25 @@ export interface PlanningAgentResponse {
   content: string;
 }
 
+/** Options for invokeCodingAgent (file-based prompt) */
+export interface InvokeCodingAgentOptions {
+  /** Working directory for the agent (typically repo path) */
+  cwd: string;
+  /** Callback for streaming output chunks */
+  onOutput: (chunk: string) => void;
+  /** Callback when agent process exits */
+  onExit: (code: number | null) => void;
+}
+
+/** Return type for invokeCodingAgent — handle with kill() to terminate */
+export interface CodingAgentHandle {
+  kill: () => void;
+}
 /**
  * AgentService — unified interface for planning and coding agents.
  * invokePlanningAgent uses Claude API when config.type is 'claude';
  * falls back to AgentClient (CLI) for cursor/custom.
+ * invokeCodingAgent spawns the coding agent with a file-based prompt.
  */
 export class AgentService {
   private anthropic: Anthropic | null = null;
@@ -76,6 +91,25 @@ export class AgentService {
     });
 
     return { content: response.content };
+  }
+
+  /**
+   * Invoke the coding agent with a file-based prompt.
+   * Spawns the agent as a subprocess and streams output.
+   * Returns a handle with kill() to terminate the process.
+   */
+  invokeCodingAgent(
+    promptPath: string,
+    config: AgentConfig,
+    options: InvokeCodingAgentOptions,
+  ): CodingAgentHandle {
+    return this.agentClient.spawnWithTaskFile(
+      config,
+      promptPath,
+      options.cwd,
+      options.onOutput,
+      options.onExit,
+    );
   }
 
   /**
