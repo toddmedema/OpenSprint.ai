@@ -15,6 +15,27 @@ const mockPrdUpdateSection = vi.fn();
 const mockPrdUpload = vi.fn();
 const mockPlansDecompose = vi.fn();
 
+vi.mock("../../components/prd/PrdSectionEditor", () => ({
+  PrdSectionEditor: ({
+    sectionKey,
+    markdown,
+    onSave,
+  }: {
+    sectionKey: string;
+    markdown: string;
+    onSave: (s: string, m: string) => void;
+  }) => (
+    <div data-testid={`prd-editor-${sectionKey}`}>
+      <span data-testid={`prd-content-${sectionKey}`}>{markdown}</span>
+      <input
+        data-testid={`prd-input-${sectionKey}`}
+        defaultValue={markdown}
+        onChange={(e) => onSave(sectionKey, e.target.value)}
+      />
+    </div>
+  ),
+}));
+
 vi.mock("../../api/client", () => ({
   api: {
     chat: {
@@ -110,23 +131,27 @@ describe("DreamPhase with designSlice", () => {
       expect(screen.getByText("Product Requirements Document")).toBeInTheDocument();
       expect(screen.getByText("Executive Summary")).toBeInTheDocument();
       expect(screen.getByText("Goals And Metrics")).toBeInTheDocument();
+      expect(screen.getByTestId("prd-content-executive_summary")).toHaveTextContent("Summary text");
+      expect(screen.getByTestId("prd-content-goals_and_metrics")).toHaveTextContent("Goals text");
     });
 
-    it("dispatches savePrdSection when user saves edited section", async () => {
+    it("dispatches savePrdSection when user edits section (debounced autosave)", async () => {
       const user = userEvent.setup();
       const store = createStore({
         prdContent: { overview: "Original content" },
       });
       renderDreamPhase(store);
 
-      await user.click(screen.getByRole("button", { name: "Edit", hidden: true }));
-      const textarea = screen.getByPlaceholder(/Markdown content/);
-      await user.clear(textarea);
-      await user.type(textarea, "Updated content");
-      await user.click(screen.getByRole("button", { name: /^Save$/ }));
+      const input = screen.getByTestId("prd-input-overview");
+      await user.clear(input);
+      await user.type(input, "Updated content");
 
       await waitFor(() => {
-        expect(mockPrdUpdateSection).toHaveBeenCalledWith("proj-1", "overview", "Updated content");
+        expect(mockPrdUpdateSection).toHaveBeenLastCalledWith(
+          "proj-1",
+          "overview",
+          "Updated content",
+        );
       });
     });
 

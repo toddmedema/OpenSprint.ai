@@ -84,8 +84,6 @@ export function DreamPhase({ projectId, onNavigateToPlan }: DreamPhaseProps) {
     text: string;
     section: string;
   } | null>(null);
-  const [editingSection, setEditingSection] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState("");
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [planningIt, setPlanningIt] = useState(false);
 
@@ -264,29 +262,20 @@ export function DreamPhase({ projectId, onNavigateToPlan }: DreamPhaseProps) {
     setTimeout(() => chatInputRef.current?.focus(), 100);
   };
 
-  const handleStartEdit = (section: string) => {
-    setEditingSection(section);
-    setEditDraft(prdContent[section] ?? "");
-  };
-
-  const handleCancelEdit = () => {
-    setEditingSection(null);
-    setEditDraft("");
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editingSection || savingSection) return;
-    const result = await dispatch(
-      savePrdSection({ projectId, section: editingSection, content: editDraft }),
-    );
-    if (savePrdSection.fulfilled.match(result)) {
-      dispatch(fetchPrd(projectId));
-      dispatch(fetchPrdHistory(projectId));
-      dispatch(fetchDesignChat(projectId));
-      setEditingSection(null);
-      setEditDraft("");
-    }
-  };
+  const handleSectionChange = useCallback(
+    async (section: string, content: string) => {
+      if (savingSection) return;
+      const result = await dispatch(
+        savePrdSection({ projectId, section, content }),
+      );
+      if (savePrdSection.fulfilled.match(result)) {
+        dispatch(fetchPrd(projectId));
+        dispatch(fetchPrdHistory(projectId));
+        dispatch(fetchDesignChat(projectId));
+      }
+    },
+    [projectId, savingSection, dispatch],
+  );
 
   const handlePlanIt = async () => {
     dispatch(setDesignError(null));
@@ -414,13 +403,8 @@ export function DreamPhase({ projectId, onNavigateToPlan }: DreamPhaseProps) {
 
           <PrdViewer
             prdContent={prdContent}
-            editingSection={editingSection}
-            editDraft={editDraft}
             savingSection={savingSection}
-            onStartEdit={handleStartEdit}
-            onCancelEdit={handleCancelEdit}
-            onSaveEdit={handleSaveEdit}
-            onEditDraftChange={setEditDraft}
+            onSectionChange={handleSectionChange}
             containerRef={prdContainerRef}
           />
 
