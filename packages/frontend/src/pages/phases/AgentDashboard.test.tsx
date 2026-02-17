@@ -1,16 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { Provider } from "react-redux";
+import { configureStore } from "@reduxjs/toolkit";
 import { AgentDashboard } from "./AgentDashboard";
-
-const mockSubscribeToAgent = vi.fn();
-const mockUnsubscribeFromAgent = vi.fn();
-
-vi.mock("../../hooks/useWebSocket", () => ({
-  useWebSocket: () => ({
-    subscribeToAgent: mockSubscribeToAgent,
-    unsubscribeFromAgent: mockUnsubscribeFromAgent,
-  }),
-}));
+import buildReducer from "../../store/slices/buildSlice";
 
 const mockBuildStatus = vi.fn().mockResolvedValue({
   running: false,
@@ -32,26 +25,40 @@ vi.mock("../../api/client", () => ({
   },
 }));
 
+function createStore() {
+  return configureStore({
+    reducer: { build: buildReducer },
+  });
+}
+
+function renderAgentDashboard() {
+  return render(
+    <Provider store={createStore()}>
+      <AgentDashboard projectId="proj-1" />
+    </Provider>,
+  );
+}
+
 describe("AgentDashboard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("renders header with title and subtitle", async () => {
-    render(<AgentDashboard projectId="proj-1" />);
+    renderAgentDashboard();
 
     expect(screen.getByText("Agent Dashboard")).toBeInTheDocument();
     expect(screen.getByText("Monitor and manage all agent instances")).toBeInTheDocument();
   });
 
   it("does not render redundant Connected text in top bar", () => {
-    render(<AgentDashboard projectId="proj-1" />);
+    renderAgentDashboard();
 
     expect(screen.queryByText("Connected")).not.toBeInTheDocument();
   });
 
   it("fetches build status on mount", async () => {
-    render(<AgentDashboard projectId="proj-1" />);
+    renderAgentDashboard();
 
     expect(mockBuildStatus).toHaveBeenCalledWith("proj-1");
     expect(mockAgentsActive).toHaveBeenCalledWith("proj-1");

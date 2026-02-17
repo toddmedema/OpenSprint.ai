@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "../../api/client";
-import { useWebSocket } from "../../hooks/useWebSocket";
-import type { ServerEvent } from "@opensprint/shared";
+import { useAppDispatch, useAppSelector } from "../../store";
+import { setSelectedTaskId } from "../../store/slices/buildSlice";
+import { wsSend } from "../../store/middleware/websocketMiddleware";
 
 interface AgentDashboardProps {
   projectId: string;
@@ -15,23 +16,14 @@ interface AgentInfo {
   outputLength: number;
 }
 
-interface SessionRecord {
-  taskId: string;
-  attempt: number;
-  status: string;
-  agentType: string;
-  agentModel: string;
-  startedAt: string;
-  completedAt: string | null;
-  failureReason: string | null;
-}
-
 export function AgentDashboard({ projectId }: AgentDashboardProps) {
+  const dispatch = useAppDispatch();
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
-  const [agentOutput, setAgentOutput] = useState<string[]>([]);
   const [currentTask, setCurrentTask] = useState<string | null>(null);
   const [stats, setStats] = useState({ totalCompleted: 0, totalFailed: 0, queueDepth: 0 });
+
+  const agentOutput = useAppSelector((s) => s.build.agentOutput);
 
   const loadStatus = useCallback(() => {
     api.build.status(projectId).then((data: unknown) => {
@@ -62,45 +54,25 @@ export function AgentDashboard({ projectId }: AgentDashboardProps) {
     }).catch(() => setAgents([]));
   }, [projectId]);
 
-  const handleWsEvent = useCallback(
-    (event: ServerEvent) => {
-      switch (event.type) {
-        case "agent.output":
-          if (event.taskId === selectedAgent) {
-            setAgentOutput((prev) => [...prev, event.chunk]);
-          }
-          break;
-        case "build.status":
-          setCurrentTask(event.currentTask);
-          break;
-        case "agent.started":
-        case "agent.completed":
-          // Refresh agent list and status in real-time
-          loadStatus();
-          break;
-      }
-    },
-    [selectedAgent, loadStatus],
-  );
-
-  const { subscribeToAgent, unsubscribeFromAgent } = useWebSocket({
-    projectId,
-    onEvent: handleWsEvent,
-  });
-
   useEffect(() => {
     loadStatus();
     const interval = setInterval(loadStatus, 5000);
     return () => clearInterval(interval);
   }, [loadStatus]);
 
+  // Sync selected agent with Redux so agent.output events are stored; subscribe/unsubscribe via wsSend
   useEffect(() => {
     if (selectedAgent) {
-      setAgentOutput([]);
-      subscribeToAgent(selectedAgent);
-      return () => unsubscribeFromAgent(selectedAgent);
+      dispatch(setSelectedTaskId(selectedAgent));
+      dispatch(wsSend({ type: "agent.subscribe", taskId: selectedAgent }));
+      return () => {
+        dispatch(wsSend({ type: "agent.unsubscribe", taskId: selectedAgent }));
+        dispatch(setSelectedTaskId(null));
+      };
+    } else {
+      dispatch(setSelectedTaskId(null));
     }
-  }, [selectedAgent, subscribeToAgent, unsubscribeFromAgent]);
+  }, [selectedAgent, dispatch]);
 
   return (
     <div className="flex flex-col h-full">
