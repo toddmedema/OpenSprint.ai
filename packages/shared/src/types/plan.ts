@@ -61,3 +61,26 @@ export interface CreatePlanRequest {
 export interface UpdatePlanRequest {
   content: string;
 }
+
+/** Suggested task from AI decomposition (before creation) */
+export interface SuggestedTask {
+  title: string;
+  description: string;
+  priority?: number;
+  dependsOn?: string[];
+}
+
+/** Suggested plan from AI decomposition (returned by POST /plans/suggest) */
+export interface SuggestedPlan {
+  title: string;
+  content: string;
+  complexity?: PlanComplexity;
+  dependsOnPlans?: string[];
+  mockups?: PlanMockup[];
+  tasks?: SuggestedTask[];
+}
+
+/** Response from POST /plans/suggest */
+export interface SuggestPlansResponse {
+  plans: SuggestedPlan[];
+}

@@ -1,7 +1,7 @@
 import { Router, Request } from "express";
 import { PlanService } from "../services/plan.service.js";
 import { orchestratorService } from "../services/orchestrator.service.js";
-import type { ApiResponse, Plan, PlanDependencyGraph } from "@opensprint/shared";
+import type { ApiResponse, Plan, PlanDependencyGraph, SuggestPlansResponse } from "@opensprint/shared";
 
 const planService = new PlanService();
 
@@ -16,6 +16,17 @@ plansRouter.post("/decompose", async (req: Request<ProjectParams>, res, next) =>
     const result = await planService.decomposeFromPrd(req.params.projectId);
     const body: ApiResponse<{ created: number; plans: Plan[] }> = { data: result };
     res.status(201).json(body);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /projects/:projectId/plans/suggest — AI suggest plans from PRD (no creation; for user to accept/modify)
+plansRouter.post("/suggest", async (req: Request<ProjectParams>, res, next) => {
+  try {
+    const result = await planService.suggestPlans(req.params.projectId);
+    const body: ApiResponse<SuggestPlansResponse> = { data: result };
+    res.json(body);
   } catch (err) {
     next(err);
   }

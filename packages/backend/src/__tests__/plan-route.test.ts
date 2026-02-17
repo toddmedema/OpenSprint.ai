@@ -6,8 +6,16 @@ import os from "os";
 import { createApp } from "../app.js";
 import { ProjectService } from "../services/project.service.js";
 import { BeadsService } from "../services/beads.service.js";
-import { API_PREFIX } from "@opensprint/shared";
+import { API_PREFIX, OPENSPRINT_PATHS } from "@opensprint/shared";
 import { DEFAULT_HIL_CONFIG } from "@opensprint/shared";
+
+const mockSuggestInvoke = vi.fn();
+
+vi.mock("../services/agent-client.js", () => ({
+  AgentClient: vi.fn().mockImplementation(() => ({
+    invoke: (opts: unknown) => mockSuggestInvoke(opts),
+  })),
+}));
 
 // Mock orchestrator so Ship it! doesn't trigger the real loop (which would claim Task A before archive)
 vi.mock("../services/orchestrator.service.js", () => ({
@@ -390,6 +398,74 @@ describe("Plan REST endpoints - task decomposition", () => {
           i.id.startsWith(epicId + ".") && i.id !== gateTaskId && (i.issue_type ?? i.type) !== "epic",
       );
       expect(tasksAfter.length).toBe(0);
+    });
+  });
+
+  describe("POST /projects/:id/plans/suggest", () => {
+    beforeEach(async () => {
+      mockSuggestInvoke.mockClear();
+      const project = await projectService.getProject(projectId);
+      const prdPath = path.join(project.repoPath, OPENSPRINT_PATHS.prd);
+      await fs.mkdir(path.dirname(prdPath), { recursive: true });
+      await fs.writeFile(
+        prdPath,
+        JSON.stringify({
+          version: 1,
+          sections: {
+            executive_summary: { content: "A todo app", version: 1, updated_at: new Date().toISOString() },
+          },
+        }),
+        "utf-8",
+      );
+    });
+
+    it("returns suggested plans from AI without creating plans or beads", { timeout: 10000 }, async () => {
+      mockSuggestInvoke.mockResolvedValueOnce({
+        content: JSON.stringify({
+          plans: [
+            {
+              title: "Task CRUD",
+              content: "# Task CRUD\n\n## Overview\n\nCreate and manage tasks.",
+              complexity: "medium",
+              mockups: [{ title: "List", content: "Tasks" }],
+              tasks: [
+                { title: "Create model", description: "Task schema", priority: 0, dependsOn: [] },
+                { title: "Create API", description: "REST", priority: 1, dependsOn: ["Create model"] },
+              ],
+            },
+          ],
+        }),
+      });
+
+      const app = createApp();
+      const res = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/suggest`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toBeDefined();
+      expect(res.body.data.plans).toHaveLength(1);
+      expect(res.body.data.plans[0].title).toBe("Task CRUD");
+      expect(res.body.data.plans[0].tasks).toHaveLength(2);
+
+      const project = await projectService.getProject(projectId);
+      const plansDir = path.join(project.repoPath, ".opensprint", "plans");
+      const files = await fs.readdir(plansDir).catch(() => []);
+      expect(files).toHaveLength(0);
+
+      const allIssues = await beads.listAll(project.repoPath);
+      const epics = allIssues.filter((i: { issue_type?: string; type?: string }) => (i.issue_type ?? i.type) === "epic");
+      expect(epics).toHaveLength(0);
+    });
+
+    it("returns 400 when agent returns invalid JSON", { timeout: 10000 }, async () => {
+      mockSuggestInvoke.mockResolvedValueOnce({
+        content: "I cannot produce JSON.",
+      });
+
+      const app = createApp();
+      const res = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/suggest`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.error?.code).toBe("DECOMPOSE_PARSE_FAILED");
     });
   });
 

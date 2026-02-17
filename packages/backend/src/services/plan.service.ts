@@ -1,6 +1,13 @@
 import fs from "fs/promises";
 import path from "path";
-import type { Plan, PlanMetadata, PlanMockup, PlanDependencyGraph, PlanDependencyEdge } from "@opensprint/shared";
+import type {
+  Plan,
+  PlanMetadata,
+  PlanMockup,
+  PlanDependencyGraph,
+  PlanDependencyEdge,
+  SuggestedPlan,
+} from "@opensprint/shared";
 import { OPENSPRINT_PATHS } from "@opensprint/shared";
 import { ProjectService } from "./project.service.js";
 import { BeadsService, type BeadsIssue } from "./beads.service.js";
@@ -751,6 +758,69 @@ export class PlanService {
   }
 
   /**
+   * AI-assisted decomposition (suggest only): Planning agent analyzes PRD and returns suggested plans.
+   * Does NOT create plans or beads — returns JSON for user to accept/modify. PRD §7.2.2
+   */
+  async suggestPlans(projectId: string): Promise<{ plans: SuggestedPlan[] }> {
+    const settings = await this.projectService.getSettings(projectId);
+    const prdContext = await this.buildPrdContext(projectId);
+    const repoPath = await this.getRepoPath(projectId);
+
+    const prompt = `Analyze the PRD below and produce a feature decomposition. Output valid JSON with a "plans" array. Each plan has: title, content (full markdown), complexity (low|medium|high|very_high), and tasks array. Each task has: title, description, priority (0-4), dependsOn (array of task titles it depends on).`;
+
+    const agentId = `plan-suggest-${projectId}-${Date.now()}`;
+    activeAgentsService.register(agentId, projectId, "plan", "Feature decomposition (suggest)", new Date().toISOString());
+
+    let response;
+    try {
+      response = await this.agentClient.invoke({
+        config: settings.planningAgent,
+        prompt,
+        systemPrompt: DECOMPOSE_SYSTEM_PROMPT + "\n\n## Current PRD\n\n" + prdContext,
+        cwd: repoPath,
+      });
+    } finally {
+      activeAgentsService.unregister(agentId);
+    }
+
+    const planSpecs = this.parseDecomposeResponse(response.content);
+    return { plans: planSpecs };
+  }
+
+  /**
+   * Parse agent decomposition response into SuggestedPlan array.
+   * Extracts JSON from response (may be wrapped in ```json ... ```).
+   */
+  private parseDecomposeResponse(content: string): SuggestedPlan[] {
+    const jsonMatch = content.match(/\{[\s\S]*"plans"[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new AppError(
+        400,
+        ErrorCodes.DECOMPOSE_PARSE_FAILED,
+        "Planning agent did not return valid decomposition JSON. Response: " + content.slice(0, 500),
+        { responsePreview: content.slice(0, 500) },
+      );
+    }
+
+    let parsed: { plans?: SuggestedPlan[] };
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch {
+      throw new AppError(400, ErrorCodes.DECOMPOSE_JSON_INVALID, "Could not parse decomposition JSON from agent response");
+    }
+
+    const planSpecs = parsed.plans ?? [];
+    if (planSpecs.length === 0) {
+      throw new AppError(
+        400,
+        ErrorCodes.DECOMPOSE_EMPTY,
+        "Planning agent returned no plans. Ensure the PRD has sufficient content.",
+      );
+    }
+    return planSpecs;
+  }
+
+  /**
    * AI-assisted decomposition: Planning agent analyzes PRD and suggests feature breakdown.
    * Creates Plans + tasks from AI. PRD §7.2.2
    */
@@ -777,40 +847,7 @@ export class PlanService {
       activeAgentsService.unregister(agentId);
     }
 
-    // Extract JSON from response (may be wrapped in ```json ... ```)
-    const jsonMatch = response.content.match(/\{[\s\S]*"plans"[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new AppError(
-        400,
-        ErrorCodes.DECOMPOSE_PARSE_FAILED,
-        "Planning agent did not return valid decomposition JSON. Response: " + response.content.slice(0, 500),
-        { responsePreview: response.content.slice(0, 500) },
-      );
-    }
-
-    let parsed: {
-      plans?: Array<{
-        title: string;
-        content: string;
-        complexity?: string;
-        mockups?: Array<{ title: string; content: string }>;
-        tasks?: Array<{ title: string; description: string; priority?: number; dependsOn?: string[] }>;
-      }>;
-    };
-    try {
-      parsed = JSON.parse(jsonMatch[0]);
-    } catch {
-      throw new AppError(400, ErrorCodes.DECOMPOSE_JSON_INVALID, "Could not parse decomposition JSON from agent response");
-    }
-
-    const planSpecs = parsed.plans ?? [];
-    if (planSpecs.length === 0) {
-      throw new AppError(
-        400,
-        ErrorCodes.DECOMPOSE_EMPTY,
-        "Planning agent returned no plans. Ensure the PRD has sufficient content.",
-      );
-    }
+    const planSpecs = this.parseDecomposeResponse(response.content);
 
     const created: Plan[] = [];
     for (const spec of planSpecs) {

@@ -12,6 +12,7 @@ import type {
   PlanDependencyGraph,
   CreatePlanRequest,
   UpdatePlanRequest,
+  SuggestPlansResponse,
   Task,
   AgentSession,
   OrchestratorStatus,
@@ -126,6 +127,10 @@ export const api = {
   // ─── Plans ───
   plans: {
     list: (projectId: string) => request<PlanDependencyGraph>(`/projects/${projectId}/plans`),
+    suggest: (projectId: string) =>
+      request<SuggestPlansResponse>(`/projects/${projectId}/plans/suggest`, {
+        method: "POST",
+      }),
     decompose: (projectId: string) =>
       request<{ created: number; plans: Plan[] }>(`/projects/${projectId}/plans/decompose`, {
         method: "POST",
