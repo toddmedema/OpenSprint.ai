@@ -218,6 +218,137 @@ describe("VerifyPhase feedback input", () => {
     });
   });
 
+  it("displays feedback list from Redux store", () => {
+    const storeWithFeedback = configureStore({
+      reducer: {
+        project: projectReducer,
+        validate: validateReducer,
+      },
+      preloadedState: {
+        project: {
+          data: {
+            id: "proj-1",
+            name: "Test Project",
+            description: "",
+            repoPath: "/tmp/test",
+            currentPhase: "verify",
+            createdAt: "",
+            updatedAt: "",
+          },
+          loading: false,
+          error: null,
+        },
+        validate: {
+          feedback: [
+            {
+              id: "fb-1",
+              text: "Login button is broken",
+              category: "bug",
+              mappedPlanId: null,
+              createdTaskIds: [],
+              status: "pending",
+              createdAt: new Date().toISOString(),
+            },
+          ],
+          loading: false,
+          submitting: false,
+          error: null,
+        },
+      },
+    });
+
+    render(
+      <Provider store={storeWithFeedback}>
+        <VerifyPhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    expect(screen.getByText(/Feedback History \(1\)/)).toBeInTheDocument();
+    expect(screen.getByText("Login button is broken")).toBeInTheDocument();
+  });
+
+  it("displays loading state from Redux when loading feedback", () => {
+    const storeLoading = configureStore({
+      reducer: {
+        project: projectReducer,
+        validate: validateReducer,
+      },
+      preloadedState: {
+        project: {
+          data: {
+            id: "proj-1",
+            name: "Test Project",
+            description: "",
+            repoPath: "/tmp/test",
+            currentPhase: "verify",
+            createdAt: "",
+            updatedAt: "",
+          },
+          loading: false,
+          error: null,
+        },
+        validate: {
+          feedback: [],
+          loading: true,
+          submitting: false,
+          error: null,
+        },
+      },
+    });
+
+    render(
+      <Provider store={storeLoading}>
+        <VerifyPhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    expect(screen.getByText(/Loading feedback/)).toBeInTheDocument();
+  });
+
+  it("displays error from Redux and allows dismiss", async () => {
+    const user = userEvent.setup();
+    const storeWithError = configureStore({
+      reducer: {
+        project: projectReducer,
+        validate: validateReducer,
+      },
+      preloadedState: {
+        project: {
+          data: {
+            id: "proj-1",
+            name: "Test Project",
+            description: "",
+            repoPath: "/tmp/test",
+            currentPhase: "verify",
+            createdAt: "",
+            updatedAt: "",
+          },
+          loading: false,
+          error: null,
+        },
+        validate: {
+          feedback: [],
+          loading: false,
+          submitting: false,
+          error: "Failed to load feedback",
+        },
+      },
+    });
+
+    render(
+      <Provider store={storeWithError}>
+        <VerifyPhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    expect(screen.getByText("Failed to load feedback")).toBeInTheDocument();
+    const dismissBtn = screen.getByRole("button", { name: /Dismiss/i });
+    await user.click(dismissBtn);
+    await waitFor(() => {
+      expect(screen.queryByText("Failed to load feedback")).not.toBeInTheDocument();
+    });
+  });
+
   it("displays images in feedback history when present", () => {
     const storeWithFeedback = configureStore({
       reducer: {
