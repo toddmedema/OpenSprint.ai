@@ -14,3 +14,6 @@ export * from './types/websocket.js';
 
 // Constants
 export * from './constants/index.js';
+
+// Bead ID utilities
+export * from './bead-ids.js';

@@ -8,7 +8,7 @@ import type {
   PlanDependencyEdge,
   SuggestedPlan,
 } from "@opensprint/shared";
-import { OPENSPRINT_PATHS } from "@opensprint/shared";
+import { OPENSPRINT_PATHS, getEpicId } from "@opensprint/shared";
 import { ProjectService } from "./project.service.js";
 import { BeadsService, type BeadsIssue } from "./beads.service.js";
 import { ChatService } from "./chat.service.js";
@@ -118,11 +118,17 @@ export class PlanService {
     }
   }
 
-  /** Build dependency edges between plans (from beads + markdown). */
-  private async buildDependencyEdges(plans: Plan[], repoPath: string): Promise<PlanDependencyEdge[]> {
+  /**
+   * Core: build dependency edges from plan infos (beads + markdown).
+   * Shared by buildDependencyEdges and buildDependencyEdgesFromProject.
+   */
+  private async buildDependencyEdgesCore(
+    planInfos: Array<{ planId: string; beadEpicId: string; content: string }>,
+    repoPath: string,
+  ): Promise<PlanDependencyEdge[]> {
     const edges: PlanDependencyEdge[] = [];
-    const epicToPlan = new Map(plans.map((p) => [p.metadata.beadEpicId, p.metadata.planId]));
     const seenEdges = new Set<string>();
+    const epicToPlan = new Map(planInfos.filter((p) => p.beadEpicId).map((p) => [p.beadEpicId, p.planId]));
 
     const addEdge = (fromPlanId: string, toPlanId: string) => {
       if (fromPlanId === toPlanId) return;
@@ -132,11 +138,7 @@ export class PlanService {
       edges.push({ from: fromPlanId, to: toPlanId, type: "blocks" });
     };
 
-    const getEpicId = (id: string): string => {
-      const m = id.match(/^(.+)\.(\d+)$/);
-      return m ? m[1] : id;
-    };
-
+    // 1. Build edges from beads
     try {
       const allIssues = await this.beads.listAll(repoPath);
       for (const issue of allIssues) {
@@ -154,23 +156,34 @@ export class PlanService {
         }
       }
     } catch (err) {
-      console.warn("[plan] buildDependencyEdges: beads unavailable:", err instanceof Error ? err.message : err);
+      console.warn("[plan] buildDependencyEdgesCore: beads unavailable:", err instanceof Error ? err.message : err);
     }
 
-    for (const plan of plans) {
+    // 2. Parse Plan markdown for "## Dependencies" section
+    for (const plan of planInfos) {
       const depsSection = plan.content.match(/## Dependencies[\s\S]*?(?=##|$)/i);
       if (!depsSection) continue;
       const text = depsSection[0].toLowerCase();
-      for (const other of plans) {
-        if (other.metadata.planId === plan.metadata.planId) continue;
-        const slug = other.metadata.planId.replace(/-/g, "[\\s-]*");
+      for (const other of planInfos) {
+        if (other.planId === plan.planId) continue;
+        const slug = other.planId.replace(/-/g, "[\\s-]*");
         if (new RegExp(slug, "i").test(text)) {
-          addEdge(other.metadata.planId, plan.metadata.planId);
+          addEdge(other.planId, plan.planId);
         }
       }
     }
 
     return edges;
+  }
+
+  /** Build dependency edges between plans (from beads + markdown). */
+  private async buildDependencyEdges(plans: Plan[], repoPath: string): Promise<PlanDependencyEdge[]> {
+    const planInfos = plans.map((p) => ({
+      planId: p.metadata.planId,
+      beadEpicId: p.metadata.beadEpicId,
+      content: p.content,
+    }));
+    return this.buildDependencyEdgesCore(planInfos, repoPath);
   }
 
   /** List all Plans with dependency graph in one call (avoids duplicate work) */
@@ -219,24 +232,7 @@ export class PlanService {
   private async buildDependencyEdgesFromProject(projectId: string): Promise<PlanDependencyEdge[]> {
     const plansDir = await this.getPlansDir(projectId);
     const repoPath = await this.getRepoPath(projectId);
-    const edges: PlanDependencyEdge[] = [];
-    const seenEdges = new Set<string>();
 
-    const addEdge = (fromPlanId: string, toPlanId: string) => {
-      if (fromPlanId === toPlanId) return;
-      const key = `${fromPlanId}->${toPlanId}`;
-      if (seenEdges.has(key)) return;
-      seenEdges.add(key);
-      edges.push({ from: fromPlanId, to: toPlanId, type: "blocks" });
-    };
-
-    /** Epic ID from issue ID: x.y.z -> x.y when z is numeric, else self */
-    const getEpicId = (id: string): string => {
-      const m = id.match(/^(.+)\.(\d+)$/);
-      return m ? m[1] : id;
-    };
-
-    // Load plan metadata and content from files (avoids getPlan recursion)
     const planInfos: Array<{ planId: string; beadEpicId: string; content: string }> = [];
     try {
       const files = await fs.readdir(plansDir);
@@ -265,44 +261,7 @@ export class PlanService {
       return [];
     }
 
-    const epicToPlan = new Map(planInfos.filter((p) => p.beadEpicId).map((p) => [p.beadEpicId, p.planId]));
-
-    // 1. Build edges from beads
-    try {
-      const allIssues = await this.beads.listAll(repoPath);
-      for (const issue of allIssues) {
-        const deps = (issue.dependencies as Array<{ depends_on_id: string; type: string }>) ?? [];
-        const blockers = deps.filter((d) => d.type === "blocks").map((d) => d.depends_on_id);
-        const myEpicId = getEpicId(issue.id);
-        const toPlanId = epicToPlan.get(myEpicId);
-        if (!toPlanId) continue;
-        for (const blockerId of blockers) {
-          const blockerEpicId = getEpicId(blockerId);
-          const fromPlanId = epicToPlan.get(blockerEpicId);
-          if (fromPlanId && blockerEpicId !== myEpicId) {
-            addEdge(fromPlanId, toPlanId);
-          }
-        }
-      }
-    } catch (err) {
-      console.warn("[plan] buildDependencyEdgesFromProject: beads unavailable:", err instanceof Error ? err.message : err);
-    }
-
-    // 2. Parse Plan markdown for "## Dependencies" section
-    for (const plan of planInfos) {
-      const depsSection = plan.content.match(/## Dependencies[\s\S]*?(?=##|$)/i);
-      if (!depsSection) continue;
-      const text = depsSection[0].toLowerCase();
-      for (const other of planInfos) {
-        if (other.planId === plan.planId) continue;
-        const slug = other.planId.replace(/-/g, "[\\s-]*");
-        if (new RegExp(slug, "i").test(text)) {
-          addEdge(other.planId, plan.planId);
-        }
-      }
-    }
-
-    return edges;
+    return this.buildDependencyEdgesCore(planInfos, repoPath);
   }
 
   /** Get a single Plan by ID */
