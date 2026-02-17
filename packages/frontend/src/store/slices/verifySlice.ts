@@ -35,6 +35,13 @@ export const submitFeedback = createAsyncThunk(
   },
 );
 
+export const recategorizeFeedback = createAsyncThunk(
+  "verify/recategorizeFeedback",
+  async ({ projectId, feedbackId }: { projectId: string; feedbackId: string }) => {
+    return (await api.feedback.recategorize(projectId, feedbackId)) as FeedbackItem;
+  },
+);
+
 const verifySlice = createSlice({
   name: "verify",
   initialState,
@@ -76,6 +83,14 @@ const verifySlice = createSlice({
       .addCase(submitFeedback.rejected, (state, action) => {
         state.submitting = false;
         state.error = action.error.message ?? "Failed to submit feedback";
+      })
+      // recategorizeFeedback
+      .addCase(recategorizeFeedback.fulfilled, (state, action) => {
+        const idx = state.feedback.findIndex((f) => f.id === action.payload.id);
+        if (idx !== -1) state.feedback[idx] = action.payload;
+      })
+      .addCase(recategorizeFeedback.rejected, (state, action) => {
+        state.error = action.error.message ?? "Failed to recategorize feedback";
       });
   },
 });

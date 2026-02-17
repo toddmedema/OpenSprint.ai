@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import type { FeedbackItem } from "@opensprint/shared";
 import { useAppDispatch, useAppSelector } from "../../store";
-import { submitFeedback, setValidateError } from "../../store/slices/validateSlice";
+import { submitFeedback, recategorizeFeedback, setValidateError } from "../../store/slices/validateSlice";
 
 const MAX_IMAGES = 5;
 const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024; // 2MB
@@ -261,6 +261,16 @@ export function VerifyPhase({ projectId, onNavigateToBuildTask }: VerifyPhasePro
                     >
                       {item.status}
                     </span>
+                    {item.status === "pending" && (
+                      <button
+                        type="button"
+                        onClick={() => dispatch(recategorizeFeedback({ projectId, feedbackId: item.id }))}
+                        className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+                        title="Re-trigger AI categorization"
+                      >
+                        Retry
+                      </button>
+                    )}
                   </div>
                 </div>
 

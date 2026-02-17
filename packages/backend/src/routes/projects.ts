@@ -1,14 +1,14 @@
-import { Router } from 'express';
-import { ProjectService } from '../services/project.service.js';
-import { orchestratorService } from '../services/orchestrator.service.js';
-import type { CreateProjectRequest, ApiResponse, Project } from '@opensprint/shared';
+import { Router } from "express";
+import { ProjectService } from "../services/project.service.js";
+import { orchestratorService } from "../services/orchestrator.service.js";
+import type { CreateProjectRequest, ApiResponse, Project } from "@opensprint/shared";
 
 const projectService = new ProjectService();
 
 export const projectsRouter = Router();
 
 // GET /projects — List all projects
-projectsRouter.get('/', async (_req, res, next) => {
+projectsRouter.get("/", async (_req, res, next) => {
   try {
     const projects = await projectService.listProjects();
     const body: ApiResponse<Project[]> = { data: projects };
@@ -19,7 +19,7 @@ projectsRouter.get('/', async (_req, res, next) => {
 });
 
 // POST /projects — Create a new project
-projectsRouter.post('/', async (req, res, next) => {
+projectsRouter.post("/", async (req, res, next) => {
   try {
     const request = req.body as CreateProjectRequest;
     const project = await projectService.createProject(request);
@@ -31,7 +31,7 @@ projectsRouter.post('/', async (req, res, next) => {
 });
 
 // GET /projects/:id — Get project details
-projectsRouter.get('/:id', async (req, res, next) => {
+projectsRouter.get("/:id", async (req, res, next) => {
   try {
     const project = await projectService.getProject(req.params.id);
     const body: ApiResponse<Project> = { data: project };
@@ -42,18 +42,18 @@ projectsRouter.get('/:id', async (req, res, next) => {
 });
 
 // PUT /projects/:id — Update project
-projectsRouter.put('/:id', async (req, res, next) => {
+projectsRouter.put("/:id", async (req, res, next) => {
   try {
     const { project, repoPathChanged } = await projectService.updateProject(req.params.id, req.body);
 
-    // When repoPath changes, restart the orchestrator so it operates on the new directory
+    // When repoPath changes, restart the orchestrator so it operates on the new directory.
+    // Await ensureRunning so the orchestrator is fully initialized before responding;
+    // otherwise subsequent requests may hit the old directory or a half-ready state.
     if (repoPathChanged) {
       const projectId = req.params.id;
       console.log(`[projects] repoPath changed for ${projectId}, restarting orchestrator`);
       orchestratorService.stopProject(projectId);
-      orchestratorService.ensureRunning(projectId).catch((err) => {
-        console.error(`[projects] Failed to restart orchestrator for ${projectId}:`, err);
-      });
+      await orchestratorService.ensureRunning(projectId);
     }
 
     const body: ApiResponse<Project> = { data: project };
@@ -64,7 +64,7 @@ projectsRouter.put('/:id', async (req, res, next) => {
 });
 
 // DELETE /projects/:id — Delete a project
-projectsRouter.delete('/:id', async (req, res, next) => {
+projectsRouter.delete("/:id", async (req, res, next) => {
   try {
     await projectService.deleteProject(req.params.id);
     res.status(204).send();
@@ -74,7 +74,7 @@ projectsRouter.delete('/:id', async (req, res, next) => {
 });
 
 // GET /projects/:id/settings — Get project settings
-projectsRouter.get('/:id/settings', async (req, res, next) => {
+projectsRouter.get("/:id/settings", async (req, res, next) => {
   try {
     const settings = await projectService.getSettings(req.params.id);
     res.json({ data: settings });
@@ -84,7 +84,7 @@ projectsRouter.get('/:id/settings', async (req, res, next) => {
 });
 
 // PUT /projects/:id/settings — Update project settings
-projectsRouter.put('/:id/settings', async (req, res, next) => {
+projectsRouter.put("/:id/settings", async (req, res, next) => {
   try {
     const settings = await projectService.updateSettings(req.params.id, req.body);
     res.json({ data: settings });

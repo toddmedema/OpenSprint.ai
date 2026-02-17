@@ -12,6 +12,7 @@ import { setupWebSocket, closeWebSocket } from "./websocket/index.js";
 import { DEFAULT_API_PORT } from "@opensprint/shared";
 import { ProjectService } from "./services/project.service.js";
 import { BeadsService } from "./services/beads.service.js";
+import { FeedbackService } from "./services/feedback.service.js";
 import { orchestratorService } from "./services/orchestrator.service.js";
 
 const port = parseInt(process.env.PORT || String(DEFAULT_API_PORT), 10);
@@ -80,6 +81,7 @@ setupWebSocket(server);
 async function initAlwaysOnOrchestrator(): Promise<void> {
   const projectService = new ProjectService();
   const beads = new BeadsService();
+  const feedbackService = new FeedbackService();
 
   try {
     const projects = await projectService.listProjects();
@@ -117,6 +119,10 @@ async function initAlwaysOnOrchestrator(): Promise<void> {
             console.log(`  → in_progress: ${task.id} "${task.title}" (${assignee})`);
           }
         }
+        // Retry any pending feedback categorizations that failed during a previous run
+        feedbackService.retryPendingCategorizations(project.id).catch((err) => {
+          console.warn(`[feedback] Pending categorization retry failed for "${project.name}": ${(err as Error).message}`);
+        });
       } catch (err) {
         console.warn(`[orchestrator] Could not read tasks for "${project.name}": ${(err as Error).message}`);
       }

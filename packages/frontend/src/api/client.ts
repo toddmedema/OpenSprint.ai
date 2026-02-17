@@ -171,6 +171,10 @@ export const api = {
         body: JSON.stringify(images?.length ? { text, images } : { text }),
       }),
     get: (projectId: string, feedbackId: string) => request<unknown>(`/projects/${projectId}/feedback/${feedbackId}`),
+    recategorize: (projectId: string, feedbackId: string) =>
+      request<unknown>(`/projects/${projectId}/feedback/${feedbackId}/recategorize`, {
+        method: "POST",
+      }),
   },
 
   // ─── Filesystem ───

@@ -10,7 +10,7 @@ import { hilService } from './hil-service.js';
 import { ChatService } from './chat.service.js';
 import { PlanService } from './plan.service.js';
 import { PrdService } from './prd.service.js';
-import { BeadsService } from './beads.service.js';
+import { BeadsService, type BeadsIssue } from './beads.service.js';
 import { broadcastToProject } from '../websocket/index.js';
 
 const FEEDBACK_CATEGORIZATION_PROMPT = `You are an AI assistant that categorizes user feedback about a software product.
@@ -317,24 +317,26 @@ export class FeedbackService {
     const createdIds: string[] = [];
     for (const title of taskTitles) {
       try {
-        const issue = await this.beadsService.create(repoPath, title, {
+        const issue = await this.createBeadTaskWithRetry(repoPath, title, {
           type: beadType,
           priority: item.category === 'bug' ? 0 : 2,
           parentId: parentEpicId,
         });
-        createdIds.push(issue.id);
+        if (issue) {
+          createdIds.push(issue.id);
 
-        // Link task to feedback source via discovered-from (PRD §14)
-        if (feedbackSourceBeadId) {
-          try {
-            await this.beadsService.addDependency(
-              repoPath,
-              issue.id,
-              feedbackSourceBeadId,
-              'discovered-from',
-            );
-          } catch (depErr) {
-            console.error(`[feedback] Failed to add discovered-from for ${issue.id}:`, depErr);
+          // Link task to feedback source via discovered-from (PRD §14)
+          if (feedbackSourceBeadId) {
+            try {
+              await this.beadsService.addDependency(
+                repoPath,
+                issue.id,
+                feedbackSourceBeadId,
+                'discovered-from',
+              );
+            } catch (depErr) {
+              console.error(`[feedback] Failed to add discovered-from for ${issue.id}:`, depErr);
+            }
           }
         }
       } catch (err) {
@@ -345,9 +347,110 @@ export class FeedbackService {
     return createdIds;
   }
 
+  /**
+   * Create a beads task with retry logic for UNIQUE constraint failures.
+   * The beads CLI can generate child IDs that collide with existing tasks
+   * (stale counter). Retries give it a chance to advance; if all retries
+   * fail, falls back to creating the task without a parent so the feedback
+   * flow is not broken.
+   */
+  private async createBeadTaskWithRetry(
+    repoPath: string,
+    title: string,
+    options: { type: string; priority: number; parentId?: string },
+  ): Promise<BeadsIssue | null> {
+    const MAX_RETRIES = 3;
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        return await this.beadsService.create(repoPath, title, options);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        const isUniqueConstraint = msg.includes('UNIQUE constraint failed');
+
+        if (!isUniqueConstraint) {
+          throw err;
+        }
+
+        if (attempt < MAX_RETRIES) {
+          console.warn(
+            `[feedback] UNIQUE constraint on attempt ${attempt + 1}/${MAX_RETRIES + 1} ` +
+            `for "${title}", retrying after delay...`,
+          );
+          await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+          continue;
+        }
+
+        // All retries with parent exhausted; try without parent as fallback
+        if (options.parentId) {
+          console.warn(
+            `[feedback] UNIQUE constraint persists under parent ${options.parentId}, ` +
+            `creating standalone task: "${title}"`,
+          );
+          try {
+            return await this.beadsService.create(repoPath, title, {
+              ...options,
+              parentId: undefined,
+            });
+          } catch (fallbackErr) {
+            console.error(
+              `[feedback] Standalone fallback also failed for "${title}":`,
+              fallbackErr,
+            );
+            return null;
+          }
+        }
+
+        console.error(`[feedback] UNIQUE constraint with no parent fallback for "${title}"`);
+        return null;
+      }
+    }
+
+    return null;
+  }
+
   private async saveFeedback(projectId: string, item: FeedbackItem): Promise<void> {
     const feedbackDir = await this.getFeedbackDir(projectId);
     await this.writeJson(path.join(feedbackDir, `${item.id}.json`), item);
+  }
+
+  /**
+   * Retry categorization for all feedback items still in 'pending' status.
+   * Called on server startup to recover from failed/interrupted categorizations.
+   * Returns the number of items retried.
+   */
+  async retryPendingCategorizations(projectId: string): Promise<number> {
+    const items = await this.listFeedback(projectId);
+    const pending = items.filter((item) => item.status === 'pending');
+    if (pending.length === 0) return 0;
+
+    console.log(`[feedback] Retrying categorization for ${pending.length} pending feedback item(s)`);
+    for (const item of pending) {
+      this.categorizeFeedback(projectId, item).catch((err) => {
+        console.error(`[feedback] Retry failed for ${item.id}:`, err);
+      });
+    }
+    return pending.length;
+  }
+
+  /**
+   * Re-categorize a single feedback item (resets to pending first).
+   * Used for manual retry from the UI.
+   */
+  async recategorizeFeedback(projectId: string, feedbackId: string): Promise<FeedbackItem> {
+    const item = await this.getFeedback(projectId, feedbackId);
+    item.status = 'pending';
+    item.category = 'bug';
+    item.mappedPlanId = null;
+    item.createdTaskIds = [];
+    item.taskTitles = undefined;
+    await this.saveFeedback(projectId, item);
+
+    this.categorizeFeedback(projectId, item).catch((err) => {
+      console.error(`[feedback] Recategorize failed for ${item.id}:`, err);
+    });
+
+    return item;
   }
 
   /** Get a single feedback item */

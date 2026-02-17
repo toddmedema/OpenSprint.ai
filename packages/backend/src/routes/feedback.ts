@@ -44,3 +44,15 @@ feedbackRouter.get('/:feedbackId', async (req: Request<FeedbackParams>, res, nex
     next(err);
   }
 });
+
+// POST /projects/:projectId/feedback/:feedbackId/recategorize — Re-trigger AI categorization
+feedbackRouter.post('/:feedbackId/recategorize', async (req: Request<FeedbackParams>, res, next) => {
+  try {
+    const item = await feedbackService.recategorizeFeedback(req.params.projectId, req.params.feedbackId);
+    orchestratorService.nudge(req.params.projectId);
+    const body: ApiResponse<FeedbackItem> = { data: item };
+    res.json(body);
+  } catch (err) {
+    next(err);
+  }
+});
