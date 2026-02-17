@@ -903,4 +903,68 @@ describe("VerifyPhase feedback input", () => {
     const imgs = screen.getAllByRole("img", { name: /Attachment \d+/ });
     expect(imgs.length).toBeGreaterThanOrEqual(1);
   });
+
+  it("floats category badge to top-right of feedback card with text wrap", () => {
+    const storeWithFeedback = configureStore({
+      reducer: {
+        project: projectReducer,
+        verify: verifyReducer,
+      },
+      preloadedState: {
+        project: {
+          data: {
+            id: "proj-1",
+            name: "Test Project",
+            description: "",
+            repoPath: "/tmp/test",
+            currentPhase: "verify",
+            createdAt: "",
+            updatedAt: "",
+          },
+          loading: false,
+          error: null,
+        },
+        verify: {
+          feedback: [
+            {
+              id: "fb-1",
+              text: "Long feedback text that should wrap when the card is narrow",
+              category: "bug",
+              mappedPlanId: "plan-1",
+              createdTaskIds: [],
+              status: "mapped",
+              createdAt: new Date().toISOString(),
+            },
+          ],
+          loading: false,
+          submitting: false,
+          error: null,
+        },
+      },
+    });
+
+    const { container } = render(
+      <Provider store={storeWithFeedback}>
+        <VerifyPhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    const card = container.querySelector(".card");
+    expect(card).toBeInTheDocument();
+
+    // Feedback text and category badge are in the same flex row (top row)
+    const textEl = screen.getByText(/Long feedback text that should wrap/);
+    const badgeEl = screen.getByText("Bug");
+    expect(textEl).toBeInTheDocument();
+    expect(badgeEl).toBeInTheDocument();
+
+    // Text has break-words for wrapping
+    expect(textEl).toHaveClass("break-words");
+    expect(textEl).toHaveClass("whitespace-pre-wrap");
+
+    // Badge and text share a flex parent (top row)
+    const topRow = textEl.parentElement;
+    expect(topRow).toContainElement(badgeEl);
+    expect(topRow).toHaveClass("flex");
+  });
 });

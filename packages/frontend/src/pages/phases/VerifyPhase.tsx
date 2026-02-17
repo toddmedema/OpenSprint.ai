@@ -240,12 +240,13 @@ export function VerifyPhase({ projectId, onNavigateToBuildTask }: VerifyPhasePro
           <div className="space-y-3">
             {feedback.map((item: FeedbackItem) => (
               <div key={item.id} className="card p-4">
-                {/* Feedback text — always shown first, full width */}
-                <p className="text-sm text-gray-700 whitespace-pre-wrap break-words mb-2">
-                  {item.text ?? "(No feedback text)"}
-                </p>
-                <div className="flex items-center justify-end gap-2">
-                  {item.status === "pending" ? (
+                {/* Top row: feedback text (wraps) + category badge/spinner (top-right) */}
+                <div className="flex items-start gap-2 mb-2">
+                  <p className="flex-1 min-w-0 text-sm text-gray-700 whitespace-pre-wrap break-words">
+                    {item.text ?? "(No feedback text)"}
+                  </p>
+                  <div className="flex-shrink-0">
+                    {item.status === "pending" ? (
                       <span
                         className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600"
                         aria-label="Categorizing feedback"
@@ -265,6 +266,7 @@ export function VerifyPhase({ projectId, onNavigateToBuildTask }: VerifyPhasePro
                         {getFeedbackTypeLabel(item)}
                       </span>
                     )}
+                  </div>
                 </div>
 
                 {item.images && item.images.length > 0 && (
