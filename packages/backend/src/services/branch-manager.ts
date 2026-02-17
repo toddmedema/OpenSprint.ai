@@ -421,9 +421,15 @@ export class BranchManager {
   /**
    * Merge a branch into main from the main working tree.
    * The main working tree must be on main (which it always should be with worktrees).
+   * @param message - Optional merge commit message (PRD §5.9: "merge: opensprint/<task-id> — <task title>")
    */
-  async mergeToMain(repoPath: string, branchName: string): Promise<void> {
-    await this.git(repoPath, `merge ${branchName}`);
+  async mergeToMain(repoPath: string, branchName: string, message?: string): Promise<void> {
+    if (message) {
+      const escaped = message.replace(/"/g, '\\"');
+      await this.git(repoPath, `merge -m "${escaped}" ${branchName}`);
+    } else {
+      await this.git(repoPath, `merge ${branchName}`);
+    }
   }
 
   private async git(repoPath: string, command: string): Promise<{ stdout: string; stderr: string }> {

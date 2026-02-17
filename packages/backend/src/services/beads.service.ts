@@ -140,6 +140,23 @@ export class BeadsService {
     await this.exec(repoPath, "init");
   }
 
+  /**
+   * Configure beads (e.g. auto-flush, auto-commit).
+   * Used during project setup to disable auto-commit (PRD §5.9).
+   */
+  async configSet(repoPath: string, key: string, value: string | boolean): Promise<void> {
+    const val = typeof value === "boolean" ? (value ? "true" : "false") : value;
+    await this.exec(repoPath, `config set ${key} ${val}`);
+  }
+
+  /**
+   * Export beads state to JSONL file (PRD §5.9).
+   * Orchestrator manages persistence explicitly when auto-commit is disabled.
+   */
+  async export(repoPath: string, outputPath: string): Promise<void> {
+    await this.exec(repoPath, `export -o ${outputPath}`);
+  }
+
   /** Create a new issue */
   async create(
     repoPath: string,
