@@ -63,7 +63,7 @@ function createStore() {
         loading: false,
         error: null,
       },
-      ensure: {
+      eval: {
         feedback: [],
         loading: false,
         submitting: false,
