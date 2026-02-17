@@ -270,7 +270,7 @@ export function VerifyPhase({ projectId, onNavigateToBuildTask }: VerifyPhasePro
 
                 {item.mappedPlanId && (
                   <p className="text-xs text-gray-500">
-                    Plan: <span className="font-mono">{item.mappedPlanId}</span>
+                    <span className="font-mono">{item.mappedPlanId}</span>
                   </p>
                 )}
 
