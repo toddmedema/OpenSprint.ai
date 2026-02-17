@@ -570,7 +570,7 @@ describe("FeedbackService", () => {
     });
   });
 
-  describe("Verify phase agent registry", () => {
+  describe("Ensure phase agent registry", () => {
     it("should register and unregister Feedback categorization agent on success", async () => {
       mockInvoke.mockResolvedValue({
         content: JSON.stringify({
@@ -587,7 +587,7 @@ describe("FeedbackService", () => {
       expect(mockRegister).toHaveBeenCalledWith(
         expect.stringMatching(/^feedback-categorize-.*-/),
         projectId,
-        "verify",
+        "ensure",
         "Feedback categorization",
         expect.any(String),
       );
