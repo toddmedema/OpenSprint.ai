@@ -88,7 +88,7 @@ describe("ExecutePhase top bar", () => {
     vi.clearAllMocks();
   });
 
-  it("shows task count per stage (Ready, In Progress, Done) and total in top bar", () => {
+  it("shows task count per stage (Ready, Blocked, In Progress, Done) and total in top bar", () => {
     const tasks = [
       { id: "epic-1.1", title: "Task A", epicId: "epic-1", kanbanColumn: "done", priority: 0, assignee: null },
       { id: "epic-1.2", title: "Task B", epicId: "epic-1", kanbanColumn: "ready", priority: 1, assignee: null },
@@ -100,7 +100,7 @@ describe("ExecutePhase top bar", () => {
       </Provider>,
     );
 
-    expect(screen.getByText("Ready: 1 · In Progress: 0 · Done: 1 · Total: 2")).toBeInTheDocument();
+    expect(screen.getByText("Ready: 1 · Blocked: 0 · In Progress: 0 · Done: 1 · Total: 2")).toBeInTheDocument();
   });
 
   it("shows in-progress task count when tasks are in progress or in review", () => {
@@ -116,10 +116,10 @@ describe("ExecutePhase top bar", () => {
       </Provider>,
     );
 
-    expect(screen.getByText("Ready: 0 · In Progress: 2 · Done: 1 · Total: 3")).toBeInTheDocument();
+    expect(screen.getByText("Ready: 0 · Blocked: 0 · In Progress: 2 · Done: 1 · Total: 3")).toBeInTheDocument();
   });
 
-  it("shows ready count when tasks are in backlog or ready", () => {
+  it("shows separate ready and blocked counts when tasks are in backlog or ready", () => {
     const tasks = [
       { id: "epic-1.1", title: "Task A", epicId: "epic-1", kanbanColumn: "backlog", priority: 0, assignee: null },
       { id: "epic-1.2", title: "Task B", epicId: "epic-1", kanbanColumn: "ready", priority: 1, assignee: null },
@@ -131,10 +131,10 @@ describe("ExecutePhase top bar", () => {
       </Provider>,
     );
 
-    expect(screen.getByText("Ready: 2 · In Progress: 0 · Done: 0 · Total: 2")).toBeInTheDocument();
+    expect(screen.getByText("Ready: 1 · Blocked: 1 · In Progress: 0 · Done: 0 · Total: 2")).toBeInTheDocument();
   });
 
-  it("counts planning and backlog as Ready", () => {
+  it("counts planning and backlog as Blocked", () => {
     const tasks = [
       { id: "epic-1.1", title: "Task A", epicId: "epic-1", kanbanColumn: "planning", priority: 0, assignee: null },
       { id: "epic-1.2", title: "Task B", epicId: "epic-1", kanbanColumn: "backlog", priority: 1, assignee: null },
@@ -146,7 +146,7 @@ describe("ExecutePhase top bar", () => {
       </Provider>,
     );
 
-    expect(screen.getByText("Ready: 2 · In Progress: 0 · Done: 0 · Total: 2")).toBeInTheDocument();
+    expect(screen.getByText("Ready: 0 · Blocked: 2 · In Progress: 0 · Done: 0 · Total: 2")).toBeInTheDocument();
   });
 
   it("does not render play or pause buttons in the header", () => {

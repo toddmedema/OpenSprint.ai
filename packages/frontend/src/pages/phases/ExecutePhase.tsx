@@ -207,8 +207,9 @@ export function ExecutePhase({ projectId, onNavigateToPlan }: ExecutePhaseProps)
   }, [implTasks, plans]);
 
   const totalTasks = implTasks.length;
-  const readyTasks = implTasks.filter((t) =>
-    ["planning", "backlog", "ready"].includes(t.kanbanColumn),
+  const readyTasks = implTasks.filter((t) => t.kanbanColumn === "ready").length;
+  const blockedTasks = implTasks.filter((t) =>
+    ["planning", "backlog"].includes(t.kanbanColumn),
   ).length;
   const inProgressTasks = implTasks.filter(
     (t) => t.kanbanColumn === "in_progress" || t.kanbanColumn === "in_review",
@@ -232,7 +233,7 @@ export function ExecutePhase({ projectId, onNavigateToPlan }: ExecutePhaseProps)
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Execute</h2>
               <p className="text-sm text-gray-500">
-                Ready: {readyTasks} · In Progress: {inProgressTasks} · Done: {doneTasks} · Total: {totalTasks}
+                Ready: {readyTasks} · Blocked: {blockedTasks} · In Progress: {inProgressTasks} · Done: {doneTasks} · Total: {totalTasks}
               </p>
             </div>
             {awaitingApproval && (
