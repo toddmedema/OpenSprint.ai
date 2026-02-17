@@ -31,7 +31,7 @@ vi.mock("../../api/client", () => ({
 
 import { api } from "../../api/client";
 
-describe("verifySlice", () => {
+describe("ensureSlice", () => {
   beforeEach(() => {
     vi.mocked(api.feedback.list).mockReset();
     vi.mocked(api.feedback.submit).mockReset();

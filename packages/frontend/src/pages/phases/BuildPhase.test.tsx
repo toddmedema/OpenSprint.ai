@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
-import { BuildPhase } from "./BuildPhase";
+import { ExecutePhase } from "./ExecutePhase";
 import projectReducer from "../../store/slices/projectSlice";
 import planReducer from "../../store/slices/planSlice";
 import executeReducer from "../../store/slices/executeSlice";
@@ -83,7 +83,7 @@ function createStore(
   });
 }
 
-describe("BuildPhase top bar", () => {
+describe("ExecutePhase top bar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -96,7 +96,7 @@ describe("BuildPhase top bar", () => {
     const store = createStore(tasks);
     render(
       <Provider store={store}>
-        <BuildPhase projectId="proj-1" />
+        <ExecutePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -112,7 +112,7 @@ describe("BuildPhase top bar", () => {
     const store = createStore(tasks);
     render(
       <Provider store={store}>
-        <BuildPhase projectId="proj-1" />
+        <ExecutePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -127,7 +127,7 @@ describe("BuildPhase top bar", () => {
     const store = createStore(tasks);
     render(
       <Provider store={store}>
-        <BuildPhase projectId="proj-1" />
+        <ExecutePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -142,7 +142,7 @@ describe("BuildPhase top bar", () => {
     const store = createStore(tasks);
     render(
       <Provider store={store}>
-        <BuildPhase projectId="proj-1" />
+        <ExecutePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -156,7 +156,7 @@ describe("BuildPhase top bar", () => {
     const store = createStore(tasks);
     render(
       <Provider store={store}>
-        <BuildPhase projectId="proj-1" />
+        <ExecutePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -171,7 +171,7 @@ describe("BuildPhase top bar", () => {
     const store = createStore(tasks, { awaitingApproval: true });
     render(
       <Provider store={store}>
-        <BuildPhase projectId="proj-1" />
+        <ExecutePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -185,7 +185,7 @@ describe("BuildPhase top bar", () => {
     const store = createStore(tasks);
     render(
       <Provider store={store}>
-        <BuildPhase projectId="proj-1" />
+        <ExecutePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -193,7 +193,7 @@ describe("BuildPhase top bar", () => {
   });
 });
 
-describe("BuildPhase Redux integration", () => {
+describe("ExecutePhase Redux integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -206,7 +206,7 @@ describe("BuildPhase Redux integration", () => {
     const store = createStore(tasks, { selectedTaskId: "epic-1.1" });
     render(
       <Provider store={store}>
-        <BuildPhase projectId="proj-1" />
+        <ExecutePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -223,7 +223,7 @@ describe("BuildPhase Redux integration", () => {
     const store = createStore(tasks, { selectedTaskId: "epic-1.1" });
     render(
       <Provider store={store}>
-        <BuildPhase projectId="proj-1" />
+        <ExecutePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -244,7 +244,7 @@ describe("BuildPhase Redux integration", () => {
     const store = createStore(tasks, { selectedTaskId: "epic-1.1" });
     render(
       <Provider store={store}>
-        <BuildPhase projectId="proj-1" />
+        <ExecutePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -268,7 +268,7 @@ describe("BuildPhase Redux integration", () => {
     const store = createStore(tasks, { selectedTaskId: "epic-1.1" });
     render(
       <Provider store={store}>
-        <BuildPhase projectId="proj-1" />
+        <ExecutePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -289,7 +289,7 @@ describe("BuildPhase Redux integration", () => {
     const store = createStore(tasks);
     render(
       <Provider store={store}>
-        <BuildPhase projectId="proj-1" />
+        <ExecutePhase projectId="proj-1" />
       </Provider>,
     );
     const scrollArea = document.querySelector(".overflow-auto.min-h-0");
@@ -304,7 +304,7 @@ describe("BuildPhase Redux integration", () => {
     const store = createStore(tasks);
     const { container } = render(
       <Provider store={store}>
-        <BuildPhase projectId="proj-1" />
+        <ExecutePhase projectId="proj-1" />
       </Provider>,
     );
     const root = container.firstElementChild;
@@ -322,7 +322,7 @@ describe("BuildPhase Redux integration", () => {
     const store = createStore(tasks, { selectedTaskId: "epic-1.1" });
     render(
       <Provider store={store}>
-        <BuildPhase projectId="proj-1" />
+        <ExecutePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -334,7 +334,7 @@ describe("BuildPhase Redux integration", () => {
   });
 });
 
-describe("BuildPhase task detail plan link", () => {
+describe("ExecutePhase task detail plan link", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -363,7 +363,7 @@ describe("BuildPhase task detail plan link", () => {
     const store = createStore(tasks, { selectedTaskId: "epic-1.1" });
     render(
       <Provider store={store}>
-        <BuildPhase projectId="proj-1" onNavigateToPlan={onNavigateToPlan} />
+        <ExecutePhase projectId="proj-1" onNavigateToPlan={onNavigateToPlan} />
       </Provider>,
     );
 
@@ -398,7 +398,7 @@ describe("BuildPhase task detail plan link", () => {
     const store = createStore(tasks, { selectedTaskId: "epic-1.1" });
     render(
       <Provider store={store}>
-        <BuildPhase projectId="proj-1" />
+        <ExecutePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -433,7 +433,7 @@ describe("BuildPhase task detail plan link", () => {
     const store = createStore(tasks, { selectedTaskId: "other-1" });
     render(
       <Provider store={store}>
-        <BuildPhase projectId="proj-1" onNavigateToPlan={onNavigateToPlan} />
+        <ExecutePhase projectId="proj-1" onNavigateToPlan={onNavigateToPlan} />
       </Provider>,
     );
 
@@ -469,7 +469,7 @@ describe("BuildPhase task detail plan link", () => {
     const store = createStore(tasks, { selectedTaskId: "epic-1.1" });
     render(
       <Provider store={store}>
-        <BuildPhase projectId="proj-1" onNavigateToPlan={onNavigateToPlan} />
+        <ExecutePhase projectId="proj-1" onNavigateToPlan={onNavigateToPlan} />
       </Provider>,
     );
 

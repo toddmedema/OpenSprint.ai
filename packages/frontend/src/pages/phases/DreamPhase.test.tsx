@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
-import { SpecPhase } from "./DreamPhase";
+import { SpecPhase } from "./SpecPhase";
 import specReducer from "../../store/slices/specSlice";
 import planReducer, { decomposePlans } from "../../store/slices/planSlice";
 
@@ -98,7 +98,7 @@ function createStore(preloadedState?: {
   });
 }
 
-function renderDreamPhase(store = createStore()) {
+function renderSpecPhase(store = createStore()) {
   return render(
     <Provider store={store}>
       <SpecPhase projectId="proj-1" />
@@ -120,26 +120,26 @@ describe("SpecPhase with specSlice", () => {
 
   describe("initial prompt view (no PRD) — empty-state onboarding", () => {
     it("renders central prompt when prdContent is empty", () => {
-      renderDreamPhase();
+      renderSpecPhase();
       expect(screen.getByText("What do you want to build?")).toBeInTheDocument();
       expect(screen.getByText(/Describe your app idea and AI will generate/)).toBeInTheDocument();
       expect(screen.getByRole("textbox")).toBeInTheDocument();
     });
 
     it("renders file upload button in empty state", () => {
-      renderDreamPhase();
+      renderSpecPhase();
       expect(screen.getByText("Upload existing PRD")).toBeInTheDocument();
       expect(screen.getByText(/.md, .docx, .pdf/)).toBeInTheDocument();
     });
 
-    it("dispatches sendDesignMessage when user submits initial idea", async () => {
+    it("dispatches sendSpecMessage when user submits initial idea", async () => {
       const user = userEvent.setup();
       const store = createStore();
-      renderDreamPhase(store);
+      renderSpecPhase(store);
 
       const textarea = screen.getByRole("textbox");
       await user.type(textarea, "A todo app");
-      await user.click(screen.getByTitle("Dream it"));
+      await user.click(screen.getByTitle("Spec it"));
 
       await waitFor(() => {
         expect(mockChatSend).toHaveBeenCalledWith("proj-1", "A todo app", "spec", undefined);
@@ -148,7 +148,7 @@ describe("SpecPhase with specSlice", () => {
 
     it("submits on Enter key (without Shift)", async () => {
       const user = userEvent.setup();
-      renderDreamPhase();
+      renderSpecPhase();
       const textarea = screen.getByRole("textbox");
       await user.type(textarea, "A fitness app");
       await user.keyboard("{Enter}");
@@ -168,10 +168,10 @@ describe("SpecPhase with specSlice", () => {
       );
 
       const user = userEvent.setup();
-      renderDreamPhase();
+      renderSpecPhase();
       const textarea = screen.getByRole("textbox");
       await user.type(textarea, "A todo app");
-      await user.click(screen.getByTitle("Dream it"));
+      await user.click(screen.getByTitle("Spec it"));
 
       await waitFor(() => {
         expect(screen.getByText("Generating your PRD...")).toBeInTheDocument();
@@ -188,7 +188,7 @@ describe("SpecPhase with specSlice", () => {
       });
 
       const user = userEvent.setup();
-      renderDreamPhase();
+      renderSpecPhase();
 
       const file = new File(["# My PRD\n\nContent here"], "spec.md", { type: "text/markdown" });
       const fileInput = screen.getByTestId("prd-upload-input");
@@ -219,27 +219,27 @@ describe("SpecPhase with specSlice", () => {
       );
 
       const user = userEvent.setup();
-      renderDreamPhase();
+      renderSpecPhase();
       const textarea = screen.getByRole("textbox");
       await user.type(textarea, "A todo app");
-      await user.click(screen.getByTitle("Dream it"));
+      await user.click(screen.getByTitle("Spec it"));
 
       await waitFor(() => {
-        expect(screen.getByTitle("Dream it")).toBeDisabled();
+        expect(screen.getByTitle("Spec it")).toBeDisabled();
         expect(screen.getByText("Upload existing PRD").closest("button")).toBeDisabled();
       });
 
       resolveSend!({ message: "Done" });
     });
 
-    it("displays error and Dismiss when sendDesignMessage fails", async () => {
+    it("displays error and Dismiss when sendSpecMessage fails", async () => {
       mockChatSend.mockRejectedValue(new Error("Agent unavailable"));
 
       const user = userEvent.setup();
-      renderDreamPhase();
+      renderSpecPhase();
       const textarea = screen.getByRole("textbox");
       await user.type(textarea, "A todo app");
-      await user.click(screen.getByTitle("Dream it"));
+      await user.click(screen.getByTitle("Spec it"));
 
       await waitFor(() => {
         expect(screen.getByText("Agent unavailable")).toBeInTheDocument();
@@ -258,7 +258,7 @@ describe("SpecPhase with specSlice", () => {
           },
         },
       });
-      renderDreamPhase(store);
+      renderSpecPhase(store);
 
       expect(screen.getByText("Product Requirements Document")).toBeInTheDocument();
       expect(screen.getByText("Executive Summary")).toBeInTheDocument();
@@ -272,7 +272,7 @@ describe("SpecPhase with specSlice", () => {
       const store = createStore({
         spec: { prdContent: { overview: "Original content" } },
       });
-      renderDreamPhase(store);
+      renderSpecPhase(store);
 
       const input = screen.getByTestId("prd-input-overview");
       await user.clear(input);
@@ -297,7 +297,7 @@ describe("SpecPhase with specSlice", () => {
           ],
         },
       });
-      renderDreamPhase(store);
+      renderSpecPhase(store);
 
       // Chat is always visible in split-pane (right pane)
       expect(screen.getByTestId("prd-chat-sidebar")).toBeInTheDocument();
@@ -309,7 +309,7 @@ describe("SpecPhase with specSlice", () => {
       const store = createStore({
         spec: { prdContent: { overview: "Content" } },
       });
-      const { container } = renderDreamPhase(store);
+      const { container } = renderSpecPhase(store);
       // Main split-pane wrapper uses light mode bg-gray-50
       const splitPane = container.querySelector("[class*='bg-gray-50']");
       expect(splitPane).toBeInTheDocument();
@@ -323,7 +323,7 @@ describe("SpecPhase with specSlice", () => {
       const store = createStore({
         spec: { prdContent: { overview: "Content" } },
       });
-      renderDreamPhase(store);
+      renderSpecPhase(store);
 
       // Initially expanded: full Discuss panel with collapse button
       expect(screen.getByText("Discuss")).toBeInTheDocument();
@@ -346,7 +346,7 @@ describe("SpecPhase with specSlice", () => {
         spec: { prdContent: { overview: "Content" } },
         plan: { planStatus: { hasPlanningRun: false, prdChangedSinceLastRun: false, action: "plan" } },
       });
-      renderDreamPhase(store);
+      renderSpecPhase(store);
       await waitFor(() => {
         expect(screen.getByRole("button", { name: /Plan it/i })).toBeInTheDocument();
       });
@@ -358,7 +358,7 @@ describe("SpecPhase with specSlice", () => {
         spec: { prdContent: { overview: "Content" } },
         plan: { planStatus: { hasPlanningRun: true, prdChangedSinceLastRun: true, action: "replan" } },
       });
-      renderDreamPhase(store);
+      renderSpecPhase(store);
       await waitFor(() => {
         expect(screen.getByRole("button", { name: /Replan it/i })).toBeInTheDocument();
       });
@@ -370,7 +370,7 @@ describe("SpecPhase with specSlice", () => {
         spec: { prdContent: { overview: "Content" } },
         plan: { planStatus: { hasPlanningRun: true, prdChangedSinceLastRun: false, action: "none" } },
       });
-      renderDreamPhase(store);
+      renderSpecPhase(store);
       await waitFor(() => {
         expect(screen.queryByRole("button", { name: /Plan it/i })).not.toBeInTheDocument();
         expect(screen.queryByRole("button", { name: /Replan it/i })).not.toBeInTheDocument();
@@ -382,16 +382,16 @@ describe("SpecPhase with specSlice", () => {
         spec: { prdContent: { overview: "Content" } },
         plan: { planStatus: null },
       });
-      renderDreamPhase(store);
+      renderSpecPhase(store);
       expect(screen.queryByRole("button", { name: /Plan it/i })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Replan it/i })).not.toBeInTheDocument();
     });
 
-    it("fetches plan-status on Dream load when PRD exists", async () => {
+    it("fetches plan-status on Spec load when PRD exists", async () => {
       const store = createStore({
         spec: { prdContent: { overview: "Content" } },
       });
-      renderDreamPhase(store);
+      renderSpecPhase(store);
       await waitFor(() => {
         expect(mockGetPlanStatus).toHaveBeenCalledWith("proj-1");
       });
@@ -406,7 +406,7 @@ describe("SpecPhase with specSlice", () => {
         spec: { prdContent: { overview: "Content" } },
         plan: { planStatus: { hasPlanningRun: false, prdChangedSinceLastRun: false, action: "plan" } },
       });
-      renderDreamPhase(store);
+      renderSpecPhase(store);
       await waitFor(() => {
         expect(screen.getByRole("button", { name: /Plan it/i })).toBeInTheDocument();
       });
@@ -430,7 +430,7 @@ describe("SpecPhase with specSlice", () => {
         },
       });
       mockPrdUpdateSection.mockResolvedValue(undefined);
-      renderDreamPhase(store);
+      renderSpecPhase(store);
 
       const inputA = screen.getByTestId("prd-input-executive_summary");
       await user.clear(inputA);
@@ -461,7 +461,7 @@ describe("SpecPhase with specSlice", () => {
         },
       });
       mockPrdUpdateSection.mockResolvedValue(undefined);
-      renderDreamPhase(store);
+      renderSpecPhase(store);
 
       const input1 = screen.getByTestId("prd-input-executive_summary");
       const input2 = screen.getByTestId("prd-input-goals_and_metrics");

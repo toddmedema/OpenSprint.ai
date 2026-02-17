@@ -22,7 +22,7 @@ export class ActiveAgentsService {
    * Register an active agent.
    * @param id - Unique agent/task identifier
    * @param projectId - Project the agent is running for
-   * @param phase - Phase (e.g. "dream", "plan", "build", "verify" or "coding", "review")
+   * @param phase - Phase (e.g. "spec", "plan", "execute", "ensure", "deploy" or "coding", "review")
    * @param label - Human-readable label (e.g. task title)
    * @param startedAt - ISO timestamp when the agent started
    * @param branchName - Optional branch name (Build phase)
