@@ -200,7 +200,10 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col max-h-[85vh]">
+      <div
+        className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col max-h-[85vh] overflow-hidden"
+        data-testid="settings-modal"
+      >
         {/* Header */}
         <div className="flex-shrink-0 flex items-center justify-between px-5 py-4 border-b border-gray-200" data-testid="settings-modal-header">
           <h2 className="text-lg font-semibold text-gray-900">Project Settings</h2>
@@ -208,7 +211,7 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
         </div>
 
         {/* Tabs */}
-        <div className="flex-shrink-0 flex gap-1 px-5 pt-3 pb-2 border-b border-gray-200 overflow-x-auto" data-testid="settings-modal-tabs">
+        <div className="flex-shrink-0 flex flex-nowrap gap-1 px-5 pt-3 pb-2 border-b border-gray-200 overflow-x-auto overflow-y-hidden" data-testid="settings-modal-tabs">
           {TABS.map((tab) => (
             <button
               key={tab.key}
@@ -225,7 +228,7 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
         </div>
 
         {/* Content */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4" data-testid="settings-modal-content">
+        <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden px-5 py-4 overscroll-contain" data-testid="settings-modal-content">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="w-6 h-6 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />

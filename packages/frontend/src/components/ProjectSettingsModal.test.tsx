@@ -77,6 +77,25 @@ describe("ProjectSettingsModal", () => {
     const contentArea = screen.getByTestId("settings-modal-content");
     expect(contentArea).toHaveClass("min-h-0");
     expect(contentArea).toHaveClass("overflow-y-auto");
+    expect(contentArea).toHaveClass("overscroll-contain");
+  });
+
+  it("modal has overflow-hidden and tabs have flex-nowrap to prevent navigation bar layout issues on Agent Config", async () => {
+    render(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
+
+    await screen.findByText("Project Settings");
+
+    const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
+    await userEvent.click(agentConfigTab);
+
+    await screen.findByText("Planning Agent");
+
+    const modal = screen.getByTestId("settings-modal");
+    expect(modal).toHaveClass("overflow-hidden");
+
+    const tabsContainer = screen.getByTestId("settings-modal-tabs");
+    expect(tabsContainer).toHaveClass("flex-nowrap");
+    expect(tabsContainer).toHaveClass("overflow-y-hidden");
   });
 
   it("header and tabs have flex-shrink-0 to stay visible when content overflows", async () => {
