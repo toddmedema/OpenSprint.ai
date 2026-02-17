@@ -1,0 +1,15 @@
+{
+  "id": "d3fdcebf-c695-4b3e-be44-9ac0cccc29f9",
+  "text": "The Verify feedback list should not show \"Mapped\" or \"Pending\" - IF the feedback has already been categorized, just show the category (UX, Feature, etc). If it's pending, show a loading spinner icon. If there's been an error, show an error icon, with the error shown as a hover tooltip.",
+  "category": "ux",
+  "mappedPlanId": "verify-phase-feedback-submission-and-mapping",
+  "createdTaskIds": [
+    "opensprint.dev-srl.1"
+  ],
+  "status": "mapped",
+  "createdAt": "2026-02-17T02:47:49.657Z",
+  "taskTitles": [
+    "Verify feedback list: show category instead of Mapped/Pending",
+    "Add loading spinner and error icon with tooltip to Verify feedback feed"
+  ]
+}

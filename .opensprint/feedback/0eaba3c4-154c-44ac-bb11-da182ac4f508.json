@@ -1,0 +1,16 @@
+{
+  "id": "0eaba3c4-154c-44ac-bb11-da182ac4f508",
+  "text": "UI bug: In the Plan tab, the dependency graph is only visible on the left half of its area. The right half is entirely white. ALSO, the nodes are a black color until the zoom animation has completed - their color is correct at the end of the zoom animation, please remove/fix the black color and have them always be that final color.",
+  "category": "bug",
+  "mappedPlanId": "plan-phase-feature-decomposition",
+  "createdTaskIds": [
+    "opensprint.dev-vwf.1",
+    "opensprint.dev-78v"
+  ],
+  "status": "mapped",
+  "createdAt": "2026-02-17T02:55:27.909Z",
+  "taskTitles": [
+    "Fix dependency graph only rendering on left half of its area",
+    "Fix dependency graph nodes showing black during zoom animation"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "8acf39f5-e0be-4a6e-a949-7eeb531fc51f",
+  "text": "The Verify feedback list should not show \"Mapped\" or \"Pending\" - IF the feedback has already been categorized, just show the category (UX, Feature, etc). If it's pending, show a loading spinner icon. If there's been an error, show an error icon, with the error shown as a hover tooltip.",
+  "category": "ux",
+  "mappedPlanId": "verify-phase-feedback-submission-and-mapping",
+  "createdTaskIds": [],
+  "status": "mapped",
+  "createdAt": "2026-02-17T02:20:18.775Z",
+  "taskTitles": [
+    "Verify feedback list: show category (bug/feature/ux/scope) instead of Mapped when categorized",
+    "Verify feedback list: show loading spinner instead of Pending during categorization",
+    "Verify feedback list: show error icon with hover tooltip when categorization fails"
+  ]
+}
