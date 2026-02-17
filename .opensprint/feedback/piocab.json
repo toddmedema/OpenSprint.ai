@@ -1,0 +1,15 @@
+{
+  "id": "piocab",
+  "text": "It looks like there is a UI bug with the Plan and Build sidebars - when the contents is very long, such as with this plan, I'm unable to scroll up and down on the page or the sidebar! (The page and sidebar should both be scrollable, and should scroll independently of each other)\n\nhttp://localhost:5173/projects/94c64729-46c0-431f-bcc7-9585c6e0eb2c/plan?plan=prdv2-orchestrator-and-error-handling-improvements",
+  "category": "bug",
+  "mappedPlanId": "plan-phase-feature-decomposition",
+  "createdTaskIds": [
+    "opensprint.dev-vwf.10"
+  ],
+  "status": "mapped",
+  "createdAt": "2026-02-17T08:49:59.058Z",
+  "taskTitles": [
+    "Fix Plan and Build sidebar and page scroll overflow so both scroll independently"
+  ],
+  "feedbackSourceBeadId": "opensprint.dev-5m7"
+}
