@@ -91,7 +91,6 @@ export function PlanDetailContent({
 
   return (
     <div className="p-4 border-b border-gray-200 dark:border-gray-600">
-      <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Plan</h4>
       <div className="space-y-3">
         {/* Inline editable title — theme-aware for readable text in light/dark mode */}
         <input

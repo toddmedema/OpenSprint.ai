@@ -49,6 +49,11 @@ describe("PlanDetailContent", () => {
     onContentSave.mockReset();
   });
 
+  it("does not render redundant Plan heading (context is already Plan phase)", () => {
+    render(<PlanDetailContent plan={mockPlan} onContentSave={onContentSave} />);
+    expect(screen.queryByRole("heading", { name: /^plan$/i })).not.toBeInTheDocument();
+  });
+
   it("renders inline editable title derived from first line", () => {
     render(<PlanDetailContent plan={mockPlan} onContentSave={onContentSave} />);
     const titleInput = screen.getByRole("textbox", { name: /plan title/i });
