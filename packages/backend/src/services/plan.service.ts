@@ -19,6 +19,9 @@ import { gitCommitQueue } from "./git-commit-queue.service.js";
 import { ChatService } from "./chat.service.js";
 import { PrdService } from "./prd.service.js";
 import { AgentClient } from "./agent-client.js";
+import { agentService } from "./agent.service.js";
+import { buildAuditorPrompt, parseAuditorResult } from "./auditor.service.js";
+import { buildDeltaPlannerPrompt, parseDeltaPlannerResult } from "./delta-planner.service.js";
 import { AppError } from "../middleware/error-handler.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
 import { activeAgentsService } from "./active-agents.service.js";
@@ -394,6 +397,17 @@ export class PlanService {
     if (metadata.shippedAt) {
       status = total > 0 && done === total ? "complete" : "building";
     }
+    // Re-execute gate open → planning (user must click Execute! to unblock delta tasks)
+    if (metadata.reExecuteGateTaskId) {
+      try {
+        const gateIssue = await this.beads.show(repoPath, metadata.reExecuteGateTaskId);
+        if ((gateIssue.status as string) !== "closed") {
+          status = "planning";
+        }
+      } catch {
+        // Gate may have been deleted; keep computed status
+      }
+    }
 
     const edges = await this.buildDependencyEdgesFromProject(projectId);
     const dependencyCount = edges.filter((e) => e.to === planId).length;
@@ -635,7 +649,9 @@ export class PlanService {
     const repoPath = await this.getRepoPath(projectId);
     const plansDir = await this.getPlansDir(projectId);
 
-    if (!plan.metadata.gateTaskId) {
+    // Close the gate that is blocking tasks: re-execute gate if present, else main gate (PRD §7.2.2)
+    const gateToClose = plan.metadata.reExecuteGateTaskId ?? plan.metadata.gateTaskId;
+    if (!gateToClose) {
       throw new AppError(400, ErrorCodes.NO_GATE_TASK, "Plan has no gating task to close");
     }
 
@@ -656,7 +672,16 @@ export class PlanService {
     }
 
     // Close the gating task
-    await this.beads.close(repoPath, plan.metadata.gateTaskId, "Plan approved for build");
+    await this.beads.close(repoPath, gateToClose, "Plan approved for build");
+
+    // Clear re-execute gate after closing (next re-execute will create a new one)
+    if (plan.metadata.reExecuteGateTaskId) {
+      plan.metadata.reExecuteGateTaskId = undefined;
+    }
+
+    // Save plan content for next Re-execute (plan_old = this content)
+    const shippedPath = path.join(repoPath, OPENSPRINT_PATHS.plans, `${planId}.shipped.md`);
+    await fs.writeFile(shippedPath, plan.content, "utf-8");
 
     // Update metadata
     plan.metadata.shippedAt = new Date().toISOString();
@@ -679,18 +704,22 @@ export class PlanService {
     return { ...plan, status: "building" };
   }
 
-  /** Rebuild an updated Plan */
+  /** Rebuild an updated Plan — PRD §7.2.2: Auditor + Delta Planner two-agent approach */
   async reshipPlan(projectId: string, planId: string): Promise<Plan> {
     const plan = await this.getPlan(projectId, planId);
     const repoPath = await this.getRepoPath(projectId);
+    const plansDir = await this.getPlansDir(projectId);
+    const epicId = plan.metadata.beadEpicId;
+    const gateTaskId = plan.metadata.gateTaskId;
 
     // Verify all existing tasks are Done or none started
-    if (plan.metadata.beadEpicId) {
+    if (epicId) {
       const allIssues = await this.beads.listAll(repoPath);
       const children = allIssues.filter(
         (issue: BeadsIssue) =>
-          issue.id.startsWith(plan.metadata.beadEpicId + ".") &&
-          issue.id !== plan.metadata.gateTaskId &&
+          issue.id.startsWith(epicId + ".") &&
+          issue.id !== gateTaskId &&
+          issue.id !== plan.metadata.reExecuteGateTaskId &&
           (issue.issue_type ?? issue.type) !== "epic",
       );
 
@@ -703,16 +732,277 @@ export class PlanService {
       const noneStarted = children.every((issue: BeadsIssue) => issue.status === "open");
 
       if (noneStarted && children.length > 0) {
-        // Delete all existing sub-tasks
-        for (const child of children) {
+        // Delete all existing sub-tasks (including any re-execute gate), then ship fresh
+        const toDelete = allIssues.filter(
+          (i: BeadsIssue) =>
+            i.id.startsWith(epicId + ".") && i.id !== gateTaskId && (i.issue_type ?? i.type) !== "epic",
+        );
+        for (const child of toDelete) {
           await this.beads.delete(repoPath, child.id);
         }
-      } else if (!allDone && children.length > 0) {
+        if (plan.metadata.reExecuteGateTaskId) {
+          plan.metadata.reExecuteGateTaskId = undefined;
+          await writeJsonAtomic(path.join(plansDir, `${planId}.meta.json`), plan.metadata);
+        }
+        return this.shipPlan(projectId, planId);
+      }
+      if (!allDone && children.length > 0) {
         throw new AppError(400, ErrorCodes.TASKS_NOT_COMPLETE, "All tasks must be Done before rebuilding (or none started)");
       }
     }
 
-    return this.shipPlan(projectId, planId);
+    // All done: use Auditor + Delta Planner two-agent approach (PRD §12.3.6–7)
+    const { fileTree, keyFilesContent, completedTasksJson } = await this.assembleReExecuteContext(
+      repoPath,
+      epicId ?? "",
+      gateTaskId,
+    );
+
+    const auditorPrompt = buildAuditorPrompt(planId, epicId ?? "");
+    const auditorFullPrompt = `${auditorPrompt}
+
+## context/file_tree.txt
+
+${fileTree}
+
+## context/key_files/
+
+${keyFilesContent}
+
+## context/completed_tasks.json
+
+${completedTasksJson}`;
+
+    const agentIdAuditor = `auditor-${projectId}-${planId}-${Date.now()}`;
+    activeAgentsService.register(agentIdAuditor, projectId, "plan", "auditor", "Re-execute: capability audit", new Date().toISOString());
+
+    let auditorResponse;
+    try {
+      auditorResponse = await agentService.invokePlanningAgent({
+        config: (await this.projectService.getSettings(projectId)).planningAgent,
+        messages: [{ role: "user", content: auditorFullPrompt }],
+        systemPrompt: "You are the Auditor agent for OpenSprint (PRD §12.3.6). Summarize the app's current capabilities from the codebase and completed task history.",
+      });
+    } finally {
+      activeAgentsService.unregister(agentIdAuditor);
+    }
+
+    const auditorResult = parseAuditorResult(auditorResponse.content);
+    if (!auditorResult || auditorResult.status !== "success" || !auditorResult.capability_summary) {
+      console.error("[plan] Auditor failed or returned invalid result, falling back to full rebuild");
+      return this.shipPlan(projectId, planId);
+    }
+
+    const planOld = await this.getShippedPlanContent(repoPath, planId);
+    const planNew = plan.content;
+
+    const deltaPlannerPrompt = buildDeltaPlannerPrompt(planId, epicId ?? "");
+    const deltaPlannerFullPrompt = `${deltaPlannerPrompt}
+
+## context/plan_old.md
+
+${planOld}
+
+## context/plan_new.md
+
+${planNew}
+
+## context/capability_summary.md
+
+${auditorResult.capability_summary}`;
+
+    const agentIdDelta = `delta-planner-${projectId}-${planId}-${Date.now()}`;
+    activeAgentsService.register(agentIdDelta, projectId, "plan", "delta_planner", "Re-execute: delta task list", new Date().toISOString());
+
+    let deltaResponse;
+    try {
+      deltaResponse = await agentService.invokePlanningAgent({
+        config: (await this.projectService.getSettings(projectId)).planningAgent,
+        messages: [{ role: "user", content: deltaPlannerFullPrompt }],
+        systemPrompt: "You are the Delta Planner agent for OpenSprint (PRD §12.3.7). Compare old/new Plan against capability summary and output only the delta tasks needed.",
+      });
+    } finally {
+      activeAgentsService.unregister(agentIdDelta);
+    }
+
+    const deltaResult = parseDeltaPlannerResult(deltaResponse.content);
+    if (!deltaResult || deltaResult.status === "no_changes_needed" || deltaResult.status === "failed") {
+      return this.getPlan(projectId, planId);
+    }
+
+    if (!deltaResult.tasks || deltaResult.tasks.length === 0) {
+      return this.getPlan(projectId, planId);
+    }
+
+    // Create new approval gate and delta tasks (PRD §7.2.2)
+    const newGateResult = await this.beads.create(repoPath, "Re-execute approval gate", {
+      type: "task",
+      parentId: epicId,
+    });
+    const newGateTaskId = newGateResult.id;
+
+    const taskIdMap = new Map<number, string>();
+    for (const task of deltaResult.tasks) {
+      const priority = Math.min(4, Math.max(0, task.priority ?? 2));
+      const taskResult = await this.beads.create(repoPath, task.title, {
+        type: "task",
+        description: task.description || "",
+        priority,
+        parentId: epicId,
+      });
+      taskIdMap.set(task.index, taskResult.id);
+      await this.beads.addDependency(repoPath, taskResult.id, newGateTaskId);
+    }
+
+    for (const task of deltaResult.tasks) {
+      if (task.depends_on && task.depends_on.length > 0) {
+        const childId = taskIdMap.get(task.index);
+        if (childId) {
+          for (const depIndex of task.depends_on) {
+            const parentId = taskIdMap.get(depIndex);
+            if (parentId) {
+              await this.beads.addDependency(repoPath, childId, parentId);
+            }
+          }
+        }
+      }
+    }
+
+    plan.metadata.reExecuteGateTaskId = newGateTaskId;
+    await writeJsonAtomic(path.join(plansDir, `${planId}.meta.json`), plan.metadata);
+
+    gitCommitQueue.enqueue({
+      type: "beads_export",
+      repoPath,
+      summary: `re-execute ${planId}: ${deltaResult.tasks.length} delta tasks`,
+    });
+
+    for (const [, taskId] of taskIdMap) {
+      broadcastToProject(projectId, {
+        type: "task.updated",
+        taskId,
+        status: "open",
+        assignee: null,
+      });
+    }
+
+    return this.getPlan(projectId, planId);
+  }
+
+  /** Assemble context for Auditor: file tree, key files, completed tasks (PRD §12.3.6) */
+  private async assembleReExecuteContext(
+    repoPath: string,
+    epicId: string,
+    gateTaskId: string,
+  ): Promise<{ fileTree: string; keyFilesContent: string; completedTasksJson: string }> {
+    const fileTree = await this.buildFileTree(repoPath);
+    const keyFilesContent = await this.getKeyFilesContent(repoPath);
+    const completedTasks = await this.getCompletedTasksForEpic(repoPath, epicId, gateTaskId);
+    const completedTasksJson = JSON.stringify(completedTasks, null, 2);
+    return { fileTree, keyFilesContent, completedTasksJson };
+  }
+
+  /** Build file tree string (excludes node_modules, .git, etc.) */
+  private async buildFileTree(repoPath: string): Promise<string> {
+    const SKIP_DIRS = new Set([".git", "node_modules", ".opensprint", "dist", "build", ".next", ".turbo", "coverage"]);
+    const lines: string[] = [];
+
+    const walk = async (dir: string): Promise<void> => {
+      let entries: { name: string; isDirectory: () => boolean }[];
+      try {
+        entries = await fs.readdir(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      const sorted = entries.sort((a, b) => {
+        if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? 1 : -1;
+        return a.name.localeCompare(b.name);
+      });
+      for (const entry of sorted) {
+        const full = path.join(dir, entry.name);
+        const rel = path.relative(repoPath, full).replace(/\\/g, "/");
+        if (entry.isDirectory()) {
+          if (SKIP_DIRS.has(entry.name)) continue;
+          lines.push(rel + "/");
+          await walk(full);
+        } else {
+          lines.push(rel);
+        }
+      }
+    };
+    await walk(repoPath);
+    return lines.join("\n") || "(empty)";
+  }
+
+  /** Get content of key source files (capped by size) */
+  private async getKeyFilesContent(repoPath: string): Promise<string> {
+    const EXT = [".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".rs", ".java", ".kt"];
+    const SKIP = ["node_modules", ".git", ".opensprint", "dist", "build", ".next"];
+    const MAX_FILE = 50 * 1024;
+    const MAX_TOTAL = 200 * 1024;
+    let total = 0;
+    const parts: string[] = [];
+
+    const walk = async (dir: string): Promise<void> => {
+      if (total >= MAX_TOTAL) return;
+      let entries: { name: string; isDirectory: () => boolean }[];
+      try {
+        entries = await fs.readdir(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const entry of entries) {
+        const full = path.join(dir, entry.name);
+        const rel = full.replace(repoPath + path.sep, "").replace(/\\/g, "/");
+        if (entry.isDirectory()) {
+          if (!SKIP.includes(entry.name)) await walk(full);
+        } else if (EXT.some((e) => entry.name.endsWith(e))) {
+          try {
+            const content = await fs.readFile(full, "utf-8");
+            const truncated = content.length > MAX_FILE ? content.slice(0, MAX_FILE) + "\n... (truncated)" : content;
+            parts.push(`### ${rel}\n\n\`\`\`\n${truncated}\n\`\`\`\n`);
+            total += truncated.length;
+            if (total >= MAX_TOTAL) return;
+          } catch {
+            // skip unreadable
+          }
+        }
+      }
+    };
+    await walk(repoPath);
+    return parts.join("\n") || "(no source files)";
+  }
+
+  /** Get completed (closed) tasks for epic for Auditor context */
+  private async getCompletedTasksForEpic(
+    repoPath: string,
+    epicId: string,
+    gateTaskId: string,
+  ): Promise<Array<{ id: string; title: string; description?: string; close_reason?: string }>> {
+    const all = await this.beads.listAll(repoPath);
+    const closed = all.filter(
+      (i: BeadsIssue) =>
+        i.id.startsWith(epicId + ".") &&
+        i.id !== gateTaskId &&
+        (i.issue_type ?? i.type) !== "epic" &&
+        (i.status as string) === "closed",
+    );
+    return closed.map((i: BeadsIssue) => ({
+      id: i.id,
+      title: i.title,
+      description: i.description,
+      close_reason: (i.close_reason as string) ?? (i as { close_reason?: string }).close_reason,
+    }));
+  }
+
+  /** Get plan content as it was when last shipped (for plan_old) */
+  private async getShippedPlanContent(repoPath: string, planId: string): Promise<string> {
+    const shippedPath = path.join(repoPath, OPENSPRINT_PATHS.plans, `${planId}.shipped.md`);
+    try {
+      return await fs.readFile(shippedPath, "utf-8");
+    } catch {
+      return "# Plan (no previous shipped version)";
+    }
   }
 
   /** Get the dependency graph for all Plans */

@@ -10,11 +10,18 @@ import { API_PREFIX, OPENSPRINT_PATHS } from "@opensprint/shared";
 import { DEFAULT_HIL_CONFIG } from "@opensprint/shared";
 
 const mockSuggestInvoke = vi.fn();
+const mockPlanningAgentInvoke = vi.fn();
 
 vi.mock("../services/agent-client.js", () => ({
   AgentClient: vi.fn().mockImplementation(() => ({
     invoke: (opts: unknown) => mockSuggestInvoke(opts),
   })),
+}));
+
+vi.mock("../services/agent.service.js", () => ({
+  agentService: {
+    invokePlanningAgent: (opts: unknown) => mockPlanningAgentInvoke(opts),
+  },
 }));
 
 // Mock orchestrator so Ship it! doesn't trigger the real loop (which would claim Task A before archive)
@@ -302,7 +309,19 @@ describe("Plan REST endpoints - task decomposition", () => {
   );
 
   describe("POST /projects/:id/plans/:planId/re-execute", () => {
-    it("reship succeeds when all tasks are done (closed)", { timeout: 15000 }, async () => {
+    it("reship succeeds when all tasks are done (closed) — Auditor + Delta Planner two-agent flow", {
+      timeout: 15000,
+    }, async () => {
+      // Harmonizer (ship) + Auditor + Delta Planner (re-execute)
+      mockPlanningAgentInvoke
+        .mockResolvedValueOnce({ content: '{"status":"no_changes_needed"}' }) // Harmonizer on ship
+        .mockResolvedValueOnce({
+          content: '{"status":"success","capability_summary":"## Features\\n- Auth implemented"}',
+        })
+        .mockResolvedValueOnce({
+          content: '{"status":"success","tasks":[{"index":0,"title":"Delta Task","description":"Add delta","priority":1,"depends_on":[]}]}',
+        });
+
       const app = createApp();
       const planBody = {
         title: "Reship All Done Feature",
@@ -320,7 +339,7 @@ describe("Plan REST endpoints - task decomposition", () => {
       const epicId = createRes.body.data.metadata.beadEpicId;
       const gateTaskId = createRes.body.data.metadata.gateTaskId;
 
-      // Ship the plan
+      // Ship the plan (saves .shipped.md for plan_old)
       const shipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/execute`);
       expect(shipRes.status).toBe(200);
 
@@ -337,10 +356,75 @@ describe("Plan REST endpoints - task decomposition", () => {
       }
       await beads.sync(project.repoPath);
 
-      // Reship should succeed (all tasks done)
+      // Re-execute: Auditor + Delta Planner create new gate and delta tasks
       const reshipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/re-execute`);
       expect(reshipRes.status).toBe(200);
       expect(reshipRes.body.data).toBeDefined();
+      expect(reshipRes.body.data.metadata.reExecuteGateTaskId).toBeDefined();
+
+      const afterReship = await beads.listAll(project.repoPath);
+      const deltaTasks = afterReship.filter(
+        (i: { id: string; title: string; issue_type?: string; type?: string }) =>
+          i.id.startsWith(epicId + ".") &&
+          i.id !== gateTaskId &&
+          (i.issue_type ?? i.type) !== "epic" &&
+          i.title === "Delta Task",
+      );
+      expect(deltaTasks.length).toBe(1);
+    });
+
+    it("reship returns plan unchanged when Delta Planner returns no_changes_needed", {
+      timeout: 15000,
+    }, async () => {
+      mockPlanningAgentInvoke
+        .mockResolvedValueOnce({ content: '{"status":"no_changes_needed"}' })
+        .mockResolvedValueOnce({
+          content: '{"status":"success","capability_summary":"## Features\\n- All done"}',
+        })
+        .mockResolvedValueOnce({ content: '{"status":"no_changes_needed"}' });
+
+      const app = createApp();
+      const planBody = {
+        title: "No Changes Feature",
+        content: "# No Changes\n\nContent.",
+        complexity: "medium",
+        tasks: [
+          { title: "Task A", description: "First", priority: 0, dependsOn: [] },
+        ],
+      };
+
+      const createRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans`).send(planBody);
+      expect(createRes.status).toBe(201);
+      const planId = createRes.body.data.metadata.planId;
+      const epicId = createRes.body.data.metadata.beadEpicId;
+      const gateTaskId = createRes.body.data.metadata.gateTaskId;
+
+      const shipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/execute`);
+      expect(shipRes.status).toBe(200);
+
+      const project = await projectService.getProject(projectId);
+      const allIssues = await beads.listAll(project.repoPath);
+      const planTasks = allIssues.filter(
+        (i: { id: string; issue_type?: string; type?: string }) =>
+          i.id.startsWith(epicId + ".") && i.id !== gateTaskId && (i.issue_type ?? i.type) !== "epic",
+      );
+      for (const task of planTasks) {
+        await beads.close(project.repoPath, (task as { id: string }).id, "Done");
+      }
+      await beads.sync(project.repoPath);
+
+      const beforeCount = (await beads.listAll(project.repoPath)).filter(
+        (i: { id: string }) => i.id.startsWith(epicId + ".") && i.id !== gateTaskId,
+      ).length;
+
+      const reshipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/re-execute`);
+      expect(reshipRes.status).toBe(200);
+      expect(reshipRes.body.data.metadata.reExecuteGateTaskId).toBeUndefined();
+
+      const afterCount = (await beads.listAll(project.repoPath)).filter(
+        (i: { id: string }) => i.id.startsWith(epicId + ".") && i.id !== gateTaskId,
+      ).length;
+      expect(afterCount).toBe(beforeCount);
     });
 
     it("reship returns 400 TASKS_IN_PROGRESS when any task is in_progress", { timeout: 15000 }, async () => {

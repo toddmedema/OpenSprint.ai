@@ -28,6 +28,8 @@ export interface PlanMetadata {
   planId: string;
   beadEpicId: string;
   gateTaskId: string;
+  /** Gate for delta tasks from Re-execute (PRD §7.2.2); when set, Execute! closes this gate */
+  reExecuteGateTaskId?: string;
   shippedAt: string | null;
   complexity: PlanComplexity;
   /** UI/UX mockups for this plan */
