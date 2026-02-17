@@ -32,7 +32,6 @@ vi.mock("../../api/client", () => ({
     plans: { list: vi.fn() },
     build: {
       status: vi.fn(),
-      nudge: vi.fn(),
     },
   },
 }));
@@ -92,7 +91,6 @@ describe("buildSlice", () => {
     vi.mocked(api.tasks.markComplete).mockReset();
     vi.mocked(api.plans.list).mockReset();
     vi.mocked(api.build.status).mockReset();
-    vi.mocked(api.build.nudge).mockReset();
   });
 
   function createStore() {

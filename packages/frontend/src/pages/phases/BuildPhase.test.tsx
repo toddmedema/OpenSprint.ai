@@ -19,7 +19,7 @@ vi.mock("../../api/client", () => ({
       markComplete: (...args: unknown[]) => mockMarkComplete(...args),
     },
     build: {
-      nudge: vi.fn().mockResolvedValue(undefined),
+      status: vi.fn().mockResolvedValue({}),
     },
   },
 }));

@@ -179,10 +179,6 @@ export const api = {
   // ─── Build ───
   build: {
     status: (projectId: string) => request<OrchestratorStatus>(`/projects/${projectId}/build/status`),
-    nudge: (projectId: string) =>
-      request<OrchestratorStatus>(`/projects/${projectId}/build/nudge`, {
-        method: "POST",
-      }),
   },
 
   // ─── Feedback ───
