@@ -13,8 +13,16 @@ vi.mock("../services/agent-client.js", () => ({
   })),
 }));
 
+const mockHilEvaluate = vi.fn().mockResolvedValue({ approved: false });
 vi.mock("../services/hil-service.js", () => ({
-  hilService: { evaluateDecision: vi.fn().mockResolvedValue({ approved: false }) },
+  hilService: { evaluateDecision: (...args: unknown[]) => mockHilEvaluate(...args) },
+}));
+
+const mockSyncPrdFromScopeChange = vi.fn().mockResolvedValue(undefined);
+vi.mock("../services/chat.service.js", () => ({
+  ChatService: vi.fn().mockImplementation(() => ({
+    syncPrdFromScopeChangeFeedback: (...args: unknown[]) => mockSyncPrdFromScopeChange(...args),
+  })),
 }));
 
 const mockRegister = vi.fn();
@@ -63,6 +71,8 @@ describe("FeedbackService", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    mockHilEvaluate.mockResolvedValue({ approved: false });
+    mockSyncPrdFromScopeChange.mockResolvedValue(undefined);
     beadsCreateCallCount = 0;
     feedbackService = new FeedbackService();
     projectService = new ProjectService();
@@ -336,6 +346,75 @@ describe("FeedbackService", () => {
     const feedbackSourceCall = createCalls[0];
     expect(feedbackSourceCall[1]).toMatch(/^Feedback: /);
     expect(feedbackSourceCall[2]).toMatchObject({ type: "chore", priority: 4 });
+  });
+
+  describe("Scope change feedback (category=scope) with HIL", () => {
+    it("should call HIL evaluateDecision when category is scope", async () => {
+      mockInvoke.mockResolvedValue({
+        content: JSON.stringify({
+          category: "scope",
+          mappedPlanId: null,
+          task_titles: ["Update PRD for new requirements"],
+        }),
+      });
+
+      await feedbackService.submitFeedback(projectId, {
+        text: "We need to add a mobile app as a new platform",
+      });
+
+      await new Promise((r) => setTimeout(r, 200));
+
+      expect(mockHilEvaluate).toHaveBeenCalledTimes(1);
+      expect(mockHilEvaluate).toHaveBeenCalledWith(
+        projectId,
+        "scopeChanges",
+        'Scope change feedback: "We need to add a mobile app as a new platform"',
+      );
+    });
+
+    it("should not call syncPrdFromScopeChangeFeedback when HIL rejects", async () => {
+      mockInvoke.mockResolvedValue({
+        content: JSON.stringify({
+          category: "scope",
+          mappedPlanId: null,
+          task_titles: ["Update PRD"],
+        }),
+      });
+      mockHilEvaluate.mockResolvedValue({ approved: false });
+
+      await feedbackService.submitFeedback(projectId, {
+        text: "Add mobile support - fundamental scope change",
+      });
+
+      await new Promise((r) => setTimeout(r, 200));
+
+      expect(mockSyncPrdFromScopeChange).not.toHaveBeenCalled();
+      expect(mockBeadsCreate).not.toHaveBeenCalled();
+    });
+
+    it("should call syncPrdFromScopeChangeFeedback and create bead tasks when HIL approves", async () => {
+      mockInvoke.mockResolvedValue({
+        content: JSON.stringify({
+          category: "scope",
+          mappedPlanId: null,
+          task_titles: ["Update PRD for mobile platform", "Add mobile architecture section"],
+        }),
+      });
+      mockHilEvaluate.mockResolvedValue({ approved: true });
+
+      await feedbackService.submitFeedback(projectId, {
+        text: "Add mobile app as a new platform - scope change",
+      });
+
+      await new Promise((r) => setTimeout(r, 200));
+
+      expect(mockSyncPrdFromScopeChange).toHaveBeenCalledTimes(1);
+      expect(mockSyncPrdFromScopeChange).toHaveBeenCalledWith(
+        projectId,
+        "Add mobile app as a new platform - scope change",
+      );
+      expect(mockBeadsCreate).toHaveBeenCalled();
+    });
   });
 
   describe("Validate phase agent registry", () => {

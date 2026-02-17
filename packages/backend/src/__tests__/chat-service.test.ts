@@ -24,14 +24,16 @@ vi.mock("../services/active-agents.service.js", () => ({
   },
 }));
 
+const mockHilEvaluate = vi.fn().mockResolvedValue({ approved: true });
 vi.mock("../services/hil-service.js", () => ({
   hilService: {
-    evaluateDecision: vi.fn().mockResolvedValue({ approved: true }),
+    evaluateDecision: (...args: unknown[]) => mockHilEvaluate(...args),
   },
 }));
 
+const mockBroadcast = vi.fn();
 vi.mock("../websocket/index.js", () => ({
-  broadcastToProject: vi.fn(),
+  broadcastToProject: (...args: unknown[]) => mockBroadcast(...args),
 }));
 
 describe("ChatService - Plan phase agent registry", () => {
@@ -44,6 +46,7 @@ describe("ChatService - Plan phase agent registry", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    mockHilEvaluate.mockResolvedValue({ approved: true });
     chatService = new ChatService();
     projectService = new ProjectService();
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-chat-service-test-"));
@@ -112,6 +115,73 @@ describe("ChatService - Plan phase agent registry", () => {
       expect(mockRegister).toHaveBeenCalledTimes(1);
       expect(mockUnregister).toHaveBeenCalledTimes(1);
       expect(mockUnregister).toHaveBeenCalledWith(mockRegister.mock.calls[0][0]);
+    });
+  });
+
+  describe("syncPrdFromScopeChangeFeedback", () => {
+    it("should invoke planning agent with scope-change feedback in prompt", async () => {
+      mockInvokePlanningAgent.mockResolvedValue({
+        content: "No updates needed. The PRD already reflects this scope.",
+      });
+
+      await chatService.syncPrdFromScopeChangeFeedback(projectId, "Add mobile app support");
+
+      expect(mockInvokePlanningAgent).toHaveBeenCalledTimes(1);
+      const call = mockInvokePlanningAgent.mock.calls[0][0];
+      expect(call.messages[0].content).toContain("Add mobile app support");
+      expect(call.messages[0].content).toContain("## Feedback");
+      expect(call.systemPrompt).toContain("scope change");
+      expect(call.systemPrompt).toContain("approved for PRD updates");
+    });
+
+    it("should do nothing when agent returns no PRD_UPDATE blocks", async () => {
+      mockInvokePlanningAgent.mockResolvedValue({
+        content: "No updates needed. The PRD already reflects this scope.",
+      });
+
+      const prdPath = path.join(repoPath, OPENSPRINT_PATHS.prd);
+      const prdBefore = JSON.parse(await fs.readFile(prdPath, "utf-8"));
+
+      await chatService.syncPrdFromScopeChangeFeedback(projectId, "Minor feedback");
+
+      const prdAfter = JSON.parse(await fs.readFile(prdPath, "utf-8"));
+      expect(prdAfter).toEqual(prdBefore);
+    });
+
+    it("should apply PRD updates and broadcast when agent returns non-architecture updates", async () => {
+      mockInvokePlanningAgent.mockResolvedValue({
+        content: `[PRD_UPDATE:feature_list]
+Updated feature list with mobile support.
+[/PRD_UPDATE]`,
+      });
+
+      await chatService.syncPrdFromScopeChangeFeedback(projectId, "Add mobile app");
+
+      const prdPath = path.join(repoPath, OPENSPRINT_PATHS.prd);
+      const prd = JSON.parse(await fs.readFile(prdPath, "utf-8"));
+      expect(prd.sections.feature_list.content).toContain("Updated feature list with mobile support");
+      expect(mockBroadcast).toHaveBeenCalledWith(
+        projectId,
+        expect.objectContaining({ type: "prd.updated", section: "feature_list" }),
+      );
+    });
+
+    it("should evaluate HIL for architecture sections when scope feedback includes them", async () => {
+      mockInvokePlanningAgent.mockResolvedValue({
+        content: `[PRD_UPDATE:technical_architecture]
+New mobile architecture.
+[/PRD_UPDATE]`,
+      });
+
+      await chatService.syncPrdFromScopeChangeFeedback(projectId, "Add mobile architecture");
+
+      expect(mockHilEvaluate).toHaveBeenCalledWith(
+        projectId,
+        "architectureDecisions",
+        expect.stringContaining("Scope change feedback"),
+        expect.any(Array),
+        true,
+      );
     });
   });
 });
