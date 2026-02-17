@@ -264,8 +264,8 @@ describe("VerifyPhase feedback input", () => {
     );
 
     expect(screen.getByText(/Feedback History \(1\)/)).toBeInTheDocument();
-    // Mapped feedback does not show the feedback text
-    expect(screen.queryByText("Login button is broken")).not.toBeInTheDocument();
+    // Original feedback text is always shown
+    expect(screen.getByText("Login button is broken")).toBeInTheDocument();
     expect(screen.getByText("plan-1")).toBeInTheDocument();
   });
 
@@ -458,8 +458,8 @@ describe("VerifyPhase feedback input", () => {
 
     // Pending: not shown at all
     expect(screen.queryByText("Pending feedback")).not.toBeInTheDocument();
-    // Mapped: shown with category but not the feedback text
-    expect(screen.queryByText("Mapped feedback")).not.toBeInTheDocument();
+    // Mapped: shown with original feedback text and category
+    expect(screen.getByText("Mapped feedback")).toBeInTheDocument();
     expect(screen.getByText("Feature")).toBeInTheDocument();
     expect(screen.getByText("plan-1")).toBeInTheDocument();
     expect(screen.getByText(/Feedback History \(1\)/)).toBeInTheDocument();
@@ -546,12 +546,11 @@ describe("VerifyPhase feedback input", () => {
     expect(screen.queryByText("Pending")).not.toBeInTheDocument();
     // Plan ID is shown without redundant "Plan:" or "Mapped" label
     expect(screen.getByText("plan-1")).toBeInTheDocument();
-    // Mapped feedback does not show the feedback text (Bug report, Feature request, etc.)
-    expect(screen.queryByText("Bug report")).not.toBeInTheDocument();
-    expect(screen.queryByText("Feature request")).not.toBeInTheDocument();
-    // Resolved feedback still shows text
+    // Original feedback text is always shown on all cards
+    expect(screen.getByText("Bug report")).toBeInTheDocument();
+    expect(screen.getByText("Feature request")).toBeInTheDocument();
     expect(screen.getByText("UX improvement")).toBeInTheDocument();
-    expect(screen.queryByText("Scope change request")).not.toBeInTheDocument();
+    expect(screen.getByText("Scope change request")).toBeInTheDocument();
   });
 
   it("does not show Mapped status label on mapped feedback items", () => {
@@ -604,8 +603,8 @@ describe("VerifyPhase feedback input", () => {
     // Plan ID shown without redundant "Plan:" or "Mapped" label
     expect(screen.getByText("auth-plan")).toBeInTheDocument();
     expect(screen.queryByText(/Plan:/)).not.toBeInTheDocument();
-    // Mapped feedback does not show the feedback text
-    expect(screen.queryByText("Login button broken")).not.toBeInTheDocument();
+    // Original feedback text is always shown
+    expect(screen.getByText("Login button broken")).toBeInTheDocument();
   });
 
   it("does not show redundant Plan: label for mapped feedback (plan ID only)", () => {
@@ -656,11 +655,11 @@ describe("VerifyPhase feedback input", () => {
     // Redundant "Plan:" label removed — only plan ID shown
     expect(screen.getByText("auth-plan")).toBeInTheDocument();
     expect(screen.queryByText(/Plan:/)).not.toBeInTheDocument();
-    // Mapped feedback does not show the feedback text
-    expect(screen.queryByText("Login button broken")).not.toBeInTheDocument();
+    // Original feedback text is always shown
+    expect(screen.getByText("Login button broken")).toBeInTheDocument();
   });
 
-  it("does not show feedback text when status is mapped", () => {
+  it("shows original feedback text on all cards regardless of status", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
@@ -714,9 +713,8 @@ describe("VerifyPhase feedback input", () => {
       </Provider>,
     );
 
-    // Mapped feedback: text is hidden
-    expect(screen.queryByText("This text should not appear")).not.toBeInTheDocument();
-    // Resolved feedback: text is shown
+    // Original feedback text is always shown on all cards
+    expect(screen.getByText("This text should not appear")).toBeInTheDocument();
     expect(screen.getByText("This text should appear")).toBeInTheDocument();
   });
 
@@ -768,8 +766,8 @@ describe("VerifyPhase feedback input", () => {
       </Provider>,
     );
 
-    // Mapped feedback does not show the feedback text
-    expect(screen.queryByText("Screenshot of bug")).not.toBeInTheDocument();
+    // Original feedback text is always shown
+    expect(screen.getByText("Screenshot of bug")).toBeInTheDocument();
     const imgs = screen.getAllByRole("img", { name: /Attachment \d+/ });
     expect(imgs.length).toBeGreaterThanOrEqual(1);
   });
