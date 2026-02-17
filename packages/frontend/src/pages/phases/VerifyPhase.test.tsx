@@ -1228,6 +1228,96 @@ describe("EvalPhase feedback input", () => {
     expect(replyButtons.length).toBeGreaterThanOrEqual(1);
   });
 
+  it("shows reply button on same line as ticket info in feedback cards", () => {
+    const storeWithTaskAndReply = configureStore({
+      reducer: {
+        project: projectReducer,
+        eval: evalReducer,
+        execute: executeReducer,
+      },
+      preloadedState: {
+        project: {
+          data: {
+            id: "proj-1",
+            name: "Test Project",
+            description: "",
+            repoPath: "/tmp/test",
+            currentPhase: "eval",
+            createdAt: "",
+            updatedAt: "",
+          },
+          loading: false,
+          error: null,
+        },
+        eval: {
+          feedback: [
+            {
+              id: "fb-1",
+              text: "Bug in login",
+              category: "bug",
+              mappedPlanId: "plan-1",
+              createdTaskIds: ["opensprint.dev-abc.1"],
+              status: "mapped",
+              createdAt: new Date().toISOString(),
+            },
+          ],
+          loading: false,
+          submitting: false,
+          error: null,
+        },
+        execute: {
+          tasks: [
+            {
+              id: "opensprint.dev-abc.1",
+              title: "Fix login",
+              description: "",
+              type: "bug" as const,
+              status: "in_progress" as const,
+              priority: 2,
+              assignee: null,
+              labels: [],
+              dependencies: [],
+              epicId: "plan-1",
+              kanbanColumn: "in_progress" as const,
+              createdAt: "",
+              updatedAt: "",
+            },
+          ],
+          plans: [],
+          orchestratorRunning: false,
+          awaitingApproval: false,
+          selectedTaskId: null,
+          taskDetail: null,
+          taskDetailLoading: false,
+          agentOutput: [],
+          completionState: null,
+          archivedSessions: [],
+          archivedLoading: false,
+          markDoneLoading: false,
+          statusLoading: false,
+          loading: false,
+          error: null,
+        },
+      },
+    });
+
+    render(
+      <Provider store={storeWithTaskAndReply}>
+        <EvalPhase projectId="proj-1" onNavigateToBuildTask={(id) => id} />
+      </Provider>,
+    );
+
+    const taskLink = screen.getByText("opensprint.dev-abc.1");
+    const replyBtn = screen.getByRole("button", { name: /^Reply$/i });
+
+    // Both ticket info and reply button share the same row (flex with justify-between)
+    const ticketInfoRow = replyBtn.parentElement?.parentElement;
+    expect(ticketInfoRow).toBeInTheDocument();
+    expect(ticketInfoRow).toContainElement(taskLink);
+    expect(ticketInfoRow).toContainElement(replyBtn);
+    expect(ticketInfoRow).toHaveClass("justify-between");
+  });
+
   it("shows quote snippet of parent feedback above reply textarea", async () => {
     const user = userEvent.setup();
     const storeWithFeedback = configureStore({
