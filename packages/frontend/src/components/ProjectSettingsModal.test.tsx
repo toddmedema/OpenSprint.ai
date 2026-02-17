@@ -1,0 +1,93 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { ProjectSettingsModal } from "./ProjectSettingsModal";
+import type { Project } from "@opensprint/shared";
+
+const mockGetSettings = vi.fn();
+const mockUpdate = vi.fn();
+const mockUpdateSettings = vi.fn();
+const mockGetKeys = vi.fn();
+
+vi.mock("../api/client", () => ({
+  api: {
+    projects: {
+      getSettings: (...args: unknown[]) => mockGetSettings(...args),
+      update: (...args: unknown[]) => mockUpdate(...args),
+      updateSettings: (...args: unknown[]) => mockUpdateSettings(...args),
+    },
+    env: {
+      getKeys: (...args: unknown[]) => mockGetKeys(...args),
+    },
+  },
+}));
+
+const mockProject: Project = {
+  id: "proj-1",
+  name: "Test Project",
+  description: "A test project",
+  repoPath: "/path/to/repo",
+  currentPhase: "build",
+  createdAt: "2025-01-01T00:00:00Z",
+  updatedAt: "2025-01-01T00:00:00Z",
+};
+
+const mockSettings = {
+  planningAgent: { type: "claude" as const, model: "claude-3-5-sonnet", cliCommand: null },
+  codingAgent: { type: "claude" as const, model: "claude-3-5-sonnet", cliCommand: null },
+  deployment: { mode: "custom" as const },
+  hilConfig: {
+    scopeChanges: "requires_approval" as const,
+    architectureDecisions: "requires_approval" as const,
+    dependencyModifications: "requires_approval" as const,
+    testFailuresAndRetries: "requires_approval" as const,
+  },
+};
+
+describe("ProjectSettingsModal", () => {
+  const onClose = vi.fn();
+  const onSaved = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue(mockSettings);
+    mockGetKeys.mockResolvedValue({ anthropic: true, cursor: true });
+  });
+
+  it("renders modal with header, tabs, and content", async () => {
+    render(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
+
+    await screen.findByText("Project Settings");
+    expect(screen.getByText("Project Info")).toBeInTheDocument();
+    expect(screen.getByText("Agent Config")).toBeInTheDocument();
+    expect(screen.getByText("Deployment")).toBeInTheDocument();
+    expect(screen.getByText("Autonomy")).toBeInTheDocument();
+  });
+
+  it("content area has min-h-0 and overflow-y-auto for proper scroll behavior on Agent Config", async () => {
+    render(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
+
+    await screen.findByText("Project Settings");
+
+    const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
+    await userEvent.click(agentConfigTab);
+
+    await screen.findByText("Planning Agent");
+
+    const contentArea = screen.getByTestId("settings-modal-content");
+    expect(contentArea).toHaveClass("min-h-0");
+    expect(contentArea).toHaveClass("overflow-y-auto");
+  });
+
+  it("header and tabs have flex-shrink-0 to stay visible when content overflows", async () => {
+    render(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
+
+    await screen.findByText("Project Settings");
+
+    const header = screen.getByTestId("settings-modal-header");
+    expect(header).toHaveClass("flex-shrink-0");
+
+    const tabsContainer = screen.getByTestId("settings-modal-tabs");
+    expect(tabsContainer).toHaveClass("flex-shrink-0");
+  });
+});

@@ -202,13 +202,13 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
       {/* Modal */}
       <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col max-h-[85vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+        <div className="flex-shrink-0 flex items-center justify-between px-5 py-4 border-b border-gray-200" data-testid="settings-modal-header">
           <h2 className="text-lg font-semibold text-gray-900">Project Settings</h2>
           <CloseButton onClick={onClose} ariaLabel="Close settings modal" />
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 px-5 pt-3 pb-2 border-b border-gray-200 overflow-x-auto">
+        <div className="flex-shrink-0 flex gap-1 px-5 pt-3 pb-2 border-b border-gray-200 overflow-x-auto" data-testid="settings-modal-tabs">
           {TABS.map((tab) => (
             <button
               key={tab.key}
@@ -225,7 +225,7 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 min-h-[280px]">
+        <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4" data-testid="settings-modal-content">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="w-6 h-6 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
@@ -730,7 +730,7 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
         )}
 
         {/* Footer */}
-        <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+        <div className="flex-shrink-0 flex justify-end gap-2 px-5 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
           <button onClick={onClose} className="btn-secondary">
             Cancel
           </button>
