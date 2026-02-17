@@ -14,6 +14,14 @@ vi.mock("../services/project.service.js", () => ({
   })),
 }));
 
+vi.mock("../services/git-commit-queue.service.js", () => ({
+  gitCommitQueue: {
+    enqueue: vi.fn().mockResolvedValue(undefined),
+    enqueueAndWait: vi.fn().mockResolvedValue(undefined),
+    drain: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 describe("PrdService", () => {
   let prdService: PrdService;
   const repoPath = "/tmp/opensprint-test-prd";

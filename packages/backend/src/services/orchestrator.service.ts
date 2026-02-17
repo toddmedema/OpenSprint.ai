@@ -23,6 +23,7 @@ import { ProjectService } from "./project.service.js";
 import { agentService } from "./agent.service.js";
 import { deploymentService } from "./deployment-service.js";
 import { BranchManager } from "./branch-manager.js";
+import { gitCommitQueue } from "./git-commit-queue.service.js";
 import { ContextAssembler } from "./context-assembler.js";
 import { SessionManager } from "./session-manager.js";
 import {
@@ -657,6 +658,13 @@ export class OrchestratorService {
       await this.beads.update(repoPath, task.id, {
         status: "in_progress",
         assignee: "agent-1",
+      });
+
+      // PRD §5.9: Beads export at checkpoint after claim
+      gitCommitQueue.enqueue({
+        type: "beads_export",
+        repoPath,
+        summary: `claimed ${task.id}`,
       });
 
       // Load cumulative attempt count from bead metadata (PRDv2 §9.1)
@@ -1309,9 +1317,14 @@ export class OrchestratorService {
     // Commit any remaining changes in worktree before merge
     await this.branchManager.commitWip(wtPath, task.id);
 
-    // Merge to main from the main working tree (no checkout needed)
+    // Merge to main via serialized queue (PRD §5.9)
     try {
-      await this.branchManager.mergeToMain(repoPath, branchName);
+      await gitCommitQueue.enqueueAndWait({
+        type: "worktree_merge",
+        repoPath,
+        branchName,
+        taskTitle: task.title || task.id,
+      });
     } catch (mergeErr) {
       console.warn("[orchestrator] Merge to main failed:", mergeErr);
       const merged = await this.branchManager.verifyMerge(repoPath, branchName);
@@ -1331,6 +1344,13 @@ export class OrchestratorService {
 
     // Close the task in beads
     await this.beads.close(repoPath, task.id, state.lastCodingSummary || "Implemented and tested");
+
+    // PRD §5.9: Orchestrator manages beads persistence explicitly via export at checkpoints
+    gitCommitQueue.enqueue({
+      type: "beads_export",
+      repoPath,
+      summary: `closed ${task.id}`,
+    });
 
     // Archive session
     const session = await this.sessionManager.createSession(repoPath, {

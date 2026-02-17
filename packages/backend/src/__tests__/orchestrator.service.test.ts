@@ -30,6 +30,7 @@ const mockBeadsAreAllBlockersClosed = vi.fn();
 const mockBeadsGetCumulativeAttempts = vi.fn();
 const mockBeadsSetCumulativeAttempts = vi.fn();
 const mockBeadsAddLabel = vi.fn();
+const mockBeadsExport = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("../services/beads.service.js", () => ({
   BeadsService: vi.fn().mockImplementation(() => ({
@@ -43,6 +44,7 @@ vi.mock("../services/beads.service.js", () => ({
     getCumulativeAttempts: mockBeadsGetCumulativeAttempts,
     setCumulativeAttempts: mockBeadsSetCumulativeAttempts,
     addLabel: mockBeadsAddLabel,
+    export: mockBeadsExport,
   })),
 }));
 

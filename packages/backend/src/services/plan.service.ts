@@ -15,6 +15,7 @@ import type {
 import { OPENSPRINT_PATHS, getEpicId } from "@opensprint/shared";
 import { ProjectService } from "./project.service.js";
 import { BeadsService, type BeadsIssue } from "./beads.service.js";
+import { gitCommitQueue } from "./git-commit-queue.service.js";
 import { ChatService } from "./chat.service.js";
 import { PrdService } from "./prd.service.js";
 import { AgentClient } from "./agent-client.js";
@@ -502,6 +503,13 @@ export class PlanService {
     };
 
     await writeJsonAtomic(path.join(plansDir, `${planId}.meta.json`), metadata);
+
+    // PRD §5.9: Beads export at checkpoint after plan creation
+    gitCommitQueue.enqueue({
+      type: "beads_export",
+      repoPath,
+      summary: `plan ${planId} created`,
+    });
 
     return {
       metadata,

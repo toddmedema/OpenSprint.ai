@@ -44,12 +44,19 @@ export type GitCommitJob = BeadsExportJob | PrdUpdateJob | WorktreeMergeJob;
 
 export interface GitCommitQueueService {
   enqueue(job: GitCommitJob): Promise<void>;
+  /** Enqueue and wait for this job to complete. Use when caller must wait (e.g. before cleanup). */
+  enqueueAndWait(job: GitCommitJob): Promise<void>;
   /** Wait for all queued jobs to complete (for tests). */
   drain(): Promise<void>;
 }
 
+interface QueuedItem {
+  job: GitCommitJob;
+  resolve?: () => void;
+}
+
 class GitCommitQueueImpl implements GitCommitQueueService {
-  private queue: GitCommitJob[] = [];
+  private queue: QueuedItem[] = [];
   private processing = false;
   private beads = new BeadsService();
   private branchManager = new BranchManager();
@@ -63,17 +70,20 @@ class GitCommitQueueImpl implements GitCommitQueueService {
       return;
     }
 
-    const job = this.queue.shift()!;
+    const item = this.queue.shift()!;
+    const job = item.job;
     const maxRetries = 2; // PRD: retry once; if fails again, log and proceed
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         await this.executeJob(job);
+        item.resolve?.();
         break;
       } catch (err) {
         console.warn(`[git-commit-queue] Job failed (attempt ${attempt + 1}/${maxRetries}):`, err);
         if (attempt === maxRetries - 1) {
           console.error(`[git-commit-queue] Job failed after ${maxRetries} attempts, proceeding to next:`, job);
+          item.resolve?.();
         }
       }
     }
@@ -120,11 +130,21 @@ class GitCommitQueueImpl implements GitCommitQueueService {
   }
 
   async enqueue(job: GitCommitJob): Promise<void> {
-    this.queue.push(job);
+    this.queue.push({ job });
     if (!this.processing) {
       this.processing = true;
       setImmediate(() => this.processNext());
     }
+  }
+
+  async enqueueAndWait(job: GitCommitJob): Promise<void> {
+    return new Promise<void>((resolve) => {
+      this.queue.push({ job, resolve });
+      if (!this.processing) {
+        this.processing = true;
+        setImmediate(() => this.processNext());
+      }
+    });
   }
 
   async drain(): Promise<void> {

@@ -3,6 +3,7 @@ import path from "path";
 import type { Prd, PrdSection, PrdChangeLogEntry, PrdSectionKey } from "@opensprint/shared";
 import { OPENSPRINT_PATHS } from "@opensprint/shared";
 import { ProjectService } from "./project.service.js";
+import { gitCommitQueue } from "./git-commit-queue.service.js";
 import { AppError } from "../middleware/error-handler.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
 import { writeJsonAtomic } from "../utils/file-utils.js";
@@ -45,10 +46,22 @@ export class PrdService {
     }
   }
 
-  /** Save the PRD to disk (atomic write) */
-  private async savePrd(projectId: string, prd: Prd): Promise<void> {
+  /** Save the PRD to disk (atomic write) and enqueue git commit (PRD §5.9) */
+  private async savePrd(
+    projectId: string,
+    prd: Prd,
+    options?: { source?: PrdChangeLogEntry["source"]; planId?: string }
+  ): Promise<void> {
     const prdPath = await this.getPrdPath(projectId);
     await writeJsonAtomic(prdPath, prd);
+    const project = await this.projectService.getProject(projectId);
+    const source = options?.source ?? "spec";
+    gitCommitQueue.enqueue({
+      type: "prd_update",
+      repoPath: project.repoPath,
+      source,
+      planId: options?.planId,
+    });
   }
 
   /** Validate a section key */
@@ -124,7 +137,7 @@ export class PrdService {
       diff,
     });
 
-    await this.savePrd(projectId, prd);
+    await this.savePrd(projectId, prd, { source });
 
     return { section: updatedSection, previousVersion, newVersion };
   }
@@ -165,7 +178,7 @@ export class PrdService {
 
     if (changes.length > 0) {
       prd.version += 1;
-      await this.savePrd(projectId, prd);
+      await this.savePrd(projectId, prd, { source });
     }
 
     return changes;

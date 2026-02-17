@@ -79,6 +79,12 @@ describe("ProjectService", () => {
     const beadsStat = await fs.stat(beadsDir);
     expect(beadsStat.isDirectory()).toBe(true);
 
+    // PRD §5.9: Verify .gitignore has orchestrator-state and worktrees
+    const gitignorePath = path.join(repoPath, ".gitignore");
+    const gitignore = await fs.readFile(gitignorePath, "utf-8");
+    expect(gitignore).toContain(".opensprint/orchestrator-state.json");
+    expect(gitignore).toContain(".opensprint/worktrees/");
+
     // Verify global index
     const indexPath = path.join(tempDir, ".opensprint", "projects.json");
     const indexRaw = await fs.readFile(indexPath, "utf-8");

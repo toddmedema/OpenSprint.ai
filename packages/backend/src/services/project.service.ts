@@ -175,6 +175,26 @@ export class ProjectService {
       }
     }
 
+    // PRD §5.9: Disable beads auto-commit and auto-flush; orchestrator manages persistence explicitly
+    await this.beads.configSet(repoPath, "auto-flush", false);
+    await this.beads.configSet(repoPath, "auto-commit", false);
+
+    // PRD §5.9: Add orchestrator state and worktrees to .gitignore during setup
+    const gitignorePath = path.join(repoPath, ".gitignore");
+    const gitignoreEntries = [".opensprint/orchestrator-state.json", ".opensprint/worktrees/"];
+    try {
+      let content = await fs.readFile(gitignorePath, "utf-8");
+      for (const entry of gitignoreEntries) {
+        if (!content.includes(entry)) {
+          content += `\n${entry}`;
+        }
+      }
+      await fs.writeFile(gitignorePath, content.trimEnd() + "\n");
+    } catch {
+      // No .gitignore yet — create one
+      await fs.writeFile(gitignorePath, gitignoreEntries.join("\n") + "\n");
+    }
+
     // Create .opensprint directory structure
     await fs.mkdir(path.join(opensprintDir, "plans"), { recursive: true });
     await fs.mkdir(path.join(opensprintDir, "conversations"), { recursive: true });
