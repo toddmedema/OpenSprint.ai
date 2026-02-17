@@ -1,10 +1,15 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 import type { Plan, PlanDependencyGraph } from "@opensprint/shared";
 
 interface DependencyGraphProps {
   graph: PlanDependencyGraph | null;
   onPlanClick?: (plan: Plan) => void;
+}
+
+interface Dimensions {
+  width: number;
+  height: number;
 }
 
 /** Compute critical path edges (longest path in DAG). Returns Set of "from->to" keys. */
@@ -77,17 +82,37 @@ function computeCriticalPathEdges(planIds: string[], edges: { from: string; to: 
 export function DependencyGraph({ graph, onPlanClick }: DependencyGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const [dimensions, setDimensions] = useState<Dimensions | null>(null);
+
+  // Track container size so graph fills full area when layout changes (e.g. sidebar open/close)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const updateDimensions = () => {
+      const width = el.clientWidth || 600;
+      const height = Math.max(280, Math.min(400, (graph?.plans.length ?? 3) * 50));
+      setDimensions((prev) => {
+        if (prev && prev.width === width && prev.height === height) return prev;
+        return { width, height };
+      });
+    };
+
+    updateDimensions();
+    const ro = new ResizeObserver(updateDimensions);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [graph?.plans.length]);
 
   useEffect(() => {
-    if (!graph || graph.plans.length === 0 || !containerRef.current || !svgRef.current) return;
+    if (!graph || graph.plans.length === 0 || !containerRef.current || !svgRef.current || !dimensions) return;
 
     const { plans, edges } = graph;
     const planById = new Map(plans.map((p) => [p.metadata.planId, p]));
     const planIds = plans.map((p) => p.metadata.planId);
     const criticalEdges = computeCriticalPathEdges(planIds, edges);
 
-    const width = containerRef.current.clientWidth || 600;
-    const height = Math.max(280, Math.min(400, plans.length * 50));
+    const { width, height } = dimensions;
 
     d3.select(svgRef.current).selectAll("*").remove();
 
@@ -261,7 +286,7 @@ export function DependencyGraph({ graph, onPlanClick }: DependencyGraphProps) {
     return () => {
       simulation.stop();
     };
-  }, [graph, onPlanClick]);
+  }, [graph, onPlanClick, dimensions]);
 
   if (!graph || graph.plans.length === 0) {
     return (
