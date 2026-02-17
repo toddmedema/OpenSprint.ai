@@ -359,6 +359,17 @@ describe("SpecPhase with specSlice", () => {
         vi.restoreAllMocks();
       });
 
+      it("defaults to expanded when localStorage has no value", () => {
+        // Do not set STORAGE_KEY in localStorageMock - simulates first visit
+        const store = createStore({
+          spec: { prdContent: { overview: "Content" } },
+        });
+        renderSpecPhase(store);
+
+        expect(screen.getByText("Discuss")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Collapse Discuss sidebar" })).toBeInTheDocument();
+      });
+
       it("restores collapsed state from localStorage when true", () => {
         localStorageMock[STORAGE_KEY] = "true";
 
