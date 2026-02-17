@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { Plan } from "@opensprint/shared";
+import { formatPlanIdAsTitle } from "../../lib/formatting";
 import { parsePlanContent, serializePlanContent } from "../../lib/planContentUtils";
 import { PrdSectionEditor } from "../prd/PrdSectionEditor";
 
@@ -22,7 +23,7 @@ export function PlanDetailContent({
   saving = false,
 }: PlanDetailContentProps) {
   const { title, body } = parsePlanContent(plan.content ?? "");
-  const displayTitle = title || plan.metadata.planId.replace(/-/g, " ");
+  const displayTitle = title || formatPlanIdAsTitle(plan.metadata.planId);
 
   const [titleValue, setTitleValue] = useState(displayTitle);
   const titleDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -32,13 +33,13 @@ export function PlanDetailContent({
   // Sync title from props when plan changes (e.g. after fetch)
   useEffect(() => {
     const { title: t } = parsePlanContent(plan.content ?? "");
-    setTitleValue(t || plan.metadata.planId.replace(/-/g, " "));
+    setTitleValue(t || formatPlanIdAsTitle(plan.metadata.planId));
   }, [plan.metadata.planId, plan.content]);
 
   const saveTitle = useCallback(
     (newTitle: string) => {
       const trimmed = newTitle.trim();
-      const effectiveTitle = trimmed || plan.metadata.planId.replace(/-/g, " ");
+      const effectiveTitle = trimmed || formatPlanIdAsTitle(plan.metadata.planId);
       const newContent = serializePlanContent(effectiveTitle, body || lastBodyRef.current);
       if (newContent !== (plan.content ?? "")) {
         onContentSave(newContent);
@@ -89,10 +90,10 @@ export function PlanDetailContent({
   const bodyMarkdown = body || "_No content yet_";
 
   return (
-    <div className="p-4 border-b border-gray-200">
-      <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Plan</h4>
+    <div className="p-4 border-b border-gray-200 dark:border-gray-600">
+      <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Plan</h4>
       <div className="space-y-3">
-        {/* Inline editable title */}
+        {/* Inline editable title — theme-aware for readable text in light/dark mode */}
         <input
           type="text"
           value={titleValue}
@@ -100,12 +101,12 @@ export function PlanDetailContent({
           onBlur={handleTitleBlur}
           onKeyDown={handleTitleKeyDown}
           disabled={saving}
-          className="w-full font-semibold text-gray-900 bg-transparent border border-transparent rounded px-2 py-1 -ml-2 hover:border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-colors disabled:opacity-50"
+          className="w-full font-semibold text-gray-900 dark:text-gray-100 bg-transparent border border-transparent rounded px-2 py-1 -ml-2 hover:border-gray-200 dark:hover:border-gray-600 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-colors disabled:opacity-50"
           placeholder="Plan title"
           aria-label="Plan title"
         />
         {saving && (
-          <span className="text-xs text-gray-500" aria-live="polite">
+          <span className="text-xs text-gray-500 dark:text-gray-400" aria-live="polite">
             Saving...
           </span>
         )}

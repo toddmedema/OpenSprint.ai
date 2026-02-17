@@ -95,7 +95,7 @@ describe("PlanDetailContent", () => {
     expect(screen.getByRole("textbox", { name: /plan title/i })).toBeDisabled();
   });
 
-  it("uses planId as fallback when content has no heading", () => {
+  it("uses first line as title when content has no # heading", () => {
     const planNoHeading: Plan = {
       ...mockPlan,
       content: "Plain content without heading",
@@ -103,6 +103,37 @@ describe("PlanDetailContent", () => {
     render(<PlanDetailContent plan={planNoHeading} onContentSave={onContentSave} />);
     const titleInput = screen.getByRole("textbox", { name: /plan title/i });
     expect(titleInput).toHaveValue("Plain content without heading");
+  });
+
+  it("uses formatted planId as fallback when content is empty", () => {
+    const planEmptyContent: Plan = {
+      ...mockPlan,
+      content: "",
+    };
+    render(<PlanDetailContent plan={planEmptyContent} onContentSave={onContentSave} />);
+    const titleInput = screen.getByRole("textbox", { name: /plan title/i });
+    expect(titleInput).toHaveValue("Plan Phase Feature Decomposition");
+  });
+
+  it("saves with formatted planId when user clears title and blurs", async () => {
+    const user = userEvent.setup();
+    render(<PlanDetailContent plan={mockPlan} onContentSave={onContentSave} />);
+    const titleInput = screen.getByRole("textbox", { name: /plan title/i });
+    await user.clear(titleInput);
+    titleInput.blur();
+
+    await waitFor(() => {
+      expect(onContentSave).toHaveBeenCalledWith(
+        "# Plan Phase Feature Decomposition\n\n## Overview\n\nImplement the Plan phase.",
+      );
+    });
+  });
+
+  it("renders title input with theme-aware styling for light/dark mode", () => {
+    render(<PlanDetailContent plan={mockPlan} onContentSave={onContentSave} />);
+    const titleInput = screen.getByRole("textbox", { name: /plan title/i });
+    expect(titleInput.className).toMatch(/text-gray-900/);
+    expect(titleInput.className).toMatch(/dark:text-gray-100/);
   });
 
   it("renders plan markdown editor with theme-aware styling for readable text in light/dark mode", () => {

@@ -355,6 +355,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
           <div className="flex-1 overflow-y-auto min-h-0">
             {/* Plan markdown — inline editable */}
             <PlanDetailContent
+              key={selectedPlan.metadata.planId}
               plan={selectedPlan}
               onContentSave={handlePlanContentSave}
               saving={savingPlanContentId === selectedPlan.metadata.planId}

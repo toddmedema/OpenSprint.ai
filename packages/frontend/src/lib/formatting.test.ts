@@ -1,7 +1,24 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { formatSectionKey, formatTimestamp, formatUptime } from "./formatting";
+import { formatPlanIdAsTitle, formatSectionKey, formatTimestamp, formatUptime } from "./formatting";
 
 describe("formatting", () => {
+  describe("formatPlanIdAsTitle", () => {
+    it("formats kebab-case plan ID as Title Case", () => {
+      expect(formatPlanIdAsTitle("plan-phase-feature-decomposition")).toBe(
+        "Plan Phase Feature Decomposition",
+      );
+      expect(formatPlanIdAsTitle("my-feature-plan")).toBe("My Feature Plan");
+    });
+
+    it("handles single word", () => {
+      expect(formatPlanIdAsTitle("feature")).toBe("Feature");
+    });
+
+    it("handles empty string", () => {
+      expect(formatPlanIdAsTitle("")).toBe("");
+    });
+  });
+
   describe("formatSectionKey", () => {
     it("converts snake_case to Title Case", () => {
       expect(formatSectionKey("executive_summary")).toBe("Executive Summary");

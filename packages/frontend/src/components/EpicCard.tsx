@@ -1,4 +1,5 @@
 import type { Plan, Task } from "@opensprint/shared";
+import { formatPlanIdAsTitle } from "../lib/formatting";
 import { COLUMN_LABELS } from "./kanban/TaskStatusBadge";
 
 export interface EpicCardProps {
@@ -50,12 +51,6 @@ const defaultStatus = {
   icon: null,
 };
 
-function formatEpicTitle(planId: string): string {
-  return planId
-    .replace(/-/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
 export function EpicCard({
   plan,
   tasks,
@@ -93,7 +88,7 @@ export function EpicCard({
         {/* Header */}
         <div className="flex items-start justify-between gap-3 mb-3">
           <h3 className="font-semibold text-gray-900 text-base truncate flex-1 min-w-0 leading-tight">
-            {formatEpicTitle(plan.metadata.planId)}
+            {formatPlanIdAsTitle(plan.metadata.planId)}
           </h3>
           <span
             className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium capitalize ${config.badge}`}

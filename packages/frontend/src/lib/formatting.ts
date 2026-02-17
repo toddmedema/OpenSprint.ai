@@ -3,6 +3,16 @@
  */
 
 /**
+ * Formats a plan ID (kebab-case slug) as a human-readable title.
+ * @example formatPlanIdAsTitle("plan-phase-feature-decomposition") => "Plan Phase Feature Decomposition"
+ */
+export function formatPlanIdAsTitle(planId: string): string {
+  return planId
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
  * Converts snake_case to Title Case.
  * @example formatSectionKey("executive_summary") => "Executive Summary"
  */
