@@ -161,10 +161,10 @@ export const api = {
   // ─── Feedback ───
   feedback: {
     list: (projectId: string) => request<unknown[]>(`/projects/${projectId}/feedback`),
-    submit: (projectId: string, text: string) =>
+    submit: (projectId: string, text: string, images?: string[]) =>
       request<unknown>(`/projects/${projectId}/feedback`, {
         method: "POST",
-        body: JSON.stringify({ text }),
+        body: JSON.stringify(images?.length ? { text, images } : { text }),
       }),
     get: (projectId: string, feedbackId: string) => request<unknown>(`/projects/${projectId}/feedback/${feedbackId}`),
   },

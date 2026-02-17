@@ -286,6 +286,30 @@ describe("FeedbackService", () => {
     );
   });
 
+  it("should store image attachments when provided", async () => {
+    mockInvoke.mockResolvedValue({
+      content: JSON.stringify({
+        category: "bug",
+        mappedPlanId: null,
+        task_titles: ["Fix screenshot bug"],
+      }),
+    });
+
+    const base64Image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const item = await feedbackService.submitFeedback(projectId, {
+      text: "Bug with screenshot",
+      images: [`data:image/png;base64,${base64Image}`],
+    });
+
+    expect(item.id).toBeDefined();
+    expect(item.text).toBe("Bug with screenshot");
+
+    const stored = await feedbackService.getFeedback(projectId, item.id);
+    expect(stored.images).toBeDefined();
+    expect(stored.images).toHaveLength(1);
+    expect(stored.images![0]).toContain("data:image/png;base64,");
+  });
+
   it("should create feedback source bead (chore) for provenance", async () => {
     mockInvoke.mockResolvedValue({
       content: JSON.stringify({

@@ -22,8 +22,16 @@ export const fetchFeedback = createAsyncThunk("verify/fetchFeedback", async (pro
 
 export const submitFeedback = createAsyncThunk(
   "verify/submitFeedback",
-  async ({ projectId, text }: { projectId: string; text: string }) => {
-    return (await api.feedback.submit(projectId, text)) as FeedbackItem;
+  async ({
+    projectId,
+    text,
+    images,
+  }: {
+    projectId: string;
+    text: string;
+    images?: string[];
+  }) => {
+    return (await api.feedback.submit(projectId, text, images)) as FeedbackItem;
   },
 );
 

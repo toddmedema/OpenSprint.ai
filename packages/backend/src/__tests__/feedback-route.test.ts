@@ -119,6 +119,21 @@ describe("Feedback REST API", () => {
     expect(res.body.error?.code).toBe("INVALID_INPUT");
   });
 
+  it("POST /projects/:id/feedback should accept and store image attachments", async () => {
+    const base64Image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const res = await request(app)
+      .post(`${API_PREFIX}/projects/${projectId}/feedback`)
+      .send({
+        text: "Bug with screenshot",
+        images: [`data:image/png;base64,${base64Image}`],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.images).toBeDefined();
+    expect(res.body.data.images).toHaveLength(1);
+    expect(res.body.data.images[0]).toContain("data:image/png;base64,");
+  });
+
   it("GET /projects/:id/feedback/:feedbackId should return feedback item", async () => {
     const feedbackDir = path.join(tempDir, "my-project", OPENSPRINT_PATHS.feedback);
     await fs.mkdir(feedbackDir, { recursive: true });

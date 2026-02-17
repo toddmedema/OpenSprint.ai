@@ -17,4 +17,6 @@ export interface FeedbackItem {
   taskTitles?: string[];
   /** Bead ID of the feedback source (chore) used for discovered-from provenance */
   feedbackSourceBeadId?: string;
+  /** Base64-encoded image attachments (data URLs or raw base64) */
+  images?: string[];
 }

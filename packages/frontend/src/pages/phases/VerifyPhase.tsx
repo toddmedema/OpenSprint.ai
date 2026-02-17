@@ -1,7 +1,24 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import type { FeedbackItem } from "@opensprint/shared";
 import { useAppDispatch, useAppSelector } from "../../store";
 import { submitFeedback, setVerifyError } from "../../store/slices/verifySlice";
+
+const MAX_IMAGES = 5;
+const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024; // 2MB
+const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp"];
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function isImageFile(file: File): boolean {
+  return ACCEPTED_IMAGE_TYPES.includes(file.type);
+}
 
 interface VerifyPhaseProps {
   projectId: string;
@@ -32,13 +49,82 @@ export function VerifyPhase({ projectId, onNavigateToBuildTask }: VerifyPhasePro
 
   /* ── Local UI state (preserved by mount-all) ── */
   const [input, setInput] = useState("");
+  const [images, setImages] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const addImagesFromFiles = useCallback(async (files: FileList | File[]) => {
+    const fileArray = Array.from(files).filter(isImageFile);
+    const toAdd: string[] = [];
+    for (const file of fileArray) {
+      if (toAdd.length >= MAX_IMAGES) break;
+      if (file.size > MAX_IMAGE_SIZE_BYTES) continue;
+      try {
+        const base64 = await fileToBase64(file);
+        toAdd.push(base64);
+      } catch {
+        // Skip invalid files
+      }
+    }
+    if (toAdd.length > 0) {
+      setImages((prev) => [...prev, ...toAdd].slice(0, MAX_IMAGES));
+    }
+  }, []);
+
+  const removeImage = (index: number) => {
+    setImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handlePaste = useCallback(
+    async (e: React.ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const files: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === "file" && item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) files.push(file);
+        }
+      }
+      if (files.length > 0) {
+        e.preventDefault();
+        await addImagesFromFiles(files);
+      }
+    },
+    [addImagesFromFiles],
+  );
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "copy";
+  };
+
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const files = e.dataTransfer?.files;
+      if (files?.length) await addImagesFromFiles(files);
+    },
+    [addImagesFromFiles],
+  );
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files?.length) addImagesFromFiles(files);
+    e.target.value = "";
+  };
 
   const handleSubmit = async () => {
     if (!input.trim() || submitting) return;
     const text = input.trim();
-    const result = await dispatch(submitFeedback({ projectId, text }));
+    const result = await dispatch(
+      submitFeedback({ projectId, text, images: images.length > 0 ? images : undefined }),
+    );
     if (submitFeedback.fulfilled.match(result)) {
       setInput("");
+      setImages([]);
     }
   };
 
@@ -62,12 +148,17 @@ export function VerifyPhase({ projectId, onNavigateToBuildTask }: VerifyPhasePro
         </div>
 
         {/* Feedback Input */}
-        <div className="card p-5 mb-8">
+        <div
+          className="card p-5 mb-8"
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
           <label className="block text-sm font-medium text-gray-700 mb-2">What did you find?</label>
           <textarea
             className="input min-h-[100px] mb-3"
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onPaste={handlePaste}
             onKeyDown={(e) => {
               if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
                 e.preventDefault();
@@ -77,7 +168,59 @@ export function VerifyPhase({ projectId, onNavigateToBuildTask }: VerifyPhasePro
             placeholder="Describe a bug, suggest a feature, or report a UX issue..."
             disabled={submitting}
           />
-          <div className="flex justify-end">
+          {images.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {images.map((dataUrl, i) => (
+                <div key={i} className="relative group">
+                  <img
+                    src={dataUrl}
+                    alt={`Attachment ${i + 1}`}
+                    className="h-16 w-16 object-cover rounded border border-gray-200"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(i)}
+                    className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center hover:bg-red-600 transition-colors shadow"
+                    aria-label="Remove image"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex justify-end items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+              multiple
+              className="hidden"
+              onChange={handleFileInputChange}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={submitting || images.length >= MAX_IMAGES}
+              className="btn-secondary p-2 disabled:opacity-50"
+              title="Attach image"
+              aria-label="Attach image"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-5 h-5"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
+              </svg>
+            </button>
             <button
               onClick={handleSubmit}
               disabled={submitting || !input.trim()}
@@ -125,6 +268,19 @@ export function VerifyPhase({ projectId, onNavigateToBuildTask }: VerifyPhasePro
                   <p className="text-xs text-gray-500">
                     Mapped to plan: <span className="font-mono">{item.mappedPlanId}</span>
                   </p>
+                )}
+
+                {item.images && item.images.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {item.images.map((dataUrl, i) => (
+                      <img
+                        key={i}
+                        src={dataUrl}
+                        alt={`Attachment ${i + 1}`}
+                        className="h-16 w-16 object-cover rounded border border-gray-200"
+                      />
+                    ))}
+                  </div>
                 )}
 
                 {item.createdTaskIds.length > 0 && (

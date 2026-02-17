@@ -82,6 +82,18 @@ export class FeedbackService {
     await fs.mkdir(feedbackDir, { recursive: true });
     const id = uuid();
 
+    // Validate and normalize image attachments (base64 strings)
+    const images: string[] = [];
+    if (Array.isArray(body?.images)) {
+      for (const img of body.images) {
+        if (typeof img === 'string' && img.length > 0) {
+          // Accept data URLs (data:image/...;base64,...) or raw base64
+          const base64 = img.startsWith('data:') ? img : `data:image/png;base64,${img}`;
+          images.push(base64);
+        }
+      }
+    }
+
     // Create initial feedback item
     const item: FeedbackItem = {
       id,
@@ -91,6 +103,7 @@ export class FeedbackService {
       createdTaskIds: [],
       status: 'pending',
       createdAt: new Date().toISOString(),
+      ...(images.length > 0 && { images }),
     };
 
     // Save immediately
