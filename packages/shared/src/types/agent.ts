@@ -136,6 +136,12 @@ export interface ActiveAgent {
   branchName?: string;
 }
 
+/** Feedback item awaiting categorization (PRDv2 §5.8) */
+export interface PendingFeedbackCategorization {
+  feedbackId: string;
+  category?: string;
+}
+
 /** Build orchestrator status (always-on per PRDv2 §5.7) */
 export interface OrchestratorStatus {
   currentTask: string | null;
@@ -145,4 +151,8 @@ export interface OrchestratorStatus {
   totalFailed: number;
   /** True when paused waiting for HIL approval (PRD §6.5) */
   awaitingApproval?: boolean;
+  /** Path to active task's git worktree (null when idle) */
+  worktreePath?: string | null;
+  /** Feedback items awaiting categorization */
+  pendingFeedbackCategorizations?: PendingFeedbackCategorization[];
 }

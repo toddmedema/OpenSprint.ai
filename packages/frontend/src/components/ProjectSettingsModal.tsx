@@ -120,6 +120,7 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
             rollbackCommand: deployment.rollbackCommand ?? undefined,
           },
           hilConfig,
+          testCommand: settings?.testCommand ?? undefined,
           reviewMode: settings?.reviewMode ?? DEFAULT_REVIEW_MODE,
         }),
       ]);
@@ -465,6 +466,24 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
                         </div>
                       )}
                     </div>
+                  </div>
+                  <hr />
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-1">Test Command</h3>
+                    <p className="text-xs text-gray-500 mb-3">
+                      Override the test command (auto-detected from package.json). Leave empty to use detection.
+                    </p>
+                    <input
+                      type="text"
+                      className="input w-full font-mono text-sm"
+                      placeholder="e.g. npm test or npx vitest run"
+                      value={settings?.testCommand ?? ""}
+                      onChange={(e) =>
+                        setSettings((s) =>
+                          s ? { ...s, testCommand: e.target.value.trim() || null } : null
+                        )
+                      }
+                    />
                   </div>
                   <hr />
                   <div>

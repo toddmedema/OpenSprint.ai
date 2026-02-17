@@ -1,6 +1,6 @@
 import path from "path";
 import type { Task, AgentSession, KanbanColumn, TaskDependency } from "@opensprint/shared";
-import { getTestCommandForFramework } from "@opensprint/shared";
+import { resolveTestCommand } from "@opensprint/shared";
 import { ProjectService } from "./project.service.js";
 import { BeadsService } from "./beads.service.js";
 import { AppError } from "../middleware/error-handler.js";
@@ -263,7 +263,7 @@ export class TaskService {
       taskId,
       repoPath,
       branch: branchName,
-      testCommand: getTestCommandForFramework(settings.testFramework) || 'echo "No test command configured"',
+      testCommand: resolveTestCommand(settings) || 'echo "No test command configured"',
       attempt,
       phase,
       previousFailure: null as string | null,

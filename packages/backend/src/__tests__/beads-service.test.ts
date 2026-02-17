@@ -349,6 +349,64 @@ describe('BeadsService', () => {
     });
   });
 
+  describe('getCumulativeAttempts', () => {
+    it('returns 0 when no attempts label', async () => {
+      mockStdout = JSON.stringify({ id: 'task-1', labels: [] });
+      const result = await beads.getCumulativeAttempts('/repo', 'task-1');
+      expect(result).toBe(0);
+    });
+
+    it('returns count from attempts:N label', async () => {
+      mockStdout = JSON.stringify({ id: 'task-1', labels: ['attempts:3'] });
+      const result = await beads.getCumulativeAttempts('/repo', 'task-1');
+      expect(result).toBe(3);
+    });
+
+    it('returns 0 when labels is undefined', async () => {
+      mockStdout = JSON.stringify({ id: 'task-1' });
+      const result = await beads.getCumulativeAttempts('/repo', 'task-1');
+      expect(result).toBe(0);
+    });
+  });
+
+  describe('setCumulativeAttempts', () => {
+    it('adds attempts:N label when none exists', async () => {
+      let execCalls: string[] = [];
+      mockExecImpl = async (cmd: string) => {
+        execCalls.push(cmd);
+        if (cmd.includes('show')) {
+          return { stdout: JSON.stringify({ id: 'task-1', labels: [] }), stderr: '' };
+        }
+        if (cmd.includes('update') && cmd.includes('--add-label')) {
+          return { stdout: '{}', stderr: '' };
+        }
+        return { stdout: '{}', stderr: '' };
+      };
+      await beads.setCumulativeAttempts('/repo', 'task-1', 2);
+      expect(execCalls.some((c) => c.includes('attempts:2'))).toBe(true);
+    });
+
+    it('removes old attempts label before adding new one', async () => {
+      let execCalls: string[] = [];
+      mockExecImpl = async (cmd: string) => {
+        execCalls.push(cmd);
+        if (cmd.includes('show')) {
+          return { stdout: JSON.stringify({ id: 'task-1', labels: ['attempts:1'] }), stderr: '' };
+        }
+        if (cmd.includes('--remove-label')) {
+          return { stdout: '{}', stderr: '' };
+        }
+        if (cmd.includes('--add-label')) {
+          return { stdout: '{}', stderr: '' };
+        }
+        return { stdout: '{}', stderr: '' };
+      };
+      await beads.setCumulativeAttempts('/repo', 'task-1', 2);
+      expect(execCalls.some((c) => c.includes('attempts:1'))).toBe(true);
+      expect(execCalls.some((c) => c.includes('attempts:2'))).toBe(true);
+    });
+  });
+
   describe('listInProgressWithAgentAssignee', () => {
     it('should return only in_progress tasks with agent-N assignee', async () => {
       mockStdout = JSON.stringify([

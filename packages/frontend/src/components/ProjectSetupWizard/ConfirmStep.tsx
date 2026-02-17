@@ -79,6 +79,11 @@ export function ConfirmStep({
           <dd className="font-medium">{testLabel}</dd>
         </div>
       </dl>
+      <p className="text-xs text-gray-500 pt-2 border-t border-gray-200">
+        On create: beads will be initialized with auto-flush and auto-commit disabled (orchestrator manages persistence).
+        <code className="font-mono">.opensprint/orchestrator-state.json</code> and{" "}
+        <code className="font-mono">.opensprint/worktrees/</code> will be added to .gitignore.
+      </p>
     </div>
   );
 }

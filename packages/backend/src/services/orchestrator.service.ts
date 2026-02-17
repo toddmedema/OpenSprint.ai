@@ -8,6 +8,7 @@ import type {
   CodingAgentResult,
   ReviewAgentResult,
   TestResults,
+  PendingFeedbackCategorization,
 } from "@opensprint/shared";
 import {
   OPENSPRINT_PATHS,
@@ -15,7 +16,7 @@ import {
   MAX_PRIORITY_BEFORE_BLOCK,
   AGENT_INACTIVITY_TIMEOUT_MS,
   HEARTBEAT_INTERVAL_MS,
-  getTestCommandForFramework,
+  resolveTestCommand,
   DEFAULT_REVIEW_MODE,
 } from "@opensprint/shared";
 import { BeadsService, type BeadsIssue } from "./beads.service.js";
@@ -151,6 +152,8 @@ interface OrchestratorState {
   lastTestOutput: string;
   /** True when agent was killed due to inactivity timeout (for failure type classification) */
   killedDueToTimeout: boolean;
+  /** Feedback items awaiting categorization (PRDv2 §5.8) */
+  pendingFeedbackCategorizations: PendingFeedbackCategorization[];
 }
 
 /**
@@ -189,6 +192,7 @@ export class OrchestratorService {
         infraRetries: 0,
         lastTestOutput: "",
         killedDueToTimeout: false,
+        pendingFeedbackCategorizations: [],
       });
     }
     return this.state.get(projectId)!;
@@ -580,7 +584,12 @@ export class OrchestratorService {
   /** Get orchestrator status */
   async getStatus(projectId: string): Promise<OrchestratorStatus> {
     await this.projectService.getProject(projectId);
-    return this.getState(projectId).status;
+    const state = this.getState(projectId);
+    return {
+      ...state.status,
+      worktreePath: state.activeWorktreePath ?? null,
+      pendingFeedbackCategorizations: state.pendingFeedbackCategorizations ?? [],
+    };
   }
 
   /**
@@ -611,7 +620,8 @@ export class OrchestratorService {
       // Filter out epics — they are containers, not work items; agents implement tasks/bugs
       readyTasks = readyTasks.filter((t) => (t.issue_type ?? t.type) !== "epic");
       // Filter out blocked tasks — they require user intervention to unblock (PRDv2 §9.1)
-      readyTasks = readyTasks.filter((t) => !this.beads.hasLabel(t, "blocked"));
+      // Use beads native blocked status (bd update --status blocked); bd ready may exclude them but filter as safety
+      readyTasks = readyTasks.filter((t) => (t.status as string) !== "blocked");
 
       state.status.queueDepth = readyTasks.length;
 
@@ -802,10 +812,7 @@ export class OrchestratorService {
         taskId: task.id,
         repoPath: wtPath,
         branch: branchName,
-        testCommand: (() => {
-          const cmd = getTestCommandForFramework(settings.testFramework);
-          return cmd || 'echo "No test command configured"';
-        })(),
+        testCommand: resolveTestCommand(settings) || 'echo "No test command configured"',
         attempt: state.attempt,
         phase: "coding",
         previousFailure: retryContext?.previousFailure ?? null,
@@ -984,7 +991,7 @@ export class OrchestratorService {
 
       // Run scoped tests (only files changed by this task) in the worktree
       const settings = await this.projectService.getSettings(projectId);
-      const testCommand = getTestCommandForFramework(settings.testFramework) || undefined;
+      const testCommand = resolveTestCommand(settings) || undefined;
       let changedFiles: string[] = [];
       try {
         changedFiles = await this.branchManager.getChangedFiles(repoPath, branchName);
@@ -1072,10 +1079,7 @@ export class OrchestratorService {
         taskId: task.id,
         repoPath: wtPath,
         branch: branchName,
-        testCommand: (() => {
-          const cmd = getTestCommandForFramework(settings.testFramework);
-          return cmd || 'echo "No test command configured"';
-        })(),
+        testCommand: resolveTestCommand(settings) || 'echo "No test command configured"',
         attempt: state.attempt,
         phase: "review",
         previousFailure: null,
@@ -1637,7 +1641,7 @@ export class OrchestratorService {
 
   /**
    * Block a task after progressive backoff exhaustion (PRDv2 §9.1).
-   * Adds the `blocked` label, emits `task.blocked`, and moves the task out of the active queue.
+   * Sets beads status to blocked via bd update --status blocked; emits task.blocked.
    */
   private async blockTask(
     projectId: string,
@@ -1653,9 +1657,8 @@ export class OrchestratorService {
     );
 
     try {
-      await this.beads.addLabel(repoPath, task.id, "blocked");
       await this.beads.update(repoPath, task.id, {
-        status: "open",
+        status: "blocked",
         assignee: "",
       });
     } catch (err) {
@@ -1682,7 +1685,7 @@ export class OrchestratorService {
     broadcastToProject(projectId, {
       type: "task.updated",
       taskId: task.id,
-      status: "open",
+      status: "blocked",
       assignee: null,
     });
 

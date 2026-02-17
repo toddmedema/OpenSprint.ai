@@ -79,3 +79,14 @@ export function getTestCommandForFramework(framework: string | null): string {
   const found = TEST_FRAMEWORKS.find((f) => f.id === framework);
   return found?.command ?? "";
 }
+
+/** Resolve test command from settings: testCommand override, else framework-based, else default */
+export function resolveTestCommand(settings: {
+  testCommand?: string | null;
+  testFramework?: string | null;
+}): string {
+  if (settings.testCommand?.trim()) return settings.testCommand.trim();
+  const fromFramework = getTestCommandForFramework(settings.testFramework ?? null);
+  if (fromFramework) return fromFramework;
+  return "npm test";
+}

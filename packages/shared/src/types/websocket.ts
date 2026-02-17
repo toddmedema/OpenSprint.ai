@@ -45,6 +45,10 @@ export interface ExecuteStatusEvent {
   queueDepth: number;
   /** True when orchestrator is paused waiting for HIL approval (PRD §6.5) */
   awaitingApproval?: boolean;
+  /** Path to active task's git worktree (PRDv2 §5.8) */
+  worktreePath?: string | null;
+  /** Feedback items awaiting categorization */
+  pendingFeedbackCategorizations?: Array<{ feedbackId: string; category?: string }>;
 }
 
 export interface HilRequestEvent {

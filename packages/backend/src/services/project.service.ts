@@ -15,9 +15,11 @@ import {
   DEFAULT_HIL_CONFIG,
   DEFAULT_DEPLOYMENT_CONFIG,
   DEFAULT_REVIEW_MODE,
+  getTestCommandForFramework,
 } from "@opensprint/shared";
 import type { DeploymentConfig, HilConfig, PlanComplexity } from "@opensprint/shared";
 import { BeadsService } from "./beads.service.js";
+import { detectTestFramework } from "./test-framework.service.js";
 import { ensureEasConfig } from "./eas-config.js";
 import { AppError } from "../middleware/error-handler.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
@@ -225,12 +227,17 @@ export class ProjectService {
     // Write settings (deployment and HIL normalized per PRD §6.4, §6.5)
     const deployment = normalizeDeployment(input.deployment);
     const hilConfig = normalizeHilConfig(input.hilConfig);
+    const detected = await detectTestFramework(repoPath);
+    const testFramework = input.testFramework ?? detected?.framework ?? null;
+    const testCommand =
+      detected?.testCommand ?? getTestCommandForFramework(testFramework) || null;
     const settings: ProjectSettings = {
       planningAgent,
       codingAgent,
       deployment,
       hilConfig,
-      testFramework: input.testFramework ?? null,
+      testFramework,
+      testCommand,
       reviewMode: DEFAULT_REVIEW_MODE,
     };
     const settingsPath = path.join(repoPath, OPENSPRINT_PATHS.settings);

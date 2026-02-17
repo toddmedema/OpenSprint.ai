@@ -363,25 +363,30 @@ export class BeadsService {
   }
 
   /**
-   * Get cumulative attempt count from issue metadata (PRDv2 §9.1).
-   * Returns 0 if no prior attempts have been recorded.
+   * Get cumulative attempt count from beads labels (PRDv2 §9.1).
+   * Looks for label "attempts:N"; returns 0 if none found.
    */
   async getCumulativeAttempts(repoPath: string, id: string): Promise<number> {
     const issue = await this.show(repoPath, id);
-    const metadata = (issue.metadata ?? {}) as Record<string, unknown>;
-    return typeof metadata.opensprint_attempts === "number" ? metadata.opensprint_attempts : 0;
+    const labels = (issue.labels ?? []) as string[];
+    const attemptsLabel = labels.find((l) => /^attempts:\d+$/.test(l));
+    if (!attemptsLabel) return 0;
+    const n = parseInt(attemptsLabel.split(":")[1]!, 10);
+    return Number.isNaN(n) ? 0 : n;
   }
 
   /**
-   * Set cumulative attempt count in issue metadata (PRDv2 §9.1).
-   * Preserves existing metadata fields.
+   * Set cumulative attempt count via beads labels (PRDv2 §9.1).
+   * Removes any existing attempts:X label, adds attempts:count.
    */
   async setCumulativeAttempts(repoPath: string, id: string, count: number): Promise<void> {
     const issue = await this.show(repoPath, id);
-    const existing = (issue.metadata ?? {}) as Record<string, unknown>;
-    const merged = { ...existing, opensprint_attempts: count };
-    const json = JSON.stringify(JSON.stringify(merged));
-    await this.exec(repoPath, `update ${id} --metadata ${json}`);
+    const labels = (issue.labels ?? []) as string[];
+    const existingAttempts = labels.find((l) => /^attempts:\d+$/.test(l));
+    if (existingAttempts) {
+      await this.removeLabel(repoPath, id, existingAttempts);
+    }
+    await this.addLabel(repoPath, id, `attempts:${count}`);
   }
 
   /** Check whether an issue has a specific label */

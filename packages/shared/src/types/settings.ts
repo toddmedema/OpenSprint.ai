@@ -68,6 +68,8 @@ export interface ProjectSettings {
   deployment: DeploymentConfig;
   hilConfig: HilConfig;
   testFramework: string | null;
+  /** Test command (auto-detected from package.json, default: npm test, overridable) */
+  testCommand?: string | null;
   /** When to invoke the review agent after coding completes (default: "always") */
   reviewMode?: ReviewMode;
 }

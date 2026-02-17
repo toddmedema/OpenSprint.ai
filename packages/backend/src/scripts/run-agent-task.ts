@@ -14,7 +14,7 @@ import { BeadsService } from '../services/beads.service.js';
 import { ContextAssembler } from '../services/context-assembler.js';
 import { AgentClient } from '../services/agent-client.js';
 import { BranchManager } from '../services/branch-manager.js';
-import { OPENSPRINT_PATHS, getTestCommandForFramework, getCodingAgentForComplexity } from '@opensprint/shared';
+import { OPENSPRINT_PATHS, resolveTestCommand, getCodingAgentForComplexity } from '@opensprint/shared';
 import type { AgentConfig, ProjectSettings } from '@opensprint/shared';
 import { getPlanComplexityForTask } from '../services/plan-complexity.js';
 
@@ -72,7 +72,7 @@ async function main(): Promise<number> {
   const prdExcerpt = await contextAssembler.extractPrdExcerpt(repoPath);
   const dependencyOutputs = await contextAssembler.collectDependencyOutputs(repoPath, blockers);
 
-  const testCommand = getTestCommandForFramework(settings.testFramework) || 'echo "No tests"';
+  const testCommand = resolveTestCommand(settings) || 'echo "No tests"';
   const config = {
     invocation_id: taskId,
     agent_role: 'coder' as const,
