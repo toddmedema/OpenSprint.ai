@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Provider } from "react-redux";
@@ -339,6 +339,76 @@ describe("SpecPhase with specSlice", () => {
       await user.click(screen.getByRole("button", { name: "Expand Discuss sidebar" }));
       expect(screen.getByText("Discuss")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Collapse Discuss sidebar" })).toBeInTheDocument();
+    });
+
+    describe("chat sidebar persistence across sessions", () => {
+      const STORAGE_KEY = "opensprint-spec-chat-sidebar-collapsed";
+      let localStorageMock: Record<string, string>;
+
+      beforeEach(() => {
+        localStorageMock = {};
+        vi.spyOn(Storage.prototype, "getItem").mockImplementation((key: string) => {
+          return localStorageMock[key] ?? null;
+        });
+        vi.spyOn(Storage.prototype, "setItem").mockImplementation((key: string, value: string) => {
+          localStorageMock[key] = value;
+        });
+      });
+
+      afterEach(() => {
+        vi.restoreAllMocks();
+      });
+
+      it("restores collapsed state from localStorage when true", () => {
+        localStorageMock[STORAGE_KEY] = "true";
+
+        const store = createStore({
+          spec: { prdContent: { overview: "Content" } },
+        });
+        renderSpecPhase(store);
+
+        // Sidebar should start collapsed (narrow bar with expand button)
+        expect(screen.getByRole("button", { name: "Expand Discuss sidebar" })).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Collapse Discuss sidebar" })).not.toBeInTheDocument();
+      });
+
+      it("restores expanded state from localStorage when false", () => {
+        localStorageMock[STORAGE_KEY] = "false";
+
+        const store = createStore({
+          spec: { prdContent: { overview: "Content" } },
+        });
+        renderSpecPhase(store);
+
+        expect(screen.getByText("Discuss")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Collapse Discuss sidebar" })).toBeInTheDocument();
+      });
+
+      it("persists collapsed state to localStorage when user collapses sidebar", async () => {
+        const user = userEvent.setup();
+        const store = createStore({
+          spec: { prdContent: { overview: "Content" } },
+        });
+        renderSpecPhase(store);
+
+        await user.click(screen.getByRole("button", { name: "Collapse Discuss sidebar" }));
+
+        expect(localStorage.setItem).toHaveBeenCalledWith(STORAGE_KEY, "true");
+      });
+
+      it("persists expanded state to localStorage when user expands sidebar", async () => {
+        const user = userEvent.setup();
+        localStorageMock[STORAGE_KEY] = "true";
+
+        const store = createStore({
+          spec: { prdContent: { overview: "Content" } },
+        });
+        renderSpecPhase(store);
+
+        await user.click(screen.getByRole("button", { name: "Expand Discuss sidebar" }));
+
+        expect(localStorage.setItem).toHaveBeenCalledWith(STORAGE_KEY, "false");
+      });
     });
 
     it("shows Plan it when planStatus.action is plan", async () => {

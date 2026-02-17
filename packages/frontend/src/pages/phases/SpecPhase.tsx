@@ -29,6 +29,29 @@ interface SelectionInfo {
 
 /* ── Constants ──────────────────────────────────────────────── */
 
+const SPEC_CHAT_SIDEBAR_STORAGE_KEY = "opensprint-spec-chat-sidebar-collapsed";
+
+function loadSpecChatSidebarCollapsed(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const stored = localStorage.getItem(SPEC_CHAT_SIDEBAR_STORAGE_KEY);
+    if (stored === "true") return true;
+    if (stored === "false") return false;
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
+function saveSpecChatSidebarCollapsed(collapsed: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(SPEC_CHAT_SIDEBAR_STORAGE_KEY, String(collapsed));
+  } catch {
+    // ignore
+  }
+}
+
 const EXAMPLE_IDEAS = [
   "A multiplayer Jeopardy game for phones where friends compete in real-time",
   "A web service that charges my EV when solar panels are producing excess energy",
@@ -80,7 +103,12 @@ export function SpecPhase({ projectId, onNavigateToPlan }: SpecPhaseProps) {
   } | null>(null);
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [planningIt, setPlanningIt] = useState(false);
-  const [discussCollapsed, setDiscussCollapsed] = useState(false);
+  const [discussCollapsed, setDiscussCollapsedState] = useState(loadSpecChatSidebarCollapsed);
+
+  const setDiscussCollapsed = useCallback((collapsed: boolean) => {
+    setDiscussCollapsedState(collapsed);
+    saveSpecChatSidebarCollapsed(collapsed);
+  }, []);
 
   /* ── Refs ── */
   const textareaRef = useRef<HTMLTextAreaElement>(null);
