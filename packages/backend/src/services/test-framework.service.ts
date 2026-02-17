@@ -1,6 +1,5 @@
-import fs from 'fs/promises';
-import path from 'path';
-import { TEST_FRAMEWORKS } from '@opensprint/shared';
+import fs from "fs/promises";
+import path from "path";
 
 export interface DetectedTestFramework {
   framework: string;
@@ -14,29 +13,29 @@ export interface DetectedTestFramework {
 export async function detectTestFramework(repoPath: string): Promise<DetectedTestFramework | null> {
   try {
     // Check package.json for Node/JS projects
-    const pkgPath = path.join(repoPath, 'package.json');
+    const pkgPath = path.join(repoPath, "package.json");
     try {
-      const raw = await fs.readFile(pkgPath, 'utf-8');
+      const raw = await fs.readFile(pkgPath, "utf-8");
       const pkg = JSON.parse(raw);
       const deps = { ...pkg.dependencies, ...pkg.devDependencies };
 
-      if (deps['@playwright/test']) {
-        return { framework: 'playwright', testCommand: 'npx playwright test' };
+      if (deps["@playwright/test"]) {
+        return { framework: "playwright", testCommand: "npx playwright test" };
       }
-      if (deps['cypress']) {
-        return { framework: 'cypress', testCommand: 'npx cypress run' };
+      if (deps["cypress"]) {
+        return { framework: "cypress", testCommand: "npx cypress run" };
       }
-      if (deps['vitest']) {
-        return { framework: 'vitest', testCommand: 'npx vitest run' };
+      if (deps["vitest"]) {
+        return { framework: "vitest", testCommand: "npx vitest run" };
       }
-      if (deps['jest']) {
-        return { framework: 'jest', testCommand: 'npm test' };
+      if (deps["jest"]) {
+        return { framework: "jest", testCommand: "npm test" };
       }
-      if (deps['mocha']) {
-        return { framework: 'mocha', testCommand: 'npm test' };
+      if (deps["mocha"]) {
+        return { framework: "mocha", testCommand: "npm test" };
       }
       if (pkg.scripts?.test && pkg.scripts.test !== 'echo "Error: no test specified" && exit 1') {
-        return { framework: 'jest', testCommand: 'npm test' };
+        return { framework: "jest", testCommand: "npm test" };
       }
     } catch {
       // No package.json or invalid
@@ -44,14 +43,14 @@ export async function detectTestFramework(repoPath: string): Promise<DetectedTes
 
     // Check for config files
     const configs: { file: string; framework: string; command: string }[] = [
-      { file: 'vitest.config.ts', framework: 'vitest', command: 'npx vitest run' },
-      { file: 'vitest.config.js', framework: 'vitest', command: 'npx vitest run' },
-      { file: 'jest.config.js', framework: 'jest', command: 'npx jest' },
-      { file: 'jest.config.ts', framework: 'jest', command: 'npx jest' },
-      { file: 'playwright.config.ts', framework: 'playwright', command: 'npx playwright test' },
-      { file: 'cypress.config.js', framework: 'cypress', command: 'npx cypress run' },
-      { file: 'pytest.ini', framework: 'pytest', command: 'pytest' },
-      { file: 'pyproject.toml', framework: 'pytest', command: 'pytest' },
+      { file: "vitest.config.ts", framework: "vitest", command: "npx vitest run" },
+      { file: "vitest.config.js", framework: "vitest", command: "npx vitest run" },
+      { file: "jest.config.js", framework: "jest", command: "npx jest" },
+      { file: "jest.config.ts", framework: "jest", command: "npx jest" },
+      { file: "playwright.config.ts", framework: "playwright", command: "npx playwright test" },
+      { file: "cypress.config.js", framework: "cypress", command: "npx cypress run" },
+      { file: "pytest.ini", framework: "pytest", command: "pytest" },
+      { file: "pyproject.toml", framework: "pytest", command: "pytest" },
     ];
 
     for (const { file, framework, command } of configs) {
@@ -65,8 +64,8 @@ export async function detectTestFramework(repoPath: string): Promise<DetectedTes
 
     // Check for setup.py (Python)
     try {
-      await fs.access(path.join(repoPath, 'setup.py'));
-      return { framework: 'pytest', testCommand: 'pytest' };
+      await fs.access(path.join(repoPath, "setup.py"));
+      return { framework: "pytest", testCommand: "pytest" };
     } catch {
       // Not found
     }
@@ -75,11 +74,4 @@ export async function detectTestFramework(repoPath: string): Promise<DetectedTes
   } catch {
     return null;
   }
-}
-
-/** Resolve framework id to test command using shared constants */
-export function getTestCommandForFramework(framework: string | null): string {
-  if (!framework || framework === 'none') return '';
-  const found = TEST_FRAMEWORKS.find((f) => f.id === framework);
-  return found?.command ?? '';
 }

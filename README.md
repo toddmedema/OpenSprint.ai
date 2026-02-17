@@ -156,6 +156,44 @@ All scripts can be run from the project root:
 
 ---
 
+## Developing on OpenSprint
+
+When using OpenSprint to develop *itself*, you should use two separate clones to avoid contention between the running server and the AI agents modifying code:
+
+- **Control clone** — runs the backend/frontend server (`npm run dev`)
+- **Dev clone** — the target repo where the orchestrator and AI agents make changes
+
+This prevents `tsx watch` from restarting the server when agents commit code, and avoids git lock contention between your manual operations and the orchestrator's worktree management.
+
+### Setup
+
+```bash
+# 1. Clone a second copy as the development target
+git clone <your-origin-url> ~/opensprint-dev
+cd ~/opensprint-dev && npm install
+
+# 2. Copy project state from the control clone
+cp -r /path/to/control-clone/.opensprint ~/opensprint-dev/.opensprint
+cp /path/to/control-clone/.env ~/opensprint-dev/.env
+
+# 3. Update the project's repoPath (via API or direct edit)
+#    Option A — API (while server is running):
+curl -X PUT http://localhost:3100/api/v1/projects/<PROJECT_ID> \
+  -H 'Content-Type: application/json' \
+  -d '{"repoPath": "/Users/you/opensprint-dev"}'
+
+#    Option B — edit ~/.opensprint/projects.json directly
+```
+
+### Daily workflow
+
+- Run `npm run dev` from the **control clone** only
+- The orchestrator creates git worktrees from the **dev clone** and runs agents there
+- Run `bd` commands from `~/opensprint-dev` (that's where `.beads/` lives)
+- After agents push changes, `git pull` in the control clone to pick them up
+
+---
+
 ## Contributing
 
 Contributions are welcome! Whether it's a bug report, feature request, or pull request — all input is appreciated.

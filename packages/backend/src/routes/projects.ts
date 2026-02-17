@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { ProjectService } from '../services/project.service.js';
+import { orchestratorService } from '../services/orchestrator.service.js';
 import type { CreateProjectRequest, ApiResponse, Project } from '@opensprint/shared';
 
 const projectService = new ProjectService();
@@ -43,7 +44,18 @@ projectsRouter.get('/:id', async (req, res, next) => {
 // PUT /projects/:id — Update project
 projectsRouter.put('/:id', async (req, res, next) => {
   try {
-    const project = await projectService.updateProject(req.params.id, req.body);
+    const { project, repoPathChanged } = await projectService.updateProject(req.params.id, req.body);
+
+    // When repoPath changes, restart the orchestrator so it operates on the new directory
+    if (repoPathChanged) {
+      const projectId = req.params.id;
+      console.log(`[projects] repoPath changed for ${projectId}, restarting orchestrator`);
+      orchestratorService.stopProject(projectId);
+      orchestratorService.ensureRunning(projectId).catch((err) => {
+        console.error(`[projects] Failed to restart orchestrator for ${projectId}:`, err);
+      });
+    }
+
     const body: ApiResponse<Project> = { data: project };
     res.json(body);
   } catch (err) {

@@ -17,14 +17,6 @@ export interface ApiErrorResponse {
 /** Union of success and error response */
 export type ApiResult<T> = ApiResponse<T> | ApiErrorResponse;
 
-/** Paginated response */
-export interface PaginatedResponse<T> {
-  data: T[];
-  total: number;
-  offset: number;
-  limit: number;
-}
-
 /** Chat message request */
 export interface ChatRequest {
   message: string;
@@ -43,21 +35,7 @@ export interface ChatResponse {
   }>;
 }
 
-/** Build control requests */
-export interface BuildStartRequest {
-  projectId: string;
-}
-
-export interface BuildPauseRequest {
-  projectId: string;
-}
-
 /** Feedback submission */
 export interface FeedbackSubmitRequest {
   text: string;
-}
-
-/** Plan ship request */
-export interface PlanShipRequest {
-  planId: string;
 }

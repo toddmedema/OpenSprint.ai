@@ -9,8 +9,7 @@ import { fetchDreamChat, fetchPrd, fetchPrdHistory, resetDream } from "../store/
 import { fetchPlans, resetPlan } from "../store/slices/planSlice";
 import { fetchTasks, resetBuild, setSelectedTaskId } from "../store/slices/buildSlice";
 import { fetchFeedback, resetVerify } from "../store/slices/verifySlice";
-import { wsConnect, wsDisconnect } from "../store/middleware/websocketMiddleware";
-import { wsSend } from "../store/middleware/websocketMiddleware";
+import { wsConnect, wsDisconnect, wsSend } from "../store/middleware/websocketMiddleware";
 import { Layout } from "../components/layout/Layout";
 import { HilApprovalModal } from "../components/HilApprovalModal";
 import { DreamPhase } from "./phases/DreamPhase";
@@ -120,7 +119,12 @@ export function ProjectView() {
 
   return (
     <>
-      <Layout project={project} currentPhase={currentPhase} onPhaseChange={handlePhaseChange} onProjectSaved={handleProjectSaved}>
+      <Layout
+        project={project}
+        currentPhase={currentPhase}
+        onPhaseChange={handlePhaseChange}
+        onProjectSaved={handleProjectSaved}
+      >
         {/* Mount ALL phases simultaneously, toggle visibility with CSS */}
         {VALID_PHASES.map((phase) => (
           <div key={phase} style={{ display: phase === currentPhase ? "contents" : "none" }}>

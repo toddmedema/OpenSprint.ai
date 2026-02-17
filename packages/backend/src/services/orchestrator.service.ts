@@ -404,6 +404,43 @@ export class OrchestratorService {
   // ─── Lifecycle ───
 
   /**
+   * Stop the orchestrator for a project, tearing down all timers and killing any
+   * active agent process. Used when repoPath changes to allow a clean restart.
+   */
+  stopProject(projectId: string): void {
+    const state = this.state.get(projectId);
+    if (!state) return;
+
+    console.log(`[orchestrator] Stopping orchestrator for project ${projectId}`);
+
+    if (state.watchdogTimer) {
+      clearInterval(state.watchdogTimer);
+      state.watchdogTimer = null;
+    }
+    if (state.loopTimer) {
+      clearTimeout(state.loopTimer);
+      state.loopTimer = null;
+    }
+    if (state.inactivityTimer) {
+      clearInterval(state.inactivityTimer);
+      state.inactivityTimer = null;
+    }
+    if (state.activeProcess) {
+      try {
+        state.activeProcess.kill();
+      } catch {
+        // Process may already be dead
+      }
+      state.activeProcess = null;
+    }
+
+    state.loopActive = false;
+    this.state.delete(projectId);
+
+    console.log(`[orchestrator] Orchestrator stopped for project ${projectId}`);
+  }
+
+  /**
    * Initialize the always-on orchestrator for a project (PRDv2 §5.7).
    * Called once on backend boot. Checks for persisted state and recovers if needed,
    * then starts the loop and the 5-minute watchdog (PRDv2 §5.8).

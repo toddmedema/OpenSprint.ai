@@ -180,6 +180,16 @@ export class BeadsService {
     if (!result) {
       result = await this.show(repoPath, id);
     }
+    // Beads daemon may have eventual consistency: close persists but verification read can be stale.
+    // Retry verification with short delays before failing.
+    const maxRetries = 3;
+    const delayMs = 150;
+    for (let attempt = 0; attempt < maxRetries && (result.status as string) !== "closed"; attempt++) {
+      if (attempt > 0) {
+        await new Promise((r) => setTimeout(r, delayMs));
+        result = await this.show(repoPath, id);
+      }
+    }
     if ((result.status as string) !== "closed") {
       throw new Error(`Beads close did not persist: issue ${id} still has status "${result.status ?? "undefined"}"`);
     }

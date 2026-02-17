@@ -251,20 +251,22 @@ export class ProjectService {
     return project.repoPath;
   }
 
-  /** Update project (name, settings, etc.) */
-  async updateProject(id: string, updates: Partial<Project>): Promise<Project> {
+  /** Update project (name, description, repoPath, etc.) */
+  async updateProject(id: string, updates: Partial<Project>): Promise<{ project: Project; repoPathChanged: boolean }> {
     const project = await this.getProject(id);
+    const repoPathChanged = updates.repoPath !== undefined && updates.repoPath !== project.repoPath;
     const updated = { ...project, ...updates, updatedAt: new Date().toISOString() };
 
-    // Update global index if name or description changed
-    if (updates.name !== undefined || updates.description !== undefined) {
-      const indexUpdates: { name?: string; description?: string } = {};
+    // Update global index if name, description, or repoPath changed
+    if (updates.name !== undefined || updates.description !== undefined || repoPathChanged) {
+      const indexUpdates: { name?: string; description?: string; repoPath?: string } = {};
       if (updates.name !== undefined) indexUpdates.name = updates.name;
       if (updates.description !== undefined) indexUpdates.description = updates.description;
+      if (repoPathChanged) indexUpdates.repoPath = updates.repoPath;
       await projectIndex.updateProject(id, indexUpdates);
     }
 
-    return updated;
+    return { project: updated, repoPathChanged };
   }
 
   /** Read project settings */

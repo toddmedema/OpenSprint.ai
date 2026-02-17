@@ -1,11 +1,11 @@
 /** Beads issue types */
-export type TaskType = 'bug' | 'feature' | 'task' | 'epic' | 'chore';
+export type TaskType = "bug" | "feature" | "task" | "epic" | "chore";
 
 /** Beads status values */
-export type BeadsStatus = 'open' | 'in_progress' | 'closed';
+export type BeadsStatus = "open" | "in_progress" | "closed";
 
 /** Display status on the kanban board */
-export type KanbanColumn = 'planning' | 'backlog' | 'ready' | 'in_progress' | 'in_review' | 'done';
+export type KanbanColumn = "planning" | "backlog" | "ready" | "in_progress" | "in_review" | "done";
 
 /** Beads priority (0 = highest, 4 = lowest) */
 export type TaskPriority = 0 | 1 | 2 | 3 | 4;
@@ -33,13 +33,5 @@ export interface Task {
 /** Dependency relationship between tasks */
 export interface TaskDependency {
   targetId: string;
-  type: 'blocks' | 'related' | 'parent-child' | 'discovered-from';
-}
-
-/** Task grouped by epic for kanban swimlanes */
-export interface TaskGroup {
-  epicId: string;
-  epicTitle: string;
-  planId: string;
-  tasks: Task[];
+  type: "blocks" | "related" | "parent-child" | "discovered-from";
 }
