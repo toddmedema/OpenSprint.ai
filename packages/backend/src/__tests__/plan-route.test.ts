@@ -228,6 +228,171 @@ describe("Plan REST endpoints - task decomposition", () => {
     },
   );
 
+  describe("POST /projects/:id/plans/:planId/reship", () => {
+    it("reship succeeds when all tasks are done (closed)", { timeout: 15000 }, async () => {
+      const app = createApp();
+      const planBody = {
+        title: "Reship All Done Feature",
+        content: "# Reship All Done\n\nContent.",
+        complexity: "medium",
+        tasks: [
+          { title: "Task X", description: "First", priority: 0, dependsOn: [] },
+          { title: "Task Y", description: "Second", priority: 1, dependsOn: [] },
+        ],
+      };
+
+      const createRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans`).send(planBody);
+      expect(createRes.status).toBe(201);
+      const planId = createRes.body.data.metadata.planId;
+      const epicId = createRes.body.data.metadata.beadEpicId;
+      const gateTaskId = createRes.body.data.metadata.gateTaskId;
+
+      // Ship the plan
+      const shipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/ship`);
+      expect(shipRes.status).toBe(200);
+
+      const project = await projectService.getProject(projectId);
+      const allIssues = await beads.listAll(project.repoPath);
+      const planTasks = allIssues.filter(
+        (i: { id: string; issue_type?: string; type?: string }) =>
+          i.id.startsWith(epicId + ".") && i.id !== gateTaskId && (i.issue_type ?? i.type) !== "epic",
+      );
+
+      // Close all implementation tasks
+      for (const task of planTasks) {
+        await beads.close(project.repoPath, (task as { id: string }).id, "Done");
+      }
+      await beads.sync(project.repoPath);
+
+      // Reship should succeed (all tasks done)
+      const reshipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/reship`);
+      expect(reshipRes.status).toBe(200);
+      expect(reshipRes.body.data).toBeDefined();
+    });
+
+    it("reship returns 400 TASKS_IN_PROGRESS when any task is in_progress", { timeout: 15000 }, async () => {
+      const app = createApp();
+      const planBody = {
+        title: "Reship In Progress Feature",
+        content: "# Reship In Progress\n\nContent.",
+        complexity: "medium",
+        tasks: [
+          { title: "Task P", description: "First", priority: 0, dependsOn: [] },
+          { title: "Task Q", description: "Second", priority: 1, dependsOn: [] },
+        ],
+      };
+
+      const createRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans`).send(planBody);
+      expect(createRes.status).toBe(201);
+      const planId = createRes.body.data.metadata.planId;
+      const epicId = createRes.body.data.metadata.beadEpicId;
+      const gateTaskId = createRes.body.data.metadata.gateTaskId;
+
+      const shipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/ship`);
+      expect(shipRes.status).toBe(200);
+
+      const project = await projectService.getProject(projectId);
+      const allIssues = await beads.listAll(project.repoPath);
+      const taskP = allIssues.find(
+        (i: { id: string; title: string; issue_type?: string; type?: string }) =>
+          i.id.startsWith(epicId + ".") && i.id !== gateTaskId && (i.issue_type ?? i.type) !== "epic" && i.title === "Task P",
+      );
+      expect(taskP).toBeDefined();
+
+      await beads.update(project.repoPath, (taskP as { id: string }).id, {
+        status: "in_progress",
+        assignee: "test-user",
+        claim: true,
+      });
+      await beads.sync(project.repoPath);
+
+      const reshipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/reship`);
+      expect(reshipRes.status).toBe(400);
+      expect(reshipRes.body.error?.code).toBe("TASKS_IN_PROGRESS");
+    });
+
+    it("reship returns 400 TASKS_NOT_COMPLETE when some tasks open and some closed", { timeout: 15000 }, async () => {
+      const app = createApp();
+      const planBody = {
+        title: "Reship Mixed Feature",
+        content: "# Reship Mixed\n\nContent.",
+        complexity: "medium",
+        tasks: [
+          { title: "Task M", description: "First", priority: 0, dependsOn: [] },
+          { title: "Task N", description: "Second", priority: 1, dependsOn: [] },
+        ],
+      };
+
+      const createRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans`).send(planBody);
+      expect(createRes.status).toBe(201);
+      const planId = createRes.body.data.metadata.planId;
+      const epicId = createRes.body.data.metadata.beadEpicId;
+      const gateTaskId = createRes.body.data.metadata.gateTaskId;
+
+      const shipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/ship`);
+      expect(shipRes.status).toBe(200);
+
+      const project = await projectService.getProject(projectId);
+      const allIssues = await beads.listAll(project.repoPath);
+      const planTasks = allIssues.filter(
+        (i: { id: string; issue_type?: string; type?: string }) =>
+          i.id.startsWith(epicId + ".") && i.id !== gateTaskId && (i.issue_type ?? i.type) !== "epic",
+      );
+      expect(planTasks.length).toBe(2);
+
+      // Close only the first task
+      await beads.close(project.repoPath, (planTasks[0] as { id: string }).id, "Done");
+      await beads.sync(project.repoPath);
+
+      const reshipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/reship`);
+      expect(reshipRes.status).toBe(400);
+      expect(reshipRes.body.error?.code).toBe("TASKS_NOT_COMPLETE");
+    });
+
+    it("reship succeeds when none started (all open) — deletes tasks then ships", { timeout: 15000 }, async () => {
+      const app = createApp();
+      const planBody = {
+        title: "Reship None Started Feature",
+        content: "# Reship None Started\n\nContent.",
+        complexity: "medium",
+        tasks: [
+          { title: "Task S", description: "First", priority: 0, dependsOn: [] },
+          { title: "Task T", description: "Second", priority: 1, dependsOn: [] },
+        ],
+      };
+
+      const createRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans`).send(planBody);
+      expect(createRes.status).toBe(201);
+      const planId = createRes.body.data.metadata.planId;
+      const epicId = createRes.body.data.metadata.beadEpicId;
+      const gateTaskId = createRes.body.data.metadata.gateTaskId;
+
+      // Ship the plan (tasks become ready but stay open)
+      const shipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/ship`);
+      expect(shipRes.status).toBe(200);
+
+      const project = await projectService.getProject(projectId);
+      const beforeReship = await beads.listAll(project.repoPath);
+      const tasksBefore = beforeReship.filter(
+        (i: { id: string; issue_type?: string; type?: string }) =>
+          i.id.startsWith(epicId + ".") && i.id !== gateTaskId && (i.issue_type ?? i.type) !== "epic",
+      );
+      expect(tasksBefore.length).toBe(2);
+
+      // Reship when none started (all open) — should delete tasks and re-ship
+      const reshipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/reship`);
+      expect(reshipRes.status).toBe(200);
+
+      // Implementation tasks should have been deleted (none-started case deletes them)
+      const afterReship = await beads.listAll(project.repoPath);
+      const tasksAfter = afterReship.filter(
+        (i: { id: string; issue_type?: string; type?: string }) =>
+          i.id.startsWith(epicId + ".") && i.id !== gateTaskId && (i.issue_type ?? i.type) !== "epic",
+      );
+      expect(tasksAfter.length).toBe(0);
+    });
+  });
+
   it("POST /projects/:id/plans/:planId/archive returns 400 when plan has no epic", async () => {
     const app = createApp();
     const planBody = {

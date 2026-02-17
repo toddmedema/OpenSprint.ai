@@ -496,10 +496,12 @@ export class PlanService {
 
     // Verify all existing tasks are Done or none started
     if (plan.metadata.beadEpicId) {
-      const allIssues = await this.beads.list(repoPath);
+      const allIssues = await this.beads.listAll(repoPath);
       const children = allIssues.filter(
         (issue: BeadsIssue) =>
-          issue.id.startsWith(plan.metadata.beadEpicId + ".") && issue.id !== plan.metadata.gateTaskId,
+          issue.id.startsWith(plan.metadata.beadEpicId + ".") &&
+          issue.id !== plan.metadata.gateTaskId &&
+          (issue.issue_type ?? issue.type) !== "epic",
       );
 
       const hasInProgress = children.some((issue: BeadsIssue) => issue.status === "in_progress");
