@@ -178,10 +178,6 @@ export const api = {
       request<OrchestratorStatus>(`/projects/${projectId}/build/nudge`, {
         method: "POST",
       }),
-    pause: (projectId: string) =>
-      request<OrchestratorStatus>(`/projects/${projectId}/build/pause`, {
-        method: "POST",
-      }),
   },
 
   // ─── Feedback ───

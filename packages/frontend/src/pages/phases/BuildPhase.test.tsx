@@ -20,7 +20,6 @@ vi.mock("../../api/client", () => ({
     },
     build: {
       nudge: vi.fn().mockResolvedValue(undefined),
-      pause: vi.fn().mockResolvedValue(undefined),
     },
   },
 }));
@@ -76,8 +75,6 @@ function createStore(
         archivedLoading: false,
         markCompleteLoading: false,
         statusLoading: false,
-        startBuildLoading: false,
-        pauseBuildLoading: false,
         loading: false,
         error: null,
         ...buildOverrides,

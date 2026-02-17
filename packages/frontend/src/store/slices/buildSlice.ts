@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, type PayloadAction } from "@reduxjs/toolkit";
-import type { AgentSession, Task, KanbanColumn, Plan, OrchestratorStatus } from "@opensprint/shared";
+import type { AgentSession, Task, KanbanColumn, Plan } from "@opensprint/shared";
 import { api } from "../../api/client";
 import { setPlansAndGraph } from "./planSlice";
 
@@ -26,8 +26,6 @@ export interface BuildState {
   archivedLoading: boolean;
   markCompleteLoading: boolean;
   statusLoading: boolean;
-  startBuildLoading: boolean;
-  pauseBuildLoading: boolean;
   loading: boolean;
   error: string | null;
 }
@@ -46,8 +44,6 @@ const initialState: BuildState = {
   archivedLoading: false,
   markCompleteLoading: false,
   statusLoading: false,
-  startBuildLoading: false,
-  pauseBuildLoading: false,
   loading: false,
   error: null,
 };
@@ -83,20 +79,6 @@ export const fetchArchivedSessions = createAsyncThunk(
   "build/fetchArchivedSessions",
   async ({ projectId, taskId }: { projectId: string; taskId: string }) => {
     return (await api.tasks.sessions(projectId, taskId)) ?? [];
-  },
-);
-
-export const startBuild = createAsyncThunk(
-  "build/startBuild",
-  async (projectId: string) => {
-    return api.build.nudge(projectId);
-  },
-);
-
-export const pauseBuild = createAsyncThunk(
-  "build/pauseBuild",
-  async (projectId: string) => {
-    return api.build.pause(projectId);
   },
 );
 
@@ -245,32 +227,6 @@ const buildSlice = createSlice({
       .addCase(fetchArchivedSessions.rejected, (state) => {
         state.archivedSessions = [];
         state.archivedLoading = false;
-      })
-      // startBuild
-      .addCase(startBuild.pending, (state) => {
-        state.startBuildLoading = true;
-        state.error = null;
-      })
-      .addCase(startBuild.fulfilled, (state, action) => {
-        state.orchestratorRunning = action.payload.currentTask !== null || action.payload.queueDepth > 0;
-        state.awaitingApproval = action.payload.awaitingApproval ?? false;
-        state.startBuildLoading = false;
-      })
-      .addCase(startBuild.rejected, (state, action) => {
-        state.startBuildLoading = false;
-        state.error = action.error.message ?? "Failed to start build";
-      })
-      // pauseBuild
-      .addCase(pauseBuild.pending, (state) => {
-        state.pauseBuildLoading = true;
-        state.error = null;
-      })
-      .addCase(pauseBuild.fulfilled, (state) => {
-        state.pauseBuildLoading = false;
-      })
-      .addCase(pauseBuild.rejected, (state, action) => {
-        state.pauseBuildLoading = false;
-        state.error = action.error.message ?? "Failed to pause build";
       })
       // markTaskComplete
       .addCase(markTaskComplete.pending, (state) => {

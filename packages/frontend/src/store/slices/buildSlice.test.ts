@@ -6,8 +6,6 @@ import buildReducer, {
   fetchBuildStatus,
   fetchTaskDetail,
   fetchArchivedSessions,
-  startBuild,
-  pauseBuild,
   markTaskComplete,
   setSelectedTaskId,
   appendAgentOutput,
@@ -35,7 +33,6 @@ vi.mock("../../api/client", () => ({
     build: {
       status: vi.fn(),
       nudge: vi.fn(),
-      pause: vi.fn(),
     },
   },
 }));
@@ -96,7 +93,6 @@ describe("buildSlice", () => {
     vi.mocked(api.plans.list).mockReset();
     vi.mocked(api.build.status).mockReset();
     vi.mocked(api.build.nudge).mockReset();
-    vi.mocked(api.build.pause).mockReset();
   });
 
   function createStore() {
@@ -307,25 +303,6 @@ describe("buildSlice", () => {
       const store = createStore();
       await store.dispatch(fetchArchivedSessions({ projectId: "proj-1", taskId: "task-1" }));
       expect(store.getState().build.archivedSessions).toEqual(sessions);
-    });
-  });
-
-  describe("startBuild thunk", () => {
-    it("calls nudge and updates orchestrator state on fulfilled", async () => {
-      vi.mocked(api.build.nudge).mockResolvedValue(mockOrchestratorStatus as never);
-      const store = createStore();
-      await store.dispatch(startBuild("proj-1"));
-      expect(api.build.nudge).toHaveBeenCalledWith("proj-1");
-      expect(store.getState().build.orchestratorRunning).toBe(true);
-    });
-  });
-
-  describe("pauseBuild thunk", () => {
-    it("sets error on rejected (pause not implemented)", async () => {
-      vi.mocked(api.build.pause).mockRejectedValue(new Error("Pause not yet supported"));
-      const store = createStore();
-      await store.dispatch(pauseBuild("proj-1"));
-      expect(store.getState().build.error).toBe("Failed to pause build");
     });
   });
 
