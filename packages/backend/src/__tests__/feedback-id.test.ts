@@ -2,11 +2,11 @@ import { describe, it, expect } from "vitest";
 import { generateShortFeedbackId } from "../utils/feedback-id.js";
 
 describe("generateShortFeedbackId", () => {
-  const ID_REGEX = /^[a-z0-9]{8}$/;
+  const ID_REGEX = /^[a-z0-9]{6}$/;
 
-  it("should return exactly 8 characters", () => {
+  it("should return exactly 6 characters", () => {
     const id = generateShortFeedbackId();
-    expect(id).toHaveLength(8);
+    expect(id).toHaveLength(6);
   });
 
   it("should return only lowercase letters and digits", () => {
@@ -22,7 +22,7 @@ describe("generateShortFeedbackId", () => {
     expect(ids.size).toBe(1000);
   });
 
-  it("should match alphanumeric pattern (a-z, 0-9)", () => {
+  it("should match alphanumeric pattern (a-z, 0-9) at 6 chars", () => {
     for (let i = 0; i < 100; i++) {
       const id = generateShortFeedbackId();
       expect(id).toMatch(ID_REGEX);

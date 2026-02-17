@@ -39,7 +39,7 @@ export class FeedbackService {
   private prdService = new PrdService();
   private beadsService = new BeadsService();
 
-  /** Generate a unique 8-char alphanumeric feedback ID; retries on collision */
+  /** Generate a unique 6-char alphanumeric feedback ID; retries on collision */
   private async generateUniqueFeedbackId(feedbackDir: string): Promise<string> {
     const MAX_RETRIES = 10;
     for (let i = 0; i < MAX_RETRIES; i++) {

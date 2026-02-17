@@ -50,7 +50,7 @@ const mockBeadsAddDependency = vi.fn().mockResolvedValue(undefined);
 
 let feedbackIdSequence: string[] = [];
 vi.mock("../utils/feedback-id.js", () => ({
-  generateShortFeedbackId: () => feedbackIdSequence.shift() ?? "fallback1",
+  generateShortFeedbackId: () => feedbackIdSequence.shift() ?? "xyz123",
 }));
 
 vi.mock("../services/beads.service.js", () => ({
@@ -159,8 +159,8 @@ describe("FeedbackService", () => {
     expect(items[0].status).toBe("pending");
   });
 
-  it("should assign short 8-char alphanumeric feedback IDs", async () => {
-    feedbackIdSequence = ["a1b2c3d4"];
+  it("should assign short 6-char alphanumeric feedback IDs", async () => {
+    feedbackIdSequence = ["a1b2c3"];
     mockInvoke.mockResolvedValue({
       content: JSON.stringify({
         category: "bug",
@@ -173,15 +173,15 @@ describe("FeedbackService", () => {
       text: "Something broke",
     });
 
-    expect(item.id).toMatch(/^[a-z0-9]{8}$/);
-    expect(item.id).toHaveLength(8);
+    expect(item.id).toMatch(/^[a-z0-9]{6}$/);
+    expect(item.id).toHaveLength(6);
   });
 
   it("should retry with new ID on collision", async () => {
     const repoPath = path.join(tempDir, "my-project");
     const feedbackDir = path.join(repoPath, OPENSPRINT_PATHS.feedback);
     await fs.mkdir(feedbackDir, { recursive: true });
-    const existingId = "aaaaaaaa";
+    const existingId = "aaaaaa";
     await fs.writeFile(
       path.join(feedbackDir, `${existingId}.json`),
       JSON.stringify({
@@ -196,7 +196,7 @@ describe("FeedbackService", () => {
       "utf-8",
     );
 
-    feedbackIdSequence = [existingId, "bbbbbbbb"];
+    feedbackIdSequence = [existingId, "bbbbbb"];
     mockInvoke.mockResolvedValue({
       content: JSON.stringify({
         category: "bug",
@@ -209,7 +209,7 @@ describe("FeedbackService", () => {
       text: "New feedback",
     });
 
-    expect(item.id).toBe("bbbbbbbb");
+    expect(item.id).toBe("bbbbbb");
     const existing = await feedbackService.getFeedback(projectId, existingId);
     expect(existing.text).toBe("Existing");
   });
