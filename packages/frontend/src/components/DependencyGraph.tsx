@@ -203,7 +203,22 @@ export function DependencyGraph({ graph, onPlanClick }: DependencyGraphProps) {
       complete: { fill: "#d1fae5", stroke: "#10b981" },
     };
 
-    node.append("rect").attr("width", 100).attr("height", 36).attr("rx", 6).attr("x", -50).attr("y", -18);
+    node
+      .append("rect")
+      .attr("width", 100)
+      .attr("height", 36)
+      .attr("rx", 6)
+      .attr("x", -50)
+      .attr("y", -18)
+      .attr("fill", (d) => (statusColors[d.plan.status] ?? { fill: "#f9fafb", stroke: "#e5e7eb" }).fill)
+      .attr("stroke", (d) => (statusColors[d.plan.status] ?? { fill: "#f9fafb", stroke: "#e5e7eb" }).stroke)
+      .attr("stroke-width", 1.5)
+      .on("mouseover", function () {
+        d3.select(this).attr("stroke-width", 2.5);
+      })
+      .on("mouseout", function () {
+        d3.select(this).attr("stroke-width", 1.5);
+      });
 
     node
       .append("text")
@@ -239,23 +254,6 @@ export function DependencyGraph({ graph, onPlanClick }: DependencyGraphProps) {
       node.attr("transform", (d) => {
         const n = d as d3.SimulationNodeDatum & { x?: number; y?: number };
         return `translate(${n.x ?? 0},${n.y ?? 0})`;
-      });
-    });
-
-    simulation.on("end", () => {
-      node.each(function (d) {
-        const style = statusColors[d.plan.status] ?? { fill: "#f9fafb", stroke: "#e5e7eb" };
-        d3.select(this)
-          .select("rect")
-          .attr("fill", style.fill)
-          .attr("stroke", style.stroke)
-          .attr("stroke-width", 1.5)
-          .on("mouseover", function () {
-            d3.select(this).attr("stroke-width", 2.5);
-          })
-          .on("mouseout", function () {
-            d3.select(this).attr("stroke-width", 1.5);
-          });
       });
     });
 

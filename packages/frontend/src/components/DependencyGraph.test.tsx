@@ -115,4 +115,46 @@ describe("DependencyGraph", () => {
 
     expect(screen.queryByText(/Critical path/)).not.toBeInTheDocument();
   });
+
+  it("renders node rects with fill and stroke from the start (not black during animation)", async () => {
+    const graphWithStatuses: PlanDependencyGraph = {
+      plans: [
+        mockPlan("planning-plan", "planning"),
+        mockPlan("building-plan", "building"),
+        mockPlan("complete-plan", "complete"),
+      ],
+      edges: [],
+    };
+
+    render(<DependencyGraph graph={graphWithStatuses} />);
+
+    await vi.waitFor(() => {
+      const rects = document.querySelectorAll("svg rect");
+      expect(rects.length).toBeGreaterThanOrEqual(3);
+    });
+
+    const rects = document.querySelectorAll("svg rect");
+    const nodeRects = Array.from(rects).filter((r) => r.getAttribute("width") === "100");
+    expect(nodeRects.length).toBe(3);
+
+    // Each node rect must have fill and stroke set (not default black)
+    for (const rect of nodeRects) {
+      const fill = rect.getAttribute("fill");
+      const stroke = rect.getAttribute("stroke");
+      expect(fill).toBeTruthy();
+      expect(stroke).toBeTruthy();
+      expect(fill).not.toBe("black");
+      expect(fill).not.toBe("#000");
+      expect(fill).not.toBe("#000000");
+    }
+
+    // Verify status-specific colors are applied
+    const planningFill = "#fef3c7";
+    const buildingFill = "#dbeafe";
+    const completeFill = "#d1fae5";
+    const fills = nodeRects.map((r) => r.getAttribute("fill"));
+    expect(fills).toContain(planningFill);
+    expect(fills).toContain(buildingFill);
+    expect(fills).toContain(completeFill);
+  });
 });
