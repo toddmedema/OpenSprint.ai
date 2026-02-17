@@ -228,9 +228,12 @@ function FeedbackCard({
         </div>
       </div>
 
-      {/* Inline reply composer */}
+      {/* Inline reply composer (PRD §7.4.1: quote snippet of parent above text input) */}
       {isReplying && (
         <div className="mt-2 ml-0 card p-3">
+          <blockquote className="mb-2 pl-3 border-l-2 border-gray-300 text-sm text-gray-600 italic">
+            {item.text && item.text.length > 80 ? `${item.text.slice(0, 80)}…` : (item.text || "(No feedback text)")}
+          </blockquote>
           <textarea
             className="input min-h-[60px] mb-2 text-sm"
             value={replyText}

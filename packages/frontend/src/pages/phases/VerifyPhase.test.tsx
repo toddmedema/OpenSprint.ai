@@ -1224,6 +1224,148 @@ describe("VerifyPhase feedback input", () => {
     expect(replyButtons.length).toBeGreaterThanOrEqual(1);
   });
 
+  it("shows quote snippet of parent feedback above reply textarea", async () => {
+    const user = userEvent.setup();
+    const storeWithFeedback = configureStore({
+      reducer: {
+        project: projectReducer,
+        verify: verifyReducer,
+        build: buildReducer,
+      },
+      preloadedState: {
+        project: {
+          data: {
+            id: "proj-1",
+            name: "Test Project",
+            description: "",
+            repoPath: "/tmp/test",
+            currentPhase: "verify",
+            createdAt: "",
+            updatedAt: "",
+          },
+          loading: false,
+          error: null,
+        },
+        verify: {
+          feedback: [
+            {
+              id: "fb-1",
+              text: "Original feedback to reply to",
+              category: "bug",
+              mappedPlanId: "plan-1",
+              createdTaskIds: [],
+              status: "mapped",
+              createdAt: new Date().toISOString(),
+            },
+          ],
+          loading: false,
+          submitting: false,
+          error: null,
+        },
+        build: {
+          tasks: [],
+          plans: [],
+          orchestratorRunning: false,
+          awaitingApproval: false,
+          selectedTaskId: null,
+          taskDetail: null,
+          taskDetailLoading: false,
+          agentOutput: [],
+          completionState: null,
+          archivedSessions: [],
+          archivedLoading: false,
+          markDoneLoading: false,
+          statusLoading: false,
+          loading: false,
+          error: null,
+        },
+      },
+    });
+
+    render(
+      <Provider store={storeWithFeedback}>
+        <VerifyPhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /^Reply$/i }));
+
+    expect(screen.getByText("Original feedback to reply to")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Write a reply/)).toBeInTheDocument();
+  });
+
+  it("truncates long parent feedback in quote snippet with ellipsis", async () => {
+    const user = userEvent.setup();
+    const longText = "A".repeat(100);
+    const storeWithFeedback = configureStore({
+      reducer: {
+        project: projectReducer,
+        verify: verifyReducer,
+        build: buildReducer,
+      },
+      preloadedState: {
+        project: {
+          data: {
+            id: "proj-1",
+            name: "Test Project",
+            description: "",
+            repoPath: "/tmp/test",
+            currentPhase: "verify",
+            createdAt: "",
+            updatedAt: "",
+          },
+          loading: false,
+          error: null,
+        },
+        verify: {
+          feedback: [
+            {
+              id: "fb-1",
+              text: longText,
+              category: "bug",
+              mappedPlanId: "plan-1",
+              createdTaskIds: [],
+              status: "mapped",
+              createdAt: new Date().toISOString(),
+            },
+          ],
+          loading: false,
+          submitting: false,
+          error: null,
+        },
+        build: {
+          tasks: [],
+          plans: [],
+          orchestratorRunning: false,
+          awaitingApproval: false,
+          selectedTaskId: null,
+          taskDetail: null,
+          taskDetailLoading: false,
+          agentOutput: [],
+          completionState: null,
+          archivedSessions: [],
+          archivedLoading: false,
+          markDoneLoading: false,
+          statusLoading: false,
+          loading: false,
+          error: null,
+        },
+      },
+    });
+
+    const { container } = render(
+      <Provider store={storeWithFeedback}>
+        <VerifyPhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /^Reply$/i }));
+
+    const blockquote = container.querySelector("blockquote");
+    expect(blockquote).toBeInTheDocument();
+    expect(blockquote!.textContent).toBe("A".repeat(80) + "…");
+  });
+
   it("opens inline reply composer when reply button is clicked", async () => {
     const user = userEvent.setup();
     const storeWithFeedback = configureStore({
