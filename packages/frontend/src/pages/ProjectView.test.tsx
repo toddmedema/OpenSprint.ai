@@ -9,7 +9,7 @@ import websocketReducer from "../store/slices/websocketSlice";
 import designReducer from "../store/slices/designSlice";
 import planReducer from "../store/slices/planSlice";
 import buildReducer from "../store/slices/buildSlice";
-import validateReducer from "../store/slices/validateSlice";
+import verifyReducer from "../store/slices/verifySlice";
 
 // Mock websocket middleware to prevent connection attempts
 const mockWsConnect = vi.fn((payload: unknown) => ({ type: "ws/connect", payload }));
@@ -48,7 +48,7 @@ function createStore() {
       design: designReducer,
       plan: planReducer,
       build: buildReducer,
-      validate: validateReducer,
+      verify: verifyReducer,
     },
     preloadedState: {
       project: {
@@ -203,7 +203,7 @@ describe("ProjectView URL deep linking for Plan and Build detail panes", () => {
         design: designReducer,
         plan: planReducer,
         build: buildReducer,
-        validate: validateReducer,
+        verify: verifyReducer,
       },
       preloadedState: {
         project: {

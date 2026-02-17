@@ -14,7 +14,7 @@ import { resetWebsocket, clearHilRequest, clearHilNotification } from "../store/
 import { fetchDesignChat, fetchPrd, fetchPrdHistory, resetDesign } from "../store/slices/designSlice";
 import { fetchPlans, resetPlan, setSelectedPlanId } from "../store/slices/planSlice";
 import { fetchTasks, fetchBuildStatus, resetBuild, setSelectedTaskId } from "../store/slices/buildSlice";
-import { fetchFeedback, resetValidate } from "../store/slices/validateSlice";
+import { fetchFeedback, resetVerify } from "../store/slices/verifySlice";
 import { wsConnect, wsDisconnect, wsSend } from "../store/middleware/websocketMiddleware";
 import { Layout } from "../components/layout/Layout";
 import { HilApprovalModal } from "../components/HilApprovalModal";
@@ -68,7 +68,7 @@ export function ProjectView() {
       dispatch(resetDesign());
       dispatch(resetPlan());
       dispatch(resetBuild());
-      dispatch(resetValidate());
+      dispatch(resetVerify());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, redirectTo]);

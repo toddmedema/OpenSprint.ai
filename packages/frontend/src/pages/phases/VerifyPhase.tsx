@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useMemo } from "react";
 import type { FeedbackItem } from "@opensprint/shared";
 import { useAppDispatch, useAppSelector } from "../../store";
-import { submitFeedback, setValidateError } from "../../store/slices/validateSlice";
+import { submitFeedback, setVerifyError } from "../../store/slices/verifySlice";
 
 const MAX_IMAGES = 5;
 const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024; // 2MB
@@ -41,14 +41,14 @@ export function VerifyPhase({ projectId, onNavigateToBuildTask }: VerifyPhasePro
   const dispatch = useAppDispatch();
 
   /* ── Redux state ── */
-  const feedback = useAppSelector((s) => s.validate.feedback);
+  const feedback = useAppSelector((s) => s.verify.feedback);
   const displayedFeedback = useMemo(
     () => feedback.filter((item) => item.status !== "pending"),
     [feedback],
   );
-  const loading = useAppSelector((s) => s.validate.loading);
-  const submitting = useAppSelector((s) => s.validate.submitting);
-  const error = useAppSelector((s) => s.validate.error);
+  const loading = useAppSelector((s) => s.verify.loading);
+  const submitting = useAppSelector((s) => s.verify.submitting);
+  const error = useAppSelector((s) => s.verify.error);
 
   /* ── Local UI state (preserved by mount-all) ── */
   const [input, setInput] = useState("");
@@ -137,7 +137,7 @@ export function VerifyPhase({ projectId, onNavigateToBuildTask }: VerifyPhasePro
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex justify-between items-center">
             <span>{error}</span>
-            <button type="button" onClick={() => dispatch(setValidateError(null))} className="text-red-500 hover:text-red-700 underline">
+            <button type="button" onClick={() => dispatch(setVerifyError(null))} className="text-red-500 hover:text-red-700 underline">
               Dismiss
             </button>
           </div>

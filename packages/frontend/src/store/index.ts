@@ -5,7 +5,7 @@ import websocketReducer from "./slices/websocketSlice";
 import designReducer from "./slices/designSlice";
 import planReducer from "./slices/planSlice";
 import buildReducer from "./slices/buildSlice";
-import validateReducer from "./slices/validateSlice";
+import verifyReducer from "./slices/verifySlice";
 import { websocketMiddleware } from "./middleware/websocketMiddleware";
 
 export const store = configureStore({
@@ -15,7 +15,7 @@ export const store = configureStore({
     design: designReducer,
     plan: planReducer,
     build: buildReducer,
-    validate: validateReducer,
+    verify: verifyReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

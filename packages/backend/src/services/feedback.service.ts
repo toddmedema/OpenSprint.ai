@@ -156,7 +156,7 @@ export class FeedbackService {
   /** AI categorization, mapping, and bead task creation */
   private async categorizeFeedback(projectId: string, item: FeedbackItem): Promise<void> {
     const agentId = `feedback-categorize-${projectId}-${item.id}-${Date.now()}`;
-    activeAgentsService.register(agentId, projectId, 'validate', 'Feedback categorization', new Date().toISOString());
+    activeAgentsService.register(agentId, projectId, 'verify', 'Feedback categorization', new Date().toISOString());
 
     try {
       await this.categorizeFeedbackImpl(projectId, item);

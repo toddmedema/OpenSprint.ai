@@ -5,7 +5,7 @@ import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import { VerifyPhase } from "./VerifyPhase";
 import projectReducer from "../../store/slices/projectSlice";
-import validateReducer from "../../store/slices/validateSlice";
+import verifyReducer from "../../store/slices/verifySlice";
 
 const mockFeedbackList = vi.fn().mockResolvedValue([]);
 const mockFeedbackSubmit = vi.fn().mockResolvedValue({
@@ -31,7 +31,7 @@ function createStore() {
   return configureStore({
     reducer: {
       project: projectReducer,
-      validate: validateReducer,
+      verify: verifyReducer,
     },
     preloadedState: {
       project: {
@@ -47,7 +47,7 @@ function createStore() {
         loading: false,
         error: null,
       },
-      validate: {
+      verify: {
         feedback: [],
         loading: false,
         submitting: false,
@@ -222,7 +222,7 @@ describe("VerifyPhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        validate: validateReducer,
+        verify: verifyReducer,
       },
       preloadedState: {
         project: {
@@ -238,7 +238,7 @@ describe("VerifyPhase feedback input", () => {
           loading: false,
           error: null,
         },
-        validate: {
+        verify: {
           feedback: [
             {
               id: "fb-1",
@@ -274,7 +274,7 @@ describe("VerifyPhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        validate: validateReducer,
+        verify: verifyReducer,
       },
       preloadedState: {
         project: {
@@ -290,7 +290,7 @@ describe("VerifyPhase feedback input", () => {
           loading: false,
           error: null,
         },
-        validate: {
+        verify: {
           feedback: [
             {
               id: "fb-1",
@@ -327,7 +327,7 @@ describe("VerifyPhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        validate: validateReducer,
+        verify: verifyReducer,
       },
       preloadedState: {
         project: {
@@ -343,7 +343,7 @@ describe("VerifyPhase feedback input", () => {
           loading: false,
           error: null,
         },
-        validate: {
+        verify: {
           feedback: [
             {
               id: feedbackId,
@@ -375,7 +375,7 @@ describe("VerifyPhase feedback input", () => {
     const storeLoading = configureStore({
       reducer: {
         project: projectReducer,
-        validate: validateReducer,
+        verify: verifyReducer,
       },
       preloadedState: {
         project: {
@@ -391,7 +391,7 @@ describe("VerifyPhase feedback input", () => {
           loading: false,
           error: null,
         },
-        validate: {
+        verify: {
           feedback: [],
           loading: true,
           submitting: false,
@@ -414,7 +414,7 @@ describe("VerifyPhase feedback input", () => {
     const storeWithError = configureStore({
       reducer: {
         project: projectReducer,
-        validate: validateReducer,
+        verify: verifyReducer,
       },
       preloadedState: {
         project: {
@@ -430,7 +430,7 @@ describe("VerifyPhase feedback input", () => {
           loading: false,
           error: null,
         },
-        validate: {
+        verify: {
           feedback: [],
           loading: false,
           submitting: false,
@@ -457,7 +457,7 @@ describe("VerifyPhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        validate: validateReducer,
+        verify: verifyReducer,
       },
       preloadedState: {
         project: {
@@ -473,7 +473,7 @@ describe("VerifyPhase feedback input", () => {
           loading: false,
           error: null,
         },
-        validate: {
+        verify: {
           feedback: [
             {
               id: "fb-1",
@@ -508,7 +508,7 @@ describe("VerifyPhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        validate: validateReducer,
+        verify: verifyReducer,
       },
       preloadedState: {
         project: {
@@ -524,7 +524,7 @@ describe("VerifyPhase feedback input", () => {
           loading: false,
           error: null,
         },
-        validate: {
+        verify: {
           feedback: [
             {
               id: "fb-pending",
@@ -571,7 +571,7 @@ describe("VerifyPhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        validate: validateReducer,
+        verify: verifyReducer,
       },
       preloadedState: {
         project: {
@@ -587,7 +587,7 @@ describe("VerifyPhase feedback input", () => {
           loading: false,
           error: null,
         },
-        validate: {
+        verify: {
           feedback: [
             {
               id: "fb-bug",
@@ -659,7 +659,7 @@ describe("VerifyPhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        validate: validateReducer,
+        verify: verifyReducer,
       },
       preloadedState: {
         project: {
@@ -675,7 +675,7 @@ describe("VerifyPhase feedback input", () => {
           loading: false,
           error: null,
         },
-        validate: {
+        verify: {
           feedback: [
             {
               id: "fb-1",
@@ -713,7 +713,7 @@ describe("VerifyPhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        validate: validateReducer,
+        verify: verifyReducer,
       },
       preloadedState: {
         project: {
@@ -729,7 +729,7 @@ describe("VerifyPhase feedback input", () => {
           loading: false,
           error: null,
         },
-        validate: {
+        verify: {
           feedback: [
             {
               id: "fb-1",
@@ -765,7 +765,7 @@ describe("VerifyPhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        validate: validateReducer,
+        verify: verifyReducer,
       },
       preloadedState: {
         project: {
@@ -781,7 +781,7 @@ describe("VerifyPhase feedback input", () => {
           loading: false,
           error: null,
         },
-        validate: {
+        verify: {
           feedback: [
             {
               id: "fb-mapped",
@@ -824,7 +824,7 @@ describe("VerifyPhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        validate: validateReducer,
+        verify: verifyReducer,
       },
       preloadedState: {
         project: {
@@ -840,7 +840,7 @@ describe("VerifyPhase feedback input", () => {
           loading: false,
           error: null,
         },
-        validate: {
+        verify: {
           feedback: [
             {
               id: "fb-with-img",
