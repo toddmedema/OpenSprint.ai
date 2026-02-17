@@ -1,0 +1,15 @@
+{
+  "id": "01dd0661-384a-4a69-a5c9-a525c731caea",
+  "text": "ON narrow screens, in build view, users should be able to horizontally scroll across the kanban board",
+  "category": "ux",
+  "mappedPlanId": "build-phase-kanban-and-task-listing",
+  "createdTaskIds": [
+    "opensprint.dev-cxx.11"
+  ],
+  "status": "mapped",
+  "createdAt": "2026-02-17T07:27:36.734Z",
+  "taskTitles": [
+    "Enable horizontal scroll on kanban board for narrow screens"
+  ],
+  "feedbackSourceBeadId": "opensprint.dev-2rg"
+}
