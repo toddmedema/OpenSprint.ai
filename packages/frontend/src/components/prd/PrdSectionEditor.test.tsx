@@ -137,6 +137,47 @@ describe("PrdSectionEditor", () => {
     });
   });
 
+  it("does not overwrite when pending unsaved changes exist (WebSocket race)", async () => {
+    vi.useFakeTimers();
+    const onSave = vi.fn();
+    const { rerender, container } = render(
+      <PrdSectionEditor
+        sectionKey="overview"
+        markdown="Original"
+        onSave={onSave}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Original")).toBeInTheDocument();
+    });
+
+    const editor = container.querySelector("[contenteditable]") as HTMLElement;
+    (editor as HTMLElement).innerHTML = "<p>User editing in progress</p>";
+    (editor as HTMLElement).dispatchEvent(new Event("input", { bubbles: true }));
+
+    expect(onSave).not.toHaveBeenCalled();
+
+    rerender(
+      <PrdSectionEditor
+        sectionKey="overview"
+        markdown="Stale content from WebSocket"
+        onSave={onSave}
+      />,
+    );
+
+    await Promise.resolve();
+
+    expect(editor.textContent).toContain("User editing in progress");
+    expect(editor.textContent).not.toContain("Stale content from WebSocket");
+
+    vi.advanceTimersByTime(850);
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith("overview", "User editing in progress");
+    });
+    vi.useRealTimers();
+  });
+
   it("flushes pending save on unmount so edits persist when navigating away", async () => {
     vi.useFakeTimers();
     const onSave = vi.fn();

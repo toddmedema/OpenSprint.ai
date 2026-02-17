@@ -76,16 +76,19 @@ export function PrdSectionEditor({
 
   // Sync markdown from props (initial + external updates e.g. after API save).
   // Skip sync when this section has focus — avoids WebSocket prd.updated overwriting in-progress edits.
+  // Skip sync when we have pending unsaved changes — avoids overwriting user edits with stale content.
   useEffect(() => {
     const el = elRef.current;
     if (!el) return;
     if (markdown === lastMarkdownRef.current) return;
     if (el.contains(document.activeElement)) return;
+    if (pendingHtmlRef.current != null) return;
     lastMarkdownRef.current = markdown;
     const content = markdown.trim() ? markdown : "_No content yet_";
     markdownToHtml(content).then((html) => {
       if (!elRef.current) return;
       if (elRef.current.contains(document.activeElement)) return;
+      if (pendingHtmlRef.current != null) return;
       isInternalUpdateRef.current = true;
       elRef.current.innerHTML = html || "<p><br></p>";
       isInternalUpdateRef.current = false;
