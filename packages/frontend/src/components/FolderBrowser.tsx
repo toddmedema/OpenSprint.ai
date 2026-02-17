@@ -63,7 +63,7 @@ export function FolderBrowser({ initialPath, onSelect, onCancel }: FolderBrowser
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">Select Folder</h2>
-          <CloseButton onClick={onCancel} />
+          <CloseButton onClick={onCancel} ariaLabel="Close folder browser" />
         </div>
 
         {/* Path bar */}

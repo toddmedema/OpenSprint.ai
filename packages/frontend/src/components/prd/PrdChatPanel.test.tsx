@@ -19,11 +19,11 @@ describe("PrdChatPanel", () => {
   it("renders Close button (X icon) in header when open", () => {
     render(<PrdChatPanel {...defaultProps} />);
 
-    const closeBtn = screen.getByRole("button", { name: "Close" });
+    const closeBtn = screen.getByRole("button", { name: "Close chat panel" });
     expect(closeBtn).toBeInTheDocument();
   });
 
-  it("calls onOpenChange and onClearSelectionContext when Close is clicked", async () => {
+  it("calls onOpenChange and onClearSelectionContext when close button is clicked", async () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();
     const onClearSelectionContext = vi.fn();
@@ -35,7 +35,7 @@ describe("PrdChatPanel", () => {
       />
     );
 
-    await user.click(screen.getByRole("button", { name: "Close" }));
+    await user.click(screen.getByRole("button", { name: "Close chat panel" }));
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(onClearSelectionContext).toHaveBeenCalled();

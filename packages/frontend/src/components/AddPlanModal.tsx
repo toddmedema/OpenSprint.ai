@@ -125,7 +125,7 @@ export function AddPlanModal({ projectId, onClose, onCreated }: AddPlanModalProp
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">Add Feature</h2>
-          <CloseButton onClick={onClose} />
+          <CloseButton onClick={onClose} ariaLabel="Close add plan modal" />
         </div>
 
         {/* Content */}

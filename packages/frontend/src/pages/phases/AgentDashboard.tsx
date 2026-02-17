@@ -183,6 +183,7 @@ export function AgentDashboard({ projectId }: AgentDashboardProps) {
                 </div>
                 <CloseButton
                   onClick={() => setSelectedAgent(null)}
+                  ariaLabel="Close agent output"
                   className="p-1 rounded-md text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors"
                 />
               </div>

@@ -224,7 +224,7 @@ describe("BuildPhase Redux integration", () => {
       expect(mockGet).toHaveBeenCalledWith("proj-1", "epic-1.1");
     });
 
-    const closeBtn = screen.getByRole("button", { name: "Close" });
+    const closeBtn = screen.getByRole("button", { name: "Close task detail" });
     await user.click(closeBtn);
 
     expect(store.getState().build.selectedTaskId).toBeNull();

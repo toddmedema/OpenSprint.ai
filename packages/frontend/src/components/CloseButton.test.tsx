@@ -33,4 +33,10 @@ describe("CloseButton", () => {
     const btn = screen.getByRole("button", { name: "Close" });
     expect(btn).toHaveClass("custom-class");
   });
+
+  it("renders with context-specific aria-label for modals and sidebars", () => {
+    render(<CloseButton onClick={() => {}} ariaLabel="Close settings modal" />);
+
+    expect(screen.getByRole("button", { name: "Close settings modal" })).toBeInTheDocument();
+  });
 });

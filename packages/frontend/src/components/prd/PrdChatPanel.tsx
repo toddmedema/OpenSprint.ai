@@ -86,6 +86,7 @@ export function PrdChatPanel({
             onOpenChange(false);
             onClearSelectionContext();
           }}
+          ariaLabel="Close chat panel"
           className="p-1.5 rounded-full hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition-colors"
           size="w-4 h-4"
         />

@@ -288,7 +288,7 @@ export function BuildPhase({ projectId, onNavigateToPlan }: BuildPhaseProps) {
                   {markCompleteLoading ? "Marking…" : "Mark complete"}
                 </button>
               )}
-              <CloseButton onClick={() => dispatch(setSelectedTaskId(null))} />
+              <CloseButton onClick={() => dispatch(setSelectedTaskId(null))} ariaLabel="Close task detail" />
             </div>
           </div>
 

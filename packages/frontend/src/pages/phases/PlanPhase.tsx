@@ -276,7 +276,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
                   <path d="M10 12h4" />
                 </svg>
               </button>
-              <CloseButton onClick={handleClosePlan} />
+              <CloseButton onClick={handleClosePlan} ariaLabel="Close plan panel" />
             </div>
           </div>
 
