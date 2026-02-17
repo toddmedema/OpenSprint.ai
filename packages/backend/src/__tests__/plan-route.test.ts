@@ -187,6 +187,31 @@ describe("Plan REST endpoints - task decomposition", () => {
     expect(new Date(getRes.body.data.lastModified).getTime()).not.toBeNaN();
   });
 
+  it("PUT /projects/:id/plans/:planId updates plan title and markdown content", async () => {
+    const app = createApp();
+    const planBody = {
+      title: "Original Feature",
+      content: "# Original Feature\n\n## Overview\n\nOriginal content.",
+      complexity: "low",
+    };
+
+    const createRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans`).send(planBody);
+    expect(createRes.status).toBe(201);
+    const planId = createRes.body.data.metadata.planId;
+
+    const updatedContent = "# Updated Feature Title\n\n## Overview\n\nUpdated markdown body with new content.";
+    const putRes = await request(app)
+      .put(`${API_PREFIX}/projects/${projectId}/plans/${planId}`)
+      .send({ content: updatedContent });
+
+    expect(putRes.status).toBe(200);
+    expect(putRes.body.data.content).toBe(updatedContent);
+
+    const getRes = await request(app).get(`${API_PREFIX}/projects/${projectId}/plans/${planId}`);
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.data.content).toBe(updatedContent);
+  });
+
   it("GET /projects/:id/plans list returns lastModified for each plan", async () => {
     const app = createApp();
     const planBody = {
