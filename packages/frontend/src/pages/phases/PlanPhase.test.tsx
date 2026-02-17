@@ -310,6 +310,21 @@ describe("PlanPhase inline editing", () => {
     expect(container.querySelector('[data-prd-section="plan-body"]')).toBeInTheDocument();
   });
 
+  it("does not render duplicate plan title in sidebar header", () => {
+    const store = createStore();
+    const { container } = render(
+      <Provider store={store}>
+        <PlanPhase projectId="proj-1" />
+      </Provider>,
+    );
+    // Plan title should appear only once (in the editable input), not in a sidebar header h3
+    const headings = container.querySelectorAll("h3");
+    const headingWithPlanTitle = Array.from(headings).filter(
+      (h) => h.textContent?.includes("Archive Test") || h.textContent?.includes("archive test feature"),
+    );
+    expect(headingWithPlanTitle).toHaveLength(0);
+  });
+
   it("dispatches updatePlan when plan title is edited and blurred", async () => {
     const store = createStore();
     const user = userEvent.setup();

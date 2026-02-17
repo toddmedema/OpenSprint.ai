@@ -321,13 +321,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
       {/* Sidebar: Plan Detail + Chat */}
       {selectedPlan && (
         <ResizableSidebar storageKey="plan" defaultWidth={420}>
-          <div className="flex items-center justify-between p-4 border-b border-gray-200 shrink-0">
-            <h3 className="font-semibold text-gray-900 truncate flex-1 mr-2" title={selectedPlan.metadata.planId}>
-              {selectedPlan.content?.trim()
-                ? (selectedPlan.content.split("\n")[0]?.replace(/^#+\s*/, "").trim() ||
-                    selectedPlan.metadata.planId.replace(/-/g, " "))
-                : selectedPlan.metadata.planId.replace(/-/g, " ")}
-            </h3>
+          <div className="flex items-center justify-end p-4 border-b border-gray-200 shrink-0">
             <div className="flex items-center gap-2">
               <button
                 type="button"
