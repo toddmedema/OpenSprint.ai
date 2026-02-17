@@ -247,9 +247,12 @@ export function VerifyPhase({ projectId, onNavigateToBuildTask }: VerifyPhasePro
           <div className="space-y-3">
             {displayedFeedback.map((item: FeedbackItem) => (
               <div key={item.id} className="card p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <p className="text-sm text-gray-900 flex-1">{item.text}</p>
-                  <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-gray-500 mb-0.5">Feedback</p>
+                    <p className="text-sm text-gray-900">{item.text}</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <span
                       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
                         categoryColors[item.category] ?? "bg-gray-100 text-gray-600"

@@ -264,9 +264,61 @@ describe("VerifyPhase feedback input", () => {
     );
 
     expect(screen.getByText(/Feedback History \(1\)/)).toBeInTheDocument();
-    // Original feedback text is always shown
+    // Feedback label and original feedback text are shown on each card
+    expect(screen.getByText("Feedback")).toBeInTheDocument();
     expect(screen.getByText("Login button is broken")).toBeInTheDocument();
     expect(screen.getByText("plan-1")).toBeInTheDocument();
+  });
+
+  it("shows Feedback label and feedback text on each feedback card", () => {
+    const storeWithFeedback = configureStore({
+      reducer: {
+        project: projectReducer,
+        validate: validateReducer,
+      },
+      preloadedState: {
+        project: {
+          data: {
+            id: "proj-1",
+            name: "Test Project",
+            description: "",
+            repoPath: "/tmp/test",
+            currentPhase: "verify",
+            createdAt: "",
+            updatedAt: "",
+          },
+          loading: false,
+          error: null,
+        },
+        validate: {
+          feedback: [
+            {
+              id: "fb-1",
+              text: "The login form doesn't show an error when password is wrong",
+              category: "bug",
+              mappedPlanId: "auth-plan",
+              createdTaskIds: [],
+              status: "mapped",
+              createdAt: new Date().toISOString(),
+            },
+          ],
+          loading: false,
+          submitting: false,
+          error: null,
+        },
+      },
+    });
+
+    render(
+      <Provider store={storeWithFeedback}>
+        <VerifyPhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    expect(screen.getByText("Feedback")).toBeInTheDocument();
+    expect(
+      screen.getByText("The login form doesn't show an error when password is wrong"),
+    ).toBeInTheDocument();
   });
 
   it("displays loading state from Redux when loading feedback", () => {
