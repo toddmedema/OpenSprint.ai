@@ -15,4 +15,6 @@ export interface FeedbackItem {
   createdAt: string;
   /** Suggested task titles from AI categorization */
   taskTitles?: string[];
+  /** Bead ID of the feedback source (chore) used for discovered-from provenance */
+  feedbackSourceBeadId?: string;
 }

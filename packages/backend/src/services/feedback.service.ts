@@ -244,6 +244,23 @@ export class FeedbackService {
     });
   }
 
+  /**
+   * Map feedback category to beads issue type (PRD §14).
+   * bug → bug, feature → feature, ux → task.
+   */
+  private categoryToBeadType(category: FeedbackCategory): 'bug' | 'feature' | 'task' {
+    switch (category) {
+      case 'bug':
+        return 'bug';
+      case 'feature':
+        return 'feature';
+      case 'ux':
+      case 'scope':
+      default:
+        return 'task';
+    }
+  }
+
   /** Create beads tasks from feedback task titles under the mapped plan's epic */
   private async createBeadTasksFromFeedback(
     projectId: string,
@@ -268,15 +285,45 @@ export class FeedbackService {
       }
     }
 
+    // Create feedback source bead for discovered-from provenance (PRD §14, §15.3)
+    let feedbackSourceBeadId: string | undefined;
+    try {
+      const sourceTitle = `Feedback: ${item.text.slice(0, 60)}${item.text.length > 60 ? '…' : ''}`;
+      const sourceBead = await this.beadsService.create(repoPath, sourceTitle, {
+        type: 'chore',
+        priority: 4,
+        description: `Feedback ID: ${item.id}`,
+      });
+      feedbackSourceBeadId = sourceBead.id;
+      item.feedbackSourceBeadId = feedbackSourceBeadId;
+    } catch (err) {
+      console.error(`[feedback] Failed to create feedback source bead for ${item.id}:`, err);
+    }
+
+    const beadType = this.categoryToBeadType(item.category);
     const createdIds: string[] = [];
     for (const title of taskTitles) {
       try {
         const issue = await this.beadsService.create(repoPath, title, {
-          type: 'task',
+          type: beadType,
           priority: item.category === 'bug' ? 0 : 2,
           parentId: parentEpicId,
         });
         createdIds.push(issue.id);
+
+        // Link task to feedback source via discovered-from (PRD §14)
+        if (feedbackSourceBeadId) {
+          try {
+            await this.beadsService.addDependency(
+              repoPath,
+              issue.id,
+              feedbackSourceBeadId,
+              'discovered-from',
+            );
+          } catch (depErr) {
+            console.error(`[feedback] Failed to add discovered-from for ${issue.id}:`, depErr);
+          }
+        }
       } catch (err) {
         console.error(`[feedback] Failed to create beads task "${title}":`, err);
       }

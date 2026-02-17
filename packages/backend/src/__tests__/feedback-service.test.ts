@@ -21,11 +21,19 @@ vi.mock("../websocket/index.js", () => ({
   broadcastToProject: vi.fn(),
 }));
 
-const mockBeadsCreate = vi.fn().mockResolvedValue({ id: "mock-task-1", title: "Mock task", status: "open" });
+let beadsCreateCallCount = 0;
+const mockBeadsCreate = vi.fn().mockImplementation(() => {
+  beadsCreateCallCount += 1;
+  // First call: feedback source bead; subsequent: task beads
+  const id = beadsCreateCallCount === 1 ? "mock-feedback-source-1" : `mock-task-${beadsCreateCallCount - 1}`;
+  return Promise.resolve({ id, title: "Mock", status: "open" });
+});
+const mockBeadsAddDependency = vi.fn().mockResolvedValue(undefined);
 vi.mock("../services/beads.service.js", () => ({
   BeadsService: vi.fn().mockImplementation(() => ({
     init: vi.fn().mockResolvedValue(undefined),
     create: (...args: unknown[]) => mockBeadsCreate(...args),
+    addDependency: (...args: unknown[]) => mockBeadsAddDependency(...args),
     listAll: vi.fn().mockResolvedValue([]),
     list: vi.fn().mockResolvedValue([]),
     ready: vi.fn().mockResolvedValue([]),
@@ -45,6 +53,7 @@ describe("FeedbackService", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    beadsCreateCallCount = 0;
     feedbackService = new FeedbackService();
     projectService = new ProjectService();
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-feedback-test-"));
@@ -150,8 +159,9 @@ describe("FeedbackService", () => {
       "Add dark mode toggle",
       "Implement theme persistence",
     ]);
-    // BeadsService.create is mocked — tasks should be created
-    expect(updated.createdTaskIds).toEqual(["mock-task-1", "mock-task-1"]);
+    // BeadsService.create is mocked — feedback source bead + 2 task beads
+    expect(updated.createdTaskIds).toEqual(["mock-task-1", "mock-task-2"]);
+    expect(updated.feedbackSourceBeadId).toBe("mock-feedback-source-1");
 
     expect(mockInvoke).toHaveBeenCalledTimes(1);
     const prompt = mockInvoke.mock.calls[0][0]?.prompt ?? "";
@@ -208,5 +218,89 @@ describe("FeedbackService", () => {
     expect(updated.status).toBe("mapped");
     expect(updated.category).toBe("bug");
     expect(updated.taskTitles).toEqual(["Random feedback"]);
+  });
+
+  it("should create bug-type bead when category is bug", async () => {
+    mockInvoke.mockResolvedValue({
+      content: JSON.stringify({
+        category: "bug",
+        mappedPlanId: null,
+        task_titles: ["Fix login button"],
+      }),
+    });
+
+    await feedbackService.submitFeedback(projectId, { text: "Login broken" });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const createCalls = mockBeadsCreate.mock.calls;
+    const bugCreateCall = createCalls.find((c) => c[2]?.type === "bug");
+    expect(bugCreateCall).toBeDefined();
+    expect(bugCreateCall![2]).toMatchObject({ type: "bug" });
+  });
+
+  it("should create feature-type bead when category is feature", async () => {
+    mockInvoke.mockResolvedValue({
+      content: JSON.stringify({
+        category: "feature",
+        mappedPlanId: null,
+        task_titles: ["Add dark mode"],
+      }),
+    });
+
+    await feedbackService.submitFeedback(projectId, { text: "Need dark mode" });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const createCalls = mockBeadsCreate.mock.calls;
+    // First call: feedback source (chore); second: task
+    const taskCreateCall = createCalls.find((c) => c[2]?.type === "feature");
+    expect(taskCreateCall).toBeDefined();
+    expect(taskCreateCall![2]).toMatchObject({ type: "feature" });
+  });
+
+  it("should add discovered-from dependency from each task to feedback source bead", async () => {
+    mockInvoke.mockResolvedValue({
+      content: JSON.stringify({
+        category: "feature",
+        mappedPlanId: null,
+        task_titles: ["Task A", "Task B"],
+      }),
+    });
+
+    await feedbackService.submitFeedback(projectId, { text: "Add feature" });
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(mockBeadsAddDependency).toHaveBeenCalledTimes(2);
+    expect(mockBeadsAddDependency).toHaveBeenNthCalledWith(
+      1,
+      expect.any(String),
+      "mock-task-1",
+      "mock-feedback-source-1",
+      "discovered-from",
+    );
+    expect(mockBeadsAddDependency).toHaveBeenNthCalledWith(
+      2,
+      expect.any(String),
+      "mock-task-2",
+      "mock-feedback-source-1",
+      "discovered-from",
+    );
+  });
+
+  it("should create feedback source bead (chore) for provenance", async () => {
+    mockInvoke.mockResolvedValue({
+      content: JSON.stringify({
+        category: "ux",
+        mappedPlanId: null,
+        task_titles: ["Improve button layout"],
+      }),
+    });
+
+    await feedbackService.submitFeedback(projectId, { text: "Buttons are cramped" });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const createCalls = mockBeadsCreate.mock.calls;
+    const feedbackSourceCall = createCalls[0];
+    expect(feedbackSourceCall[1]).toMatch(/^Feedback: /);
+    expect(feedbackSourceCall[2]).toMatchObject({ type: "chore", priority: 4 });
   });
 });
