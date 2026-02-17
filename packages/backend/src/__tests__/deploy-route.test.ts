@@ -28,7 +28,12 @@ describe("Deploy API", () => {
       repoPath,
       planningAgent: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
       codingAgent: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
-      deployment: { mode: "custom", customCommand: "echo deployed" },
+      deployment: {
+        mode: "custom",
+        customCommand: "echo deployed",
+        rollbackCommand: "echo rolled-back",
+        target: "staging",
+      },
       hilConfig: DEFAULT_HIL_CONFIG,
     });
     projectId = project.id;
@@ -116,6 +121,67 @@ describe("Deploy API", () => {
         mode: "custom",
         customCommand: "npm run deploy",
       });
+    });
+  });
+
+  describe("POST /projects/:projectId/deploy - record fields", () => {
+    it("should create deploy record with commitHash, target, mode from settings", async () => {
+      await request(app).post(`${API_PREFIX}/projects/${projectId}/deploy`);
+
+      // Wait for deploy to complete (echo is fast)
+      await new Promise((r) => setTimeout(r, 500));
+
+      const historyRes = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/deploy/history?limit=1`,
+      );
+      expect(historyRes.status).toBe(200);
+      expect(historyRes.body.data.length).toBeGreaterThan(0);
+
+      const record = historyRes.body.data[0];
+      expect(record.target).toBe("staging");
+      expect(record.mode).toBe("custom");
+      // commitHash may be a SHA or null if git fails
+      expect(typeof record.commitHash === "string" || record.commitHash === null).toBe(true);
+    });
+  });
+
+  describe("POST /projects/:projectId/deploy/:deployId/rollback", () => {
+    it("should mark original deploy as rolled_back on success", async () => {
+      await request(app).post(`${API_PREFIX}/projects/${projectId}/deploy`);
+      await new Promise((r) => setTimeout(r, 500));
+
+      await request(app).post(`${API_PREFIX}/projects/${projectId}/deploy`);
+      await new Promise((r) => setTimeout(r, 500));
+
+      const historyBefore = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/deploy/history?limit=5`,
+      );
+      const deployToRestore = historyBefore.body.data[1];
+      const currentDeploy = historyBefore.body.data[0];
+
+      const rollbackRes = await request(app).post(
+        `${API_PREFIX}/projects/${projectId}/deploy/${deployToRestore.id}/rollback`,
+      );
+      expect(rollbackRes.status).toBe(202);
+      const rollbackDeployId = rollbackRes.body.data.deployId;
+
+      await new Promise((r) => setTimeout(r, 500));
+
+      const historyRes = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/deploy/history?limit=5`,
+      );
+      const records = historyRes.body.data;
+
+      const rollbackRecord = records.find((r: { id: string }) => r.id === rollbackDeployId);
+      expect(rollbackRecord).toBeDefined();
+      expect(rollbackRecord.status).toBe("success");
+
+      const rolledBackRecord = records.find(
+        (r: { id: string; rolledBackBy?: string }) => r.id === currentDeploy.id,
+      );
+      expect(rolledBackRecord).toBeDefined();
+      expect(rolledBackRecord.status).toBe("rolled_back");
+      expect(rolledBackRecord.rolledBackBy).toBe(rollbackDeployId);
     });
   });
 });

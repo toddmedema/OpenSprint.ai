@@ -1,5 +1,5 @@
 import { Router, Request } from "express";
-import { spawn } from "child_process";
+import { spawn, execSync } from "child_process";
 import type { ApiResponse, DeploymentRecord, DeploymentConfig, ProjectSettings } from "@opensprint/shared";
 import { deploymentService } from "../services/deployment-service.js";
 import { deployStorageService } from "../services/deploy-storage.service.js";
@@ -20,6 +20,16 @@ export interface DeployStatusResponse {
   currentDeploy: DeploymentRecord | null;
 }
 
+/** Get git commit hash at HEAD in repo (git rev-parse HEAD) */
+function getCommitHash(repoPath: string): string | null {
+  try {
+    const out = execSync("git rev-parse HEAD", { cwd: repoPath, encoding: "utf-8" });
+    return out.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 // POST /projects/:projectId/deploy — Trigger deployment
 deployRouter.post("/", async (req: Request<ProjectParams>, res, next) => {
   try {
@@ -30,7 +40,15 @@ deployRouter.post("/", async (req: Request<ProjectParams>, res, next) => {
     const latest = await deployStorageService.getLatestDeploy(projectId);
     const previousDeployId = latest?.id ?? null;
 
-    const record = await deployStorageService.createRecord(projectId, previousDeployId);
+    const commitHash = getCommitHash(project.repoPath);
+    const target = settings.deployment.target ?? "production";
+    const mode = settings.deployment.mode ?? "custom";
+
+    const record = await deployStorageService.createRecord(projectId, previousDeployId, {
+      commitHash,
+      target,
+      mode,
+    });
 
     broadcastToProject(projectId, { type: "deploy.started", deployId: record.id });
 
@@ -122,15 +140,31 @@ deployRouter.post("/:deployId/rollback", async (req: Request<DeployIdParams>, re
     const settings = await projectService.getSettings(projectId);
 
     if (settings.deployment.mode === "custom" && settings.deployment.rollbackCommand) {
-      const rollbackRecord = await deployStorageService.createRecord(projectId, deployId);
+      const latest = await deployStorageService.getLatestDeploy(projectId);
+      const rolledBackDeployId =
+        latest && latest.id !== deployId ? latest.id : null;
+
+      const commitHash = getCommitHash(project.repoPath);
+      const target = settings.deployment.target ?? "production";
+      const mode = settings.deployment.mode ?? "custom";
+
+      const rollbackRecord = await deployStorageService.createRecord(projectId, deployId, {
+        commitHash,
+        target,
+        mode,
+      });
       broadcastToProject(projectId, { type: "deploy.started", deployId: rollbackRecord.id });
       await deployStorageService.updateRecord(projectId, rollbackRecord.id, { status: "running" });
 
-      runRollbackAsync(projectId, rollbackRecord.id, project.repoPath, settings.deployment.rollbackCommand!).catch(
-        (err) => {
-          console.error(`[deploy] Rollback ${rollbackRecord.id} failed:`, err);
-        },
-      );
+      runRollbackAsync(
+        projectId,
+        rollbackRecord.id,
+        project.repoPath,
+        settings.deployment.rollbackCommand!,
+        rolledBackDeployId,
+      ).catch((err) => {
+        console.error(`[deploy] Rollback ${rollbackRecord.id} failed:`, err);
+      });
 
       const body: ApiResponse<{ deployId: string }> = { data: { deployId: rollbackRecord.id } };
       res.status(202).json(body);
@@ -250,6 +284,7 @@ async function runRollbackAsync(
   deployId: string,
   repoPath: string,
   rollbackCommand: string,
+  rolledBackDeployId: string | null,
 ): Promise<void> {
   const emit = (chunk: string) => {
     deployStorageService.appendLog(projectId, deployId, chunk);
@@ -262,6 +297,12 @@ async function runRollbackAsync(
       status: "success",
       completedAt: new Date().toISOString(),
     });
+    if (rolledBackDeployId) {
+      await deployStorageService.updateRecord(projectId, rolledBackDeployId, {
+        status: "rolled_back",
+        rolledBackBy: deployId,
+      });
+    }
     broadcastToProject(projectId, { type: "deploy.completed", deployId, success: true });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

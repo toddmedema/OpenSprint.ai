@@ -22,7 +22,11 @@ export class DeployStorageService {
     await fs.mkdir(dir, { recursive: true });
   }
 
-  async createRecord(projectId: string, previousDeployId?: string | null): Promise<DeploymentRecord> {
+  async createRecord(
+    projectId: string,
+    previousDeployId?: string | null,
+    options?: { commitHash?: string | null; target?: 'staging' | 'production'; mode?: 'expo' | 'custom' },
+  ): Promise<DeploymentRecord> {
     const project = await projectService.getProject(projectId);
     await this.ensureDeploymentsDir(project.repoPath);
 
@@ -34,6 +38,9 @@ export class DeployStorageService {
       completedAt: null,
       log: [],
       previousDeployId: previousDeployId ?? null,
+      commitHash: options?.commitHash ?? null,
+      target: options?.target ?? "production",
+      mode: options?.mode ?? "custom",
     };
 
     const filePath = this.getRecordPath(project.repoPath, record.id);
@@ -55,7 +62,9 @@ export class DeployStorageService {
   async updateRecord(
     projectId: string,
     deployId: string,
-    updates: Partial<Pick<DeploymentRecord, "status" | "completedAt" | "url" | "error" | "log">>,
+    updates: Partial<
+      Pick<DeploymentRecord, "status" | "completedAt" | "url" | "error" | "log" | "rolledBackBy">
+    >,
   ): Promise<DeploymentRecord | null> {
     const existing = await this.getRecord(projectId, deployId);
     if (!existing) return null;

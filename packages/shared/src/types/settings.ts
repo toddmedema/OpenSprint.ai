@@ -17,9 +17,14 @@ export type CodingAgentByComplexity = Partial<Record<PlanComplexity, AgentConfig
 /** Deployment mode */
 export type DeploymentMode = 'expo' | 'custom';
 
+/** Deployment target (staging/production) */
+export type DeploymentTarget = 'staging' | 'production';
+
 /** Deployment configuration */
 export interface DeploymentConfig {
   mode: DeploymentMode;
+  /** Target environment (default: production) */
+  target?: DeploymentTarget;
   expoConfig?: {
     projectId?: string;
     /** OTA update channel (default: preview) */

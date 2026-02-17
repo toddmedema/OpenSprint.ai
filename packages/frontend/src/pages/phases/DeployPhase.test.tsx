@@ -85,4 +85,26 @@ describe("DeployPhase", () => {
     );
     expect(screen.getByTestId("deploy-log")).toBeInTheDocument();
   });
+
+  it("renders rolled_back status badge", () => {
+    const store = createStore({
+      history: [
+        {
+          id: "deploy-1",
+          projectId: "proj-1",
+          status: "rolled_back",
+          startedAt: "2025-01-01T12:00:00.000Z",
+          completedAt: "2025-01-01T12:01:00.000Z",
+          log: [],
+          rolledBackBy: "deploy-2",
+        },
+      ],
+    });
+    render(
+      <Provider store={store}>
+        <DeployPhase projectId="proj-1" />
+      </Provider>,
+    );
+    expect(screen.getByText("rolled-back")).toBeInTheDocument();
+  });
 });
