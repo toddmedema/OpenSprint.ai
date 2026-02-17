@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, type PayloadAction } from "@reduxjs/toolkit";
-import type { AgentSession, Task, KanbanColumn } from "@opensprint/shared";
+import type { AgentSession, Task, KanbanColumn, Plan, OrchestratorStatus } from "@opensprint/shared";
 import { api } from "../../api/client";
 import { setPlansAndGraph } from "./planSlice";
 
@@ -15,6 +15,8 @@ interface TaskCard {
 
 export interface BuildState {
   tasks: TaskCard[];
+  plans: Plan[];
+  orchestratorRunning: boolean;
   awaitingApproval: boolean;
   selectedTaskId: string | null;
   taskDetail: Task | null;
@@ -27,12 +29,17 @@ export interface BuildState {
   archivedSessions: AgentSession[];
   archivedLoading: boolean;
   markCompleteLoading: boolean;
+  statusLoading: boolean;
+  startBuildLoading: boolean;
+  pauseBuildLoading: boolean;
   loading: boolean;
   error: string | null;
 }
 
 const initialState: BuildState = {
   tasks: [],
+  plans: [],
+  orchestratorRunning: false,
   awaitingApproval: false,
   selectedTaskId: null,
   taskDetail: null,
@@ -42,6 +49,9 @@ const initialState: BuildState = {
   archivedSessions: [],
   archivedLoading: false,
   markCompleteLoading: false,
+  statusLoading: false,
+  startBuildLoading: false,
+  pauseBuildLoading: false,
   loading: false,
   error: null,
 };
@@ -49,6 +59,22 @@ const initialState: BuildState = {
 export const fetchTasks = createAsyncThunk("build/fetchTasks", async (projectId: string) => {
   return (await api.tasks.list(projectId)) as TaskCard[];
 });
+
+export const fetchBuildPlans = createAsyncThunk(
+  "build/fetchBuildPlans",
+  async (projectId: string, { dispatch }) => {
+    const graph = await api.plans.list(projectId);
+    dispatch(setPlansAndGraph({ plans: graph.plans, dependencyGraph: graph }));
+    return graph.plans as Plan[];
+  },
+);
+
+export const fetchBuildStatus = createAsyncThunk(
+  "build/fetchBuildStatus",
+  async (projectId: string) => {
+    return (await api.build.status(projectId)) as OrchestratorStatus;
+  },
+);
 
 export const fetchTaskDetail = createAsyncThunk(
   "build/fetchTaskDetail",
@@ -61,6 +87,20 @@ export const fetchArchivedSessions = createAsyncThunk(
   "build/fetchArchivedSessions",
   async ({ projectId, taskId }: { projectId: string; taskId: string }) => {
     return ((await api.tasks.sessions(projectId, taskId)) as AgentSession[]) ?? [];
+  },
+);
+
+export const startBuild = createAsyncThunk(
+  "build/startBuild",
+  async (projectId: string) => {
+    return (await api.build.nudge(projectId)) as OrchestratorStatus;
+  },
+);
+
+export const pauseBuild = createAsyncThunk(
+  "build/pauseBuild",
+  async (projectId: string) => {
+    return (await api.build.pause(projectId)) as OrchestratorStatus;
   },
 );
 
@@ -99,6 +139,9 @@ const buildSlice = createSlice({
         }
       }
     },
+    setOrchestratorRunning(state, action: PayloadAction<boolean>) {
+      state.orchestratorRunning = action.payload;
+    },
     setAwaitingApproval(state, action: PayloadAction<boolean>) {
       state.awaitingApproval = action.payload;
     },
@@ -115,6 +158,20 @@ const buildSlice = createSlice({
           status: action.payload.status,
           testResults: action.payload.testResults,
         };
+      }
+    },
+    taskUpdated(
+      state,
+      action: PayloadAction<{ taskId: string; status?: string; assignee?: string | null }>,
+    ) {
+      const task = state.tasks.find((t) => t.id === action.payload.taskId);
+      if (task) {
+        if (action.payload.status !== undefined) {
+          task.kanbanColumn = mapStatusToKanban(action.payload.status);
+        }
+        if (action.payload.assignee !== undefined) {
+          task.assignee = action.payload.assignee;
+        }
       }
     },
     setTasks(state, action: PayloadAction<TaskCard[]>) {
@@ -142,6 +199,33 @@ const buildSlice = createSlice({
         state.loading = false;
         state.error = action.error.message ?? "Failed to load tasks";
       })
+      // fetchBuildPlans
+      .addCase(fetchBuildPlans.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchBuildPlans.fulfilled, (state, action) => {
+        state.plans = action.payload;
+        state.loading = false;
+      })
+      .addCase(fetchBuildPlans.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message ?? "Failed to load plans";
+      })
+      // fetchBuildStatus
+      .addCase(fetchBuildStatus.pending, (state) => {
+        state.statusLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchBuildStatus.fulfilled, (state, action) => {
+        state.orchestratorRunning = action.payload.currentTask !== null || action.payload.queueDepth > 0;
+        state.awaitingApproval = action.payload.awaitingApproval ?? false;
+        state.statusLoading = false;
+      })
+      .addCase(fetchBuildStatus.rejected, (state, action) => {
+        state.statusLoading = false;
+        state.error = action.error.message ?? "Failed to load build status";
+      })
       // fetchTaskDetail
       .addCase(fetchTaskDetail.pending, (state) => {
         state.taskDetailLoading = true;
@@ -166,6 +250,32 @@ const buildSlice = createSlice({
         state.archivedSessions = [];
         state.archivedLoading = false;
       })
+      // startBuild
+      .addCase(startBuild.pending, (state) => {
+        state.startBuildLoading = true;
+        state.error = null;
+      })
+      .addCase(startBuild.fulfilled, (state, action) => {
+        state.orchestratorRunning = action.payload.currentTask !== null || action.payload.queueDepth > 0;
+        state.awaitingApproval = action.payload.awaitingApproval ?? false;
+        state.startBuildLoading = false;
+      })
+      .addCase(startBuild.rejected, (state, action) => {
+        state.startBuildLoading = false;
+        state.error = action.error.message ?? "Failed to start build";
+      })
+      // pauseBuild
+      .addCase(pauseBuild.pending, (state) => {
+        state.pauseBuildLoading = true;
+        state.error = null;
+      })
+      .addCase(pauseBuild.fulfilled, (state) => {
+        state.pauseBuildLoading = false;
+      })
+      .addCase(pauseBuild.rejected, (state, action) => {
+        state.pauseBuildLoading = false;
+        state.error = action.error.message ?? "Failed to pause build";
+      })
       // markTaskComplete
       .addCase(markTaskComplete.pending, (state) => {
         state.markCompleteLoading = true;
@@ -182,11 +292,26 @@ const buildSlice = createSlice({
   },
 });
 
+function mapStatusToKanban(status: string): KanbanColumn {
+  switch (status) {
+    case "open":
+      return "backlog";
+    case "in_progress":
+      return "in_progress";
+    case "closed":
+      return "done";
+    default:
+      return "backlog";
+  }
+}
+
 export const {
   setSelectedTaskId,
   appendAgentOutput,
+  setOrchestratorRunning,
   setAwaitingApproval,
   setCompletionState,
+  taskUpdated,
   setTasks,
   setBuildError,
   resetBuild,

@@ -49,3 +49,10 @@ buildRouter.get('/status', async (req: Request<ProjectParams>, res, next) => {
     next(err);
   }
 });
+
+// POST /projects/:projectId/build/pause — Pause orchestrator (placeholder; PRD §5.7 always-on)
+buildRouter.post('/pause', async (req: Request<ProjectParams>, res) => {
+  res.status(501).json({
+    error: { code: 'NOT_IMPLEMENTED', message: 'Pause not yet supported; orchestrator is always-on' },
+  });
+});

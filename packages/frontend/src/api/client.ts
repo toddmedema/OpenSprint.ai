@@ -156,6 +156,10 @@ export const api = {
       request<unknown>(`/projects/${projectId}/build/nudge`, {
         method: "POST",
       }),
+    pause: (projectId: string) =>
+      request<unknown>(`/projects/${projectId}/build/pause`, {
+        method: "POST",
+      }),
   },
 
   // ─── Feedback ───

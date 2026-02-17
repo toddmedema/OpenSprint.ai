@@ -321,7 +321,7 @@ describe("websocketMiddleware", () => {
       });
     });
 
-    it("dispatches setAwaitingApproval on build.status with awaitingApproval", async () => {
+    it("dispatches setOrchestratorRunning and setAwaitingApproval on build.status", async () => {
       const store = createStore();
       store.dispatch(wsConnect({ projectId: "proj-1" }));
       wsInstance!.simulateOpen();
@@ -335,7 +335,70 @@ describe("websocketMiddleware", () => {
       });
 
       await vi.waitFor(() => {
+        expect(store.getState().build.orchestratorRunning).toBe(true);
         expect(store.getState().build.awaitingApproval).toBe(true);
+      });
+    });
+
+    it("sets orchestratorRunning false when build.status has no currentTask and zero queueDepth", async () => {
+      const store = createStore();
+      store.dispatch(wsConnect({ projectId: "proj-1" }));
+      wsInstance!.simulateOpen();
+      await vi.waitFor(() => store.getState().websocket.connected);
+
+      wsInstance!.simulateMessage({
+        type: "build.status",
+        currentTask: null,
+        queueDepth: 0,
+      });
+
+      await vi.waitFor(() => {
+        expect(store.getState().build.orchestratorRunning).toBe(false);
+      });
+    });
+
+    it("dispatches taskUpdated on task.updated for optimistic update, then fetchTasks", async () => {
+      const store = createStore();
+      const { setTasks } = await import("../slices/buildSlice");
+      store.dispatch(
+        setTasks([
+          {
+            id: "task-1",
+            title: "Task 1",
+            kanbanColumn: "backlog",
+            priority: 1,
+            assignee: null,
+            epicId: "epic-1",
+          },
+        ]),
+      );
+      store.dispatch(wsConnect({ projectId: "proj-1" }));
+      wsInstance!.simulateOpen();
+      await vi.waitFor(() => store.getState().websocket.connected);
+
+      const { api } = await import("../../api/client");
+      vi.mocked(api.tasks.list).mockResolvedValue([
+        {
+          id: "task-1",
+          title: "Task 1",
+          kanbanColumn: "in_progress",
+          priority: 1,
+          assignee: "agent-1",
+          epicId: "epic-1",
+        },
+      ] as never);
+
+      wsInstance!.simulateMessage({
+        type: "task.updated",
+        taskId: "task-1",
+        status: "in_progress",
+        assignee: "agent-1",
+      });
+
+      await vi.waitFor(() => {
+        const task = store.getState().build.tasks.find((t) => t.id === "task-1");
+        expect(task?.kanbanColumn).toBe("in_progress");
+        expect(task?.assignee).toBe("agent-1");
       });
     });
 

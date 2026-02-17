@@ -7,8 +7,10 @@ import { fetchPlans, fetchSinglePlan } from "../slices/planSlice";
 import {
   fetchTasks,
   appendAgentOutput,
+  setOrchestratorRunning,
   setAwaitingApproval,
   setCompletionState,
+  taskUpdated,
 } from "../slices/buildSlice";
 import { fetchFeedback } from "../slices/verifySlice";
 
@@ -121,6 +123,7 @@ export const websocketMiddleware: Middleware = (storeApi) => {
         break;
 
       case "task.updated":
+        d(taskUpdated({ taskId: event.taskId, status: event.status, assignee: event.assignee }));
         d(fetchTasks(projectId));
         break;
 
@@ -143,11 +146,14 @@ export const websocketMiddleware: Middleware = (storeApi) => {
         d(appendAgentOutput({ taskId: event.taskId, chunk: event.chunk }));
         break;
 
-      case "build.status":
+      case "build.status": {
+        const running = event.currentTask !== null || event.queueDepth > 0;
+        d(setOrchestratorRunning(running));
         if ("awaitingApproval" in event) {
           d(setAwaitingApproval(Boolean(event.awaitingApproval)));
         }
         break;
+      }
 
       case "build.awaiting_approval":
         d(setAwaitingApproval(event.awaiting));
