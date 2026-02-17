@@ -12,9 +12,11 @@ import buildReducer from "../store/slices/buildSlice";
 import validateReducer from "../store/slices/validateSlice";
 
 // Mock websocket middleware to prevent connection attempts
+const mockWsConnect = vi.fn((payload: unknown) => ({ type: "ws/connect", payload }));
+const mockWsDisconnect = vi.fn(() => ({ type: "ws/disconnect" }));
 vi.mock("../store/middleware/websocketMiddleware", () => ({
-  wsConnect: (payload: unknown) => ({ type: "ws/connect", payload }),
-  wsDisconnect: () => ({ type: "ws/disconnect" }),
+  wsConnect: (payload: unknown) => mockWsConnect(payload),
+  wsDisconnect: () => mockWsDisconnect(),
   wsSend: (payload: unknown) => ({ type: "ws/send", payload }),
   websocketMiddleware: () => (next: (a: unknown) => unknown) => (action: unknown) => next(action),
 }));
@@ -26,7 +28,7 @@ vi.mock("../api/client", () => ({
     prd: { get: vi.fn().mockResolvedValue({}), getHistory: vi.fn().mockResolvedValue([]) },
     plans: { list: vi.fn().mockResolvedValue({ plans: [], edges: [] }) },
     tasks: { list: vi.fn().mockResolvedValue([]) },
-    build: { getPlans: vi.fn().mockResolvedValue([]), getStatus: vi.fn().mockResolvedValue({}) },
+    build: { status: vi.fn().mockResolvedValue({}), nudge: vi.fn(), pause: vi.fn() },
     feedback: { list: vi.fn().mockResolvedValue([]) },
     chat: { history: vi.fn().mockResolvedValue({ messages: [] }) },
   },
@@ -115,5 +117,52 @@ describe("ProjectView URL behavior", () => {
     await waitFor(() => {
       expect(screen.getByText("Test Project")).toBeInTheDocument();
     });
+  });
+});
+
+describe("ProjectView upfront loading and mount-all", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("dispatches wsConnect and all fetch thunks on mount", async () => {
+    renderWithRouter("/projects/proj-1/dream");
+
+    await waitFor(() => {
+      expect(mockWsConnect).toHaveBeenCalledWith({ projectId: "proj-1" });
+    });
+
+    const { api: mockedApi } = await import("../api/client");
+    expect(mockedApi.projects.get).toHaveBeenCalledWith("proj-1");
+    expect(mockedApi.prd.get).toHaveBeenCalledWith("proj-1");
+    expect(mockedApi.prd.getHistory).toHaveBeenCalledWith("proj-1");
+    expect(mockedApi.plans.list).toHaveBeenCalledWith("proj-1");
+    expect(mockedApi.tasks.list).toHaveBeenCalledWith("proj-1");
+    expect(mockedApi.build.status).toHaveBeenCalledWith("proj-1");
+    expect(mockedApi.feedback.list).toHaveBeenCalledWith("proj-1");
+    expect(mockedApi.chat.history).toHaveBeenCalledWith("proj-1", "dream");
+  });
+
+  it("dispatches wsDisconnect on unmount", async () => {
+    const { unmount } = renderWithRouter("/projects/proj-1/dream");
+    await waitFor(() => expect(mockWsConnect).toHaveBeenCalled());
+
+    unmount();
+
+    expect(mockWsDisconnect).toHaveBeenCalled();
+  });
+
+  it("renders all 4 phase components with CSS display toggle", async () => {
+    renderWithRouter("/projects/proj-1/build");
+
+    await waitFor(() => {
+      expect(screen.getByText("Test Project")).toBeInTheDocument();
+    });
+
+    // All 4 phase wrappers should be mounted; build is visible (contents), others hidden (none)
+    expect(screen.getByTestId("phase-dream")).toBeInTheDocument();
+    expect(screen.getByTestId("phase-plan")).toBeInTheDocument();
+    expect(screen.getByTestId("phase-build")).toBeInTheDocument();
+    expect(screen.getByTestId("phase-verify")).toBeInTheDocument();
   });
 });

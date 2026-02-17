@@ -7,7 +7,7 @@ import { fetchProject, resetProject } from "../store/slices/projectSlice";
 import { resetWebsocket, clearHilRequest, clearHilNotification } from "../store/slices/websocketSlice";
 import { fetchDreamChat, fetchPrd, fetchPrdHistory, resetDream } from "../store/slices/dreamSlice";
 import { fetchPlans, resetPlan } from "../store/slices/planSlice";
-import { fetchTasks, resetBuild, setSelectedTaskId } from "../store/slices/buildSlice";
+import { fetchTasks, fetchBuildStatus, resetBuild, setSelectedTaskId } from "../store/slices/buildSlice";
 import { fetchFeedback, resetValidate } from "../store/slices/validateSlice";
 import { wsConnect, wsDisconnect, wsSend } from "../store/middleware/websocketMiddleware";
 import { Layout } from "../components/layout/Layout";
@@ -49,6 +49,7 @@ export function ProjectView() {
     dispatch(fetchPrdHistory(projectId));
     dispatch(fetchPlans(projectId));
     dispatch(fetchTasks(projectId));
+    dispatch(fetchBuildStatus(projectId));
     dispatch(fetchFeedback(projectId));
 
     return () => {
@@ -127,7 +128,11 @@ export function ProjectView() {
       >
         {/* Mount ALL phases simultaneously, toggle visibility with CSS */}
         {VALID_PHASES.map((phase) => (
-          <div key={phase} style={{ display: phase === currentPhase ? "contents" : "none" }}>
+          <div
+            key={phase}
+            data-testid={`phase-${phase}`}
+            style={{ display: phase === currentPhase ? "contents" : "none" }}
+          >
             {phase === "dream" && (
               <DreamPhase projectId={projectId} onNavigateToPlan={() => handlePhaseChange("plan")} />
             )}
