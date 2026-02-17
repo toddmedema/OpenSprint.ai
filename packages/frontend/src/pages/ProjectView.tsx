@@ -21,7 +21,7 @@ import { HilApprovalModal } from "../components/HilApprovalModal";
 import { SpecPhase } from "./phases/SpecPhase";
 import { PlanPhase } from "./phases/PlanPhase";
 import { ExecutePhase } from "./phases/ExecutePhase";
-import { EnsurePhase } from "./phases/VerifyPhase";
+import { EnsurePhase } from "./phases/EnsurePhase";
 import { DeployPhase } from "./phases/DeployPhase";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -69,7 +69,7 @@ export function ProjectView() {
       dispatch(resetSpec());
       dispatch(resetPlan());
       dispatch(resetExecute());
-      dispatch(resetVerify());
+      dispatch(resetEnsure());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, redirectTo]);
@@ -102,7 +102,7 @@ export function ProjectView() {
     navigate(
       getProjectPhasePath(projectId, phase, {
         plan: phase === "plan" ? selectedPlanId ?? undefined : undefined,
-        task: phase === "build" ? selectedTaskId ?? undefined : undefined,
+        task: phase === "execute" ? selectedTaskId ?? undefined : undefined,
       }),
     );
   };

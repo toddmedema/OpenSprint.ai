@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
-import { VerifyPhase, FEEDBACK_COLLAPSED_KEY_PREFIX } from "./VerifyPhase";
+import { EnsurePhase, FEEDBACK_COLLAPSED_KEY_PREFIX } from "./EnsurePhase";
 import projectReducer from "../../store/slices/projectSlice";
 import ensureReducer from "../../store/slices/ensureSlice";
 import executeReducer from "../../store/slices/executeSlice";
@@ -52,7 +52,7 @@ function createStore() {
           name: "Test Project",
           description: "",
           repoPath: "/tmp/test",
-          currentPhase: "verify",
+          currentPhase: "ensure",
           createdAt: "",
           updatedAt: "",
         },
@@ -69,7 +69,7 @@ function createStore() {
   });
 }
 
-describe("VerifyPhase feedback input", () => {
+describe("EnsurePhase feedback input", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFeedbackRecategorize.mockResolvedValue({
@@ -87,7 +87,7 @@ describe("VerifyPhase feedback input", () => {
     const store = createStore();
     render(
       <Provider store={store}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -100,7 +100,7 @@ describe("VerifyPhase feedback input", () => {
     const store = createStore();
     render(
       <Provider store={store}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -112,7 +112,7 @@ describe("VerifyPhase feedback input", () => {
     const store = createStore();
     render(
       <Provider store={store}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -131,7 +131,7 @@ describe("VerifyPhase feedback input", () => {
     const store = createStore();
     render(
       <Provider store={store}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -157,7 +157,7 @@ describe("VerifyPhase feedback input", () => {
     });
     render(
       <Provider store={store}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -176,7 +176,7 @@ describe("VerifyPhase feedback input", () => {
     const store = createStore();
     render(
       <Provider store={store}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -224,7 +224,7 @@ describe("VerifyPhase feedback input", () => {
     const store = createStore();
     const { container } = render(
       <Provider store={store}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -238,7 +238,7 @@ describe("VerifyPhase feedback input", () => {
     const store = createStore();
     render(
       <Provider store={store}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -281,7 +281,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -309,7 +309,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -332,7 +332,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -369,7 +369,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -391,7 +391,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -419,7 +419,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -440,7 +440,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -468,7 +468,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -489,7 +489,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -507,7 +507,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeLoading}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -529,7 +529,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -547,7 +547,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeWithError}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -573,7 +573,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -601,7 +601,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -625,7 +625,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -662,7 +662,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -686,7 +686,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -741,7 +741,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -768,7 +768,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -796,7 +796,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -819,7 +819,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -856,7 +856,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -879,7 +879,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -910,7 +910,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -932,7 +932,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -960,7 +960,7 @@ describe("VerifyPhase feedback input", () => {
 
     const { container } = render(
       <Provider store={storeWithFeedback}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -997,7 +997,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -1073,7 +1073,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeWithTasks}>
-        <VerifyPhase projectId="proj-1" onNavigateToBuildTask={(id) => id} />
+        <EnsurePhase projectId="proj-1" onNavigateToBuildTask={(id) => id} />
       </Provider>,
     );
 
@@ -1104,7 +1104,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -1149,7 +1149,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeWithUnmappedTask}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -1171,7 +1171,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -1216,7 +1216,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -1239,7 +1239,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -1284,7 +1284,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -1310,7 +1310,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -1355,7 +1355,7 @@ describe("VerifyPhase feedback input", () => {
 
     const { container } = render(
       <Provider store={storeWithFeedback}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -1381,7 +1381,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -1426,7 +1426,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -1464,7 +1464,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -1509,7 +1509,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -1537,7 +1537,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -1582,7 +1582,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -1608,7 +1608,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -1666,7 +1666,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeWithNested}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -1691,7 +1691,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -1749,7 +1749,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeWithReplies}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -1770,7 +1770,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -1839,7 +1839,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeWithMultipleReplies}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -1860,7 +1860,7 @@ describe("VerifyPhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -1905,7 +1905,7 @@ describe("VerifyPhase feedback input", () => {
 
     render(
       <Provider store={storeWithUnknownTask}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -1915,7 +1915,7 @@ describe("VerifyPhase feedback input", () => {
   });
 });
 
-describe("VerifyPhase feedback collapsed state persistence", () => {
+describe("EnsurePhase feedback collapsed state persistence", () => {
   const storage: Record<string, string> = {};
 
   beforeEach(() => {
@@ -1955,7 +1955,7 @@ describe("VerifyPhase feedback collapsed state persistence", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -2014,7 +2014,7 @@ describe("VerifyPhase feedback collapsed state persistence", () => {
     const user = userEvent.setup();
     render(
       <Provider store={storeWithReplies}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -2051,7 +2051,7 @@ describe("VerifyPhase feedback collapsed state persistence", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "verify",
+            currentPhase: "ensure",
             createdAt: "",
             updatedAt: "",
           },
@@ -2109,7 +2109,7 @@ describe("VerifyPhase feedback collapsed state persistence", () => {
 
     render(
       <Provider store={storeWithReplies}>
-        <VerifyPhase projectId="proj-1" />
+        <EnsurePhase projectId="proj-1" />
       </Provider>,
     );
 

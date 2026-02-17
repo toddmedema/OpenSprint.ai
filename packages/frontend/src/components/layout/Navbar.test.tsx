@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import { Navbar } from "./Navbar";
-import buildReducer from "../../store/slices/buildSlice";
+import executeReducer from "../../store/slices/executeSlice";
 import planReducer from "../../store/slices/planSlice";
 
 vi.mock("../../api/client", () => ({
@@ -16,7 +16,7 @@ vi.mock("../../api/client", () => ({
 
 function createStore() {
   return configureStore({
-    reducer: { build: buildReducer, plan: planReducer },
+    reducer: { execute: executeReducer, plan: planReducer },
   });
 }
 

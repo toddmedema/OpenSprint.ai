@@ -5,7 +5,7 @@ import { Provider } from "react-redux";
 import { MemoryRouter } from "react-router-dom";
 import { configureStore } from "@reduxjs/toolkit";
 import { ActiveAgentsList } from "./ActiveAgentsList";
-import buildReducer from "../store/slices/buildSlice";
+import executeReducer from "../store/slices/executeSlice";
 import planReducer from "../store/slices/planSlice";
 
 const mockAgentsActive = vi.fn().mockResolvedValue([]);
@@ -20,7 +20,7 @@ vi.mock("../api/client", () => ({
 
 function createStore() {
   return configureStore({
-    reducer: { build: buildReducer, plan: planReducer },
+    reducer: { execute: executeReducer, plan: planReducer },
   });
 }
 
@@ -73,7 +73,7 @@ describe("ActiveAgentsList", () => {
     vi.setSystemTime(new Date("2026-02-16T12:00:00.000Z"));
     const startedAt = "2026-02-16T12:00:00.000Z";
     mockAgentsActive.mockResolvedValue([
-      { id: "task-1", phase: "build", label: "Task 1", startedAt },
+      { id: "task-1", phase: "execute", label: "Task 1", startedAt },
     ]);
 
     renderActiveAgentsList();
@@ -92,7 +92,7 @@ describe("ActiveAgentsList", () => {
 
     expect(screen.getByText("2m 34s")).toBeInTheDocument();
     expect(screen.getByText("Task 1")).toBeInTheDocument();
-    expect(screen.getByText(/Build/)).toBeInTheDocument();
+    expect(screen.getByText(/Execute/)).toBeInTheDocument();
 
     vi.useRealTimers();
   });

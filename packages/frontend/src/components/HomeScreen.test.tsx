@@ -28,7 +28,7 @@ const mockProject = {
   id: "proj-1",
   name: "My Project",
   description: "A test project",
-  currentPhase: "dream",
+  currentPhase: "spec",
   progressPercent: 25,
   updatedAt: "2026-02-15T12:00:00Z",
 };
@@ -59,7 +59,7 @@ describe("HomeScreen", () => {
 
     await screen.findByText("My Project");
     expect(screen.getByText("A test project")).toBeInTheDocument();
-    expect(screen.getByText("Dream")).toBeInTheDocument();
+    expect(screen.getByText("Spec")).toBeInTheDocument();
     expect(screen.getByText("25%")).toBeInTheDocument();
   });
 
@@ -108,6 +108,6 @@ describe("HomeScreen", () => {
 
     await screen.findByText("My Project");
     const link = screen.getByRole("link", { name: /my project/i });
-    expect(link).toHaveAttribute("href", "/projects/proj-1/dream");
+    expect(link).toHaveAttribute("href", "/projects/proj-1/spec");
   });
 });
