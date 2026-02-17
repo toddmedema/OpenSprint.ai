@@ -66,6 +66,27 @@ Respond with ONLY valid JSON in this exact format. You may use a markdown code b
 
 complexity: low, medium, high, or very_high. priority: 0=highest. dependsOn: array of task titles this task depends on (blocked by). dependsOnPlans: array of other plan titles (slugified, e.g. "user-auth") this plan depends on - use empty array if none. mockups: array of {title, content} — ASCII wireframes illustrating the UI; at least one required per plan.`;
 
+const TASK_GENERATION_SYSTEM_PROMPT = `You are an AI planning assistant for OpenSprint. Given a feature plan specification (and optional PRD context), break it down into granular, atomic implementation tasks that an AI coding agent can complete in a single session.
+
+For each task:
+1. Title: Clear, specific action (e.g. "Add user login API endpoint", not "Handle auth")
+2. Description: Detailed spec with acceptance criteria, which files to create/modify, and how to verify
+3. Priority: 0 (highest — foundational/blocking) to 4 (lowest — polish/optional)
+4. dependsOn: Array of other task titles this task is blocked by (use exact titles from your list)
+
+Guidelines:
+- Tasks must be atomic: one coding session, one concern
+- Order matters: infrastructure/data-model tasks first, then API, then UI, then integration
+- Include testing tasks or criteria within each task description
+- Be specific about file paths and technology choices based on the plan
+
+Respond with ONLY valid JSON (you may wrap in a markdown json code block):
+{
+  "tasks": [
+    {"title": "Task title", "description": "Detailed implementation spec with acceptance criteria", "priority": 1, "dependsOn": []}
+  ]
+}`;
+
 const AUTO_REVIEW_SYSTEM_PROMPT = `You are an auto-review agent for OpenSprint. After a plan is decomposed from a PRD, you review the generated plans and tasks against the existing codebase to identify what is already implemented.
 
 Your task: Given the list of created plans/tasks and a summary of the repository structure and key files, identify which tasks are ALREADY IMPLEMENTED in the codebase. Only mark tasks as implemented when there is clear evidence in the code (e.g., the described functionality exists, the API endpoint is present, the component is built).
@@ -427,7 +448,108 @@ export class PlanService {
     return this.getPlan(projectId, planId);
   }
 
-  /** Build It! — close the gating task to unblock child tasks */
+  /**
+   * Auto-generate implementation tasks for a plan that has none.
+   * Invokes the planning agent to decompose the plan's markdown into atomic tasks,
+   * creates them as beads issues under the existing epic, and runs auto-review
+   * to mark any already-implemented tasks as done.
+   */
+  private async generateAndCreateTasks(
+    projectId: string,
+    repoPath: string,
+    plan: Plan,
+  ): Promise<number> {
+    const settings = await this.projectService.getSettings(projectId);
+    const epicId = plan.metadata.beadEpicId;
+    const gateTaskId = plan.metadata.gateTaskId;
+
+    if (!epicId || !gateTaskId) return 0;
+
+    // Build prompt with plan content + PRD context
+    const prdContext = await this.buildPrdContext(projectId);
+    const prompt = `Break down the following feature plan into implementation tasks.\n\n## Feature Plan\n\n${plan.content}\n\n## PRD Context\n\n${prdContext}`;
+
+    const agentId = `plan-task-gen-${projectId}-${Date.now()}`;
+    activeAgentsService.register(agentId, projectId, "plan", "Task generation", new Date().toISOString());
+
+    let response;
+    try {
+      response = await this.agentClient.invoke({
+        config: settings.planningAgent,
+        prompt,
+        systemPrompt: TASK_GENERATION_SYSTEM_PROMPT,
+        cwd: repoPath,
+      });
+    } finally {
+      activeAgentsService.unregister(agentId);
+    }
+
+    // Parse tasks from agent response
+    const jsonMatch = response.content.match(/\{[\s\S]*"tasks"[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.warn("[plan] Task generation agent did not return valid JSON, shipping without tasks");
+      return 0;
+    }
+
+    let parsed: { tasks?: Array<{ title: string; description: string; priority?: number; dependsOn?: string[] }> };
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch {
+      console.warn("[plan] Task generation JSON parse failed, shipping without tasks");
+      return 0;
+    }
+
+    const tasks = parsed.tasks ?? [];
+    if (tasks.length === 0) {
+      console.warn("[plan] Task generation returned no tasks");
+      return 0;
+    }
+
+    // Create tasks under the existing epic
+    const taskIdMap = new Map<string, string>();
+    for (const task of tasks) {
+      const priority = Math.min(4, Math.max(0, task.priority ?? 2));
+      const taskResult = await this.beads.create(repoPath, task.title, {
+        type: "task",
+        description: task.description || "",
+        priority,
+        parentId: epicId,
+      });
+      taskIdMap.set(task.title, taskResult.id);
+      await this.beads.addDependency(repoPath, taskResult.id, gateTaskId);
+    }
+
+    // Add inter-task dependencies
+    for (const task of tasks) {
+      if (task.dependsOn && task.dependsOn.length > 0) {
+        const childId = taskIdMap.get(task.title);
+        if (childId) {
+          for (const depTitle of task.dependsOn) {
+            const parentId = taskIdMap.get(depTitle);
+            if (parentId) {
+              await this.beads.addDependency(repoPath, childId, parentId);
+            }
+          }
+        }
+      }
+    }
+
+    console.log(`[plan] Generated ${tasks.length} tasks for plan ${plan.metadata.planId}`);
+
+    // Broadcast task creation events
+    for (const [, taskId] of taskIdMap) {
+      broadcastToProject(projectId, {
+        type: "task.updated",
+        taskId,
+        status: "open",
+        assignee: null,
+      });
+    }
+
+    return tasks.length;
+  }
+
+  /** Build It! — auto-generate tasks if needed, close gating task to unblock child tasks */
   async shipPlan(projectId: string, planId: string): Promise<Plan> {
     const plan = await this.getPlan(projectId, planId);
     const repoPath = await this.getRepoPath(projectId);
@@ -435,6 +557,22 @@ export class PlanService {
 
     if (!plan.metadata.gateTaskId) {
       throw new AppError(400, ErrorCodes.NO_GATE_TASK, "Plan has no gating task to close");
+    }
+
+    // If no implementation tasks exist, auto-generate them from the plan spec
+    let tasksGenerated = 0;
+    if (plan.taskCount === 0 && plan.metadata.beadEpicId) {
+      try {
+        tasksGenerated = await this.generateAndCreateTasks(projectId, repoPath, plan);
+        if (tasksGenerated > 0) {
+          // Auto-review: mark already-implemented tasks as done
+          const updatedPlan = await this.getPlan(projectId, planId);
+          await this.autoReviewPlanAgainstRepo(projectId, [updatedPlan]);
+        }
+      } catch (err) {
+        console.error("[plan] Task generation failed, shipping without tasks:", err);
+        // Ship proceeds even if task generation fails; user can add tasks manually
+      }
     }
 
     // Close the gating task
@@ -450,6 +588,12 @@ export class PlanService {
     } catch (err) {
       console.error("[plan] PRD sync on build approval failed:", err);
       // Build approval succeeds even if PRD sync fails; user can manually update PRD
+    }
+
+    // Re-fetch plan to include updated task counts when tasks were generated
+    if (tasksGenerated > 0) {
+      const finalPlan = await this.getPlan(projectId, planId);
+      return { ...finalPlan, status: "building" };
     }
 
     return { ...plan, status: "building" };

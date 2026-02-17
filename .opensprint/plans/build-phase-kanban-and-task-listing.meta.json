@@ -2,6 +2,6 @@
   "planId": "build-phase-kanban-and-task-listing",
   "beadEpicId": "opensprint.dev-cxx",
   "gateTaskId": "opensprint.dev-cxx.1",
-  "shippedAt": null,
+  "shippedAt": "2026-02-16T20:00:00.000Z",
   "complexity": "medium"
 }
