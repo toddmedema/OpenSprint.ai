@@ -16,6 +16,7 @@ import { agentService } from "./agent.service.js";
 import { AppError } from "../middleware/error-handler.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
 import { hilService } from "./hil-service.js";
+import { activeAgentsService } from "./active-agents.service.js";
 import { broadcastToProject } from "../websocket/index.js";
 import { writeJsonAtomic } from "../utils/file-utils.js";
 
@@ -244,6 +245,13 @@ export class ChatService {
 
     let responseContent: string;
 
+    // Register Design phase agent for unified active-agents view (phase: design, label: Design chat)
+    const isDesignContext = !isPlanContext;
+    const agentId = isDesignContext ? `design-chat-${projectId}-${conversation.id}-${Date.now()}` : null;
+    if (agentId) {
+      activeAgentsService.register(agentId, projectId, "design", "Design chat", new Date().toISOString());
+    }
+
     try {
       console.log("[chat] Invoking planning agent", {
         type: agentConfig.type,
@@ -266,6 +274,10 @@ export class ChatService {
         "I was unable to connect to the planning agent.\n\n" +
         `**Error:** ${msg}\n\n` +
         "**What to try:** Open Project Settings → Agent Config. Ensure your API key is set, the CLI is installed, and the model is valid.";
+    } finally {
+      if (agentId) {
+        activeAgentsService.unregister(agentId);
+      }
     }
 
     let displayContent: string;

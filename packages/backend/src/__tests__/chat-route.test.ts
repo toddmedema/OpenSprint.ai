@@ -8,10 +8,20 @@ import { ProjectService } from "../services/project.service.js";
 import { API_PREFIX, DEFAULT_HIL_CONFIG, OPENSPRINT_PATHS } from "@opensprint/shared";
 
 const mockInvokePlanningAgent = vi.fn();
+const mockRegister = vi.fn();
+const mockUnregister = vi.fn();
 
 vi.mock("../services/agent.service.js", () => ({
   agentService: {
     invokePlanningAgent: (...args: unknown[]) => mockInvokePlanningAgent(...args),
+  },
+}));
+
+vi.mock("../services/active-agents.service.js", () => ({
+  activeAgentsService: {
+    register: (...args: unknown[]) => mockRegister(...args),
+    unregister: (...args: unknown[]) => mockUnregister(...args),
+    list: vi.fn().mockReturnValue([]),
   },
 }));
 
@@ -213,5 +223,53 @@ Hope that helps!`;
     expect(conv.id).toBeDefined();
     expect(conv.context).toBe("dream");
     expect(conv.messages).toHaveLength(2);
+  });
+
+  describe("Design phase agent registry", () => {
+    it("should register and unregister Design chat agent when context is dream", async () => {
+      const res = await request(app)
+        .post(`${API_PREFIX}/projects/${projectId}/chat`)
+        .send({ message: "Help me design my product", context: "dream" });
+
+      expect(res.status).toBe(200);
+      expect(mockRegister).toHaveBeenCalledTimes(1);
+      expect(mockRegister).toHaveBeenCalledWith(
+        expect.stringMatching(/^design-chat-.*-/),
+        projectId,
+        "design",
+        "Design chat",
+        expect.any(String),
+      );
+      expect(mockUnregister).toHaveBeenCalledTimes(1);
+      expect(mockUnregister).toHaveBeenCalledWith(mockRegister.mock.calls[0][0]);
+    });
+
+    it("should not register Design agent when context is plan", async () => {
+      mockInvokePlanningAgent.mockResolvedValue({
+        content: "I can help refine this plan. What would you like to change?",
+      });
+
+      const res = await request(app)
+        .post(`${API_PREFIX}/projects/${projectId}/chat`)
+        .send({ message: "Refine the acceptance criteria", context: "plan:auth-plan" });
+
+      expect(res.status).toBe(200);
+      expect(mockRegister).not.toHaveBeenCalled();
+      expect(mockUnregister).not.toHaveBeenCalled();
+    });
+
+    it("should unregister even when agent invocation throws", async () => {
+      mockInvokePlanningAgent.mockRejectedValueOnce(new Error("Agent unavailable"));
+
+      const res = await request(app)
+        .post(`${API_PREFIX}/projects/${projectId}/chat`)
+        .send({ message: "Help me", context: "dream" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.message).toContain("unable to connect");
+      expect(mockRegister).toHaveBeenCalledTimes(1);
+      expect(mockUnregister).toHaveBeenCalledTimes(1);
+      expect(mockUnregister).toHaveBeenCalledWith(mockRegister.mock.calls[0][0]);
+    });
   });
 });
