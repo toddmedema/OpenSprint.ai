@@ -2,12 +2,12 @@
  * @deprecated Use verifySlice instead. This file re-exports from verifySlice for backward compatibility.
  */
 export {
-  type VerifyState as ValidateState,
+  type VerifyState,
   fetchFeedback,
   submitFeedback,
   recategorizeFeedback,
   setFeedback,
-  setVerifyError as setValidateError,
-  resetVerify as resetValidate,
+  setVerifyError,
+  resetVerify,
 } from "./verifySlice";
 export { default } from "./verifySlice";
