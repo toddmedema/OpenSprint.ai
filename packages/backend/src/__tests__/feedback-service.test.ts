@@ -526,14 +526,15 @@ describe("FeedbackService", () => {
         "We need to add a mobile app as a new platform",
       );
       expect(mockHilEvaluate).toHaveBeenCalledTimes(1);
-      expect(mockHilEvaluate).toHaveBeenCalledWith(
-        projectId,
-        "scopeChanges",
-        'Scope change feedback: "We need to add a mobile app as a new platform"',
-        undefined,
-        true,
-        expect.anything(), // scopeChangeMetadata (may be undefined if proposal failed)
-      );
+      const hilCall = mockHilEvaluate.mock.calls[0];
+      expect(hilCall[0]).toBe(projectId);
+      expect(hilCall[1]).toBe("scopeChanges");
+      expect(hilCall[2]).toContain("A user submitted feedback that was categorized as a scope change");
+      expect(hilCall[2]).toContain("Please review the proposed PRD updates below and approve or reject");
+      expect(hilCall[2]).toContain("We need to add a mobile app as a new platform");
+      expect(hilCall[3]).toHaveLength(2);
+      expect(hilCall[3][0]).toMatchObject({ id: "approve", label: "Approve", description: "Apply the proposed PRD updates" });
+      expect(hilCall[3][1]).toMatchObject({ id: "reject", label: "Reject", description: "Skip updates and do not modify the PRD" });
     });
 
     it("should pass scopeChangeMetadata to HIL when getScopeChangeProposal returns proposal", async () => {
@@ -562,8 +563,11 @@ describe("FeedbackService", () => {
       expect(mockHilEvaluate).toHaveBeenCalledWith(
         projectId,
         "scopeChanges",
-        'Scope change feedback: "Add mobile app"',
-        undefined,
+        expect.stringContaining("Add mobile app"),
+        expect.arrayContaining([
+          expect.objectContaining({ id: "approve", label: "Approve" }),
+          expect.objectContaining({ id: "reject", label: "Reject" }),
+        ]),
         true,
         {
           scopeChangeSummary: "• feature_list: Add mobile app",
@@ -595,6 +599,25 @@ describe("FeedbackService", () => {
 
       expect(mockSyncPrdFromScopeChange).not.toHaveBeenCalled();
       expect(mockBeadsCreate).not.toHaveBeenCalled();
+    });
+
+    it("should truncate long feedback in scope change HIL description", async () => {
+      const longFeedback = "A".repeat(250);
+      mockInvoke.mockResolvedValue({
+        content: JSON.stringify({
+          category: "scope",
+          mappedPlanId: null,
+          task_titles: ["Update PRD"],
+        }),
+      });
+
+      await feedbackService.submitFeedback(projectId, { text: longFeedback });
+
+      await new Promise((r) => setTimeout(r, 200));
+
+      const hilDesc = mockHilEvaluate.mock.calls[0][2];
+      expect(hilDesc).toContain("A".repeat(200) + "…");
+      expect(hilDesc).not.toContain("A".repeat(250));
     });
 
     it("should call syncPrdFromScopeChangeFeedback and create bead tasks when HIL approves", async () => {

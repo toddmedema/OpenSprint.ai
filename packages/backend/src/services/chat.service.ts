@@ -29,6 +29,30 @@ import {
 
 const ARCHITECTURE_SECTIONS = ["technical_architecture", "data_model", "api_contracts"] as const;
 
+const SECTION_DISPLAY_NAMES: Record<string, string> = {
+  technical_architecture: "Technical Architecture",
+  data_model: "Data Model",
+  api_contracts: "API Contracts",
+};
+
+/**
+ * Build a user-friendly description for architecture decision HIL approval (PRD §6.5.1).
+ * Prompts the user clearly about what architectural changes they are being asked to approve.
+ */
+function buildArchitectureHilDescription(
+  contextDescription: string,
+  sections: string[],
+): string {
+  const sectionNames = sections
+    .map((s) => SECTION_DISPLAY_NAMES[s] ?? s.replace(/_/g, " "))
+    .join(", ");
+  return `The proposed scope change would affect architectural sections of your PRD. These sections define your system's structure, data model, and API contracts. Please review and approve or reject these updates.
+
+Context: ${contextDescription}
+
+Affected sections: ${sectionNames}`;
+}
+
 const DREAM_SYSTEM_PROMPT = `You are the Dream phase AI assistant for OpenSprint. You help users define their product vision and create a comprehensive Product Requirements Document (PRD).
 
 Your role is to:
@@ -544,10 +568,14 @@ export class ChatService {
 
     if (archUpdates.length === 0) return prdUpdates;
 
+    const architectureDescription = buildArchitectureHilDescription(
+      contextDescription,
+      archUpdates.map((u) => u.section),
+    );
     const { approved } = await hilService.evaluateDecision(
       projectId,
       "architectureDecisions",
-      `PRD architecture update: ${contextDescription}. Sections: ${archUpdates.map((u) => u.section).join(", ")}`,
+      architectureDescription,
       [
         { id: "approve", label: "Approve", description: "Apply architecture changes to PRD" },
         { id: "reject", label: "Reject", description: "Skip architecture updates" },

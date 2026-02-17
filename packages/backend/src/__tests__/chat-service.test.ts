@@ -209,10 +209,13 @@ New mobile architecture.
       expect(mockHilEvaluate).toHaveBeenCalledWith(
         projectId,
         "architectureDecisions",
-        expect.stringContaining("Scope change feedback"),
+        expect.stringContaining("affect architectural sections"),
         expect.any(Array),
         true,
       );
+      const hilDesc = mockHilEvaluate.mock.calls[0][2];
+      expect(hilDesc).toContain("Technical Architecture");
+      expect(hilDesc).toContain("Scope change feedback");
     });
   });
 });

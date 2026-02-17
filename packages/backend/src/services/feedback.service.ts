@@ -16,6 +16,20 @@ import { broadcastToProject } from '../websocket/index.js';
 import { writeJsonAtomic } from '../utils/file-utils.js';
 import { generateShortFeedbackId } from '../utils/feedback-id.js';
 
+/**
+ * Build a user-friendly description for scope change HIL approval (PRD §6.5.1).
+ * Prompts the user clearly about what they are being asked to approve.
+ */
+function buildScopeChangeHilDescription(feedbackText: string): string {
+  const truncated =
+    feedbackText.length > 200
+      ? `${feedbackText.slice(0, 200)}…`
+      : feedbackText;
+  return `A user submitted feedback that was categorized as a scope change. Please review the proposed PRD updates below and approve or reject.
+
+User feedback: "${truncated}"`;
+}
+
 const FEEDBACK_CATEGORIZATION_PROMPT = `You are an AI assistant that categorizes user feedback about a software product.
 
 Given the user's feedback text, the PRD (Product Requirements Document), and available plans, determine:
@@ -273,11 +287,16 @@ export class FeedbackService {
               }
             : undefined;
 
+          const scopeChangeDescription = buildScopeChangeHilDescription(item.text);
+          const scopeChangeOptions = [
+            { id: 'approve', label: 'Approve', description: 'Apply the proposed PRD updates' },
+            { id: 'reject', label: 'Reject', description: 'Skip updates and do not modify the PRD' },
+          ];
           const { approved } = await this.hilService.evaluateDecision(
             projectId,
             'scopeChanges',
-            `Scope change feedback: "${item.text}"`,
-            undefined,
+            scopeChangeDescription,
+            scopeChangeOptions,
             true,
             scopeChangeMetadata,
           );
