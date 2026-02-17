@@ -23,6 +23,29 @@ import { EpicCard } from "../../components/EpicCard";
 import { ResizableSidebar } from "../../components/layout/ResizableSidebar";
 import { fetchTasks } from "../../store/slices/buildSlice";
 
+export const DEPENDENCY_GRAPH_EXPANDED_KEY = "opensprint-plan-dependencyGraphExpanded";
+
+function loadDependencyGraphExpanded(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    const stored = localStorage.getItem(DEPENDENCY_GRAPH_EXPANDED_KEY);
+    if (stored === "true") return true;
+    if (stored === "false") return false;
+  } catch {
+    // ignore
+  }
+  return true;
+}
+
+function saveDependencyGraphExpanded(expanded: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(DEPENDENCY_GRAPH_EXPANDED_KEY, String(expanded));
+  } catch {
+    // ignore
+  }
+}
+
 interface PlanPhaseProps {
   projectId: string;
   onNavigateToBuildTask?: (taskId: string) => void;
@@ -50,7 +73,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   const [chatSending, setChatSending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [tasksSectionExpanded, setTasksSectionExpanded] = useState(true);
-  const [dependencyGraphExpanded, setDependencyGraphExpanded] = useState(true);
+  const [dependencyGraphExpanded, setDependencyGraphExpanded] = useState(loadDependencyGraphExpanded);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const selectedPlan = plans.find((p) => p.metadata.planId === selectedPlanId) ?? null;
@@ -196,7 +219,11 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
         <div className="card mb-6 overflow-hidden">
           <button
             type="button"
-            onClick={() => setDependencyGraphExpanded(!dependencyGraphExpanded)}
+            onClick={() => {
+              const next = !dependencyGraphExpanded;
+              setDependencyGraphExpanded(next);
+              saveDependencyGraphExpanded(next);
+            }}
             className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-100/50 transition-colors"
             aria-expanded={dependencyGraphExpanded}
             aria-controls="dependency-graph-content"

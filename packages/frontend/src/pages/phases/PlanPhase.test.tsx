@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
-import { PlanPhase } from "./PlanPhase";
+import { PlanPhase, DEPENDENCY_GRAPH_EXPANDED_KEY } from "./PlanPhase";
 import projectReducer from "../../store/slices/projectSlice";
 import planReducer from "../../store/slices/planSlice";
 import buildReducer from "../../store/slices/buildSlice";
@@ -575,9 +575,30 @@ describe("PlanPhase plan sorting and status filter", () => {
 });
 
 describe("PlanPhase sendPlanMessage thunk", () => {
+  const storage: Record<string, string> = {};
+
   beforeEach(() => {
     vi.clearAllMocks();
     Element.prototype.scrollIntoView = vi.fn();
+    Object.keys(storage).forEach((k) => delete storage[k]);
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => storage[key] ?? null,
+      setItem: (key: string, value: string) => {
+        storage[key] = value;
+      },
+      removeItem: (key: string) => {
+        delete storage[key];
+      },
+      clear: () => {
+        Object.keys(storage).forEach((k) => delete storage[k]);
+      },
+      length: 0,
+      key: () => null,
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("renders Dependency Graph as collapsible container with expand/collapse toggle", async () => {
@@ -606,6 +627,45 @@ describe("PlanPhase sendPlanMessage thunk", () => {
     await user.click(header);
     expect(header).toHaveAttribute("aria-expanded", "true");
     expect(document.getElementById("dependency-graph-content")).toBeInTheDocument();
+  });
+
+  it("persists dependency graph expanded state to localStorage", async () => {
+    const store = createStore();
+    const user = userEvent.setup();
+
+    // Default: no stored value → expanded (true)
+    render(
+      <Provider store={store}>
+        <PlanPhase projectId="proj-1" />
+      </Provider>,
+    );
+    const header = screen.getByRole("button", { name: /dependency graph/i });
+    expect(header).toHaveAttribute("aria-expanded", "true");
+
+    // Collapse → persists "false"
+    await user.click(header);
+    expect(header).toHaveAttribute("aria-expanded", "false");
+    expect(storage[DEPENDENCY_GRAPH_EXPANDED_KEY]).toBe("false");
+
+    // Expand → persists "true"
+    await user.click(header);
+    expect(header).toHaveAttribute("aria-expanded", "true");
+    expect(storage[DEPENDENCY_GRAPH_EXPANDED_KEY]).toBe("true");
+  });
+
+  it("restores dependency graph expanded state from localStorage on mount", async () => {
+    storage[DEPENDENCY_GRAPH_EXPANDED_KEY] = "false";
+
+    const store = createStore();
+    render(
+      <Provider store={store}>
+        <PlanPhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    const header = screen.getByRole("button", { name: /dependency graph/i });
+    expect(header).toHaveAttribute("aria-expanded", "false");
+    expect(document.getElementById("dependency-graph-content")).toBeNull();
   });
 
   it("dispatches sendPlanMessage thunk when chat message is sent", async () => {
