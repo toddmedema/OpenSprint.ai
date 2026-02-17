@@ -4,10 +4,10 @@ import userEvent from "@testing-library/user-event";
 import { CloseButton } from "./CloseButton";
 
 describe("CloseButton", () => {
-  it("renders an X icon button with aria-label Close", () => {
+  it("renders an X icon button with aria-label X", () => {
     render(<CloseButton onClick={() => {}} />);
 
-    const btn = screen.getByRole("button", { name: "Close" });
+    const btn = screen.getByRole("button", { name: "X" });
     expect(btn).toBeInTheDocument();
   });
 
@@ -16,7 +16,7 @@ describe("CloseButton", () => {
     const onClick = vi.fn();
     render(<CloseButton onClick={onClick} />);
 
-    await user.click(screen.getByRole("button", { name: "Close" }));
+    await user.click(screen.getByRole("button", { name: "X" }));
 
     expect(onClick).toHaveBeenCalledTimes(1);
   });
@@ -30,7 +30,7 @@ describe("CloseButton", () => {
   it("accepts custom className", () => {
     render(<CloseButton onClick={() => {}} className="custom-class" />);
 
-    const btn = screen.getByRole("button", { name: "Close" });
+    const btn = screen.getByRole("button", { name: "X" });
     expect(btn).toHaveClass("custom-class");
   });
 });

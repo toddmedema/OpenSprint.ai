@@ -1,6 +1,6 @@
 interface CloseButtonProps {
   onClick: () => void;
-  /** Accessible label for screen readers. Default: "Close" */
+  /** Accessible label for screen readers. Default: "X" */
   ariaLabel?: string;
   /** Additional CSS classes. Default styling: gray icon, hover states */
   className?: string;
@@ -14,7 +14,7 @@ interface CloseButtonProps {
  */
 export function CloseButton({
   onClick,
-  ariaLabel = "Close",
+  ariaLabel = "X",
   className = "p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors",
   size = "w-5 h-5",
 }: CloseButtonProps) {
