@@ -40,7 +40,7 @@ const basePlan = {
 
 function createStore(
   tasks: { id: string; kanbanColumn: string; epicId: string; title: string; priority: number; assignee: string | null }[],
-  buildOverrides?: Partial<{ orchestratorRunning: boolean; selectedTaskId: string | null }>,
+  buildOverrides?: Partial<{ orchestratorRunning: boolean; selectedTaskId: string | null; awaitingApproval: boolean }>,
 ) {
   return configureStore({
     reducer: {
@@ -162,6 +162,34 @@ describe("BuildPhase top bar", () => {
 
     expect(screen.queryByRole("button", { name: /pick up next task/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /pause/i })).not.toBeInTheDocument();
+  });
+
+  it("shows awaiting approval message when awaitingApproval is true", () => {
+    const tasks = [
+      { id: "epic-1.1", title: "Task A", epicId: "epic-1", kanbanColumn: "in_progress", priority: 0, assignee: null },
+    ];
+    const store = createStore(tasks, { awaitingApproval: true });
+    render(
+      <Provider store={store}>
+        <BuildPhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    expect(screen.getByText("Awaiting approval…")).toBeInTheDocument();
+  });
+
+  it("does not show awaiting approval when awaitingApproval is false", () => {
+    const tasks = [
+      { id: "epic-1.1", title: "Task A", epicId: "epic-1", kanbanColumn: "ready", priority: 0, assignee: null },
+    ];
+    const store = createStore(tasks);
+    render(
+      <Provider store={store}>
+        <BuildPhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    expect(screen.queryByText("Awaiting approval…")).not.toBeInTheDocument();
   });
 });
 

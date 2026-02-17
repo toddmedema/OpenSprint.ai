@@ -228,9 +228,9 @@ export function BuildPhase({ projectId, onNavigateToPlan }: BuildPhaseProps) {
                 Ready: {readyTasks} · In Progress: {inProgressTasks} · Done: {doneTasks} · Total: {totalTasks}
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              {awaitingApproval && <span className="text-sm font-medium text-amber-600">Awaiting approval…</span>}
-            </div>
+            {awaitingApproval && (
+              <span className="text-sm font-medium text-amber-600">Awaiting approval…</span>
+            )}
           </div>
           <div className="w-full bg-gray-100 rounded-full h-2">
             <div
