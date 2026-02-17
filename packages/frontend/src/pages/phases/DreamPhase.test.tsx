@@ -197,6 +197,16 @@ describe("DreamPhase with designSlice", () => {
       expect(screen.getByText("Hi there!")).toBeInTheDocument();
     });
 
+    it("displays split-pane with theme-aware styling for light and dark mode", () => {
+      const store = createStore({
+        design: { prdContent: { overview: "Content" } },
+      });
+      const { container } = renderDreamPhase(store);
+      // Main split-pane wrapper includes dark mode classes for correct display in both themes
+      const splitPane = container.querySelector("[class*='dark:bg-gray-900']");
+      expect(splitPane).toBeInTheDocument();
+    });
+
     it("shows Plan it when planStatus.action is plan", async () => {
       const store = createStore({
         design: { prdContent: { overview: "Content" } },
