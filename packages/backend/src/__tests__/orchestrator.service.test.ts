@@ -541,6 +541,209 @@ describe("OrchestratorService", () => {
         }),
       );
     });
+
+    it("completes task when review agent approves (result.json status approved)", async () => {
+      const task = {
+        id: "task-review-approve",
+        title: "Task with review",
+        issue_type: "task",
+        priority: 2,
+        status: "open",
+      };
+
+      const wtPath = path.join(repoPath, "wt-review");
+      await fs.mkdir(path.join(wtPath, "node_modules"), { recursive: true });
+
+      mockGetSettings.mockResolvedValue({
+        testFramework: "vitest",
+        codingAgent: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
+        reviewMode: "always",
+      });
+
+      mockBeadsReady.mockResolvedValue([task]);
+      mockBeadsAreAllBlockersClosed.mockResolvedValue(true);
+      mockBeadsGetCumulativeAttempts.mockResolvedValue(0);
+      mockCreateTaskWorktree.mockResolvedValue(wtPath);
+      mockGetActiveDir.mockReturnValue(
+        path.join(wtPath, ".opensprint", "active", "task-review-approve"),
+      );
+      mockBuildContext.mockResolvedValue({});
+      mockAssembleTaskDirectory.mockResolvedValue(undefined);
+      mockGetChangedFiles.mockResolvedValue([]);
+      mockRunScopedTests.mockResolvedValue({
+        passed: 3,
+        failed: 0,
+        rawOutput: "tests passed",
+      });
+      mockCaptureBranchDiff.mockResolvedValue("diff content");
+
+      // First call: coding agent result (success); second call: review agent result (approved)
+      mockReadResult
+        .mockResolvedValueOnce({ status: "success", summary: "Implemented feature" })
+        .mockResolvedValueOnce({
+          status: "approved",
+          summary: "Implementation meets all acceptance criteria.",
+        });
+
+      let codingOnExit: (code: number | null) => Promise<void> = async () => {};
+      mockInvokeCodingAgent.mockImplementation(
+        (
+          _p: string,
+          _c: unknown,
+          opts: { onExit?: (code: number | null) => Promise<void> },
+        ) => {
+          codingOnExit = opts.onExit ?? (async () => {});
+          return { kill: vi.fn(), pid: 12345 };
+        },
+      );
+
+      let reviewOnExit: (code: number | null) => Promise<void> = async () => {};
+      mockInvokeReviewAgent.mockImplementation(
+        (
+          _p: string,
+          _c: unknown,
+          opts: { onExit?: (code: number | null) => Promise<void> },
+        ) => {
+          reviewOnExit = opts.onExit ?? (async () => {});
+          return { kill: vi.fn(), pid: 12346 };
+        },
+      );
+
+      await orchestrator.ensureRunning(projectId);
+      await new Promise((r) => setTimeout(r, 300));
+
+      // Coding agent exits with success
+      await codingOnExit(0);
+      await new Promise((r) => setTimeout(r, 300));
+
+      // Review agent should have been invoked
+      expect(mockInvokeReviewAgent).toHaveBeenCalled();
+      expect(mockMergeToMain).not.toHaveBeenCalled();
+      expect(mockBeadsClose).not.toHaveBeenCalled();
+
+      mockBeadsShow.mockResolvedValue({ ...task, status: "in_progress" });
+      mockMergeToMain.mockResolvedValue(undefined);
+      mockCreateSession.mockResolvedValue({ id: "sess-1" });
+      mockArchiveSession.mockResolvedValue(undefined);
+
+      // Review agent exits with approved
+      await reviewOnExit(0);
+      await new Promise((r) => setTimeout(r, 300));
+
+      // On result.json approved: merge and Done
+      expect(mockMergeToMain).toHaveBeenCalledWith(
+        repoPath,
+        "opensprint/task-review-approve",
+      );
+      expect(mockBeadsClose).toHaveBeenCalledWith(
+        repoPath,
+        "task-review-approve",
+        "Implemented feature",
+      );
+      expect(mockBroadcastToProject).toHaveBeenCalledWith(
+        projectId,
+        expect.objectContaining({
+          type: "task.updated",
+          taskId: "task-review-approve",
+          status: "closed",
+          assignee: null,
+        }),
+      );
+      expect(mockBroadcastToProject).toHaveBeenCalledWith(
+        projectId,
+        expect.objectContaining({
+          type: "agent.completed",
+          taskId: "task-review-approve",
+          status: "approved",
+        }),
+      );
+    });
+
+    it("treats result.json status 'approve' as approved (normalization)", async () => {
+      const task = {
+        id: "task-approve-normalize",
+        title: "Task with approve status",
+        issue_type: "task",
+        priority: 2,
+        status: "open",
+      };
+
+      const wtPath = path.join(repoPath, "wt-approve-norm");
+      await fs.mkdir(path.join(wtPath, "node_modules"), { recursive: true });
+
+      mockGetSettings.mockResolvedValue({
+        testFramework: "vitest",
+        codingAgent: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
+        reviewMode: "always",
+      });
+
+      mockBeadsReady.mockResolvedValue([task]);
+      mockBeadsAreAllBlockersClosed.mockResolvedValue(true);
+      mockBeadsGetCumulativeAttempts.mockResolvedValue(0);
+      mockCreateTaskWorktree.mockResolvedValue(wtPath);
+      mockGetActiveDir.mockReturnValue(
+        path.join(wtPath, ".opensprint", "active", "task-approve-normalize"),
+      );
+      mockBuildContext.mockResolvedValue({});
+      mockAssembleTaskDirectory.mockResolvedValue(undefined);
+      mockGetChangedFiles.mockResolvedValue([]);
+      mockRunScopedTests.mockResolvedValue({
+        passed: 2,
+        failed: 0,
+        rawOutput: "ok",
+      });
+      mockCaptureBranchDiff.mockResolvedValue("");
+
+      mockReadResult
+        .mockResolvedValueOnce({ status: "success", summary: "Done" })
+        .mockResolvedValueOnce({ status: "approve", summary: "Looks good" });
+
+      let codingOnExit: (code: number | null) => Promise<void> = async () => {};
+      mockInvokeCodingAgent.mockImplementation(
+        (
+          _p: string,
+          _c: unknown,
+          opts: { onExit?: (code: number | null) => Promise<void> },
+        ) => {
+          codingOnExit = opts.onExit ?? (async () => {});
+          return { kill: vi.fn(), pid: 12345 };
+        },
+      );
+
+      let reviewOnExit: (code: number | null) => Promise<void> = async () => {};
+      mockInvokeReviewAgent.mockImplementation(
+        (
+          _p: string,
+          _c: unknown,
+          opts: { onExit?: (code: number | null) => Promise<void> },
+        ) => {
+          reviewOnExit = opts.onExit ?? (async () => {});
+          return { kill: vi.fn(), pid: 12346 };
+        },
+      );
+
+      await orchestrator.ensureRunning(projectId);
+      await new Promise((r) => setTimeout(r, 300));
+      await codingOnExit(0);
+      await new Promise((r) => setTimeout(r, 300));
+
+      mockMergeToMain.mockResolvedValue(undefined);
+      mockCreateSession.mockResolvedValue({ id: "sess-1" });
+      mockArchiveSession.mockResolvedValue(undefined);
+
+      await reviewOnExit(0);
+      await new Promise((r) => setTimeout(r, 300));
+
+      expect(mockMergeToMain).toHaveBeenCalledWith(
+        repoPath,
+        "opensprint/task-approve-normalize",
+      );
+      expect(mockBeadsClose).toHaveBeenCalledWith(
+        repoPath,
+        "task-approve-normalize",
+        "Done",
+      );
+    });
   });
 
   describe("progressive backoff - test failure retry", () => {

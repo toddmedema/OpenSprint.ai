@@ -1076,6 +1076,14 @@ export class OrchestratorService {
     const wtPath = state.activeWorktreePath ?? repoPath;
     const result = (await this.sessionManager.readResult(wtPath, task.id)) as ReviewAgentResult | null;
 
+    // Normalize status: agents sometimes write "approve"/"success" instead of "approved"
+    if (result && result.status) {
+      const normalized = String(result.status).toLowerCase().trim();
+      if (["approve", "success", "accept", "accepted"].includes(normalized)) {
+        (result as { status: string }).status = "approved";
+      }
+    }
+
     if (result && result.status === "approved") {
       await this.performMergeAndComplete(projectId, repoPath, task, branchName);
     } else if (result && result.status === "rejected") {
