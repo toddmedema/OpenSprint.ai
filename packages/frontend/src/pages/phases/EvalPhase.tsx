@@ -196,63 +196,64 @@ function FeedbackCard({
           </div>
         )}
 
-        {item.createdTaskIds.length > 0 && (
-          <div className="mt-1 flex gap-1 flex-wrap">
-            {item.createdTaskIds.map((taskId) => {
-              const column = getTaskColumn(taskId);
-              const statusLabel = COLUMN_LABELS[column];
-              return onNavigateToBuildTask ? (
-                <button
-                  key={taskId}
-                  type="button"
-                  onClick={() => onNavigateToBuildTask(taskId)}
-                  className="inline-flex items-center gap-1.5 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-mono text-brand-600 hover:bg-brand-50 hover:text-brand-700 underline transition-colors"
-                  title={`Go to ${taskId} on Execute tab (${statusLabel})`}
-                >
-                  <TaskStatusBadge column={column} size="xs" />
-                  <span className="text-gray-500 font-sans font-normal no-underline" aria-label={`Status: ${statusLabel}`}>
-                    {statusLabel}
+        {/* Ticket info and reply button share same line */}
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+          {item.createdTaskIds.length > 0 && (
+            <div className="flex gap-1 flex-wrap min-w-0">
+              {item.createdTaskIds.map((taskId) => {
+                const column = getTaskColumn(taskId);
+                const statusLabel = COLUMN_LABELS[column];
+                return onNavigateToBuildTask ? (
+                  <button
+                    key={taskId}
+                    type="button"
+                    onClick={() => onNavigateToBuildTask(taskId)}
+                    className="inline-flex items-center gap-1.5 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-mono text-brand-600 hover:bg-brand-50 hover:text-brand-700 underline transition-colors"
+                    title={`Go to ${taskId} on Execute tab (${statusLabel})`}
+                  >
+                    <TaskStatusBadge column={column} size="xs" />
+                    <span className="text-gray-500 font-sans font-normal no-underline" aria-label={`Status: ${statusLabel}`}>
+                      {statusLabel}
+                    </span>
+                    {taskId}
+                  </button>
+                ) : (
+                  <span
+                    key={taskId}
+                    className="inline-flex items-center gap-1.5 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-mono text-gray-600"
+                  >
+                    <TaskStatusBadge column={column} size="xs" />
+                    <span className="text-gray-500 font-sans font-normal" aria-label={`Status: ${statusLabel}`}>
+                      {statusLabel}
+                    </span>
+                    {taskId}
                   </span>
-                  {taskId}
-                </button>
-              ) : (
-                <span
-                  key={taskId}
-                  className="inline-flex items-center gap-1.5 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-mono text-gray-600"
-                >
-                  <TaskStatusBadge column={column} size="xs" />
-                  <span className="text-gray-500 font-sans font-normal" aria-label={`Status: ${statusLabel}`}>
-                    {statusLabel}
-                  </span>
-                  {taskId}
-                </span>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Reply button bottom-right */}
-        <div className="mt-2 flex justify-end">
-          <button
-            type="button"
-            onClick={() => (isReplying ? onCancelReply() : onStartReply(item.id))}
-            className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-colors"
-            title="Reply"
-            aria-label={isReplying ? "Cancel reply" : "Reply"}
-          >
-            <ReplyIcon className="w-4 h-4" />
-            {isReplying ? "Cancel" : "Reply"}
-          </button>
-          {hasChildren && (
+                );
+              })}
+            </div>
+          )}
+          <div className="flex gap-2 flex-shrink-0 ml-auto">
             <button
               type="button"
-              onClick={() => onToggleCollapse(item.id)}
-              className="ml-2 inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-colors"
-              aria-label={isCollapsed ? "Expand replies" : "Collapse replies"}
+              onClick={() => (isReplying ? onCancelReply() : onStartReply(item.id))}
+              className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-colors"
+              title="Reply"
+              aria-label={isReplying ? "Cancel reply" : "Reply"}
             >
-              {isCollapsed ? "Expand" : "Collapse"} ({children.length} {children.length === 1 ? "reply" : "replies"})
+              <ReplyIcon className="w-4 h-4" />
+              {isReplying ? "Cancel" : "Reply"}
             </button>
-          )}
+            {hasChildren && (
+              <button
+                type="button"
+                onClick={() => onToggleCollapse(item.id)}
+                className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-colors"
+                aria-label={isCollapsed ? "Expand replies" : "Collapse replies"}
+              >
+                {isCollapsed ? "Expand" : "Collapse"} ({children.length} {children.length === 1 ? "reply" : "replies"})
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
