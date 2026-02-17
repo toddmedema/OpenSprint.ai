@@ -14,7 +14,7 @@ OpenSprint is a web application that guides users through the full software deve
 bd ready                          # Find next available work (priority-sorted, all deps resolved)
 bd show <id>                      # View issue details and audit trail
 bd update <id> --claim            # Atomically claim a task (sets assignee + in_progress)
-bd close <id> --reason "..."      # Complete work
+bd close <id> --reason "..."      # Mark work done
 bd create "Title" -t <type> -p <priority>  # Create an issue (types: bug/feature/task/epic/chore)
 bd dep add <child> <parent>       # Add dependency (blocks, related, parent-child)
 bd list --json                    # List all issues with JSON output
@@ -41,7 +41,7 @@ Beads supports hierarchical IDs for organizing work:
 
 ## Landing the Plane (Session Completion)
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+**When ending a work session**, you MUST finish ALL steps below. Work is NOT done until `git push` succeeds.
 
 **MANDATORY WORKFLOW:**
 
@@ -61,7 +61,7 @@ Beads supports hierarchical IDs for organizing work:
 
 **CRITICAL RULES:**
 
-- Work is NOT complete until `git push` succeeds
+- Work is NOT done until `git push` succeeds
 - NEVER stop before pushing — that leaves work stranded locally
 - NEVER say "ready to push when you are" — YOU must push
 - If push fails, resolve and retry until it succeeds

@@ -317,7 +317,7 @@ export class ContextAssembler {
     prompt += `   \`\`\`json\n`;
     prompt += `   { "status": "success", "summary": "Brief description of what you implemented" }\n`;
     prompt += `   \`\`\`\n`;
-    prompt += `   Use \`"status": "success"\` when the task is complete, or \`"status": "failed"\` if you could not complete it.\n`;
+    prompt += `   Use \`"status": "success"\` when the task is done, or \`"status": "failed"\` if you could not finish it.\n`;
     prompt += `   The \`status\` field MUST be exactly \`"success"\` or \`"failed"\` — no other values.\n\n`;
 
     if (config.previousFailure) {

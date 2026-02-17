@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Agent Chain: Complete one bd task, commit, then kick off the next agent.
+# Agent Chain: Finish one bd task, commit, then kick off the next agent.
 # Uses git worktrees so agents never modify the main working tree.
 # Run: ./scripts/agent-chain.sh
 # Requires: Cursor CLI (agent) - install: curl https://cursor.com/install -fsSL | bash
@@ -31,7 +31,7 @@ while IFS= read -r task; do
 done < <(echo "$READY_TASKS" | jq -c '.[]' 2>/dev/null)
 
 if [[ -z "$NEXT_TASK" || "$NEXT_TASK" == "null" ]]; then
-  echo "✅ No ready bd tasks (all have unresolved blockers). Agent chain complete."
+  echo "✅ No ready bd tasks (all have unresolved blockers). Agent chain done."
   exit 0
 fi
 
@@ -83,7 +83,7 @@ if command -v agent &>/dev/null; then
   if ! git -C "$WORKTREE" diff --quiet HEAD 2>/dev/null || ! git -C "$WORKTREE" diff --cached --quiet HEAD 2>/dev/null; then
     echo "📦 Committing agent's uncommitted changes..."
     git -C "$WORKTREE" add -A
-    git -C "$WORKTREE" commit -m "Complete $TASK_ID: $TASK_TITLE" || true
+    git -C "$WORKTREE" commit -m "Done $TASK_ID: $TASK_TITLE" || true
   fi
 
   # Merge to main (from the main working tree, which is always on main)

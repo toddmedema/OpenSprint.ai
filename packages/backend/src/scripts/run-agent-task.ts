@@ -108,7 +108,7 @@ Commit after each meaningful change with descriptive WIP messages. Do not wait u
 Run these steps to complete the task and continue the chain:
 
 1. bd update ${taskId} --status done
-2. git add -A && git commit -m "Complete ${taskId}: ${task.title}"
+2. git add -A && git commit -m "Done ${taskId}: ${task.title}"
 3. bd sync
 4. git pull --rebase && git push
 5. Run: ./scripts/agent-chain.sh

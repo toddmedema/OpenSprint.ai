@@ -110,6 +110,10 @@ User authentication.
     expect(prompt).toContain('context/deps/');
     expect(prompt).toContain('Commit after each meaningful change');
     expect(prompt).toContain('Do not wait until the end to commit');
+    // Terminology: use "done" and "finish" instead of "complete" (feedback consistency)
+    expect(prompt).toContain('when the task is done');
+    expect(prompt).toContain('could not finish it');
+    expect(prompt).not.toContain('when the task is complete');
   });
 
   it('should include Review Feedback section in coding prompt when reviewFeedback is provided', async () => {

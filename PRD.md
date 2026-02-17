@@ -354,7 +354,7 @@ Each Plan markdown file follows a standardized template: Feature Title, Overview
 
 #### 7.2.4 User Interface
 
-The Plan tab displays a card-based interface showing all feature Plans, with a dependency graph visualization at the top. Each card shows the feature title, status (Planning/Building/Complete), complexity estimate, and dependency count. Users can click into any Plan to view or edit the full markdown. A sidebar allows conversational interaction with the planning agent to refine individual Plans. Each Plan card has a "Build it!" button (or "Re-build" for completed Plans with pending changes; disabled if any tasks are In Progress or In Review).
+The Plan tab displays a card-based interface showing all feature Plans, with a dependency graph visualization at the top. Each card shows the feature title, status (Planning/Building/Done), complexity estimate, and dependency count. Users can click into any Plan to view or edit the full markdown. A sidebar allows conversational interaction with the planning agent to refine individual Plans. Each Plan card has a "Build it!" button (or "Re-build" for Done plans with pending changes; disabled if any tasks are In Progress or In Review).
 
 ---
 
@@ -371,7 +371,7 @@ The Build phase is where AI agents autonomously implement the planned features. 
 - **Kanban board interface:** Tasks are displayed across columns: Planning, Backlog, Ready, In Progress, In Review, Done, Blocked. Tasks move automatically as agents pick them up and complete them. Blocked tasks are visually distinct and require user action to unblock.
 - **Two-agent build cycle:** Each task is processed by two agents sequentially. First, a **coding agent** implements the solution and writes tests, producing a `result.json` with its status. Then, a **review agent** is automatically triggered by the orchestrator to validate the implementation against the ticket specification, verify that tests pass and adequately cover the ticket scope, and check code quality. **All state transitions are performed by the orchestrator based on agent output, never by the agents themselves.** Specifically: the orchestrator moves the task to In Progress when assigning the coding agent; the orchestrator moves it to In Review after the coding agent produces `result.json` with `status: "success"`; the orchestrator moves it to Done after the review agent produces `result.json` with `status: "approved"` and merges the branch; and the orchestrator moves it back to In Progress if the review agent produces `status: "rejected"`, adding the rejection feedback as a bead comment and triggering a new coding agent. This cycle repeats until the review agent approves or a retry cycle is exhausted, at which point the task is returned to the Ready queue with progressive backoff applied (see Section 9.1).
 - **Autonomous single-agent execution:** The orchestration layer runs one agent at a time (coding or review). It is always running (see Section 5.7) and requires no manual start. It polls `bd ready --json` to find the next available task, assigns it via `bd update <id> --assignee agent-1`, and manages the full execution lifecycle. New tasks that arrive while an agent is active (e.g., from user feedback or a newly shipped Plan) are queued and picked up after the current agent completes.
-- **Real-time agent monitoring:** Users can click on any In Progress or In Review task to see a live stream of the agent's reasoning, code generation, and decision-making. Completed tasks display the full output log and generated artifacts.
+- **Real-time agent monitoring:** Users can click on any In Progress or In Review task to see a live stream of the agent's reasoning, code generation, and decision-making. Done tasks display the full output log and generated artifacts.
 - **Context propagation:** When Task B depends on Task A, the agent picking up Task B receives not just the Plan, but also the actual output and code produced by Task A. This ensures agents build on reality, not just plans. (Note: for v1, context is assembled from the Plan markdown plus the git diff/files produced by dependency tasks. A dedicated "conductor" agent for intelligent context summarization is planned for v2 to support large projects.)
 
 #### 7.3.3 Task Lifecycle & State Machine
@@ -588,7 +588,7 @@ Stored as `.opensprint/plans/<plan-id>.md` in the project repo. The Plan markdow
 | Field | Type | Description |
 |-------|------|-------------|
 | plan_id | string | Unique identifier (matches filename) |
-| bead_epic_id | string | Corresponding beads epic ID (e.g., `bd-a3f8`). Plan status (planning/building/complete) is derived from the beads epic state — no separate status field needed. |
+| bead_epic_id | string | Corresponding beads epic ID (e.g., `bd-a3f8`). Plan status (planning/building/done) is derived from the beads epic state — no separate status field needed. |
 | gate_task_id | string | The gating task ID (e.g., `bd-a3f8.0`) — closed when user clicks "Build it!" |
 | shipped_at | datetime | When the user clicked "Build it!" (null if still in planning) |
 | complexity | enum | low / medium / high / very_high |
