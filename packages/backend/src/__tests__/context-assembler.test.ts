@@ -110,6 +110,62 @@ User authentication.
     expect(prompt).toContain('context/deps/');
   });
 
+  it('should include Review Feedback section in coding prompt when reviewFeedback is provided', async () => {
+    const prdDir = path.join(repoPath, path.dirname(OPENSPRINT_PATHS.prd));
+    await fs.mkdir(prdDir, { recursive: true });
+    await fs.writeFile(
+      path.join(repoPath, OPENSPRINT_PATHS.prd),
+      JSON.stringify({
+        sections: {
+          executive_summary: { content: '## Summary\n\nTest product.' },
+        },
+      }),
+    );
+
+    const plansDir = path.join(repoPath, OPENSPRINT_PATHS.plans);
+    await fs.mkdir(plansDir, { recursive: true });
+    const planContent = `# Feature: Auth
+
+## Overview
+User authentication.
+
+## Acceptance Criteria
+
+- User can log in with email/password
+
+## Technical Approach
+
+- Use bcrypt for password hashing
+`;
+    await fs.writeFile(path.join(plansDir, 'auth.md'), planContent);
+
+    const config = {
+      taskId: 'bd-a3f8.1',
+      repoPath,
+      branch: 'opensprint/bd-a3f8.1',
+      testCommand: 'npm test',
+      attempt: 2,
+      phase: 'coding' as const,
+      previousFailure: null as string | null,
+      reviewFeedback: 'Tests do not cover edge cases.\nMissing error handling for invalid input.',
+    };
+
+    const taskDir = await assembler.assembleTaskDirectory(repoPath, config.taskId, config, {
+      taskId: config.taskId,
+      title: 'Implement login endpoint',
+      description: 'Add POST /auth/login',
+      planContent,
+      prdExcerpt: '# Product Requirements\n\nTest product.',
+      dependencyOutputs: [],
+    });
+
+    const prompt = await fs.readFile(path.join(taskDir, 'prompt.md'), 'utf-8');
+    expect(prompt).toContain('## Review Feedback');
+    expect(prompt).toContain('The review agent rejected the previous implementation:');
+    expect(prompt).toContain('Tests do not cover edge cases.');
+    expect(prompt).toContain('Missing error handling for invalid input.');
+  });
+
   it('should extract PRD excerpt when prd.json exists', async () => {
     const prdDir = path.join(repoPath, path.dirname(OPENSPRINT_PATHS.prd));
     await fs.mkdir(prdDir, { recursive: true });

@@ -330,7 +330,9 @@ export class OrchestratorService {
     const commitCount = await this.branchManager.getCommitCountAhead(repoPath, branchName);
     const diff = await this.branchManager.captureBranchDiff(repoPath, branchName);
     if (diff) {
-      console.log(`[orchestrator] Recovery: captured ${diff.length} bytes of diff from ${branchName} (${commitCount} commits ahead)`);
+      console.log(
+        `[orchestrator] Recovery: captured ${diff.length} bytes of diff from ${branchName} (${commitCount} commits ahead)`,
+      );
     }
 
     // 3. Clean up worktree (always — it may be corrupted)
@@ -705,10 +707,7 @@ export class OrchestratorService {
       }, 30000);
     } catch (error) {
       console.error(`Coding phase failed for task ${task.id}:`, error);
-      await this.handleTaskFailure(
-        projectId, repoPath, task, branchName,
-        String(error), null, "agent_crash",
-      );
+      await this.handleTaskFailure(projectId, repoPath, task, branchName, String(error), null, "agent_crash");
     }
   }
 
@@ -735,12 +734,15 @@ export class OrchestratorService {
 
     // Determine failure type when agent didn't produce a result
     if (!result) {
-      const failureType: FailureType = exitCode === 143 || exitCode === 137
-        ? "agent_crash" : "no_result";
+      const failureType: FailureType = exitCode === 143 || exitCode === 137 ? "agent_crash" : "no_result";
       await this.handleTaskFailure(
-        projectId, repoPath, task, branchName,
+        projectId,
+        repoPath,
+        task,
+        branchName,
         `Agent exited with code ${exitCode} without producing a result`,
-        null, failureType,
+        null,
+        failureType,
       );
       return;
     }
@@ -764,9 +766,13 @@ export class OrchestratorService {
 
       if (scopedResult.failed > 0) {
         await this.handleTaskFailure(
-          projectId, repoPath, task, branchName,
+          projectId,
+          repoPath,
+          task,
+          branchName,
           `Tests failed: ${scopedResult.failed} failed, ${scopedResult.passed} passed`,
-          scopedResult, "test_failure",
+          scopedResult,
+          "test_failure",
         );
         return;
       }
@@ -805,9 +811,7 @@ export class OrchestratorService {
     } else {
       // Coding failed
       const reason = result.summary || `Agent exited with code ${exitCode}`;
-      await this.handleTaskFailure(
-        projectId, repoPath, task, branchName, reason, null, "coding_failure",
-      );
+      await this.handleTaskFailure(projectId, repoPath, task, branchName, reason, null, "coding_failure");
     }
   }
 
@@ -896,9 +900,7 @@ export class OrchestratorService {
       }, 30000);
     } catch (error) {
       console.error(`Review phase failed for task ${task.id}:`, error);
-      await this.handleTaskFailure(
-        projectId, repoPath, task, branchName, String(error), null, "agent_crash",
-      );
+      await this.handleTaskFailure(projectId, repoPath, task, branchName, String(error), null, "agent_crash");
     }
   }
 
@@ -933,16 +935,17 @@ export class OrchestratorService {
       });
       await this.sessionManager.archiveSession(repoPath, task.id, state.attempt, session, wtPath);
 
-      await this.handleTaskFailure(
-        projectId, repoPath, task, branchName, reason, null, "review_rejection",
-      );
+      await this.handleTaskFailure(projectId, repoPath, task, branchName, reason, null, "review_rejection");
     } else {
-      const failureType: FailureType = exitCode === 143 || exitCode === 137
-        ? "agent_crash" : "no_result";
+      const failureType: FailureType = exitCode === 143 || exitCode === 137 ? "agent_crash" : "no_result";
       await this.handleTaskFailure(
-        projectId, repoPath, task, branchName,
+        projectId,
+        repoPath,
+        task,
+        branchName,
         `Review agent exited with code ${exitCode} without producing a valid result`,
-        null, failureType,
+        null,
+        failureType,
       );
     }
   }
@@ -974,8 +977,13 @@ export class OrchestratorService {
       const merged = await this.branchManager.verifyMerge(repoPath, branchName);
       if (!merged) {
         await this.handleTaskFailure(
-          projectId, repoPath, task, branchName,
-          `Merge to main failed: ${mergeErr}`, null, "merge_conflict",
+          projectId,
+          repoPath,
+          task,
+          branchName,
+          `Merge to main failed: ${mergeErr}`,
+          null,
+          "merge_conflict",
         );
         return;
       }
@@ -1224,11 +1232,7 @@ export class OrchestratorService {
    * Fixes recoverable issues (missing symlinks, stale result.json) in-place.
    * If pre-flight fails, the issue is environmental — not the agent's fault.
    */
-  private async preflightCheck(
-    repoPath: string,
-    wtPath: string,
-    taskId: string,
-  ): Promise<void> {
+  private async preflightCheck(repoPath: string, wtPath: string, taskId: string): Promise<void> {
     // 1. Ensure git is ready (no stale locks)
     await this.branchManager.waitForGitReady(wtPath);
 
