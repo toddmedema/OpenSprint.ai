@@ -86,11 +86,31 @@ Valid section keys: ${VALID_SECTION_KEYS.join(", ")}
 Do NOT include a top-level section header in the content. Start with the body content directly.`;
 }
 
+/** Harmonizer update with optional change log (for scope-change summary) */
+export interface HarmonizerPrdUpdate {
+  section: PrdSectionKey;
+  content: string;
+  changeLogEntry?: string;
+}
+
 /** Parse Harmonizer result from agent response (supports result.json format and legacy [PRD_UPDATE:...] blocks) */
 export function parseHarmonizerResult(
   content: string,
   legacyUpdates?: Array<{ section: PrdSectionKey; content: string }>
 ): { status: "success" | "no_changes_needed"; prdUpdates: Array<{ section: PrdSectionKey; content: string }> } | null {
+  const full = parseHarmonizerResultFull(content, legacyUpdates);
+  if (!full) return null;
+  return {
+    status: full.status,
+    prdUpdates: full.prdUpdates.map(({ section, content }) => ({ section, content })),
+  };
+}
+
+/** Parse Harmonizer result including change_log_entry (for scope-change HIL summary) */
+export function parseHarmonizerResultFull(
+  content: string,
+  legacyUpdates?: Array<{ section: PrdSectionKey; content: string }>
+): { status: "success" | "no_changes_needed"; prdUpdates: HarmonizerPrdUpdate[] } | null {
   // Try to parse JSON result first (result.json format)
   const jsonMatch = content.match(/\{[\s\S]*"status"[\s\S]*\}/);
   if (jsonMatch) {
@@ -106,6 +126,7 @@ export function parseHarmonizerResult(
           .map((u) => ({
             section: u.section as PrdSectionKey,
             content: u.content?.trim() ?? "",
+            changeLogEntry: u.change_log_entry?.trim(),
           }))
           .filter((u) => u.content.length > 0);
         return { status: "success", prdUpdates };
@@ -120,7 +141,10 @@ export function parseHarmonizerResult(
 
   // Legacy: [PRD_UPDATE:section_key] blocks
   if (legacyUpdates && legacyUpdates.length > 0) {
-    return { status: "success", prdUpdates: legacyUpdates };
+    return {
+      status: "success",
+      prdUpdates: legacyUpdates.map((u) => ({ section: u.section, content: u.content })),
+    };
   }
 
   return null;

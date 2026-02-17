@@ -3,6 +3,7 @@ import {
   buildHarmonizerPromptBuildIt,
   buildHarmonizerPromptScopeChange,
   parseHarmonizerResult,
+  parseHarmonizerResultFull,
 } from "../services/harmonizer.service.js";
 
 describe("harmonizer.service", () => {
@@ -81,6 +82,35 @@ describe("harmonizer.service", () => {
     it("returns null for unparseable content without legacy", () => {
       const result = parseHarmonizerResult("random text");
       expect(result).toBeNull();
+    });
+  });
+
+  describe("parseHarmonizerResultFull", () => {
+    it("parses success with change_log_entry", () => {
+      const content = JSON.stringify({
+        status: "success",
+        prd_updates: [
+          {
+            section: "feature_list",
+            action: "update",
+            content: "New feature",
+            change_log_entry: "Add dark mode support",
+          },
+        ],
+      });
+      const result = parseHarmonizerResultFull(content);
+      expect(result?.status).toBe("success");
+      expect(result?.prdUpdates).toHaveLength(1);
+      expect(result?.prdUpdates[0]).toEqual({
+        section: "feature_list",
+        content: "New feature",
+        changeLogEntry: "Add dark mode support",
+      });
+    });
+
+    it("parses no_changes_needed", () => {
+      const result = parseHarmonizerResultFull('{"status":"no_changes_needed"}');
+      expect(result).toEqual({ status: "no_changes_needed", prdUpdates: [] });
     });
   });
 });

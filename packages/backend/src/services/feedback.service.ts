@@ -255,10 +255,31 @@ export class FeedbackService {
 
         // Handle scope changes with HIL (PRD §7.4.2, §15.1)
         if (item.category === 'scope') {
+          // Get AI-generated proposal for modal summary (before HIL)
+          let proposal: { summary: string; prdUpdates: Array<{ section: string; content: string; changeLogEntry?: string }> } | null = null;
+          try {
+            proposal = await this.chatService.getScopeChangeProposal(projectId, item.text);
+          } catch (err) {
+            console.warn('[feedback] Could not get scope-change proposal for modal:', err);
+          }
+
+          const scopeChangeMetadata = proposal
+            ? {
+                scopeChangeSummary: proposal.summary,
+                scopeChangeProposedUpdates: proposal.prdUpdates.map((u) => ({
+                  section: u.section,
+                  changeLogEntry: u.changeLogEntry,
+                })),
+              }
+            : undefined;
+
           const { approved } = await this.hilService.evaluateDecision(
             projectId,
             'scopeChanges',
             `Scope change feedback: "${item.text}"`,
+            undefined,
+            true,
+            scopeChangeMetadata,
           );
 
           if (!approved) {
@@ -273,9 +294,17 @@ export class FeedbackService {
             return;
           }
 
-          // After HIL approval, invoke the planning agent to update the PRD
+          // After HIL approval, apply the PRD updates (reuse proposal to avoid duplicate Harmonizer call)
           try {
-            await this.chatService.syncPrdFromScopeChangeFeedback(projectId, item.text);
+            if (proposal?.prdUpdates?.length) {
+              await this.chatService.applyScopeChangeUpdates(
+                projectId,
+                proposal.prdUpdates,
+                `Scope change feedback: "${item.text.slice(0, 80)}${item.text.length > 80 ? '…' : ''}"`,
+              );
+            } else {
+              await this.chatService.syncPrdFromScopeChangeFeedback(projectId, item.text);
+            }
           } catch (err) {
             console.error('[feedback] PRD sync on scope-change approval failed:', err);
           }

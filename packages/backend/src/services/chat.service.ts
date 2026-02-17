@@ -23,6 +23,8 @@ import {
   buildHarmonizerPromptBuildIt,
   buildHarmonizerPromptScopeChange,
   parseHarmonizerResult,
+  parseHarmonizerResultFull,
+  type HarmonizerPrdUpdate,
 } from "./harmonizer.service.js";
 
 const ARCHITECTURE_SECTIONS = ["technical_architecture", "data_model", "api_contracts"] as const;
@@ -398,6 +400,74 @@ export class ChatService {
     if (filtered.length === 0) return;
 
     const changes = await this.prdService.updateSections(projectId, filtered, "plan");
+    for (const change of changes) {
+      broadcastToProject(projectId, {
+        type: "prd.updated",
+        section: change.section,
+        version: change.newVersion,
+      });
+    }
+  }
+
+  /**
+   * Get Harmonizer proposal for scope-change feedback (for HIL modal summary).
+   * Invokes Harmonizer and returns summary + prdUpdates without applying.
+   * Used to show AI-generated summary in the approval modal before user decides.
+   */
+  async getScopeChangeProposal(
+    projectId: string,
+    feedbackText: string,
+  ): Promise<{ summary: string; prdUpdates: HarmonizerPrdUpdate[] } | null> {
+    const settings = await this.projectService.getSettings(projectId);
+    const agentConfig = settings.planningAgent;
+    const prdContext = await this.buildPrdContext(projectId);
+
+    const prompt = buildHarmonizerPromptScopeChange(feedbackText);
+    const systemPrompt = `You are the Harmonizer agent for OpenSprint (PRD §12.3.3). Review scope-change feedback against the PRD and propose section updates.\n\n## Current PRD\n\n${prdContext}`;
+
+    const agentId = `harmonizer-scope-preview-${projectId}-${Date.now()}`;
+    activeAgentsService.register(agentId, projectId, "plan", "harmonizer", "Scope-change proposal", new Date().toISOString());
+
+    let response;
+    try {
+      response = await agentService.invokePlanningAgent({
+        config: agentConfig,
+        messages: [{ role: "user", content: prompt }],
+        systemPrompt,
+      });
+    } finally {
+      activeAgentsService.unregister(agentId);
+    }
+
+    const legacyUpdates = this.parsePrdUpdates(response.content);
+    const result = parseHarmonizerResultFull(response.content, legacyUpdates);
+    if (!result || result.status === "no_changes_needed" || result.prdUpdates.length === 0) return null;
+
+    const summary =
+      result.prdUpdates
+        .map((u) => {
+          const sectionLabel = u.section.replace(/_/g, " ");
+          return u.changeLogEntry ? `• ${sectionLabel}: ${u.changeLogEntry}` : `• ${sectionLabel}`;
+        })
+        .join("\n") || "Proposed PRD section updates.";
+
+    return { summary, prdUpdates: result.prdUpdates };
+  }
+
+  /**
+   * Apply scope-change PRD updates (after HIL approval).
+   * Filters architecture sections through HIL, then applies remaining updates.
+   */
+  async applyScopeChangeUpdates(
+    projectId: string,
+    prdUpdates: HarmonizerPrdUpdate[],
+    contextDescription: string,
+  ): Promise<void> {
+    const baseUpdates = prdUpdates.map(({ section, content }) => ({ section, content }));
+    const filtered = await this.filterArchitectureUpdatesWithHil(projectId, baseUpdates, contextDescription);
+    if (filtered.length === 0) return;
+
+    const changes = await this.prdService.updateSections(projectId, filtered, "eval");
     for (const change of changes) {
       broadcastToProject(projectId, {
         type: "prd.updated",

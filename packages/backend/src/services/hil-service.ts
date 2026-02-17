@@ -1,9 +1,15 @@
 import { v4 as uuid } from "uuid";
-import type { HilConfig, HilNotificationMode } from "@opensprint/shared";
+import type { HilConfig } from "@opensprint/shared";
 import { ProjectService } from "./project.service.js";
 import { broadcastToProject } from "../websocket/index.js";
 
 type HilCategory = keyof HilConfig;
+
+/** Optional metadata for scope-change HIL requests (AI-generated summary) */
+export interface ScopeChangeHilMetadata {
+  scopeChangeSummary: string;
+  scopeChangeProposedUpdates: Array<{ section: string; changeLogEntry?: string }>;
+}
 
 interface HilRequest {
   id: string;
@@ -16,8 +22,6 @@ interface HilRequest {
   notes: string | null;
   createdAt: string;
 }
-
-type HilRequestHandler = (request: HilRequest) => void;
 
 /**
  * Human-in-the-loop service.
@@ -35,6 +39,7 @@ export class HilService {
    * Blocks (via promise) for 'requires_approval' until user responds.
    * @param defaultApproved - When mode is automated/notify_and_proceed, return this value (default: true).
    *   Use false for escalation cases where the default is "don't proceed" (e.g. retry limit reached).
+   * @param scopeChangeMetadata - For scopeChanges category: AI-generated summary and proposed updates for the modal.
    */
   async evaluateDecision(
     projectId: string,
@@ -42,6 +47,7 @@ export class HilService {
     description: string,
     options?: Array<{ id: string; label: string; description: string }>,
     defaultApproved = true,
+    scopeChangeMetadata?: ScopeChangeHilMetadata,
   ): Promise<{ approved: boolean; notes?: string }> {
     const settings = await this.projectService.getSettings(projectId);
     const mode = settings.hilConfig[category];
@@ -67,6 +73,10 @@ export class HilService {
           description,
           options: defaultOptions,
           blocking: false,
+          ...(scopeChangeMetadata && {
+            scopeChangeSummary: scopeChangeMetadata.scopeChangeSummary,
+            scopeChangeProposedUpdates: scopeChangeMetadata.scopeChangeProposedUpdates,
+          }),
         });
         console.log(`[HIL] Notify-and-proceed for ${category}: ${description}`);
         return { approved: defaultApproved };
@@ -82,6 +92,10 @@ export class HilService {
           description,
           options: defaultOptions,
           blocking: true,
+          ...(scopeChangeMetadata && {
+            scopeChangeSummary: scopeChangeMetadata.scopeChangeSummary,
+            scopeChangeProposedUpdates: scopeChangeMetadata.scopeChangeProposedUpdates,
+          }),
         });
         console.log(`[HIL] Waiting for approval on ${category}: ${description}`);
 

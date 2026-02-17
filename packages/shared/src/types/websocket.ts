@@ -51,6 +51,12 @@ export interface ExecuteStatusEvent {
   pendingFeedbackCategorizations?: Array<{ feedbackId: string; category?: string }>;
 }
 
+/** Scope-change-specific metadata for HIL approval modal (AI-generated summary of proposed PRD updates) */
+export interface ScopeChangeProposedUpdate {
+  section: string;
+  changeLogEntry?: string;
+}
+
 export interface HilRequestEvent {
   type: 'hil.request';
   requestId: string;
@@ -59,6 +65,10 @@ export interface HilRequestEvent {
   options: HilOption[];
   /** True = blocking modal (requires_approval); false = dismissible notification (notify_and_proceed) */
   blocking?: boolean;
+  /** AI-generated summary of proposed PRD changes (scopeChanges category only) */
+  scopeChangeSummary?: string;
+  /** Proposed PRD section updates with change descriptions (scopeChanges category only) */
+  scopeChangeProposedUpdates?: ScopeChangeProposedUpdate[];
 }
 
 export interface HilOption {

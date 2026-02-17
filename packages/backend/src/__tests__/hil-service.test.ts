@@ -16,6 +16,7 @@ vi.mock('../services/project.service.js', () => {
 
 // Import after mocks are set up
 const { HilService } = await import('../services/hil-service.js');
+const { broadcastToProject } = await import('../websocket/index.js');
 
 describe('HilService', () => {
   let hilService: InstanceType<typeof HilService>;
@@ -107,5 +108,41 @@ describe('HilService', () => {
     const result = await promise;
     expect(result.approved).toBe(false);
     expect(result.notes).toBe('Too risky');
+  });
+
+  it('should include scopeChangeMetadata in broadcast when provided', async () => {
+    const promise = hilService.evaluateDecision(
+      'test-project',
+      'scopeChanges',
+      'Add mobile support',
+      undefined,
+      true,
+      {
+        scopeChangeSummary: '• feature_list: Add mobile app\n• technical_architecture: Mobile stack',
+        scopeChangeProposedUpdates: [
+          { section: 'feature_list', changeLogEntry: 'Add mobile app' },
+          { section: 'technical_architecture', changeLogEntry: 'Mobile stack' },
+        ],
+      },
+    );
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(broadcastToProject).toHaveBeenCalledWith(
+      'test-project',
+      expect.objectContaining({
+        type: 'hil.request',
+        category: 'scopeChanges',
+        scopeChangeSummary: '• feature_list: Add mobile app\n• technical_architecture: Mobile stack',
+        scopeChangeProposedUpdates: [
+          { section: 'feature_list', changeLogEntry: 'Add mobile app' },
+          { section: 'technical_architecture', changeLogEntry: 'Mobile stack' },
+        ],
+      }),
+    );
+
+    const pending = hilService.getPendingRequests('test-project');
+    hilService.respondToRequest(pending[0].id, true);
+    await promise;
   });
 });

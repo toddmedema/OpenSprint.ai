@@ -19,9 +19,13 @@ vi.mock("../services/hil-service.js", () => ({
 }));
 
 const mockSyncPrdFromScopeChange = vi.fn().mockResolvedValue(undefined);
+const mockGetScopeChangeProposal = vi.fn().mockResolvedValue(null);
+const mockApplyScopeChangeUpdates = vi.fn().mockResolvedValue(undefined);
 vi.mock("../services/chat.service.js", () => ({
   ChatService: vi.fn().mockImplementation(() => ({
     syncPrdFromScopeChangeFeedback: (...args: unknown[]) => mockSyncPrdFromScopeChange(...args),
+    getScopeChangeProposal: (...args: unknown[]) => mockGetScopeChangeProposal(...args),
+    applyScopeChangeUpdates: (...args: unknown[]) => mockApplyScopeChangeUpdates(...args),
   })),
 }));
 
@@ -502,7 +506,7 @@ describe("FeedbackService", () => {
   });
 
   describe("Scope change feedback (category=scope) with HIL", () => {
-    it("should call HIL evaluateDecision when category is scope", async () => {
+    it("should call getScopeChangeProposal and HIL evaluateDecision when category is scope", async () => {
       mockInvoke.mockResolvedValue({
         content: JSON.stringify({
           category: "scope",
@@ -517,11 +521,59 @@ describe("FeedbackService", () => {
 
       await new Promise((r) => setTimeout(r, 200));
 
+      expect(mockGetScopeChangeProposal).toHaveBeenCalledWith(
+        projectId,
+        "We need to add a mobile app as a new platform",
+      );
       expect(mockHilEvaluate).toHaveBeenCalledTimes(1);
       expect(mockHilEvaluate).toHaveBeenCalledWith(
         projectId,
         "scopeChanges",
         'Scope change feedback: "We need to add a mobile app as a new platform"',
+        undefined,
+        true,
+        expect.anything(), // scopeChangeMetadata (may be undefined if proposal failed)
+      );
+    });
+
+    it("should pass scopeChangeMetadata to HIL when getScopeChangeProposal returns proposal", async () => {
+      const proposal = {
+        summary: "• feature_list: Add mobile app",
+        prdUpdates: [
+          { section: "feature_list", content: "New content", changeLogEntry: "Add mobile app" },
+        ],
+      };
+      mockGetScopeChangeProposal.mockResolvedValue(proposal);
+      mockInvoke.mockResolvedValue({
+        content: JSON.stringify({
+          category: "scope",
+          mappedPlanId: null,
+          task_titles: ["Update PRD"],
+        }),
+      });
+      mockHilEvaluate.mockResolvedValue({ approved: true });
+
+      await feedbackService.submitFeedback(projectId, {
+        text: "Add mobile app",
+      });
+
+      await new Promise((r) => setTimeout(r, 200));
+
+      expect(mockHilEvaluate).toHaveBeenCalledWith(
+        projectId,
+        "scopeChanges",
+        'Scope change feedback: "Add mobile app"',
+        undefined,
+        true,
+        {
+          scopeChangeSummary: "• feature_list: Add mobile app",
+          scopeChangeProposedUpdates: [{ section: "feature_list", changeLogEntry: "Add mobile app" }],
+        },
+      );
+      expect(mockApplyScopeChangeUpdates).toHaveBeenCalledWith(
+        projectId,
+        proposal.prdUpdates,
+        expect.stringContaining("Add mobile app"),
       );
     });
 
