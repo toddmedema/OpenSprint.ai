@@ -612,7 +612,7 @@ export class OrchestratorService {
         console.log("[orchestrator] No ready tasks, going idle", { projectId });
         state.loopActive = false;
         broadcastToProject(projectId, {
-          type: "build.status",
+          type: "execute.status",
           currentTask: null,
           queueDepth: 0,
         });
@@ -639,7 +639,7 @@ export class OrchestratorService {
         });
         state.loopActive = false;
         broadcastToProject(projectId, {
-          type: "build.status",
+          type: "execute.status",
           currentTask: null,
           queueDepth: 0,
         });
@@ -674,7 +674,7 @@ export class OrchestratorService {
       });
 
       broadcastToProject(projectId, {
-        type: "build.status",
+        type: "execute.status",
         currentTask: task.id,
         currentPhase: "coding",
         queueDepth: readyTasks.length - 1,
@@ -960,7 +960,7 @@ export class OrchestratorService {
           assignee: "agent-1",
         });
         broadcastToProject(projectId, {
-          type: "build.status",
+          type: "execute.status",
           currentTask: task.id,
           currentPhase: "review",
           queueDepth: state.status.queueDepth,
@@ -1310,7 +1310,7 @@ export class OrchestratorService {
     });
 
     broadcastToProject(projectId, {
-      type: "agent.done",
+      type: "agent.completed",
       taskId: task.id,
       status: "approved",
       testResults: state.lastTestResults,
@@ -1512,7 +1512,7 @@ export class OrchestratorService {
         });
 
         broadcastToProject(projectId, {
-          type: "agent.done",
+          type: "agent.completed",
           taskId: task.id,
           status: "failed",
           testResults: null,
@@ -1602,7 +1602,7 @@ export class OrchestratorService {
     });
 
     broadcastToProject(projectId, {
-      type: "agent.done",
+      type: "agent.completed",
       taskId: task.id,
       status: "failed",
       testResults: null,

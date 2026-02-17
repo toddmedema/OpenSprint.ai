@@ -4,8 +4,8 @@ import planReducer, {
   fetchPlans,
   fetchPlanStatus,
   decomposePlans,
-  shipPlan,
-  reshipPlan,
+  executePlan,
+  reExecutePlan,
   fetchPlanChat,
   sendPlanMessage,
   fetchSinglePlan,
@@ -25,8 +25,8 @@ vi.mock("../../api/client", () => ({
     plans: {
       list: vi.fn(),
       decompose: vi.fn(),
-      ship: vi.fn(),
-      reship: vi.fn(),
+      execute: vi.fn(),
+      reExecute: vi.fn(),
       archive: vi.fn(),
       get: vi.fn(),
       update: vi.fn(),
@@ -67,8 +67,8 @@ describe("planSlice", () => {
   beforeEach(() => {
     vi.mocked(api.plans.list).mockReset();
     vi.mocked(api.plans.decompose).mockReset();
-    vi.mocked(api.plans.ship).mockReset();
-    vi.mocked(api.plans.reship).mockReset();
+    vi.mocked(api.plans.execute).mockReset();
+    vi.mocked(api.plans.reExecute).mockReset();
     vi.mocked(api.plans.archive).mockReset();
     vi.mocked(api.plans.get).mockReset();
     vi.mocked(api.plans.update).mockReset();
@@ -247,96 +247,96 @@ describe("planSlice", () => {
     });
   });
 
-  describe("shipPlan thunk", () => {
-    it("sets shippingPlanId on pending", async () => {
+  describe("executePlan thunk", () => {
+    it("sets executingPlanId on pending", async () => {
       let resolveApi: () => void;
       const apiPromise = new Promise<void>((r) => {
         resolveApi = r;
       });
-      vi.mocked(api.plans.ship).mockReturnValue(apiPromise as never);
+      vi.mocked(api.plans.execute).mockReturnValue(apiPromise as never);
       const store = createStore();
       const dispatchPromise = store.dispatch(
-        shipPlan({ projectId: "proj-1", planId: "plan-123" }),
+        executePlan({ projectId: "proj-1", planId: "plan-123" }),
       );
 
-      expect(store.getState().plan.shippingPlanId).toBe("plan-123");
+      expect(store.getState().plan.executingPlanId).toBe("plan-123");
       expect(store.getState().plan.error).toBeNull();
 
       resolveApi!();
       await dispatchPromise;
     });
 
-    it("clears shippingPlanId on fulfilled", async () => {
-      vi.mocked(api.plans.ship).mockResolvedValue(undefined);
+    it("clears executingPlanId on fulfilled", async () => {
+      vi.mocked(api.plans.execute).mockResolvedValue(undefined);
       const store = createStore();
-      await store.dispatch(shipPlan({ projectId: "proj-1", planId: "plan-123" }));
+      await store.dispatch(executePlan({ projectId: "proj-1", planId: "plan-123" }));
 
-      expect(store.getState().plan.shippingPlanId).toBeNull();
-      expect(api.plans.ship).toHaveBeenCalledWith("proj-1", "plan-123");
+      expect(store.getState().plan.executingPlanId).toBeNull();
+      expect(api.plans.execute).toHaveBeenCalledWith("proj-1", "plan-123");
     });
 
-    it("clears shippingPlanId and sets error on rejected", async () => {
-      vi.mocked(api.plans.ship).mockRejectedValue(new Error("Ship failed"));
+    it("clears executingPlanId and sets error on rejected", async () => {
+      vi.mocked(api.plans.execute).mockRejectedValue(new Error("Execute failed"));
       const store = createStore();
-      await store.dispatch(shipPlan({ projectId: "proj-1", planId: "plan-123" }));
+      await store.dispatch(executePlan({ projectId: "proj-1", planId: "plan-123" }));
 
       const state = store.getState().plan;
-      expect(state.shippingPlanId).toBeNull();
-      expect(state.error).toBe("Ship failed");
+      expect(state.executingPlanId).toBeNull();
+      expect(state.error).toBe("Execute failed");
     });
 
     it("uses fallback error message when error has no message", async () => {
-      vi.mocked(api.plans.ship).mockRejectedValue(new Error());
+      vi.mocked(api.plans.execute).mockRejectedValue(new Error());
       const store = createStore();
-      await store.dispatch(shipPlan({ projectId: "proj-1", planId: "plan-123" }));
+      await store.dispatch(executePlan({ projectId: "proj-1", planId: "plan-123" }));
 
       expect(store.getState().plan.error).toBe("Failed to start execute");
     });
   });
 
-  describe("reshipPlan thunk", () => {
-    it("sets reshippingPlanId on pending", async () => {
+  describe("reExecutePlan thunk", () => {
+    it("sets reExecutingPlanId on pending", async () => {
       let resolveApi: () => void;
       const apiPromise = new Promise<void>((r) => {
         resolveApi = r;
       });
-      vi.mocked(api.plans.reship).mockReturnValue(apiPromise as never);
+      vi.mocked(api.plans.reExecute).mockReturnValue(apiPromise as never);
       const store = createStore();
       const dispatchPromise = store.dispatch(
-        reshipPlan({ projectId: "proj-1", planId: "plan-456" }),
+        reExecutePlan({ projectId: "proj-1", planId: "plan-456" }),
       );
 
-      expect(store.getState().plan.reshippingPlanId).toBe("plan-456");
+      expect(store.getState().plan.reExecutingPlanId).toBe("plan-456");
 
       resolveApi!();
       await dispatchPromise;
     });
 
-    it("clears reshippingPlanId on fulfilled", async () => {
-      vi.mocked(api.plans.reship).mockResolvedValue(undefined);
+    it("clears reExecutingPlanId on fulfilled", async () => {
+      vi.mocked(api.plans.reExecute).mockResolvedValue(undefined);
       const store = createStore();
-      await store.dispatch(reshipPlan({ projectId: "proj-1", planId: "plan-456" }));
+      await store.dispatch(reExecutePlan({ projectId: "proj-1", planId: "plan-456" }));
 
-      expect(store.getState().plan.reshippingPlanId).toBeNull();
-      expect(api.plans.reship).toHaveBeenCalledWith("proj-1", "plan-456");
+      expect(store.getState().plan.reExecutingPlanId).toBeNull();
+      expect(api.plans.reExecute).toHaveBeenCalledWith("proj-1", "plan-456");
     });
 
-    it("clears reshippingPlanId and sets error on rejected", async () => {
-      vi.mocked(api.plans.reship).mockRejectedValue(new Error("Reship failed"));
+    it("clears reExecutingPlanId and sets error on rejected", async () => {
+      vi.mocked(api.plans.reExecute).mockRejectedValue(new Error("Re-execute failed"));
       const store = createStore();
-      await store.dispatch(reshipPlan({ projectId: "proj-1", planId: "plan-456" }));
+      await store.dispatch(reExecutePlan({ projectId: "proj-1", planId: "plan-456" }));
 
       const state = store.getState().plan;
-      expect(state.reshippingPlanId).toBeNull();
-      expect(state.error).toBe("Reship failed");
+      expect(state.reExecutingPlanId).toBeNull();
+      expect(state.error).toBe("Re-execute failed");
     });
 
     it("uses fallback error message when error has no message", async () => {
-      vi.mocked(api.plans.reship).mockRejectedValue(new Error());
+      vi.mocked(api.plans.reExecute).mockRejectedValue(new Error());
       const store = createStore();
-      await store.dispatch(reshipPlan({ projectId: "proj-1", planId: "plan-456" }));
+      await store.dispatch(reExecutePlan({ projectId: "proj-1", planId: "plan-456" }));
 
-      expect(store.getState().plan.error).toBe("Failed to rebuild plan");
+      expect(store.getState().plan.error).toBe("Failed to re-execute plan");
     });
   });
 

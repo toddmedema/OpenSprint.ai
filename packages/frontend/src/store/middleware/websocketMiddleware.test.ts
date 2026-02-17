@@ -308,7 +308,7 @@ describe("websocketMiddleware", () => {
       });
     });
 
-    it("dispatches setCompletionState on agent.done", async () => {
+    it("dispatches setCompletionState on agent.completed", async () => {
       const store = createStore();
       store.dispatch(wsConnect({ projectId: "proj-1" }));
       wsInstance!.simulateOpen();
@@ -318,7 +318,7 @@ describe("websocketMiddleware", () => {
       store.dispatch(setSelectedTaskId("task-1"));
 
       wsInstance!.simulateMessage({
-        type: "agent.done",
+        type: "agent.completed",
         taskId: "task-1",
         status: "done",
         testResults: { passed: 5, failed: 0, skipped: 1, total: 6 },
@@ -331,14 +331,14 @@ describe("websocketMiddleware", () => {
       });
     });
 
-    it("dispatches setOrchestratorRunning and setAwaitingApproval on build.status", async () => {
+    it("dispatches setOrchestratorRunning and setAwaitingApproval on execute.status", async () => {
       const store = createStore();
       store.dispatch(wsConnect({ projectId: "proj-1" }));
       wsInstance!.simulateOpen();
       await vi.waitFor(() => store.getState().websocket.connected);
 
       wsInstance!.simulateMessage({
-        type: "build.status",
+        type: "execute.status",
         currentTask: "task-1",
         queueDepth: 0,
         awaitingApproval: true,
@@ -350,14 +350,14 @@ describe("websocketMiddleware", () => {
       });
     });
 
-    it("sets orchestratorRunning false when build.status has no currentTask and zero queueDepth", async () => {
+    it("sets orchestratorRunning false when execute.status has no currentTask and zero queueDepth", async () => {
       const store = createStore();
       store.dispatch(wsConnect({ projectId: "proj-1" }));
       wsInstance!.simulateOpen();
       await vi.waitFor(() => store.getState().websocket.connected);
 
       wsInstance!.simulateMessage({
-        type: "build.status",
+        type: "execute.status",
         currentTask: null,
         queueDepth: 0,
       });

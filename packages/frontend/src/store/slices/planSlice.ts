@@ -17,10 +17,10 @@ export interface PlanState {
   decomposing: boolean;
   /** Plan status for Dream CTA (plan/replan/none) */
   planStatus: PlanStatusResponse | null;
-  /** Plan ID currently being shipped (Execute It!) — for loading state */
-  shippingPlanId: string | null;
-  /** Plan ID currently being reshipped (Rebuild) — for loading state */
-  reshippingPlanId: string | null;
+  /** Plan ID currently being executed (Execute!) — for loading state */
+  executingPlanId: string | null;
+  /** Plan ID currently being re-executed (Re-execute) — for loading state */
+  reExecutingPlanId: string | null;
   /** Plan ID currently being archived — for loading state */
   archivingPlanId: string | null;
   error: string | null;
@@ -34,8 +34,8 @@ const initialState: PlanState = {
   loading: false,
   decomposing: false,
   planStatus: null,
-  shippingPlanId: null,
-  reshippingPlanId: null,
+  executingPlanId: null,
+  reExecutingPlanId: null,
   archivingPlanId: null,
   error: null,
 };
@@ -59,17 +59,17 @@ export const decomposePlans = createAsyncThunk("plan/decompose", async (projectI
   await api.plans.decompose(projectId);
 });
 
-export const shipPlan = createAsyncThunk(
-  "plan/ship",
+export const executePlan = createAsyncThunk(
+  "plan/execute",
   async ({ projectId, planId }: { projectId: string; planId: string }) => {
-    await api.plans.ship(projectId, planId);
+    await api.plans.execute(projectId, planId);
   },
 );
 
-export const reshipPlan = createAsyncThunk(
-  "plan/reship",
+export const reExecutePlan = createAsyncThunk(
+  "plan/reExecute",
   async ({ projectId, planId }: { projectId: string; planId: string }) => {
-    await api.plans.reship(projectId, planId);
+    await api.plans.reExecute(projectId, planId);
   },
 );
 
@@ -174,28 +174,28 @@ const planSlice = createSlice({
         state.decomposing = false;
         state.error = action.error.message ?? "Failed to decompose PRD";
       })
-      // shipPlan / reshipPlan
-      .addCase(shipPlan.pending, (state, action) => {
-        state.shippingPlanId = action.meta.arg.planId;
+      // executePlan / reExecutePlan
+      .addCase(executePlan.pending, (state, action) => {
+        state.executingPlanId = action.meta.arg.planId;
         state.error = null;
       })
-      .addCase(shipPlan.fulfilled, (state) => {
-        state.shippingPlanId = null;
+      .addCase(executePlan.fulfilled, (state) => {
+        state.executingPlanId = null;
       })
-      .addCase(shipPlan.rejected, (state, action) => {
-        state.shippingPlanId = null;
+      .addCase(executePlan.rejected, (state, action) => {
+        state.executingPlanId = null;
         state.error = action.error.message ?? "Failed to start execute";
       })
-      .addCase(reshipPlan.pending, (state, action) => {
-        state.reshippingPlanId = action.meta.arg.planId;
+      .addCase(reExecutePlan.pending, (state, action) => {
+        state.reExecutingPlanId = action.meta.arg.planId;
         state.error = null;
       })
-      .addCase(reshipPlan.fulfilled, (state) => {
-        state.reshippingPlanId = null;
+      .addCase(reExecutePlan.fulfilled, (state) => {
+        state.reExecutingPlanId = null;
       })
-      .addCase(reshipPlan.rejected, (state, action) => {
-        state.reshippingPlanId = null;
-        state.error = action.error.message ?? "Failed to rebuild plan";
+      .addCase(reExecutePlan.rejected, (state, action) => {
+        state.reExecutingPlanId = null;
+        state.error = action.error.message ?? "Failed to re-execute plan";
       })
       // archivePlan
       .addCase(archivePlan.pending, (state, action) => {

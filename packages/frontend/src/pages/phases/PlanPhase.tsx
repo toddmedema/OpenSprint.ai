@@ -4,8 +4,8 @@ import { sortPlansByStatus } from "@opensprint/shared";
 import { useAppDispatch, useAppSelector } from "../../store";
 import {
   fetchPlans,
-  shipPlan,
-  reshipPlan,
+  executePlan,
+  reExecutePlan,
   archivePlan,
   fetchPlanChat,
   sendPlanMessage,
@@ -60,8 +60,8 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   const selectedPlanId = useAppSelector((s) => s.plan.selectedPlanId);
   const chatMessages = useAppSelector((s) => s.plan.chatMessages);
   const loading = useAppSelector((s) => s.plan.loading);
-  const shippingPlanId = useAppSelector((s) => s.plan.shippingPlanId);
-  const reshippingPlanId = useAppSelector((s) => s.plan.reshippingPlanId);
+  const executingPlanId = useAppSelector((s) => s.plan.executingPlanId);
+  const reExecutingPlanId = useAppSelector((s) => s.plan.reExecutingPlanId);
   const archivingPlanId = useAppSelector((s) => s.plan.archivingPlanId);
   const error = useAppSelector((s) => s.plan.error);
   const executeTasks = useAppSelector((s) => s.execute.tasks);
@@ -143,16 +143,16 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
 
   const handleShip = async (planId: string) => {
     dispatch(setPlanError(null));
-    const result = await dispatch(shipPlan({ projectId, planId }));
-    if (shipPlan.fulfilled.match(result)) {
+    const result = await dispatch(executePlan({ projectId, planId }));
+    if (executePlan.fulfilled.match(result)) {
       dispatch(fetchPlans(projectId));
     }
   };
 
   const handleReship = async (planId: string) => {
     dispatch(setPlanError(null));
-    const result = await dispatch(reshipPlan({ projectId, planId }));
-    if (reshipPlan.fulfilled.match(result)) {
+    const result = await dispatch(reExecutePlan({ projectId, planId }));
+    if (reExecutePlan.fulfilled.match(result)) {
       dispatch(fetchPlans(projectId));
     }
   };
@@ -303,8 +303,8 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
                 key={plan.metadata.planId}
                 plan={plan}
                 tasks={planIdToTasks.get(plan.metadata.planId) ?? []}
-                shippingPlanId={shippingPlanId}
-                reshippingPlanId={reshippingPlanId}
+                executingPlanId={executingPlanId}
+                reExecutingPlanId={reExecutingPlanId}
                 onSelect={() => handleSelectPlan(plan)}
                 onShip={() => handleShip(plan.metadata.planId)}
                 onReship={() => handleReship(plan.metadata.planId)}

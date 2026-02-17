@@ -148,12 +148,12 @@ export const api = {
         method: "PUT",
         body: JSON.stringify(data),
       }),
-    ship: (projectId: string, planId: string) =>
-      request<Plan>(`/projects/${projectId}/plans/${planId}/ship`, {
+    execute: (projectId: string, planId: string) =>
+      request<Plan>(`/projects/${projectId}/plans/${planId}/execute`, {
         method: "POST",
       }),
-    reship: (projectId: string, planId: string) =>
-      request<Plan>(`/projects/${projectId}/plans/${planId}/reship`, {
+    reExecute: (projectId: string, planId: string) =>
+      request<Plan>(`/projects/${projectId}/plans/${planId}/re-execute`, {
         method: "POST",
       }),
     archive: (projectId: string, planId: string) =>

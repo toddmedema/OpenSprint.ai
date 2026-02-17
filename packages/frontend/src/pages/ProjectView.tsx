@@ -13,7 +13,13 @@ import { fetchProject, resetProject } from "../store/slices/projectSlice";
 import { resetWebsocket, clearHilRequest, clearHilNotification } from "../store/slices/websocketSlice";
 import { fetchSpecChat, fetchPrd, fetchPrdHistory, resetSpec } from "../store/slices/specSlice";
 import { fetchPlans, resetPlan, setSelectedPlanId } from "../store/slices/planSlice";
-import { fetchTasks, fetchExecuteStatus, resetExecute, setSelectedTaskId } from "../store/slices/executeSlice";
+import {
+  fetchTasks,
+  fetchExecuteStatus,
+  resetExecute,
+  setSelectedTaskId,
+  setAwaitingApproval,
+} from "../store/slices/executeSlice";
 import { fetchFeedback, resetEnsure } from "../store/slices/ensureSlice";
 import { wsConnect, wsDisconnect, wsSend } from "../store/middleware/websocketMiddleware";
 import { Layout } from "../components/layout/Layout";
@@ -119,6 +125,7 @@ export function ProjectView() {
 
   const handleRespondToHil = (requestId: string, approved: boolean, notes?: string) => {
     dispatch(wsSend({ type: "hil.respond", requestId, approved, notes }));
+    dispatch(setAwaitingApproval(false));
     dispatch(clearHilRequest());
   };
 

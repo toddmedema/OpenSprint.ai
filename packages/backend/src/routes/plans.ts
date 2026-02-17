@@ -87,8 +87,8 @@ plansRouter.put("/:planId", async (req: Request<PlanParams>, res, next) => {
   }
 });
 
-// POST /projects/:projectId/plans/:planId/ship — Build It! (approve Plan for build)
-plansRouter.post("/:planId/ship", async (req: Request<PlanParams>, res, next) => {
+// POST /projects/:projectId/plans/:planId/execute — Execute! (approve Plan for execution)
+plansRouter.post("/:planId/execute", async (req: Request<PlanParams>, res, next) => {
   try {
     const plan = await planService.shipPlan(req.params.projectId, req.params.planId);
     // Nudge orchestrator to pick up newly-available tasks (PRDv2 §5.7 event-driven dispatch)
@@ -100,8 +100,8 @@ plansRouter.post("/:planId/ship", async (req: Request<PlanParams>, res, next) =>
   }
 });
 
-// POST /projects/:projectId/plans/:planId/reship — Rebuild an updated Plan
-plansRouter.post("/:planId/reship", async (req: Request<PlanParams>, res, next) => {
+// POST /projects/:projectId/plans/:planId/re-execute — Re-execute an updated Plan
+plansRouter.post("/:planId/re-execute", async (req: Request<PlanParams>, res, next) => {
   try {
     const plan = await planService.reshipPlan(req.params.projectId, req.params.planId);
     // Nudge orchestrator to pick up newly-available tasks (PRDv2 §5.7 event-driven dispatch)

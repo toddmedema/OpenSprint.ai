@@ -271,11 +271,11 @@ describe("OrchestratorService", () => {
       // Give loop time to run
       await new Promise((r) => setTimeout(r, 100));
 
-      // Should have broadcast build.status with null task
+      // Should have broadcast execute.status with null task
       expect(mockBroadcastToProject).toHaveBeenCalledWith(
         projectId,
         expect.objectContaining({
-          type: "build.status",
+          type: "execute.status",
           currentTask: null,
           queueDepth: 0,
         }),
@@ -535,7 +535,7 @@ describe("OrchestratorService", () => {
       expect(mockBroadcastToProject).toHaveBeenCalledWith(
         projectId,
         expect.objectContaining({
-          type: "agent.done",
+          type: "agent.completed",
           taskId: "task-complete-1",
           status: "approved",
         }),
@@ -652,7 +652,7 @@ describe("OrchestratorService", () => {
       expect(mockBroadcastToProject).toHaveBeenCalledWith(
         projectId,
         expect.objectContaining({
-          type: "agent.done",
+          type: "agent.completed",
           taskId: "task-review-approve",
           status: "approved",
         }),

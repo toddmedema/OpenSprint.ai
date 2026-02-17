@@ -83,13 +83,6 @@ export class HilService {
           options: defaultOptions,
           blocking: true,
         });
-        broadcastToProject(projectId, {
-          type: "build.awaiting_approval",
-          awaiting: true,
-          category,
-          description,
-        });
-
         console.log(`[HIL] Waiting for approval on ${category}: ${description}`);
 
         return new Promise<{ approved: boolean; notes?: string }>((resolve) => {
@@ -114,11 +107,6 @@ export class HilService {
       console.warn(`[HIL] Unknown request ID: ${requestId}`);
       return;
     }
-
-    broadcastToProject(request.projectId, {
-      type: "build.awaiting_approval",
-      awaiting: false,
-    });
 
     request.resolved = true;
     request.approved = approved;

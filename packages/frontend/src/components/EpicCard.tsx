@@ -5,8 +5,8 @@ import { COLUMN_LABELS } from "./kanban/TaskStatusBadge";
 export interface EpicCardProps {
   plan: Plan;
   tasks: Task[];
-  shippingPlanId: string | null;
-  reshippingPlanId: string | null;
+  executingPlanId: string | null;
+  reExecutingPlanId: string | null;
   onSelect: () => void;
   onShip: () => void;
   onReship: () => void;
@@ -54,8 +54,8 @@ const defaultStatus = {
 export function EpicCard({
   plan,
   tasks,
-  shippingPlanId,
-  reshippingPlanId,
+  executingPlanId,
+  reExecutingPlanId,
   onSelect,
   onShip,
   onReship,
@@ -163,10 +163,10 @@ export function EpicCard({
               e.stopPropagation();
               onShip();
             }}
-            disabled={!!shippingPlanId}
+            disabled={!!executingPlanId}
             className="btn-primary text-xs w-full py-2 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg font-medium"
           >
-            {shippingPlanId === plan.metadata.planId ? "Executing…" : "Execute It!"}
+            {executingPlanId === plan.metadata.planId ? "Executing…" : "Execute It!"}
           </button>
         )}
         {plan.status === "complete" &&
@@ -179,10 +179,10 @@ export function EpicCard({
                 e.stopPropagation();
                 onReship();
               }}
-              disabled={!!reshippingPlanId}
+              disabled={!!reExecutingPlanId}
               className="btn-secondary text-xs w-full py-2 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg font-medium"
             >
-              {reshippingPlanId === plan.metadata.planId ? "Rebuilding…" : "Rebuild"}
+              {reExecutingPlanId === plan.metadata.planId ? "Re-executing…" : "Re-execute"}
             </button>
           )}
       </div>

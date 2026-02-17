@@ -24,8 +24,8 @@ export interface AgentStartedEvent {
   branchName?: string;
 }
 
-export interface AgentDoneEvent {
-  type: 'agent.done';
+export interface AgentCompletedEvent {
+  type: 'agent.completed';
   taskId: string;
   status: string;
   testResults: TestResults | null;
@@ -37,8 +37,8 @@ export interface PrdUpdatedEvent {
   version: number;
 }
 
-export interface BuildStatusEvent {
-  type: 'build.status';
+export interface ExecuteStatusEvent {
+  type: 'execute.status';
   currentTask: string | null;
   /** Coding vs review sub-phase for current task (PRD §7.3.2) */
   currentPhase?: AgentPhase | null;
@@ -83,12 +83,22 @@ export interface TaskBlockedEvent {
   cumulativeAttempts: number;
 }
 
-/** Emitted when orchestrator pauses for HIL approval or resumes after response (PRD §6.5) */
-export interface BuildAwaitingApprovalEvent {
-  type: 'build.awaiting_approval';
-  awaiting: boolean;
-  category?: string;
-  description?: string;
+/** Deploy phase events (PRDv2 Deploy phase) */
+export interface DeployStartedEvent {
+  type: 'deploy.started';
+  deployId: string;
+}
+
+export interface DeployCompletedEvent {
+  type: 'deploy.completed';
+  deployId: string;
+  success: boolean;
+}
+
+export interface DeployOutputEvent {
+  type: 'deploy.output';
+  deployId: string;
+  chunk: string;
 }
 
 /** All server-to-client WebSocket event types */
@@ -96,11 +106,13 @@ export type ServerEvent =
   | TaskUpdatedEvent
   | AgentOutputEvent
   | AgentStartedEvent
-  | AgentDoneEvent
+  | AgentCompletedEvent
   | PrdUpdatedEvent
-  | BuildStatusEvent
+  | ExecuteStatusEvent
   | TaskBlockedEvent
-  | BuildAwaitingApprovalEvent
+  | DeployStartedEvent
+  | DeployCompletedEvent
+  | DeployOutputEvent
   | HilRequestEvent
   | FeedbackMappedEvent
   | PlanUpdatedEvent;

@@ -9,8 +9,8 @@ import planReducer from "../../store/slices/planSlice";
 import executeReducer from "../../store/slices/executeSlice";
 
 const mockArchive = vi.fn().mockResolvedValue(undefined);
-const mockShip = vi.fn().mockResolvedValue(undefined);
-const mockReship = vi.fn().mockResolvedValue(undefined);
+const mockExecute = vi.fn().mockResolvedValue(undefined);
+const mockReExecute = vi.fn().mockResolvedValue(undefined);
 const mockPlansUpdate = vi.fn().mockResolvedValue({
   metadata: {
     planId: "archive-test-feature",
@@ -72,8 +72,8 @@ vi.mock("../../api/client", () => ({
       create: (...args: unknown[]) => mockPlansCreate(...args),
       update: (...args: unknown[]) => mockPlansUpdate(...args),
       archive: (...args: unknown[]) => mockArchive(...args),
-      ship: (...args: unknown[]) => mockShip(...args),
-      reship: (...args: unknown[]) => mockReship(...args),
+      execute: (...args: unknown[]) => mockExecute(...args),
+      reExecute: (...args: unknown[]) => mockReExecute(...args),
     },
     tasks: { list: vi.fn().mockResolvedValue([]) },
     chat: {
@@ -115,8 +115,8 @@ function createStore(plansOverride?: typeof basePlan[]) {
         loading: false,
         decomposing: false,
         planStatus: null,
-        shippingPlanId: null,
-        reshippingPlanId: null,
+        executingPlanId: null,
+        reExecutingPlanId: null,
         archivingPlanId: null,
         error: null,
       },
@@ -380,7 +380,7 @@ describe("PlanPhase Rebuild button", () => {
       </Provider>,
     );
 
-    expect(screen.getByRole("button", { name: /rebuild/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /re-execute/i })).toBeInTheDocument();
   });
 
   it("hides Rebuild button when plan is complete but lastModified <= shippedAt", () => {
@@ -403,7 +403,7 @@ describe("PlanPhase Rebuild button", () => {
       </Provider>,
     );
 
-    expect(screen.queryByRole("button", { name: /rebuild/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /re-execute/i })).not.toBeInTheDocument();
   });
 
   it("hides Rebuild button when plan is complete but lastModified === shippedAt (no changes after ship)", () => {
@@ -426,7 +426,7 @@ describe("PlanPhase Rebuild button", () => {
       </Provider>,
     );
 
-    expect(screen.queryByRole("button", { name: /rebuild/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /re-execute/i })).not.toBeInTheDocument();
   });
 
   it("hides Rebuild button when plan is complete but lastModified is missing", () => {
@@ -449,7 +449,7 @@ describe("PlanPhase Rebuild button", () => {
       </Provider>,
     );
 
-    expect(screen.queryByRole("button", { name: /rebuild/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /re-execute/i })).not.toBeInTheDocument();
   });
 
   it("hides Rebuild button when plan is complete but shippedAt is null", () => {
@@ -472,17 +472,17 @@ describe("PlanPhase Rebuild button", () => {
       </Provider>,
     );
 
-    expect(screen.queryByRole("button", { name: /rebuild/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /re-execute/i })).not.toBeInTheDocument();
   });
 });
 
-describe("PlanPhase shipPlan thunk", () => {
+describe("PlanPhase executePlan thunk", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     Element.prototype.scrollIntoView = vi.fn();
   });
 
-  it("dispatches shipPlan thunk when Execute It! is clicked", async () => {
+  it("dispatches executePlan thunk when Execute It! is clicked", async () => {
     const plans = [
       {
         ...basePlan,
@@ -501,17 +501,17 @@ describe("PlanPhase shipPlan thunk", () => {
     const executeButton = screen.getByRole("button", { name: /execute it!/i });
     await user.click(executeButton);
 
-    expect(mockShip).toHaveBeenCalledWith("proj-1", "archive-test-feature");
+    expect(mockExecute).toHaveBeenCalledWith("proj-1", "archive-test-feature");
   });
 });
 
-describe("PlanPhase reshipPlan thunk", () => {
+describe("PlanPhase reExecutePlan thunk", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     Element.prototype.scrollIntoView = vi.fn();
   });
 
-  it("dispatches reshipPlan thunk when Rebuild is clicked", async () => {
+  it("dispatches reExecutePlan thunk when Re-execute is clicked", async () => {
     const plans = [
       {
         ...basePlan,
@@ -532,10 +532,10 @@ describe("PlanPhase reshipPlan thunk", () => {
       </Provider>,
     );
 
-    const rebuildButton = screen.getByRole("button", { name: /rebuild/i });
-    await user.click(rebuildButton);
+    const reExecuteButton = screen.getByRole("button", { name: /re-execute/i });
+    await user.click(reExecuteButton);
 
-    expect(mockReship).toHaveBeenCalledWith("proj-1", "archive-test-feature");
+    expect(mockReExecute).toHaveBeenCalledWith("proj-1", "archive-test-feature");
   });
 });
 

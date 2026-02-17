@@ -260,7 +260,7 @@ describe("Plan REST endpoints - task decomposition", () => {
       const gateTaskId = createRes.body.data.metadata.gateTaskId;
 
       // Ship the plan so tasks become ready
-      const shipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${createdPlanId}/ship`);
+      const shipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${createdPlanId}/execute`);
       expect(shipRes.status).toBe(200);
 
       const project = await projectService.getProject(projectId);
@@ -301,7 +301,7 @@ describe("Plan REST endpoints - task decomposition", () => {
     },
   );
 
-  describe("POST /projects/:id/plans/:planId/reship", () => {
+  describe("POST /projects/:id/plans/:planId/re-execute", () => {
     it("reship succeeds when all tasks are done (closed)", { timeout: 15000 }, async () => {
       const app = createApp();
       const planBody = {
@@ -321,7 +321,7 @@ describe("Plan REST endpoints - task decomposition", () => {
       const gateTaskId = createRes.body.data.metadata.gateTaskId;
 
       // Ship the plan
-      const shipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/ship`);
+      const shipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/execute`);
       expect(shipRes.status).toBe(200);
 
       const project = await projectService.getProject(projectId);
@@ -338,7 +338,7 @@ describe("Plan REST endpoints - task decomposition", () => {
       await beads.sync(project.repoPath);
 
       // Reship should succeed (all tasks done)
-      const reshipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/reship`);
+      const reshipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/re-execute`);
       expect(reshipRes.status).toBe(200);
       expect(reshipRes.body.data).toBeDefined();
     });
@@ -361,7 +361,7 @@ describe("Plan REST endpoints - task decomposition", () => {
       const epicId = createRes.body.data.metadata.beadEpicId;
       const gateTaskId = createRes.body.data.metadata.gateTaskId;
 
-      const shipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/ship`);
+      const shipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/execute`);
       expect(shipRes.status).toBe(200);
 
       const project = await projectService.getProject(projectId);
@@ -379,7 +379,7 @@ describe("Plan REST endpoints - task decomposition", () => {
       });
       await beads.sync(project.repoPath);
 
-      const reshipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/reship`);
+      const reshipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/re-execute`);
       expect(reshipRes.status).toBe(400);
       expect(reshipRes.body.error?.code).toBe("TASKS_IN_PROGRESS");
     });
@@ -402,7 +402,7 @@ describe("Plan REST endpoints - task decomposition", () => {
       const epicId = createRes.body.data.metadata.beadEpicId;
       const gateTaskId = createRes.body.data.metadata.gateTaskId;
 
-      const shipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/ship`);
+      const shipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/execute`);
       expect(shipRes.status).toBe(200);
 
       const project = await projectService.getProject(projectId);
@@ -417,7 +417,7 @@ describe("Plan REST endpoints - task decomposition", () => {
       await beads.close(project.repoPath, (planTasks[0] as { id: string }).id, "Done");
       await beads.sync(project.repoPath);
 
-      const reshipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/reship`);
+      const reshipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/re-execute`);
       expect(reshipRes.status).toBe(400);
       expect(reshipRes.body.error?.code).toBe("TASKS_NOT_COMPLETE");
     });
@@ -441,7 +441,7 @@ describe("Plan REST endpoints - task decomposition", () => {
       const gateTaskId = createRes.body.data.metadata.gateTaskId;
 
       // Ship the plan (tasks become ready but stay open)
-      const shipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/ship`);
+      const shipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/execute`);
       expect(shipRes.status).toBe(200);
 
       const project = await projectService.getProject(projectId);
@@ -453,7 +453,7 @@ describe("Plan REST endpoints - task decomposition", () => {
       expect(tasksBefore.length).toBe(2);
 
       // Reship when none started (all open) — should delete tasks and re-ship
-      const reshipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/reship`);
+      const reshipRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/re-execute`);
       expect(reshipRes.status).toBe(200);
 
       // Implementation tasks should have been deleted (none-started case deletes them)

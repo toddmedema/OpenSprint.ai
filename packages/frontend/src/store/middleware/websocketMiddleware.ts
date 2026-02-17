@@ -106,6 +106,7 @@ export const websocketMiddleware: Middleware = (storeApi) => {
         if (event.blocking) {
           d(setHilRequest(event));
           d(setHilNotification(null));
+          d(setAwaitingApproval(true));
         } else {
           d(setHilNotification(event));
           d(setHilRequest(null));
@@ -133,7 +134,7 @@ export const websocketMiddleware: Middleware = (storeApi) => {
         d(fetchTasks(projectId));
         break;
 
-      case "agent.done":
+      case "agent.completed":
         d(fetchTasks(projectId));
         d(
           setCompletionState({
@@ -148,7 +149,7 @@ export const websocketMiddleware: Middleware = (storeApi) => {
         d(appendAgentOutput({ taskId: event.taskId, chunk: event.chunk }));
         break;
 
-      case "build.status": {
+      case "execute.status": {
         const running = event.currentTask !== null || event.queueDepth > 0;
         d(setOrchestratorRunning(running));
         if ("awaitingApproval" in event) {
@@ -156,10 +157,6 @@ export const websocketMiddleware: Middleware = (storeApi) => {
         }
         break;
       }
-
-      case "build.awaiting_approval":
-        d(setAwaitingApproval(event.awaiting));
-        break;
 
       case "feedback.mapped":
         d(fetchFeedback(projectId));

@@ -48,7 +48,7 @@ describe('EventRelayService', () => {
     it('does nothing when project has no clients', () => {
       expect(() => {
         eventRelay.broadcast('nonexistent', {
-          type: 'build.status',
+          type: 'execute.status',
           running: true,
           currentTask: null,
           queueDepth: 0,
