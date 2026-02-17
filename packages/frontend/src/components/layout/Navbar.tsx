@@ -21,7 +21,7 @@ const phases: { key: ProjectPhase; label: string }[] = [
   { key: "spec", label: "Spec" },
   { key: "plan", label: "Plan" },
   { key: "execute", label: "Execute" },
-  { key: "ensure", label: "Ensure" },
+  { key: "eval", label: "Eval" },
   { key: "deploy", label: "Deploy" },
 ];
 

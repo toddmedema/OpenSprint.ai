@@ -11,7 +11,7 @@ import websocketReducer from "../slices/websocketSlice";
 import specReducer from "../slices/specSlice";
 import planReducer from "../slices/planSlice";
 import executeReducer from "../slices/executeSlice";
-import ensureReducer from "../slices/ensureSlice";
+import evalReducer from "../slices/evalSlice";
 
 /** Mock WebSocket that allows controlling open/close/message events */
 class MockWebSocket {
@@ -101,7 +101,7 @@ describe("websocketMiddleware", () => {
         spec: specReducer,
         plan: planReducer,
         execute: executeReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
       },
       middleware: (getDefaultMiddleware) =>
         getDefaultMiddleware({

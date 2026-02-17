@@ -9,7 +9,7 @@ const PHASE_LABELS: Record<string, string> = {
   spec: "Spec",
   plan: "Plan",
   execute: "Execute",
-  ensure: "Ensure",
+  eval: "Eval",
   deploy: "Deploy",
 };
 

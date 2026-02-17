@@ -1,13 +1,13 @@
 /**
- * @deprecated Use ensureSlice instead. This file re-exports from ensureSlice for backward compatibility.
+ * @deprecated Use evalSlice instead. This file re-exports from evalSlice for backward compatibility.
  */
 export {
-  type EnsureState,
+  type EvalState,
   fetchFeedback,
   submitFeedback,
   recategorizeFeedback,
   setFeedback,
-  setEnsureError,
-  resetEnsure,
-} from "./ensureSlice";
-export { default } from "./ensureSlice";
+  setEvalError,
+  resetEval,
+} from "./evalSlice";
+export { default } from "./evalSlice";

@@ -14,7 +14,7 @@ import {
   setCompletionState,
   taskUpdated,
 } from "../slices/executeSlice";
-import { fetchFeedback } from "../slices/ensureSlice";
+import { fetchFeedback } from "../slices/evalSlice";
 import {
   appendDeployOutput,
   deployStarted,

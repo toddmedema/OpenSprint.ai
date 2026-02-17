@@ -12,11 +12,11 @@ describe("constants", () => {
   });
 
   describe("PRD_SOURCE_COLORS", () => {
-    it("has colors for spec, plan, execute, ensure, deploy", () => {
+    it("has colors for spec, plan, execute, eval, deploy", () => {
       expect(PRD_SOURCE_COLORS.spec).toBe("bg-blue-100 text-blue-800");
       expect(PRD_SOURCE_COLORS.plan).toBe("bg-amber-100 text-amber-800");
       expect(PRD_SOURCE_COLORS.execute).toBe("bg-green-100 text-green-800");
-      expect(PRD_SOURCE_COLORS.ensure).toBe("bg-purple-100 text-purple-800");
+      expect(PRD_SOURCE_COLORS.eval).toBe("bg-purple-100 text-purple-800");
       expect(PRD_SOURCE_COLORS.deploy).toBe("bg-slate-100 text-slate-800");
     });
   });
@@ -26,7 +26,7 @@ describe("constants", () => {
       expect(getPrdSourceColor("spec")).toBe("bg-blue-100 text-blue-800");
       expect(getPrdSourceColor("plan")).toBe("bg-amber-100 text-amber-800");
       expect(getPrdSourceColor("execute")).toBe("bg-green-100 text-green-800");
-      expect(getPrdSourceColor("ensure")).toBe("bg-purple-100 text-purple-800");
+      expect(getPrdSourceColor("eval")).toBe("bg-purple-100 text-purple-800");
     });
 
     it("returns default purple for unknown sources", () => {

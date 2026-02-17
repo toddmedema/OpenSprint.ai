@@ -9,7 +9,7 @@ import websocketReducer from "../store/slices/websocketSlice";
 import specReducer from "../store/slices/specSlice";
 import planReducer from "../store/slices/planSlice";
 import executeReducer from "../store/slices/executeSlice";
-import ensureReducer from "../store/slices/ensureSlice";
+import evalReducer from "../store/slices/evalSlice";
 import deployReducer from "../store/slices/deploySlice";
 
 // Mock websocket middleware to prevent connection attempts
@@ -53,7 +53,7 @@ function createStore() {
       spec: specReducer,
       plan: planReducer,
       execute: executeReducer,
-      ensure: ensureReducer,
+      eval: evalReducer,
       deploy: deployReducer,
     },
     preloadedState: {
@@ -193,7 +193,7 @@ describe("ProjectView upfront loading and mount-all", () => {
     expect(screen.getByTestId("phase-spec")).toBeInTheDocument();
     expect(screen.getByTestId("phase-plan")).toBeInTheDocument();
     expect(screen.getByTestId("phase-execute")).toBeInTheDocument();
-    expect(screen.getByTestId("phase-ensure")).toBeInTheDocument();
+    expect(screen.getByTestId("phase-eval")).toBeInTheDocument();
     expect(screen.getByTestId("phase-deploy")).toBeInTheDocument();
   });
 
@@ -248,7 +248,7 @@ describe("ProjectView URL deep linking for Plan and Build detail panes", () => {
         spec: specReducer,
         plan: planReducer,
         execute: executeReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         deploy: deployReducer,
       },
       preloadedState: {
@@ -320,7 +320,7 @@ describe("ProjectView URL deep linking for Plan and Build detail panes", () => {
         spec: specReducer,
         plan: planReducer,
         execute: executeReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         deploy: deployReducer,
       },
       preloadedState: {
@@ -387,7 +387,7 @@ describe("ProjectView URL deep linking for Plan and Build detail panes", () => {
         spec: specReducer,
         plan: planReducer,
         execute: executeReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         deploy: deployReducer,
       },
       preloadedState: {

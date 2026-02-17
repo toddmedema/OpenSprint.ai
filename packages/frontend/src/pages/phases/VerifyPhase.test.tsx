@@ -7,9 +7,9 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
-import { EnsurePhase, FEEDBACK_COLLAPSED_KEY_PREFIX } from "./EnsurePhase";
+import { EvalPhase, FEEDBACK_COLLAPSED_KEY_PREFIX } from "./EvalPhase";
 import projectReducer from "../../store/slices/projectSlice";
-import ensureReducer from "../../store/slices/ensureSlice";
+import evalReducer from "../../store/slices/evalSlice";
 import executeReducer from "../../store/slices/executeSlice";
 
 const mockFeedbackList = vi.fn().mockResolvedValue([]);
@@ -46,7 +46,7 @@ function createStore() {
   return configureStore({
     reducer: {
       project: projectReducer,
-      ensure: ensureReducer,
+      eval: evalReducer,
       execute: executeReducer,
     },
     preloadedState: {
@@ -56,7 +56,7 @@ function createStore() {
           name: "Test Project",
           description: "",
           repoPath: "/tmp/test",
-          currentPhase: "ensure",
+          currentPhase: "eval",
           createdAt: "",
           updatedAt: "",
         },
@@ -73,7 +73,7 @@ function createStore() {
   });
 }
 
-describe("EnsurePhase feedback input", () => {
+describe("EvalPhase feedback input", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFeedbackRecategorize.mockResolvedValue({
@@ -91,7 +91,7 @@ describe("EnsurePhase feedback input", () => {
     const store = createStore();
     render(
       <Provider store={store}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -104,7 +104,7 @@ describe("EnsurePhase feedback input", () => {
     const store = createStore();
     render(
       <Provider store={store}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -116,7 +116,7 @@ describe("EnsurePhase feedback input", () => {
     const store = createStore();
     render(
       <Provider store={store}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -135,7 +135,7 @@ describe("EnsurePhase feedback input", () => {
     const store = createStore();
     render(
       <Provider store={store}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -161,7 +161,7 @@ describe("EnsurePhase feedback input", () => {
     });
     render(
       <Provider store={store}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -180,7 +180,7 @@ describe("EnsurePhase feedback input", () => {
     const store = createStore();
     render(
       <Provider store={store}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -228,7 +228,7 @@ describe("EnsurePhase feedback input", () => {
     const store = createStore();
     const { container } = render(
       <Provider store={store}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -242,7 +242,7 @@ describe("EnsurePhase feedback input", () => {
     const store = createStore();
     render(
       <Provider store={store}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -275,7 +275,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -285,14 +285,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-1",
@@ -313,7 +313,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -326,7 +326,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -336,14 +336,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-1",
@@ -373,7 +373,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -385,7 +385,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -395,14 +395,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-empty",
@@ -423,7 +423,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -434,7 +434,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -444,14 +444,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-1",
@@ -472,7 +472,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -483,7 +483,7 @@ describe("EnsurePhase feedback input", () => {
     const storeLoading = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -493,14 +493,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [],
           loading: true,
           submitting: false,
@@ -511,7 +511,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeLoading}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -523,7 +523,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithError = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -533,14 +533,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [],
           loading: false,
           submitting: false,
@@ -551,7 +551,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeWithError}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -567,7 +567,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -577,14 +577,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-1",
@@ -605,7 +605,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -619,7 +619,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -629,14 +629,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-pending",
@@ -666,7 +666,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -680,7 +680,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -690,14 +690,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-bug",
@@ -745,7 +745,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -762,7 +762,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -772,14 +772,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-1",
@@ -800,7 +800,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -813,7 +813,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -823,14 +823,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-mapped",
@@ -860,7 +860,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -873,7 +873,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -883,14 +883,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-with-img",
@@ -914,7 +914,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -926,7 +926,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -936,14 +936,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-1",
@@ -964,7 +964,7 @@ describe("EnsurePhase feedback input", () => {
 
     const { container } = render(
       <Provider store={storeWithFeedback}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -991,7 +991,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithTasks = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -1001,14 +1001,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-1",
@@ -1077,7 +1077,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeWithTasks}>
-        <EnsurePhase projectId="proj-1" onNavigateToBuildTask={(id) => id} />
+        <EvalPhase projectId="proj-1" onNavigateToBuildTask={(id) => id} />
       </Provider>,
     );
 
@@ -1098,7 +1098,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithUnmappedTask = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -1108,14 +1108,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-1",
@@ -1153,7 +1153,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeWithUnmappedTask}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -1165,7 +1165,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -1175,14 +1175,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-1",
@@ -1220,7 +1220,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -1233,7 +1233,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -1243,14 +1243,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-1",
@@ -1288,7 +1288,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -1304,7 +1304,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -1314,14 +1314,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-1",
@@ -1359,7 +1359,7 @@ describe("EnsurePhase feedback input", () => {
 
     const { container } = render(
       <Provider store={storeWithFeedback}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -1375,7 +1375,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -1385,14 +1385,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-1",
@@ -1430,7 +1430,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -1458,7 +1458,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -1468,14 +1468,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-1",
@@ -1513,7 +1513,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -1531,7 +1531,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithFeedback = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -1541,14 +1541,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-1",
@@ -1586,7 +1586,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeWithFeedback}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -1602,7 +1602,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithNested = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -1612,14 +1612,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-parent",
@@ -1670,7 +1670,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeWithNested}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -1685,7 +1685,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithReplies = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -1695,14 +1695,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-parent",
@@ -1753,7 +1753,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeWithReplies}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -1764,7 +1764,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithMultipleReplies = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -1774,14 +1774,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-parent",
@@ -1843,7 +1843,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeWithMultipleReplies}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -1854,7 +1854,7 @@ describe("EnsurePhase feedback input", () => {
     const storeWithUnknownTask = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -1864,14 +1864,14 @@ describe("EnsurePhase feedback input", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-1",
@@ -1909,7 +1909,7 @@ describe("EnsurePhase feedback input", () => {
 
     render(
       <Provider store={storeWithUnknownTask}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -1919,7 +1919,7 @@ describe("EnsurePhase feedback input", () => {
   });
 });
 
-describe("EnsurePhase feedback collapsed state persistence", () => {
+describe("EvalPhase feedback collapsed state persistence", () => {
   const storage: Record<string, string> = {};
 
   beforeEach(() => {
@@ -1949,7 +1949,7 @@ describe("EnsurePhase feedback collapsed state persistence", () => {
     const storeWithReplies = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -1959,14 +1959,14 @@ describe("EnsurePhase feedback collapsed state persistence", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-parent",
@@ -2018,7 +2018,7 @@ describe("EnsurePhase feedback collapsed state persistence", () => {
     const user = userEvent.setup();
     render(
       <Provider store={storeWithReplies}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 
@@ -2045,7 +2045,7 @@ describe("EnsurePhase feedback collapsed state persistence", () => {
     const storeWithReplies = configureStore({
       reducer: {
         project: projectReducer,
-        ensure: ensureReducer,
+        eval: evalReducer,
         execute: executeReducer,
       },
       preloadedState: {
@@ -2055,14 +2055,14 @@ describe("EnsurePhase feedback collapsed state persistence", () => {
             name: "Test Project",
             description: "",
             repoPath: "/tmp/test",
-            currentPhase: "ensure",
+            currentPhase: "eval",
             createdAt: "",
             updatedAt: "",
           },
           loading: false,
           error: null,
         },
-        ensure: {
+        eval: {
           feedback: [
             {
               id: "fb-parent",
@@ -2113,7 +2113,7 @@ describe("EnsurePhase feedback collapsed state persistence", () => {
 
     render(
       <Provider store={storeWithReplies}>
-        <EnsurePhase projectId="proj-1" />
+        <EvalPhase projectId="proj-1" />
       </Provider>,
     );
 

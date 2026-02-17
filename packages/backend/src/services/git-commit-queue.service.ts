@@ -28,8 +28,8 @@ export interface BeadsExportJob {
 export interface PrdUpdateJob {
   type: "prd_update";
   repoPath: string;
-  /** "plan" | "spec" | "ensure" — for commit message */
-  source: "plan" | "spec" | "ensure";
+  /** "plan" | "spec" | "eval" — for commit message */
+  source: "plan" | "spec" | "eval";
   planId?: string;
 }
 
@@ -108,8 +108,8 @@ class GitCommitQueueImpl implements GitCommitQueueService {
         const msg =
           job.source === "spec"
             ? "prd: Spec session update"
-            : job.source === "ensure"
-              ? "prd: Ensure feedback"
+            : job.source === "eval"
+              ? "prd: Eval feedback"
               : job.planId
                 ? `prd: updated after Plan ${job.planId} built`
                 : "prd: updated";

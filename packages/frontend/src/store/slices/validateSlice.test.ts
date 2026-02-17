@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { configureStore } from "@reduxjs/toolkit";
-import ensureReducer, {
+import evalReducer, {
   fetchFeedback,
   submitFeedback,
-  resetEnsure,
+  resetEval,
   setFeedback,
-  setEnsureError,
-  type EnsureState,
-} from "./ensureSlice";
+  setEvalError,
+  type EvalState,
+} from "./evalSlice";
 import type { FeedbackItem } from "@opensprint/shared";
 
 const mockFeedbackItem: FeedbackItem = {
@@ -31,7 +31,7 @@ vi.mock("../../api/client", () => ({
 
 import { api } from "../../api/client";
 
-describe("ensureSlice", () => {
+describe("evalSlice", () => {
   beforeEach(() => {
     vi.mocked(api.feedback.list).mockReset();
     vi.mocked(api.feedback.submit).mockReset();
@@ -39,8 +39,8 @@ describe("ensureSlice", () => {
 
   describe("initial state", () => {
     it("has correct initial state", () => {
-      const store = configureStore({ reducer: { ensure: ensureReducer } });
-      const state = store.getState().ensure as EnsureState;
+      const store = configureStore({ reducer: { eval: evalReducer } });
+      const state = store.getState().eval as EvalState;
       expect(state.feedback).toEqual([]);
       expect(state.loading).toBe(false);
       expect(state.submitting).toBe(false);
@@ -50,29 +50,29 @@ describe("ensureSlice", () => {
 
   describe("reducers", () => {
     it("setFeedback updates feedback array", () => {
-      const store = configureStore({ reducer: { ensure: ensureReducer } });
+      const store = configureStore({ reducer: { eval: evalReducer } });
       store.dispatch(setFeedback([mockFeedbackItem]));
 
-      const state = store.getState().ensure as EnsureState;
+      const state = store.getState().eval as EvalState;
       expect(state.feedback).toEqual([mockFeedbackItem]);
     });
 
-    it("setEnsureError updates error", () => {
-      const store = configureStore({ reducer: { ensure: ensureReducer } });
-      store.dispatch(setEnsureError("Something went wrong"));
+    it("setEvalError updates error", () => {
+      const store = configureStore({ reducer: { eval: evalReducer } });
+      store.dispatch(setEvalError("Something went wrong"));
 
-      const state = store.getState().ensure as EnsureState;
+      const state = store.getState().eval as EvalState;
       expect(state.error).toBe("Something went wrong");
     });
 
-    it("resetEnsure restores initial state", () => {
-      const store = configureStore({ reducer: { ensure: ensureReducer } });
+    it("resetEval restores initial state", () => {
+      const store = configureStore({ reducer: { eval: evalReducer } });
       store.dispatch(setFeedback([mockFeedbackItem]));
-      store.dispatch(setEnsureError("Error"));
+      store.dispatch(setEvalError("Error"));
 
-      store.dispatch(resetEnsure());
+      store.dispatch(resetEval());
 
-      const state = store.getState().ensure as EnsureState;
+      const state = store.getState().eval as EvalState;
       expect(state.feedback).toEqual([]);
       expect(state.loading).toBe(false);
       expect(state.submitting).toBe(false);
@@ -87,10 +87,10 @@ describe("ensureSlice", () => {
         resolveApi = r;
       });
       vi.mocked(api.feedback.list).mockReturnValue(apiPromise as never);
-      const store = configureStore({ reducer: { ensure: ensureReducer } });
+      const store = configureStore({ reducer: { eval: evalReducer } });
       const dispatchPromise = store.dispatch(fetchFeedback("proj-1"));
 
-      const state = store.getState().ensure as EnsureState;
+      const state = store.getState().eval as EvalState;
       expect(state.loading).toBe(true);
       expect(state.error).toBeNull();
       expect(state.feedback).toEqual([]);
@@ -101,10 +101,10 @@ describe("ensureSlice", () => {
 
     it("stores feedback and clears loading on fulfilled", async () => {
       vi.mocked(api.feedback.list).mockResolvedValue([mockFeedbackItem]);
-      const store = configureStore({ reducer: { ensure: ensureReducer } });
+      const store = configureStore({ reducer: { eval: evalReducer } });
       await store.dispatch(fetchFeedback("proj-1"));
 
-      const state = store.getState().ensure as EnsureState;
+      const state = store.getState().eval as EvalState;
       expect(state.feedback).toEqual([mockFeedbackItem]);
       expect(state.loading).toBe(false);
       expect(state.error).toBeNull();
@@ -112,7 +112,7 @@ describe("ensureSlice", () => {
 
     it("calls api.feedback.list with projectId", async () => {
       vi.mocked(api.feedback.list).mockResolvedValue([]);
-      const store = configureStore({ reducer: { ensure: ensureReducer } });
+      const store = configureStore({ reducer: { eval: evalReducer } });
       await store.dispatch(fetchFeedback("proj-abc-123"));
 
       expect(api.feedback.list).toHaveBeenCalledWith("proj-abc-123");
@@ -120,10 +120,10 @@ describe("ensureSlice", () => {
 
     it("sets error and clears loading on rejected", async () => {
       vi.mocked(api.feedback.list).mockRejectedValue(new Error("Network error"));
-      const store = configureStore({ reducer: { ensure: ensureReducer } });
+      const store = configureStore({ reducer: { eval: evalReducer } });
       await store.dispatch(fetchFeedback("proj-1"));
 
-      const state = store.getState().ensure as EnsureState;
+      const state = store.getState().eval as EvalState;
       expect(state.loading).toBe(false);
       expect(state.error).toBe("Network error");
       expect(state.feedback).toEqual([]);
@@ -131,10 +131,10 @@ describe("ensureSlice", () => {
 
     it("uses fallback error message when error has no message", async () => {
       vi.mocked(api.feedback.list).mockRejectedValue(new Error());
-      const store = configureStore({ reducer: { ensure: ensureReducer } });
+      const store = configureStore({ reducer: { eval: evalReducer } });
       await store.dispatch(fetchFeedback("proj-1"));
 
-      const state = store.getState().ensure as EnsureState;
+      const state = store.getState().eval as EvalState;
       expect(state.error).toBe("Failed to load feedback");
     });
   });
@@ -146,12 +146,12 @@ describe("ensureSlice", () => {
         resolveApi = r;
       });
       vi.mocked(api.feedback.submit).mockReturnValue(apiPromise as never);
-      const store = configureStore({ reducer: { ensure: ensureReducer } });
+      const store = configureStore({ reducer: { eval: evalReducer } });
       const dispatchPromise = store.dispatch(
         submitFeedback({ projectId: "proj-1", text: "Bug report" }),
       );
 
-      const state = store.getState().ensure as EnsureState;
+      const state = store.getState().eval as EvalState;
       expect(state.submitting).toBe(true);
       expect(state.error).toBeNull();
 
@@ -161,12 +161,12 @@ describe("ensureSlice", () => {
 
     it("prepends new feedback and clears submitting on fulfilled", async () => {
       vi.mocked(api.feedback.submit).mockResolvedValue(mockFeedbackItem);
-      const store = configureStore({ reducer: { ensure: ensureReducer } });
+      const store = configureStore({ reducer: { eval: evalReducer } });
       store.dispatch(setFeedback([{ ...mockFeedbackItem, id: "fb-0", text: "Existing" }]));
 
       await store.dispatch(submitFeedback({ projectId: "proj-1", text: "New feedback" }));
 
-      const state = store.getState().ensure as EnsureState;
+      const state = store.getState().eval as EvalState;
       expect(state.feedback).toHaveLength(2);
       expect(state.feedback[0]).toEqual(mockFeedbackItem);
       expect(state.feedback[1].text).toBe("Existing");
@@ -175,7 +175,7 @@ describe("ensureSlice", () => {
 
     it("calls api.feedback.submit with projectId, text, and optional images", async () => {
       vi.mocked(api.feedback.submit).mockResolvedValue(mockFeedbackItem);
-      const store = configureStore({ reducer: { ensure: ensureReducer } });
+      const store = configureStore({ reducer: { eval: evalReducer } });
       await store.dispatch(
         submitFeedback({
           projectId: "proj-1",
@@ -194,10 +194,10 @@ describe("ensureSlice", () => {
 
     it("sets error and clears submitting on rejected", async () => {
       vi.mocked(api.feedback.submit).mockRejectedValue(new Error("Submit failed"));
-      const store = configureStore({ reducer: { ensure: ensureReducer } });
+      const store = configureStore({ reducer: { eval: evalReducer } });
       await store.dispatch(submitFeedback({ projectId: "proj-1", text: "Feedback" }));
 
-      const state = store.getState().ensure as EnsureState;
+      const state = store.getState().eval as EvalState;
       expect(state.submitting).toBe(false);
       expect(state.error).toBe("Submit failed");
     });

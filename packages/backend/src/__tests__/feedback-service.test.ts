@@ -587,7 +587,7 @@ describe("FeedbackService", () => {
       expect(mockRegister).toHaveBeenCalledWith(
         expect.stringMatching(/^feedback-categorize-.*-/),
         projectId,
-        "ensure",
+        "eval",
         "Feedback categorization",
         expect.any(String),
       );

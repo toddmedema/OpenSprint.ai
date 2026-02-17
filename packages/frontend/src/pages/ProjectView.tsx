@@ -20,7 +20,7 @@ import {
   setSelectedTaskId,
   setAwaitingApproval,
 } from "../store/slices/executeSlice";
-import { fetchFeedback, resetEnsure } from "../store/slices/ensureSlice";
+import { fetchFeedback, resetEval } from "../store/slices/evalSlice";
 import { fetchDeployStatus, fetchDeployHistory, resetDeploy } from "../store/slices/deploySlice";
 import { wsConnect, wsDisconnect, wsSend } from "../store/middleware/websocketMiddleware";
 import { Layout } from "../components/layout/Layout";
@@ -28,7 +28,7 @@ import { HilApprovalModal } from "../components/HilApprovalModal";
 import { SpecPhase } from "./phases/SpecPhase";
 import { PlanPhase } from "./phases/PlanPhase";
 import { ExecutePhase } from "./phases/ExecutePhase";
-import { EnsurePhase } from "./phases/EnsurePhase";
+import { EvalPhase } from "./phases/EvalPhase";
 import { DeployPhase } from "./phases/DeployPhase";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -90,7 +90,7 @@ export function ProjectView() {
       dispatch(resetSpec());
       dispatch(resetPlan());
       dispatch(resetExecute());
-      dispatch(resetEnsure());
+      dispatch(resetEval());
       dispatch(resetDeploy());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -206,8 +206,8 @@ export function ProjectView() {
             )}
             {phase === "plan" && <PlanPhase projectId={projectId} onNavigateToBuildTask={handleNavigateToBuildTask} />}
             {phase === "execute" && <ExecutePhase projectId={projectId} onNavigateToPlan={handleNavigateToPlan} />}
-            {phase === "ensure" && (
-              <EnsurePhase projectId={projectId} onNavigateToBuildTask={handleNavigateToBuildTask} />
+            {phase === "eval" && (
+              <EvalPhase projectId={projectId} onNavigateToBuildTask={handleNavigateToBuildTask} />
             )}
             {phase === "deploy" && (
               <DeployPhase projectId={projectId} onOpenSettings={() => setSettingsOpen(true)} />

@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { configureStore } from "@reduxjs/toolkit";
-import ensureReducer, {
+import evalReducer, {
   setFeedback,
-  setEnsureError,
-  resetEnsure,
+  setEvalError,
+  resetEval,
   fetchFeedback,
   submitFeedback,
   recategorizeFeedback,
-  type EnsureState,
-} from "./ensureSlice";
+  type EvalState,
+} from "./evalSlice";
 import type { FeedbackItem } from "@opensprint/shared";
 
 vi.mock("../../api/client", () => ({
@@ -34,7 +34,7 @@ const mockFeedback: FeedbackItem = {
   createdAt: "2025-01-01T00:00:00Z",
 };
 
-describe("ensureSlice", () => {
+describe("evalSlice", () => {
   beforeEach(() => {
     vi.mocked(api.feedback.list).mockReset();
     vi.mocked(api.feedback.submit).mockReset();
@@ -42,13 +42,13 @@ describe("ensureSlice", () => {
   });
 
   function createStore() {
-    return configureStore({ reducer: { ensure: ensureReducer } });
+    return configureStore({ reducer: { eval: evalReducer } });
   }
 
   describe("initial state", () => {
     it("has correct initial state", () => {
       const store = createStore();
-      const state = store.getState().ensure as EnsureState;
+      const state = store.getState().eval as EvalState;
       expect(state.feedback).toEqual([]);
       expect(state.loading).toBe(false);
       expect(state.submitting).toBe(false);
@@ -61,24 +61,24 @@ describe("ensureSlice", () => {
       const store = createStore();
       const feedback = [mockFeedback];
       store.dispatch(setFeedback(feedback));
-      expect(store.getState().ensure.feedback).toEqual(feedback);
+      expect(store.getState().eval.feedback).toEqual(feedback);
     });
 
-    it("setEnsureError sets error", () => {
+    it("setEvalError sets error", () => {
       const store = createStore();
-      store.dispatch(setEnsureError("Something went wrong"));
-      expect(store.getState().ensure.error).toBe("Something went wrong");
-      store.dispatch(setEnsureError(null));
-      expect(store.getState().ensure.error).toBeNull();
+      store.dispatch(setEvalError("Something went wrong"));
+      expect(store.getState().eval.error).toBe("Something went wrong");
+      store.dispatch(setEvalError(null));
+      expect(store.getState().eval.error).toBeNull();
     });
 
-    it("resetEnsure resets to initial state", () => {
+    it("resetEval resets to initial state", () => {
       const store = createStore();
       store.dispatch(setFeedback([mockFeedback]));
-      store.dispatch(setEnsureError("error"));
+      store.dispatch(setEvalError("error"));
 
-      store.dispatch(resetEnsure());
-      const state = store.getState().ensure as EnsureState;
+      store.dispatch(resetEval());
+      const state = store.getState().eval as EvalState;
       expect(state.feedback).toEqual([]);
       expect(state.loading).toBe(false);
       expect(state.submitting).toBe(false);
@@ -96,8 +96,8 @@ describe("ensureSlice", () => {
       const store = createStore();
       const dispatchPromise = store.dispatch(fetchFeedback("proj-1"));
 
-      expect(store.getState().ensure.loading).toBe(true);
-      expect(store.getState().ensure.error).toBeNull();
+      expect(store.getState().eval.loading).toBe(true);
+      expect(store.getState().eval.error).toBeNull();
 
       resolveApi!([mockFeedback]);
       await dispatchPromise;
@@ -108,8 +108,8 @@ describe("ensureSlice", () => {
       const store = createStore();
       await store.dispatch(fetchFeedback("proj-1"));
 
-      expect(store.getState().ensure.feedback).toEqual([mockFeedback]);
-      expect(store.getState().ensure.loading).toBe(false);
+      expect(store.getState().eval.feedback).toEqual([mockFeedback]);
+      expect(store.getState().eval.loading).toBe(false);
       expect(api.feedback.list).toHaveBeenCalledWith("proj-1");
     });
 
@@ -118,8 +118,8 @@ describe("ensureSlice", () => {
       const store = createStore();
       await store.dispatch(fetchFeedback("proj-1"));
 
-      expect(store.getState().ensure.loading).toBe(false);
-      expect(store.getState().ensure.error).toBe("Network error");
+      expect(store.getState().eval.loading).toBe(false);
+      expect(store.getState().eval.error).toBe("Network error");
     });
 
     it("uses fallback error message when error has no message", async () => {
@@ -127,7 +127,7 @@ describe("ensureSlice", () => {
       const store = createStore();
       await store.dispatch(fetchFeedback("proj-1"));
 
-      expect(store.getState().ensure.error).toBe("Failed to load feedback");
+      expect(store.getState().eval.error).toBe("Failed to load feedback");
     });
   });
 
@@ -143,8 +143,8 @@ describe("ensureSlice", () => {
         submitFeedback({ projectId: "proj-1", text: "Great work!" }),
       );
 
-      expect(store.getState().ensure.submitting).toBe(true);
-      expect(store.getState().ensure.error).toBeNull();
+      expect(store.getState().eval.submitting).toBe(true);
+      expect(store.getState().eval.error).toBeNull();
 
       resolveApi!(mockFeedback);
       await dispatchPromise;
@@ -161,7 +161,7 @@ describe("ensureSlice", () => {
         submitFeedback({ projectId: "proj-1", text: "Bug in login" }),
       );
 
-      const stateBeforeResolve = store.getState().ensure;
+      const stateBeforeResolve = store.getState().eval;
       expect(stateBeforeResolve.feedback).toHaveLength(1);
       expect(stateBeforeResolve.feedback[0].text).toBe("Bug in login");
       expect(stateBeforeResolve.feedback[0].status).toBe("pending");
@@ -170,7 +170,7 @@ describe("ensureSlice", () => {
       resolveApi!(mockFeedback);
       await dispatchPromise;
 
-      const stateAfterResolve = store.getState().ensure;
+      const stateAfterResolve = store.getState().eval;
       expect(stateAfterResolve.feedback[0].id).toBe("fb-1");
       expect(stateAfterResolve.feedback[0].text).toBe("Great feature");
     });
@@ -193,7 +193,7 @@ describe("ensureSlice", () => {
         submitFeedback({ projectId: "proj-1", text: "New feedback" }),
       );
 
-      const state = store.getState().ensure;
+      const state = store.getState().eval;
       expect(state.submitting).toBe(false);
       expect(state.feedback).toHaveLength(2);
       expect(state.feedback[0]).toEqual(newFeedback);
@@ -224,7 +224,7 @@ describe("ensureSlice", () => {
         submitFeedback({ projectId: "proj-1", text: "Reply text", parentId: "fb-parent" }),
       );
 
-      const stateBeforeResolve = store.getState().ensure;
+      const stateBeforeResolve = store.getState().eval;
       const optimistic = stateBeforeResolve.feedback.find((f) => f.text === "Reply text");
       expect(optimistic).toBeDefined();
       expect(optimistic!.parent_id).toBe("fb-parent");
@@ -241,8 +241,8 @@ describe("ensureSlice", () => {
         submitFeedback({ projectId: "proj-1", text: "Feedback" }),
       );
 
-      expect(store.getState().ensure.submitting).toBe(false);
-      expect(store.getState().ensure.error).toBe("Submit failed");
+      expect(store.getState().eval.submitting).toBe(false);
+      expect(store.getState().eval.error).toBe("Submit failed");
     });
 
     it("removes optimistic feedback when submit is rejected", async () => {
@@ -252,12 +252,12 @@ describe("ensureSlice", () => {
         submitFeedback({ projectId: "proj-1", text: "Failed feedback" }),
       );
 
-      expect(store.getState().ensure.feedback).toHaveLength(1);
-      expect(store.getState().ensure.feedback[0].text).toBe("Failed feedback");
+      expect(store.getState().eval.feedback).toHaveLength(1);
+      expect(store.getState().eval.feedback[0].text).toBe("Failed feedback");
 
       await dispatchPromise;
 
-      expect(store.getState().ensure.feedback).toHaveLength(0);
+      expect(store.getState().eval.feedback).toHaveLength(0);
     });
 
     it("uses fallback error message when error has no message", async () => {
@@ -267,7 +267,7 @@ describe("ensureSlice", () => {
         submitFeedback({ projectId: "proj-1", text: "Feedback" }),
       );
 
-      expect(store.getState().ensure.error).toBe("Failed to submit feedback");
+      expect(store.getState().eval.error).toBe("Failed to submit feedback");
     });
   });
 
@@ -284,7 +284,7 @@ describe("ensureSlice", () => {
         recategorizeFeedback({ projectId: "proj-1", feedbackId: "fb-1" }),
       );
 
-      expect(store.getState().ensure.feedback[0].category).toBe("bug");
+      expect(store.getState().eval.feedback[0].category).toBe("bug");
       expect(api.feedback.recategorize).toHaveBeenCalledWith("proj-1", "fb-1");
     });
 
@@ -301,8 +301,8 @@ describe("ensureSlice", () => {
         recategorizeFeedback({ projectId: "proj-1", feedbackId: "fb-other" }),
       );
 
-      expect(store.getState().ensure.feedback).toHaveLength(1);
-      expect(store.getState().ensure.feedback[0].id).toBe("fb-1");
+      expect(store.getState().eval.feedback).toHaveLength(1);
+      expect(store.getState().eval.feedback[0].id).toBe("fb-1");
     });
 
     it("sets error on rejected", async () => {
@@ -313,7 +313,7 @@ describe("ensureSlice", () => {
         recategorizeFeedback({ projectId: "proj-1", feedbackId: "fb-1" }),
       );
 
-      expect(store.getState().ensure.error).toBe("Recategorize failed");
+      expect(store.getState().eval.error).toBe("Recategorize failed");
     });
   });
 });

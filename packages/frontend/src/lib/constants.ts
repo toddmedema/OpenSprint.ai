@@ -23,7 +23,7 @@ export const PRD_SOURCE_COLORS: Record<string, string> = {
   spec: "bg-blue-100 text-blue-800",
   plan: "bg-amber-100 text-amber-800",
   execute: "bg-green-100 text-green-800",
-  ensure: "bg-purple-100 text-purple-800",
+  eval: "bg-purple-100 text-purple-800",
   deploy: "bg-slate-100 text-slate-800",
 };
 

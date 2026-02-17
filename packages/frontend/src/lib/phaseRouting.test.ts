@@ -23,7 +23,7 @@ describe("phaseRouting", () => {
       expect(phaseFromSlug("spec")).toBe("spec");
       expect(phaseFromSlug("plan")).toBe("plan");
       expect(phaseFromSlug("execute")).toBe("execute");
-      expect(phaseFromSlug("ensure")).toBe("ensure");
+      expect(phaseFromSlug("eval")).toBe("eval");
       expect(phaseFromSlug("deploy")).toBe("deploy");
     });
 
@@ -48,7 +48,7 @@ describe("phaseRouting", () => {
       expect(isValidPhaseSlug("spec")).toBe(true);
       expect(isValidPhaseSlug("plan")).toBe(true);
       expect(isValidPhaseSlug("execute")).toBe(true);
-      expect(isValidPhaseSlug("ensure")).toBe(true);
+      expect(isValidPhaseSlug("eval")).toBe(true);
       expect(isValidPhaseSlug("deploy")).toBe(true);
     });
   });
@@ -58,7 +58,7 @@ describe("phaseRouting", () => {
       expect(getProjectPhasePath("proj-123", "spec")).toBe("/projects/proj-123/spec");
       expect(getProjectPhasePath("proj-123", "plan")).toBe("/projects/proj-123/plan");
       expect(getProjectPhasePath("proj-123", "execute")).toBe("/projects/proj-123/execute");
-      expect(getProjectPhasePath("proj-123", "ensure")).toBe("/projects/proj-123/ensure");
+      expect(getProjectPhasePath("proj-123", "eval")).toBe("/projects/proj-123/eval");
       expect(getProjectPhasePath("proj-123", "deploy")).toBe("/projects/proj-123/deploy");
     });
 
@@ -132,7 +132,7 @@ describe("phaseRouting", () => {
 
   describe("VALID_PHASES", () => {
     it("contains all four phases in order", () => {
-      expect(VALID_PHASES).toEqual(["spec", "plan", "execute", "ensure", "deploy"]);
+      expect(VALID_PHASES).toEqual(["spec", "plan", "execute", "eval", "deploy"]);
     });
   });
 });

@@ -5,7 +5,7 @@ import websocketReducer from "./slices/websocketSlice";
 import specReducer from "./slices/specSlice";
 import planReducer from "./slices/planSlice";
 import executeReducer from "./slices/executeSlice";
-import ensureReducer from "./slices/ensureSlice";
+import evalReducer from "./slices/evalSlice";
 import deployReducer from "./slices/deploySlice";
 import { websocketMiddleware } from "./middleware/websocketMiddleware";
 
@@ -16,7 +16,7 @@ export const store = configureStore({
     spec: specReducer,
     plan: planReducer,
     execute: executeReducer,
-    ensure: ensureReducer,
+    eval: evalReducer,
     deploy: deployReducer,
   },
   middleware: (getDefaultMiddleware) =>

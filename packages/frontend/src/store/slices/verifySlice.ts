@@ -1,13 +1,13 @@
 /**
- * @deprecated Use ensureSlice. Re-exported for backward compatibility.
+ * @deprecated Use evalSlice. Re-exported for backward compatibility.
  */
 export {
-  type EnsureState as VerifyState,
+  type EvalState as VerifyState,
   fetchFeedback,
   submitFeedback,
   recategorizeFeedback,
   setFeedback,
-  setEnsureError as setVerifyError,
-  resetEnsure as resetVerify,
-} from "./ensureSlice";
-export { default } from "./ensureSlice";
+  setEvalError as setVerifyError,
+  resetEval as resetVerify,
+} from "./evalSlice";
+export { default } from "./evalSlice";
