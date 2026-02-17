@@ -241,7 +241,9 @@ export function VerifyPhase({ projectId, onNavigateToBuildTask }: VerifyPhasePro
             {feedback.map((item: FeedbackItem) => (
               <div key={item.id} className="card p-4">
                 <div className="flex items-start justify-between gap-3 mb-2">
-                  <div className="flex-1 min-w-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{item.text}</p>
+                  </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {item.status === "pending" ? (
                       <span

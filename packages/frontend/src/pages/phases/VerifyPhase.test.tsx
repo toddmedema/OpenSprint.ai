@@ -312,6 +312,65 @@ describe("VerifyPhase feedback input", () => {
 
     expect(screen.getByText(/Feedback History \(1\)/)).toBeInTheDocument();
     expect(screen.getByText("Bug")).toBeInTheDocument();
+    expect(screen.getByText("Login button is broken")).toBeInTheDocument();
+  });
+
+  it("displays feedback text on each feedback card", () => {
+    const storeWithFeedback = configureStore({
+      reducer: {
+        project: projectReducer,
+        verify: verifyReducer,
+      },
+      preloadedState: {
+        project: {
+          data: {
+            id: "proj-1",
+            name: "Test Project",
+            description: "",
+            repoPath: "/tmp/test",
+            currentPhase: "verify",
+            createdAt: "",
+            updatedAt: "",
+          },
+          loading: false,
+          error: null,
+        },
+        verify: {
+          feedback: [
+            {
+              id: "fb-1",
+              text: "Bug feedback",
+              category: "bug",
+              mappedPlanId: "plan-1",
+              createdTaskIds: [],
+              status: "mapped",
+              createdAt: new Date().toISOString(),
+            },
+            {
+              id: "fb-2",
+              text: "Pending feedback text",
+              category: "bug",
+              mappedPlanId: null,
+              createdTaskIds: [],
+              status: "pending",
+              createdAt: new Date().toISOString(),
+            },
+          ],
+          loading: false,
+          submitting: false,
+          error: null,
+        },
+      },
+    });
+
+    render(
+      <Provider store={storeWithFeedback}>
+        <VerifyPhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    expect(screen.getByText("Bug feedback")).toBeInTheDocument();
+    expect(screen.getByText("Pending feedback text")).toBeInTheDocument();
   });
 
   it("shows category chip for feedback in list", () => {
