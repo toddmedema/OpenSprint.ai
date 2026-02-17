@@ -48,6 +48,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   const [chatSending, setChatSending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [tasksSectionExpanded, setTasksSectionExpanded] = useState(true);
+  const [dependencyGraphExpanded, setDependencyGraphExpanded] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const selectedPlan = plans.find((p) => p.metadata.planId === selectedPlanId) ?? null;
@@ -165,10 +166,26 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
       )}
       {/* Main content */}
       <div className="flex-1 min-w-0 min-h-0 overflow-y-auto p-6">
-        {/* Dependency Graph */}
-        <div className="card p-6 mb-6">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Dependency Graph</h3>
-          <DependencyGraph graph={dependencyGraph} onPlanClick={handleSelectPlan} />
+        {/* Dependency Graph — collapsible top-level container */}
+        <div className="card mb-6 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setDependencyGraphExpanded(!dependencyGraphExpanded)}
+            className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-100/50 transition-colors"
+            aria-expanded={dependencyGraphExpanded}
+            aria-controls="dependency-graph-content"
+            id="dependency-graph-header"
+          >
+            <h3 className="text-sm font-semibold text-gray-900">Dependency Graph</h3>
+            <span className="text-gray-400 text-xs" aria-hidden>
+              {dependencyGraphExpanded ? "▼" : "▶"}
+            </span>
+          </button>
+          {dependencyGraphExpanded && (
+            <div id="dependency-graph-content" role="region" aria-labelledby="dependency-graph-header" className="p-4 pt-0">
+              <DependencyGraph graph={dependencyGraph} onPlanClick={handleSelectPlan} />
+            </div>
+          )}
         </div>
 
         {/* Plan Cards */}

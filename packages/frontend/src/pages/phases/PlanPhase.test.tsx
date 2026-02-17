@@ -468,6 +468,34 @@ describe("PlanPhase sendPlanMessage thunk", () => {
     Element.prototype.scrollIntoView = vi.fn();
   });
 
+  it("renders Dependency Graph as collapsible container with expand/collapse toggle", async () => {
+    const store = createStore();
+    const user = userEvent.setup();
+    render(
+      <Provider store={store}>
+        <PlanPhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    const header = screen.getByRole("button", { name: /dependency graph/i });
+    expect(header).toBeInTheDocument();
+    expect(header).toHaveAttribute("aria-expanded", "true");
+
+    // Content visible when expanded
+    const content = document.getElementById("dependency-graph-content");
+    expect(content).toBeInTheDocument();
+
+    // Click to collapse
+    await user.click(header);
+    expect(header).toHaveAttribute("aria-expanded", "false");
+    expect(document.getElementById("dependency-graph-content")).toBeNull();
+
+    // Click to expand again
+    await user.click(header);
+    expect(header).toHaveAttribute("aria-expanded", "true");
+    expect(document.getElementById("dependency-graph-content")).toBeInTheDocument();
+  });
+
   it("dispatches sendPlanMessage thunk when chat message is sent", async () => {
     const store = createStore();
     const user = userEvent.setup();
