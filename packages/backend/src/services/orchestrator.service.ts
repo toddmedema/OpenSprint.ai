@@ -27,6 +27,7 @@ import { SessionManager } from "./session-manager.js";
 import { TestRunner } from "./test-runner.js";
 import { orphanRecoveryService } from "./orphan-recovery.service.js";
 import { heartbeatService } from "./heartbeat.service.js";
+import { activeAgentsService } from "./active-agents.service.js";
 import { broadcastToProject, sendAgentOutputToProject } from "../websocket/index.js";
 import { writeJsonAtomic } from "../utils/file-utils.js";
 
@@ -448,6 +449,9 @@ export class OrchestratorService {
       state.heartbeatTimer = null;
     }
     if (state.activeProcess) {
+      if (state.status.currentTask) {
+        activeAgentsService.unregister(state.status.currentTask);
+      }
       try {
         state.activeProcess.kill();
       } catch {
@@ -548,23 +552,11 @@ export class OrchestratorService {
   }
 
   /**
-   * Get active agents for the project (Build phase agents from orchestrator state).
-   * Returns the current task when one is running (coding or review phase).
+   * Get active agents for the project (from central ActiveAgentsService registry).
    */
   async getActiveAgents(projectId: string): Promise<ActiveAgent[]> {
     await this.projectService.getProject(projectId);
-    const state = this.getState(projectId);
-    const { currentTask, currentPhase } = state.status;
-    if (!currentTask || !currentPhase) return [];
-    return [
-      {
-        id: currentTask,
-        phase: currentPhase,
-        label: state.activeTaskTitle ?? currentTask,
-        startedAt: state.startedAt || new Date().toISOString(),
-        branchName: state.activeBranchName ?? undefined,
-      },
-    ];
+    return activeAgentsService.list(projectId);
   }
 
   // ─── Main Orchestrator Loop ───
@@ -730,6 +722,15 @@ export class OrchestratorService {
       state.outputLog = [];
       state.lastOutputTime = Date.now();
 
+      activeAgentsService.register(
+        task.id,
+        projectId,
+        "coding",
+        state.activeTaskTitle ?? task.id,
+        state.startedAt,
+        branchName,
+      );
+
       // Spawn the coding agent in the worktree
       const taskDir = this.sessionManager.getActiveDir(wtPath, task.id);
       const promptPath = path.join(taskDir, "prompt.md");
@@ -826,6 +827,7 @@ export class OrchestratorService {
     branchName: string,
     exitCode: number | null,
   ): Promise<void> {
+    activeAgentsService.unregister(task.id);
     const state = this.getState(projectId);
     const wtPath = state.activeWorktreePath ?? repoPath;
 
@@ -960,6 +962,15 @@ export class OrchestratorService {
       state.outputLog = [];
       state.lastOutputTime = Date.now();
 
+      activeAgentsService.register(
+        task.id,
+        projectId,
+        "review",
+        state.activeTaskTitle ?? task.id,
+        state.startedAt,
+        branchName,
+      );
+
       broadcastToProject(projectId, {
         type: "agent.started",
         taskId: task.id,
@@ -1060,6 +1071,7 @@ export class OrchestratorService {
     branchName: string,
     exitCode: number | null,
   ): Promise<void> {
+    activeAgentsService.unregister(task.id);
     const state = this.getState(projectId);
     const wtPath = state.activeWorktreePath ?? repoPath;
     const result = (await this.sessionManager.readResult(wtPath, task.id)) as ReviewAgentResult | null;

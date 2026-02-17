@@ -5,6 +5,7 @@ import path from "path";
 import os from "os";
 import { createApp } from "../app.js";
 import { ProjectService } from "../services/project.service.js";
+import { activeAgentsService } from "../services/active-agents.service.js";
 import { API_PREFIX, DEFAULT_HIL_CONFIG } from "@opensprint/shared";
 
 describe("Agents API", () => {
@@ -58,5 +59,34 @@ describe("Agents API", () => {
       expect(res.body.error).toBeDefined();
       expect(res.body.error.code).toBe("PROJECT_NOT_FOUND");
     });
+
+    it("should return active agents from central registry", async () => {
+      activeAgentsService.register(
+        "task-123",
+        projectId,
+        "coding",
+        "Implement login",
+        "2026-02-16T10:00:00.000Z",
+        "opensprint/task-123",
+      );
+
+      const res = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/agents/active`,
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toHaveLength(1);
+      expect(res.body.data[0]).toEqual({
+        id: "task-123",
+        phase: "coding",
+        label: "Implement login",
+        startedAt: "2026-02-16T10:00:00.000Z",
+        branchName: "opensprint/task-123",
+      });
+    });
+  });
+
+  afterEach(() => {
+    activeAgentsService.unregister("task-123");
   });
 });
