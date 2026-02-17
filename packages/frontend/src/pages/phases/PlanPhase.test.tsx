@@ -462,6 +462,118 @@ describe("PlanPhase reshipPlan thunk", () => {
   });
 });
 
+describe("PlanPhase plan sorting and status filter", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+
+  it("sorts plans by status order: planning, building, done", () => {
+    const plans = [
+      {
+        ...basePlan,
+        metadata: { ...basePlan.metadata, planId: "done-feature" },
+        status: "done" as const,
+      },
+      {
+        ...basePlan,
+        metadata: { ...basePlan.metadata, planId: "planning-feature" },
+        status: "planning" as const,
+      },
+      {
+        ...basePlan,
+        metadata: { ...basePlan.metadata, planId: "building-feature" },
+        status: "building" as const,
+      },
+    ];
+    const store = createStore(plans);
+    render(
+      <Provider store={store}>
+        <PlanPhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    const planningCard = screen.getByText("Planning Feature").closest('[role="button"]');
+    const buildingCard = screen.getByText("Building Feature").closest('[role="button"]');
+    const doneCard = screen.getByText("Done Feature").closest('[role="button"]');
+    expect(planningCard).toBeInTheDocument();
+    expect(buildingCard).toBeInTheDocument();
+    expect(doneCard).toBeInTheDocument();
+
+    const order = [planningCard!, buildingCard!, doneCard!];
+    for (let i = 0; i < order.length - 1; i++) {
+      const pos = order[i].compareDocumentPosition(order[i + 1]);
+      expect(pos & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    }
+  });
+
+  it("renders status filter dropdown when plans exist", () => {
+    const store = createStore();
+    render(
+      <Provider store={store}>
+        <PlanPhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    const filter = screen.getByRole("combobox", { name: /filter plans by status/i });
+    expect(filter).toBeInTheDocument();
+    expect(filter).toHaveValue("all");
+  });
+
+  it("filters plans when status filter is changed", async () => {
+    const plans = [
+      {
+        ...basePlan,
+        metadata: { ...basePlan.metadata, planId: "planning-feature" },
+        status: "planning" as const,
+      },
+      {
+        ...basePlan,
+        metadata: { ...basePlan.metadata, planId: "building-feature" },
+        status: "building" as const,
+      },
+    ];
+    const store = createStore(plans);
+    const user = userEvent.setup();
+    render(
+      <Provider store={store}>
+        <PlanPhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    expect(screen.getByText(/planning feature/i)).toBeInTheDocument();
+    expect(screen.getByText(/building feature/i)).toBeInTheDocument();
+
+    const filter = screen.getByRole("combobox", { name: /filter plans by status/i });
+    await user.selectOptions(filter, "planning");
+
+    expect(screen.getByText(/planning feature/i)).toBeInTheDocument();
+    expect(screen.queryByText(/building feature/i)).not.toBeInTheDocument();
+  });
+
+  it("shows empty message when filter has no matches", async () => {
+    const plans = [
+      {
+        ...basePlan,
+        metadata: { ...basePlan.metadata, planId: "planning-feature" },
+        status: "planning" as const,
+      },
+    ];
+    const store = createStore(plans);
+    const user = userEvent.setup();
+    render(
+      <Provider store={store}>
+        <PlanPhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    const filter = screen.getByRole("combobox", { name: /filter plans by status/i });
+    await user.selectOptions(filter, "done");
+
+    expect(screen.getByText(/no plans match/i)).toBeInTheDocument();
+  });
+});
+
 describe("PlanPhase sendPlanMessage thunk", () => {
   beforeEach(() => {
     vi.clearAllMocks();

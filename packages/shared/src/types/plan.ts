@@ -1,8 +1,19 @@
+import { PLAN_STATUS_ORDER } from "../constants/index.js";
+
 /** Plan complexity estimate */
 export type PlanComplexity = "low" | "medium" | "high" | "very_high";
 
 /** Plan status derived from beads epic state */
 export type PlanStatus = "planning" | "building" | "done";
+
+/** Sort plans by status order (planning → building → done) */
+export function sortPlansByStatus<T extends { status: PlanStatus }>(plans: T[]): T[] {
+  return [...plans].sort((a, b) => {
+    const orderA = PLAN_STATUS_ORDER[a.status] ?? 999;
+    const orderB = PLAN_STATUS_ORDER[b.status] ?? 999;
+    return orderA - orderB;
+  });
+}
 
 /** A UI/UX mockup attached to a Plan (ASCII wireframe or text description) */
 export interface PlanMockup {

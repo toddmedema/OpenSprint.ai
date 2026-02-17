@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { Plan } from "@opensprint/shared";
+import type { Plan, PlanStatus } from "@opensprint/shared";
+import { sortPlansByStatus } from "@opensprint/shared";
 import { useAppDispatch, useAppSelector } from "../../store";
 import {
   fetchPlans,
@@ -44,6 +45,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
 
   /* ── Local UI state (preserved by mount-all) ── */
   const [showAddPlanModal, setShowAddPlanModal] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"all" | PlanStatus>("all");
   const [chatInput, setChatInput] = useState("");
   const [chatSending, setChatSending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
@@ -52,6 +54,30 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const selectedPlan = plans.find((p) => p.metadata.planId === selectedPlanId) ?? null;
+
+  const filteredAndSortedPlans = useMemo(() => {
+    const filtered =
+      statusFilter === "all"
+        ? plans
+        : plans.filter((p) => p.status === statusFilter);
+    return sortPlansByStatus(filtered);
+  }, [plans, statusFilter]);
+
+  const filteredDependencyGraph = useMemo(() => {
+    if (!dependencyGraph) return null;
+    const filteredPlans =
+      statusFilter === "all"
+        ? dependencyGraph.plans
+        : dependencyGraph.plans.filter((p) => p.status === statusFilter);
+    const filteredPlanIds = new Set(filteredPlans.map((p) => p.metadata.planId));
+    const filteredEdges = dependencyGraph.edges.filter(
+      (e) => filteredPlanIds.has(e.from) && filteredPlanIds.has(e.to),
+    );
+    return {
+      plans: sortPlansByStatus(filteredPlans),
+      edges: filteredEdges,
+    };
+  }, [dependencyGraph, statusFilter]);
 
   const planTasks = useMemo(() => {
     if (!selectedPlan?.metadata.beadEpicId) return [];
@@ -183,14 +209,29 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
           </button>
           {dependencyGraphExpanded && (
             <div id="dependency-graph-content" role="region" aria-labelledby="dependency-graph-header" className="p-4 pt-0">
-              <DependencyGraph graph={dependencyGraph} onPlanClick={handleSelectPlan} />
+              <DependencyGraph graph={filteredDependencyGraph} onPlanClick={handleSelectPlan} />
             </div>
           )}
         </div>
 
         {/* Plan Cards */}
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Feature Plans</h2>
+        <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-semibold text-gray-900">Feature Plans</h2>
+            {plans.length > 0 && (
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as "all" | PlanStatus)}
+                className="input text-sm py-1.5 px-2.5 w-auto min-w-[7rem]"
+                aria-label="Filter plans by status"
+              >
+                <option value="all">All</option>
+                <option value="planning">Planning</option>
+                <option value="building">Building</option>
+                <option value="done">Done</option>
+              </select>
+            )}
+          </div>
           <button type="button" onClick={() => setShowAddPlanModal(true)} className="btn-primary text-sm">
             Add Feature
           </button>
@@ -208,9 +249,15 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
               Add Feature
             </button>
           </div>
+        ) : filteredAndSortedPlans.length === 0 ? (
+          <div className="text-center py-10">
+            <p className="text-gray-500">
+              No plans match the &ldquo;{statusFilter === "all" ? "All" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}&rdquo; filter.
+            </p>
+          </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {plans.map((plan) => (
+            {filteredAndSortedPlans.map((plan) => (
               <EpicCard
                 key={plan.metadata.planId}
                 plan={plan}
