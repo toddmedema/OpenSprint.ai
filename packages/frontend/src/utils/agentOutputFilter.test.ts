@@ -68,8 +68,8 @@ describe("agentOutputFilter", () => {
     it("resets buffer when resetAgentOutputFilter is called", () => {
       filterAgentOutputChunk('{"type":"text","text":"Par');
       resetAgentOutputFilter();
-      // After reset, "tial" would form incomplete JSON - should not leak
-      expect(filterAgentOutputChunk('tial"}\n')).toBe("Partial");
+      // After reset, buffer is empty; 'tial"}' is invalid JSON, so it passes through as plain text
+      expect(filterAgentOutputChunk('tial"}\n')).toBe('tial"}\n');
     });
   });
 
