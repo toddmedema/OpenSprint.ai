@@ -262,7 +262,7 @@ export class OrchestratorService {
   private async recoverFromPersistedState(
     projectId: string,
     repoPath: string,
-    persisted: PersistedOrchestratorState,
+    persisted: PersistedOrchestratorState
   ): Promise<void> {
     const state = this.getState(projectId);
 
@@ -315,14 +315,26 @@ export class OrchestratorService {
           }
         } catch (err) {
           console.error("[orchestrator] Recovery: post-exit handling failed:", err);
-          await this.performCrashRecovery(projectId, repoPath, taskId, branchName, persisted.worktreePath);
+          await this.performCrashRecovery(
+            projectId,
+            repoPath,
+            taskId,
+            branchName,
+            persisted.worktreePath
+          );
         }
       }, RECOVERY_POLL_MS);
       return;
     }
 
     // Scenario 3: PID is dead (or missing) — crash recovery
-    await this.performCrashRecovery(projectId, repoPath, taskId, branchName, persisted.worktreePath);
+    await this.performCrashRecovery(
+      projectId,
+      repoPath,
+      taskId,
+      branchName,
+      persisted.worktreePath
+    );
   }
 
   /**
@@ -340,10 +352,12 @@ export class OrchestratorService {
     repoPath: string,
     taskId: string,
     branchName: string,
-    worktreePath?: string | null,
+    worktreePath?: string | null
   ): Promise<void> {
     const state = this.getState(projectId);
-    console.log(`[orchestrator] Recovery: crash recovery for task ${taskId} (branch ${branchName})`);
+    console.log(
+      `[orchestrator] Recovery: crash recovery for task ${taskId} (branch ${branchName})`
+    );
 
     // 1. Clear persisted state FIRST — breaks any restart loop
     await this.clearPersistedState(repoPath);
@@ -353,7 +367,7 @@ export class OrchestratorService {
     const diff = await this.branchManager.captureBranchDiff(repoPath, branchName);
     if (diff) {
       console.log(
-        `[orchestrator] Recovery: captured ${diff.length} bytes of diff from ${branchName} (${commitCount} commits ahead)`,
+        `[orchestrator] Recovery: captured ${diff.length} bytes of diff from ${branchName} (${commitCount} commits ahead)`
       );
     }
 
@@ -367,12 +381,14 @@ export class OrchestratorService {
     // 4. Decide whether to preserve or delete the branch
     if (commitCount > 0) {
       // Branch has committed work — PRESERVE it for the next attempt
-      console.log(`[orchestrator] Recovery: preserving branch ${branchName} with ${commitCount} commits`);
+      console.log(
+        `[orchestrator] Recovery: preserving branch ${branchName} with ${commitCount} commits`
+      );
       try {
         await this.beads.comment(
           repoPath,
           taskId,
-          `Agent crashed (backend restart). Branch preserved with ${commitCount} commits for next attempt.`,
+          `Agent crashed (backend restart). Branch preserved with ${commitCount} commits for next attempt.`
         );
       } catch (err) {
         console.warn("[orchestrator] Recovery: failed to add comment:", err);
@@ -388,7 +404,7 @@ export class OrchestratorService {
         await this.beads.comment(
           repoPath,
           taskId,
-          "Agent crashed (backend restart). No committed work found, task requeued.",
+          "Agent crashed (backend restart). No committed work found, task requeued."
         );
       } catch (err) {
         console.warn("[orchestrator] Recovery: failed to add comment:", err);
@@ -495,14 +511,19 @@ export class OrchestratorService {
     // Stale heartbeat recovery: identify orphaned tasks via heartbeat files > 2 min old
     let staleHeartbeatResult: { recovered: string[] };
     try {
-      staleHeartbeatResult = await orphanRecoveryService.recoverFromStaleHeartbeats(repoPath, excludeTaskId);
+      staleHeartbeatResult = await orphanRecoveryService.recoverFromStaleHeartbeats(
+        repoPath,
+        excludeTaskId
+      );
     } catch (err) {
       console.error("[orchestrator] Stale heartbeat recovery failed:", err);
       staleHeartbeatResult = { recovered: [] };
     }
     const recovered = [...new Set([...orphanResult.recovered, ...staleHeartbeatResult.recovered])];
     if (recovered.length > 0) {
-      console.warn(`[orchestrator] Recovered ${recovered.length} orphaned task(s) on startup: ${recovered.join(", ")}`);
+      console.warn(
+        `[orchestrator] Recovered ${recovered.length} orphaned task(s) on startup: ${recovered.join(", ")}`
+      );
     }
 
     // Crash recovery: check for persisted state from a previous run
@@ -682,7 +703,7 @@ export class OrchestratorService {
     projectId: string,
     repoPath: string,
     task: BeadsIssue,
-    retryContext?: RetryContext,
+    retryContext?: RetryContext
   ): Promise<void> {
     const state = this.getState(projectId);
     state.killedDueToTimeout = false;
@@ -700,7 +721,12 @@ export class OrchestratorService {
       await this.preflightCheck(repoPath, wtPath, task.id);
 
       // Context assembly: read from main repo (PRD, plans, deps), write prompt to worktree
-      const context = await this.contextAssembler.buildContext(repoPath, task.id, this.beads, this.branchManager);
+      const context = await this.contextAssembler.buildContext(
+        repoPath,
+        task.id,
+        this.beads,
+        this.branchManager
+      );
 
       const config: ActiveTaskConfig = {
         taskId: task.id,
@@ -732,7 +758,7 @@ export class OrchestratorService {
         "coding",
         state.activeTaskTitle ?? task.id,
         state.startedAt,
-        branchName,
+        branchName
       );
 
       // Spawn the coding agent in the worktree
@@ -785,7 +811,9 @@ export class OrchestratorService {
         const proc = state.activeProcess;
         const pidDead = proc && proc.pid !== null && !isPidAlive(proc.pid);
         if (pidDead) {
-          console.warn(`Agent process dead for task ${task.id} (PID ${proc.pid}), recovering immediately`);
+          console.warn(
+            `Agent process dead for task ${task.id} (PID ${proc.pid}), recovering immediately`
+          );
           if (state.inactivityTimer) {
             clearInterval(state.inactivityTimer);
             state.inactivityTimer = null;
@@ -821,7 +849,15 @@ export class OrchestratorService {
       }, 30000);
     } catch (error) {
       console.error(`Coding phase failed for task ${task.id}:`, error);
-      await this.handleTaskFailure(projectId, repoPath, task, branchName, String(error), null, "agent_crash");
+      await this.handleTaskFailure(
+        projectId,
+        repoPath,
+        task,
+        branchName,
+        String(error),
+        null,
+        "agent_crash"
+      );
     }
   }
 
@@ -830,14 +866,17 @@ export class OrchestratorService {
     repoPath: string,
     task: BeadsIssue,
     branchName: string,
-    exitCode: number | null,
+    exitCode: number | null
   ): Promise<void> {
     activeAgentsService.unregister(task.id);
     const state = this.getState(projectId);
     const wtPath = state.activeWorktreePath ?? repoPath;
 
     // Check for result.json (in worktree where agent wrote it)
-    const result = (await this.sessionManager.readResult(wtPath, task.id)) as CodingAgentResult | null;
+    const result = (await this.sessionManager.readResult(
+      wtPath,
+      task.id
+    )) as CodingAgentResult | null;
 
     // Normalize status: agents sometimes write "completed"/"done" instead of "success"
     if (result && result.status) {
@@ -862,7 +901,7 @@ export class OrchestratorService {
         branchName,
         `Agent exited with code ${exitCode} without producing a result`,
         null,
-        failureType,
+        failureType
       );
       return;
     }
@@ -892,7 +931,7 @@ export class OrchestratorService {
           branchName,
           `Tests failed: ${scopedResult.failed} failed, ${scopedResult.passed} passed`,
           scopedResult,
-          "test_failure",
+          "test_failure"
         );
         return;
       }
@@ -931,7 +970,15 @@ export class OrchestratorService {
     } else {
       // Coding failed
       const reason = result.summary || `Agent exited with code ${exitCode}`;
-      await this.handleTaskFailure(projectId, repoPath, task, branchName, reason, null, "coding_failure");
+      await this.handleTaskFailure(
+        projectId,
+        repoPath,
+        task,
+        branchName,
+        reason,
+        null,
+        "coding_failure"
+      );
     }
   }
 
@@ -939,7 +986,7 @@ export class OrchestratorService {
     projectId: string,
     repoPath: string,
     task: BeadsIssue,
-    branchName: string,
+    branchName: string
   ): Promise<void> {
     const state = this.getState(projectId);
     state.killedDueToTimeout = false;
@@ -966,7 +1013,12 @@ export class OrchestratorService {
       await fs.writeFile(path.join(taskDir, "config.json"), JSON.stringify(config, null, 2));
 
       // Generate review prompt (read context from main repo, write to worktree)
-      const context = await this.contextAssembler.buildContext(repoPath, task.id, this.beads, this.branchManager);
+      const context = await this.contextAssembler.buildContext(
+        repoPath,
+        task.id,
+        this.beads,
+        this.branchManager
+      );
       await this.contextAssembler.assembleTaskDirectory(wtPath, task.id, config, context);
 
       state.startedAt = new Date().toISOString();
@@ -979,7 +1031,7 @@ export class OrchestratorService {
         "review",
         state.activeTaskTitle ?? task.id,
         state.startedAt,
-        branchName,
+        branchName
       );
 
       broadcastToProject(projectId, {
@@ -1036,7 +1088,9 @@ export class OrchestratorService {
         const proc = state.activeProcess;
         const pidDead = proc && proc.pid !== null && !isPidAlive(proc.pid);
         if (pidDead) {
-          console.warn(`Agent process dead for task ${task.id} (PID ${proc.pid}), recovering immediately`);
+          console.warn(
+            `Agent process dead for task ${task.id} (PID ${proc.pid}), recovering immediately`
+          );
           if (state.inactivityTimer) {
             clearInterval(state.inactivityTimer);
             state.inactivityTimer = null;
@@ -1072,7 +1126,15 @@ export class OrchestratorService {
       }, 30000);
     } catch (error) {
       console.error(`Review phase failed for task ${task.id}:`, error);
-      await this.handleTaskFailure(projectId, repoPath, task, branchName, String(error), null, "agent_crash");
+      await this.handleTaskFailure(
+        projectId,
+        repoPath,
+        task,
+        branchName,
+        String(error),
+        null,
+        "agent_crash"
+      );
     }
   }
 
@@ -1081,12 +1143,15 @@ export class OrchestratorService {
     repoPath: string,
     task: BeadsIssue,
     branchName: string,
-    exitCode: number | null,
+    exitCode: number | null
   ): Promise<void> {
     activeAgentsService.unregister(task.id);
     const state = this.getState(projectId);
     const wtPath = state.activeWorktreePath ?? repoPath;
-    const result = (await this.sessionManager.readResult(wtPath, task.id)) as ReviewAgentResult | null;
+    const result = (await this.sessionManager.readResult(
+      wtPath,
+      task.id
+    )) as ReviewAgentResult | null;
 
     // Normalize status: agents sometimes write "approve"/"success" instead of "approved"
     if (result && result.status) {
@@ -1108,7 +1173,9 @@ export class OrchestratorService {
       try {
         const branchDiff = await this.branchManager.captureBranchDiff(repoPath, branchName);
         const uncommittedDiff = await this.branchManager.captureUncommittedDiff(wtPath);
-        gitDiff = [branchDiff, uncommittedDiff].filter(Boolean).join("\n\n--- Uncommitted changes ---\n\n");
+        gitDiff = [branchDiff, uncommittedDiff]
+          .filter(Boolean)
+          .join("\n\n--- Uncommitted changes ---\n\n");
       } catch {
         // Best-effort capture
       }
@@ -1136,7 +1203,7 @@ export class OrchestratorService {
         reason,
         null,
         "review_rejection",
-        reviewFeedback,
+        reviewFeedback
       );
     } else {
       const failureType: FailureType = state.killedDueToTimeout
@@ -1152,7 +1219,7 @@ export class OrchestratorService {
         branchName,
         `Review agent exited with code ${exitCode} without producing a valid result`,
         null,
-        failureType,
+        failureType
       );
     }
   }
@@ -1165,7 +1232,7 @@ export class OrchestratorService {
     projectId: string,
     repoPath: string,
     task: BeadsIssue,
-    branchName: string,
+    branchName: string
   ): Promise<void> {
     const state = this.getState(projectId);
     const wtPath = state.activeWorktreePath ?? repoPath;
@@ -1190,7 +1257,7 @@ export class OrchestratorService {
           branchName,
           `Merge to main failed: ${mergeErr}`,
           null,
-          "merge_conflict",
+          "merge_conflict"
         );
         return;
       }
@@ -1282,14 +1349,16 @@ export class OrchestratorService {
     reason: string,
     testResults?: TestResults | null,
     failureType: FailureType = "coding_failure",
-    reviewFeedback?: string,
+    reviewFeedback?: string
   ): Promise<void> {
     const state = this.getState(projectId);
     const cumulativeAttempts = state.attempt;
     const wtPath = state.activeWorktreePath;
     const isInfraFailure = INFRA_FAILURE_TYPES.includes(failureType);
 
-    console.error(`Task ${task.id} failed [${failureType}] (attempt ${cumulativeAttempts}): ${reason}`);
+    console.error(
+      `Task ${task.id} failed [${failureType}] (attempt ${cumulativeAttempts}): ${reason}`
+    );
 
     // Capture diff before any cleanup (for richer retry context and session archive)
     let previousDiff = "";
@@ -1301,7 +1370,9 @@ export class OrchestratorService {
       if (wtPath) {
         uncommittedDiff = await this.branchManager.captureUncommittedDiff(wtPath);
       }
-      gitDiff = [branchDiff, uncommittedDiff].filter(Boolean).join("\n\n--- Uncommitted changes ---\n\n");
+      gitDiff = [branchDiff, uncommittedDiff]
+        .filter(Boolean)
+        .join("\n\n--- Uncommitted changes ---\n\n");
     } catch {
       // Branch may not exist
     }
@@ -1320,7 +1391,13 @@ export class OrchestratorService {
       gitDiff: gitDiff || undefined,
       startedAt: state.startedAt,
     });
-    await this.sessionManager.archiveSession(repoPath, task.id, cumulativeAttempts, session, wtPath ?? undefined);
+    await this.sessionManager.archiveSession(
+      repoPath,
+      task.id,
+      cumulativeAttempts,
+      session,
+      wtPath ?? undefined
+    );
 
     // Add failure comment for audit trail (PRD §7.3.2: rejection feedback as bead comment)
     const commentText =
@@ -1336,7 +1413,7 @@ export class OrchestratorService {
       state.infraRetries += 1;
       state.attempt = cumulativeAttempts + 1;
       console.log(
-        `[orchestrator] Infrastructure retry ${state.infraRetries}/${MAX_INFRA_RETRIES} for ${task.id} [${failureType}]`,
+        `[orchestrator] Infrastructure retry ${state.infraRetries}/${MAX_INFRA_RETRIES} for ${task.id} [${failureType}]`
       );
 
       // Clean up worktree but keep the branch for retry
@@ -1375,7 +1452,9 @@ export class OrchestratorService {
       }
 
       state.attempt = cumulativeAttempts + 1;
-      console.log(`[orchestrator] Retrying ${task.id} (attempt ${state.attempt}), preserving branch`);
+      console.log(
+        `[orchestrator] Retrying ${task.id} (attempt ${state.attempt}), preserving branch`
+      );
 
       await this.persistState(projectId, repoPath);
 
@@ -1402,7 +1481,7 @@ export class OrchestratorService {
       } else {
         const newPriority = currentPriority + 1;
         console.log(
-          `[orchestrator] Demoting ${task.id} priority ${currentPriority} → ${newPriority} after ${cumulativeAttempts} failures`,
+          `[orchestrator] Demoting ${task.id} priority ${currentPriority} → ${newPriority} after ${cumulativeAttempts} failures`
         );
 
         try {
@@ -1479,11 +1558,13 @@ export class OrchestratorService {
     repoPath: string,
     task: BeadsIssue,
     cumulativeAttempts: number,
-    reason: string,
+    reason: string
   ): Promise<void> {
     const state = this.getState(projectId);
 
-    console.log(`[orchestrator] Blocking ${task.id} after ${cumulativeAttempts} cumulative failures at max priority`);
+    console.log(
+      `[orchestrator] Blocking ${task.id} after ${cumulativeAttempts} cumulative failures at max priority`
+    );
 
     try {
       await this.beads.addLabel(repoPath, task.id, "blocked");

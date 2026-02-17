@@ -21,13 +21,13 @@ const FEEDBACK_CATEGORIZATION_PROMPT = `You are an AI assistant that categorizes
 Given the user's feedback text, the PRD (Product Requirements Document), and available plans, determine:
 1. The category: "bug" (something broken), "feature" (new capability request), "ux" (usability improvement), or "scope" (fundamental change to requirements)
 2. Which feature/plan it relates to (if identifiable) — use the planId from the available plans list
-3. One or more suggested task titles to address the feedback (array of strings)
+3. A suggested task title to address the feedback. Use a SINGLE title unless the feedback clearly describes multiple independent problems or requests that cannot be addressed in one task.
 
 Respond in JSON format:
 {
   "category": "bug" | "feature" | "ux" | "scope",
   "mappedPlanId": "plan-id-if-identifiable or null",
-  "task_titles": ["Short task title 1", "Short task title 2"]
+  "task_titles": ["Short task title"]
 }`;
 
 export class FeedbackService {

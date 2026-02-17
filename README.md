@@ -24,7 +24,7 @@ Building software with AI today is **fragmented and unstructured**. Developers u
 - **Manual orchestration overhead** — users spend time managing prompts, context windows, and task sequencing instead of making product decisions
 - **No feedback loop** — there is no structured way to validate completed work and feed findings back into development
 
-OpenSprint solves this by maintaining context across the entire lifecycle and automating the orchestration of AI development agents. Humans focus on *what* to build and *why*; AI handles *how*.
+OpenSprint solves this by maintaining context across the entire lifecycle and automating the orchestration of AI development agents. Humans focus on _what_ to build and _why_; AI handles _how_.
 
 ---
 
@@ -75,10 +75,10 @@ API keys can also be configured through the UI via **Project Settings** after th
 
 These are created automatically — no manual setup needed:
 
-| Path | Purpose |
-| ---- | ------- |
-| `~/.opensprint/projects.json` | Global project index |
-| `<project>/.opensprint/` | Per-project PRD, plans, conversations, sessions, and feedback |
+| Path                          | Purpose                                                       |
+| ----------------------------- | ------------------------------------------------------------- |
+| `~/.opensprint/projects.json` | Global project index                                          |
+| `<project>/.opensprint/`      | Per-project PRD, plans, conversations, sessions, and feedback |
 
 ---
 
@@ -97,12 +97,12 @@ flowchart LR
     style D fill:#10B981,color:#fff
 ```
 
-| Phase | What happens |
-| ----- | ------------ |
-| **Dream** | Chat with AI to refine your idea into a structured Product Requirements Document |
-| **Plan** | AI decomposes the PRD into epics, tasks, and a dependency graph |
-| **Build** | AI agents autonomously execute tasks with two-agent code + review cycles |
-| **Verify** | Submit feedback that AI categorizes and maps back to plan epics for iteration |
+| Phase      | What happens                                                                     |
+| ---------- | -------------------------------------------------------------------------------- |
+| **Dream**  | Chat with AI to refine your idea into a structured Product Requirements Document |
+| **Plan**   | AI decomposes the PRD into epics, tasks, and a dependency graph                  |
+| **Build**  | AI agents autonomously execute tasks with two-agent code + review cycles         |
+| **Verify** | Submit feedback that AI categorizes and maps back to plan epics for iteration    |
 
 ---
 
@@ -139,11 +139,11 @@ All scripts can be run from the project root:
 
 ## Tech Stack
 
-| Layer | Technologies |
-| ----- | ------------ |
-| **Backend** | Node.js, Express, WebSocket (ws), TypeScript, Vitest |
-| **Frontend** | React 19, React Router, Vite, Tailwind CSS, TypeScript |
-| **Shared** | TypeScript types and constants consumed by both packages |
+| Layer              | Technologies                                                            |
+| ------------------ | ----------------------------------------------------------------------- |
+| **Backend**        | Node.js, Express, WebSocket (ws), TypeScript, Vitest                    |
+| **Frontend**       | React 19, React Router, Vite, Tailwind CSS, TypeScript                  |
+| **Shared**         | TypeScript types and constants consumed by both packages                |
 | **Issue Tracking** | [Beads](https://github.com/toddmedema/beads) — git-native issue tracker |
 
 ---
@@ -158,7 +158,7 @@ All scripts can be run from the project root:
 
 ## Developing on OpenSprint
 
-When using OpenSprint to develop *itself*, you should use two separate clones to avoid contention between the running server and the AI agents modifying code:
+When using OpenSprint to develop _itself_, you should use two separate clones to avoid contention between the running server and the AI agents modifying code:
 
 - **Control clone** — runs the backend/frontend server (`npm run dev`)
 - **Dev clone** — the target repo where the orchestrator and AI agents make changes
@@ -211,6 +211,7 @@ This project uses [Beads](https://github.com/toddmedema/beads) (`bd`) for task a
 ### Reporting Bugs
 
 Open a [GitHub Issue](https://github.com/toddmedema/opensprint/issues) with:
+
 - Steps to reproduce
 - Expected vs actual behavior
 - Environment details (OS, Node version, browser)

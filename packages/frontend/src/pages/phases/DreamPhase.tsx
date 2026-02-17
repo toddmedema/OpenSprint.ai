@@ -430,7 +430,6 @@ export function DreamPhase({ projectId, onNavigateToPlan }: DreamPhaseProps) {
             onToggle={() => setHistoryExpanded(!historyExpanded)}
           />
         </div>
-      </div>
 
       {selection && (
         <div
