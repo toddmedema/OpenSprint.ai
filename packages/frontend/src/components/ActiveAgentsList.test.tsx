@@ -47,6 +47,15 @@ describe("ActiveAgentsList", () => {
     expect(screen.getByText("No agents running")).toBeInTheDocument();
   });
 
+  it("does not render colored status dot on agents-running button", () => {
+    renderActiveAgentsList();
+
+    const button = screen.getByTitle("Active agents");
+    // No status dot (w-2 h-2 rounded-full bg-theme-warning-solid animate-pulse)
+    const dot = button.querySelector(".rounded-full.bg-theme-warning-solid");
+    expect(dot).toBeNull();
+  });
+
   it("shows dropdown when button clicked", async () => {
     const user = userEvent.setup();
     renderActiveAgentsList();
