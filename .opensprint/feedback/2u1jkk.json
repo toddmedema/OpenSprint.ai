@@ -1,0 +1,28 @@
+{
+  "id": "2u1jkk",
+  "text": "There's a visual bug when I open the \"Agents running\" in the top right of the nav bar: At first, it shows that the agent has been running for 0s, and then a moment later, it shows the actual runtime. There's an easy fix for this: Don't request the agent's start time separately. When the frontend requests and receives information about running agents, include the agent's start time in the response. That way, the UI immediately and always knows the currently running time for agents, and doesn't have to wait for that information to load separately (if that was the only use of the agent running time endpoint, you can also clean up that code)",
+  "category": "bug",
+  "mappedPlanId": "build-orchestrator-context-assembly-and-agent-lifecycle",
+  "createdTaskIds": [
+    "opensprint.dev-1735"
+  ],
+  "status": "mapped",
+  "createdAt": "2026-02-18T17:10:30.826Z",
+  "parent_id": null,
+  "depth": 0,
+  "mappedEpicId": "opensprint.dev-zar",
+  "isScopeChange": false,
+  "proposedTasks": [
+    {
+      "index": 0,
+      "title": "Include agent start_time in running-agents API response and remove redundant endpoint",
+      "description": "The 'Agents running' navbar indicator briefly shows '0s' before displaying the real runtime because the agent's start_time is fetched via a separate request. Fix: embed `started_at` in the running-agents list response payload so the frontend can compute elapsed time immediately on first render.\n\n1. In the backend route/WebSocket event that returns running agent info, include `started_at` (already available in orchestrator-state.json `active_task.started_at`) in each agent entry.\n2. Update the frontend component that renders the navbar agent-running indicator to read `started_at` from the list response instead of issuing a separate fetch.\n3. If the separate agent-running-time endpoint has no other consumers, remove it and its associated frontend code.\n4. Acceptance criteria:\n   - On opening the 'Agents running' popover, the elapsed time is correct from the first frame (no '0s' flash).\n   - No separate network request is made solely to fetch agent start time.\n   - Existing agent monitoring functionality (Execute tab live stream, etc.) is unaffected.",
+      "priority": 2,
+      "depends_on": []
+    }
+  ],
+  "taskTitles": [
+    "Include agent start_time in running-agents API response and remove redundant endpoint"
+  ],
+  "feedbackSourceBeadId": "opensprint.dev-h0hv"
+}

@@ -1,7 +1,20 @@
 {
-  "planningAgent": { "type": "cursor", "model": "opus-4.6-thinking", "cliCommand": null },
-  "codingAgent": { "type": "cursor", "model": "composer-1.5", "cliCommand": null },
-  "deployment": { "mode": "custom" },
+  "planningAgent": {
+    "type": "cursor",
+    "model": "opus-4.6-thinking",
+    "cliCommand": null
+  },
+  "codingAgent": {
+    "type": "cursor",
+    "model": "composer-1.5",
+    "cliCommand": null
+  },
+  "deployment": {
+    "mode": "custom",
+    "autoDeployOnEpicCompletion": false,
+    "autoDeployOnEvalResolution": false,
+    "autoResolveFeedbackOnTaskCompletion": false
+  },
   "hilConfig": {
     "scopeChanges": "requires_approval",
     "architectureDecisions": "requires_approval",
@@ -9,8 +22,16 @@
   },
   "testFramework": null,
   "codingAgentByComplexity": {
-    "high": { "type": "cursor", "model": "opus-4.6", "cliCommand": null },
-    "very_high": { "type": "cursor", "model": "opus-4.6-thinking", "cliCommand": null }
+    "high": {
+      "type": "cursor",
+      "model": "opus-4.6",
+      "cliCommand": null
+    },
+    "very_high": {
+      "type": "cursor",
+      "model": "opus-4.6-thinking",
+      "cliCommand": null
+    }
   },
   "reviewMode": "always"
 }

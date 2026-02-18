@@ -1,0 +1,39 @@
+{
+  "id": "k6hjwh",
+  "text": "Editing the plan markdown is currently causing the page to refresh/reload on each keypress, which also interrupts the user's ability to type. This is incorrect: Users should be able to type continuously without being interrupted by the page changing into a \"loading\" state. Please brainstorm the best way to fix this - my suggestion would be twofold: 1. That every keystroke shouldn't trigger a load (it should be debounced, like the Sketch page), and 2. Once the page has initially loaded, new loads should reset the whole screen, they can happen in the background and update the page in place once complete",
+  "category": "bug",
+  "mappedPlanId": "plan-phase-feature-decomposition",
+  "createdTaskIds": [
+    "opensprint.dev-vwf.21",
+    "opensprint.dev-vwf.22"
+  ],
+  "status": "mapped",
+  "createdAt": "2026-02-18T16:59:57.185Z",
+  "parent_id": null,
+  "depth": 0,
+  "mappedEpicId": "opensprint.dev-vwf",
+  "isScopeChange": false,
+  "proposedTasks": [
+    {
+      "index": 0,
+      "title": "Debounce plan markdown editor saves to prevent per-keystroke reloads",
+      "description": "The plan markdown editor currently triggers a save/sync operation on every keypress, which causes a loading state that interrupts typing. Add debounced saving (similar to the existing Sketch/Dream phase implementation) so that changes are only persisted after the user pauses typing (e.g., 500ms debounce). Acceptance criteria: (1) Typing in the plan editor is uninterrupted — no loading state triggered mid-keystroke. (2) Debounce delay matches or is consistent with the Sketch page pattern. (3) Unsaved changes are visually indicated (e.g., subtle 'saving...' / 'saved' indicator). (4) If the user navigates away before the debounce fires, pending changes are flushed.",
+      "priority": 1,
+      "depends_on": []
+    },
+    {
+      "index": 1,
+      "title": "Implement background data refresh for plan editor without full page reset",
+      "description": "After the plan editor's initial load, any subsequent data fetches (triggered by debounced saves, WebSocket updates, or polling) should not reset the page to a loading/skeleton state. Instead, data should be fetched in the background and merged into the current view in place, preserving cursor position, scroll position, and editor focus. Acceptance criteria: (1) Initial page load shows a loading state as normal. (2) Subsequent refreshes happen in the background — the editor remains fully interactive. (3) Cursor position and selection are preserved when background data arrives. (4) If a background fetch fails, the user sees an unobtrusive error toast rather than a page reset. (5) Stale-while-revalidate pattern: current content stays visible while fresh data loads.",
+      "priority": 1,
+      "depends_on": [
+        0
+      ]
+    }
+  ],
+  "taskTitles": [
+    "Debounce plan markdown editor saves to prevent per-keystroke reloads",
+    "Implement background data refresh for plan editor without full page reset"
+  ],
+  "feedbackSourceBeadId": "opensprint.dev-y5rn"
+}

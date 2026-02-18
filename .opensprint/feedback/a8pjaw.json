@@ -1,0 +1,28 @@
+{
+  "id": "a8pjaw",
+  "text": "Please add a light/dark mode toggle in settings (in a new settings setting at the end of the list called \"Display\")",
+  "category": "ux",
+  "mappedPlanId": "theme-support",
+  "createdTaskIds": [
+    "opensprint.dev-ax8.6"
+  ],
+  "status": "mapped",
+  "createdAt": "2026-02-18T16:54:58.098Z",
+  "parent_id": null,
+  "depth": 0,
+  "mappedEpicId": "opensprint.dev-ax8",
+  "isScopeChange": false,
+  "proposedTasks": [
+    {
+      "index": 0,
+      "title": "Add Display section to project settings with theme toggle",
+      "description": "Add a new 'Display' section as the last entry in the Settings page. It should contain a theme selector (Light / Dark / System) that mirrors the existing navbar toggle. Changing the theme from either location must immediately update the other and apply the theme globally. Acceptance criteria: (1) A 'Display' section appears at the bottom of the settings list. (2) The section contains a theme picker with Light, Dark, and System options. (3) Selecting a theme persists to localStorage at `opensprint.theme` and applies immediately. (4) The navbar toggle and the settings toggle stay in sync. (5) Default value is System for new users.",
+      "priority": 3,
+      "depends_on": []
+    }
+  ],
+  "taskTitles": [
+    "Add Display section to project settings with theme toggle"
+  ],
+  "feedbackSourceBeadId": "opensprint.dev-lmz"
+}
