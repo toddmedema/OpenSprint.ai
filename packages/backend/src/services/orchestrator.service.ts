@@ -74,6 +74,9 @@ const WATCHDOG_INTERVAL_MS = 5 * 60 * 1000;
 /** Polling interval for monitoring orphaned agent processes during crash recovery */
 const RECOVERY_POLL_MS = 5_000;
 
+/** Max total bytes retained in outputLog before oldest chunks are dropped */
+const MAX_OUTPUT_LOG_BYTES = 5 * 1024 * 1024; // 5 MB
+
 // ─── State Persistence Types (PRDv2 §5.8) ───
 
 /**
@@ -148,6 +151,8 @@ interface OrchestratorState {
   inactivityTimer: ReturnType<typeof setInterval> | null;
   heartbeatTimer: ReturnType<typeof setInterval> | null;
   outputLog: string[];
+  /** Running byte count of outputLog entries (avoids re-computing .join("").length) */
+  outputLogBytes: number;
   startedAt: string;
   attempt: number;
   lastCodingDiff: string;
@@ -167,6 +172,10 @@ interface OrchestratorState {
   killedDueToTimeout: boolean;
   /** Feedback items awaiting categorization (PRDv2 §5.8) */
   pendingFeedbackCategorizations: PendingFeedbackCategorization[];
+  /** Timer for monitoring recovery poll (stored here so stopProject can clear it) */
+  recoveryPollTimer: ReturnType<typeof setInterval> | null;
+  /** Timer ID for merger agent safety timeout (so it can be cleared on early exit) */
+  mergerTimeout: ReturnType<typeof setTimeout> | null;
 }
 
 /**
@@ -195,6 +204,7 @@ export class OrchestratorService {
         inactivityTimer: null,
         heartbeatTimer: null,
         outputLog: [],
+        outputLogBytes: 0,
         startedAt: "",
         attempt: 1,
         lastCodingDiff: "",
@@ -207,9 +217,27 @@ export class OrchestratorService {
         lastTestOutput: "",
         killedDueToTimeout: false,
         pendingFeedbackCategorizations: [],
+        recoveryPollTimer: null,
+        mergerTimeout: null,
       });
     }
     return this.state.get(projectId)!;
+  }
+
+  /** Append a chunk to outputLog, evicting oldest entries when the size cap is exceeded. */
+  private appendOutputLog(state: OrchestratorState, chunk: string): void {
+    state.outputLog.push(chunk);
+    state.outputLogBytes += chunk.length;
+    while (state.outputLogBytes > MAX_OUTPUT_LOG_BYTES && state.outputLog.length > 1) {
+      const dropped = state.outputLog.shift()!;
+      state.outputLogBytes -= dropped.length;
+    }
+  }
+
+  /** Reset outputLog and its byte counter. */
+  private resetOutputLog(state: OrchestratorState): void {
+    state.outputLog = [];
+    state.outputLogBytes = 0;
   }
 
   private defaultStatus(): OrchestratorStatus {
@@ -406,7 +434,7 @@ export class OrchestratorService {
       );
 
       // Combined poll: check both PID death and inactivity timeout
-      const pollTimer = setInterval(async () => {
+      state.recoveryPollTimer = setInterval(async () => {
         // Check inactivity timeout (using heartbeat for freshest timestamp)
         let currentLastOutput = state.lastOutputTime;
         if (wtPath) {
@@ -419,7 +447,8 @@ export class OrchestratorService {
 
         const elapsed = Date.now() - currentLastOutput;
         if (elapsed > AGENT_INACTIVITY_TIMEOUT_MS && isPidAlive(pid)) {
-          clearInterval(pollTimer);
+          clearInterval(state.recoveryPollTimer!);
+          state.recoveryPollTimer = null;
           console.warn(
             `[orchestrator] Recovery: agent timeout for ${taskId} ` +
               `(${Math.round(elapsed / 1000)}s of inactivity), killing PID ${pid}`
@@ -467,7 +496,8 @@ export class OrchestratorService {
 
         // Check PID death
         if (isPidAlive(pid)) return;
-        clearInterval(pollTimer);
+        clearInterval(state.recoveryPollTimer!);
+        state.recoveryPollTimer = null;
 
         console.log(`[orchestrator] Recovery: agent PID ${pid} has exited, handling result`);
         try {
@@ -631,6 +661,14 @@ export class OrchestratorService {
     if (state.heartbeatTimer) {
       clearInterval(state.heartbeatTimer);
       state.heartbeatTimer = null;
+    }
+    if (state.recoveryPollTimer) {
+      clearInterval(state.recoveryPollTimer);
+      state.recoveryPollTimer = null;
+    }
+    if (state.mergerTimeout) {
+      clearTimeout(state.mergerTimeout);
+      state.mergerTimeout = null;
     }
     if (state.activeProcess) {
       if (state.status.currentTask) {
@@ -869,6 +907,7 @@ export class OrchestratorService {
       console.error(`Orchestrator loop error for project ${projectId}:`, error);
       // Retry loop after delay
       state.loopActive = false;
+      if (state.loopTimer) clearTimeout(state.loopTimer);
       state.loopTimer = setTimeout(() => this.runLoop(projectId), 10000);
     }
   }
@@ -971,7 +1010,7 @@ export class OrchestratorService {
       await this.contextAssembler.assembleTaskDirectory(wtPath, task.id, config, context);
 
       state.startedAt = new Date().toISOString();
-      state.outputLog = [];
+      this.resetOutputLog(state);
       state.lastOutputTime = Date.now();
 
       broadcastToProject(projectId, {
@@ -998,7 +1037,7 @@ export class OrchestratorService {
           branchName,
         },
         onOutput: (chunk: string) => {
-          state.outputLog.push(chunk);
+          this.appendOutputLog(state, chunk);
           state.lastOutputTime = Date.now();
           sendAgentOutputToProject(projectId, task.id, chunk);
         },
@@ -1249,7 +1288,7 @@ export class OrchestratorService {
       await this.contextAssembler.assembleTaskDirectory(wtPath, task.id, config, context);
 
       state.startedAt = new Date().toISOString();
-      state.outputLog = [];
+      this.resetOutputLog(state);
       state.lastOutputTime = Date.now();
 
       broadcastToProject(projectId, {
@@ -1273,7 +1312,7 @@ export class OrchestratorService {
           branchName,
         },
         onOutput: (chunk: string) => {
-          state.outputLog.push(chunk);
+          this.appendOutputLog(state, chunk);
           state.lastOutputTime = Date.now();
           sendAgentOutputToProject(projectId, task.id, chunk);
         },
@@ -1586,6 +1625,7 @@ export class OrchestratorService {
 
     // Mark loop as idle, then re-trigger after a short delay to let git settle
     state.loopActive = false;
+    if (state.loopTimer) clearTimeout(state.loopTimer);
     state.loopTimer = setTimeout(() => {
       state.loopTimer = null;
       this.nudge(projectId);
@@ -1616,7 +1656,10 @@ export class OrchestratorService {
           console.log("[orchestrator] Auto-resolved rebase continued, push succeeded");
           return;
         } catch (contErr) {
-          console.warn("[orchestrator] rebaseContinue failed, falling through to merger agent:", contErr);
+          console.warn(
+            "[orchestrator] rebaseContinue failed, falling through to merger agent:",
+            contErr
+          );
           // Fall through to merger agent — the continue may have hit new conflicts
         }
       }
@@ -1673,8 +1716,10 @@ export class OrchestratorService {
 
     const mergerId = `_merger:${projectId}`;
 
+    const state = this.getState(projectId);
+
     return new Promise<boolean>((resolve) => {
-      const outputLog: string[] = [];
+      const mergerOutputLog: string[] = [];
 
       const handle = agentService.invokeMergerAgent(promptPath, settings.codingAgent, {
         cwd: repoPath,
@@ -1686,10 +1731,14 @@ export class OrchestratorService {
           label: "Resolving merge conflicts",
         },
         onOutput: (chunk: string) => {
-          outputLog.push(chunk);
+          mergerOutputLog.push(chunk);
           sendAgentOutputToProject(projectId, "_merger", chunk);
         },
         onExit: async (code: number | null) => {
+          if (state.mergerTimeout) {
+            clearTimeout(state.mergerTimeout);
+            state.mergerTimeout = null;
+          }
           console.log(`[orchestrator] Merger agent exited with code ${code}`);
 
           // Clean up prompt dir
@@ -1723,8 +1772,9 @@ export class OrchestratorService {
         },
       });
 
-      // Safety timeout: kill merger after 5 minutes
-      setTimeout(() => {
+      // Safety timeout: kill merger after 5 minutes (stored so stopProject can clear it)
+      state.mergerTimeout = setTimeout(() => {
+        state.mergerTimeout = null;
         console.warn("[orchestrator] Merger agent timed out after 5 minutes");
         handle.kill();
       }, 300_000);
@@ -1921,6 +1971,7 @@ export class OrchestratorService {
         });
 
         state.loopActive = false;
+        if (state.loopTimer) clearTimeout(state.loopTimer);
         state.loopTimer = setTimeout(() => {
           state.loopTimer = null;
           this.nudge(projectId);
@@ -2011,6 +2062,7 @@ export class OrchestratorService {
 
     // Mark loop idle and schedule next iteration
     state.loopActive = false;
+    if (state.loopTimer) clearTimeout(state.loopTimer);
     state.loopTimer = setTimeout(() => {
       state.loopTimer = null;
       this.nudge(projectId);

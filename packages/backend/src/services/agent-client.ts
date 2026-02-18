@@ -199,6 +199,18 @@ export class AgentClient {
       detached: true,
     });
 
+    let killTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const cleanup = () => {
+      child.stdout?.removeAllListeners();
+      child.stderr?.removeAllListeners();
+      child.removeAllListeners();
+      if (killTimer) {
+        clearTimeout(killTimer);
+        killTimer = null;
+      }
+    };
+
     child.stdout.on("data", (data: Buffer) => {
       onOutput(data.toString());
     });
@@ -208,6 +220,7 @@ export class AgentClient {
     });
 
     child.on("close", (code) => {
+      cleanup();
       Promise.resolve(onExit(code)).catch((err) => {
         console.error("[agent-client] onExit callback failed:", err);
       });
@@ -221,6 +234,7 @@ export class AgentClient {
             ? "claude CLI not found. Install from https://docs.anthropic.com/cli"
             : err.message;
       onOutput(`[Agent error: ${friendly}]\n`);
+      cleanup();
       Promise.resolve(onExit(1)).catch((exitErr) => {
         console.error("[agent-client] onExit callback failed:", exitErr);
       });
@@ -230,12 +244,12 @@ export class AgentClient {
       pid: child.pid ?? null,
       kill: () => {
         try {
-          // Kill the entire process group (negative PID) since agent is detached
           process.kill(-child.pid!, "SIGTERM");
         } catch {
           child.kill("SIGTERM");
         }
-        setTimeout(() => {
+        killTimer = setTimeout(() => {
+          killTimer = null;
           try {
             if (!child.killed) {
               process.kill(-child.pid!, "SIGKILL");

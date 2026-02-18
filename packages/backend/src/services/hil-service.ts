@@ -26,6 +26,11 @@ interface HilRequest {
   createdAt: string;
 }
 
+/** Max age for unanswered HIL requests before they are auto-resolved (1 hour) */
+const HIL_REQUEST_TTL_MS = 60 * 60 * 1000;
+/** How often to sweep stale HIL requests */
+const HIL_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+
 /**
  * Human-in-the-loop service.
  * Evaluates decisions against the project's HIL config and handles
@@ -35,6 +40,29 @@ export class HilService {
   private projectService = new ProjectService();
   private pendingRequests = new Map<string, HilRequest>();
   private resolveCallbacks = new Map<string, (approved: boolean, notes?: string) => void>();
+  private cleanupTimer: ReturnType<typeof setInterval>;
+
+  constructor() {
+    this.cleanupTimer = setInterval(() => this.sweepStaleRequests(), HIL_CLEANUP_INTERVAL_MS);
+    if (this.cleanupTimer.unref) this.cleanupTimer.unref();
+  }
+
+  /** Auto-resolve pending requests older than TTL to prevent unbounded map growth */
+  private sweepStaleRequests(): void {
+    const now = Date.now();
+    for (const [id, req] of this.pendingRequests) {
+      const age = now - new Date(req.createdAt).getTime();
+      if (age > HIL_REQUEST_TTL_MS) {
+        console.warn(`[HIL] Auto-resolving stale request ${id} (age: ${Math.round(age / 1000)}s)`);
+        const cb = this.resolveCallbacks.get(id);
+        if (cb) {
+          cb(true, "Auto-approved: request timed out");
+          this.resolveCallbacks.delete(id);
+        }
+        this.pendingRequests.delete(id);
+      }
+    }
+  }
 
   /**
    * Evaluate a decision against the HIL config.
@@ -50,7 +78,7 @@ export class HilService {
     description: string,
     options?: Array<{ id: string; label: string; description: string }>,
     defaultApproved = true,
-    scopeChangeMetadata?: ScopeChangeHilMetadata,
+    scopeChangeMetadata?: ScopeChangeHilMetadata
   ): Promise<{ approved: boolean; notes?: string }> {
     // PRD §6.5.1: Test failures are always automated — never configurable
     if (category === "testFailuresAndRetries") {
@@ -150,14 +178,16 @@ export class HilService {
    * Get all pending requests for a project.
    */
   getPendingRequests(projectId: string): HilRequest[] {
-    return Array.from(this.pendingRequests.values()).filter((r) => r.projectId === projectId && !r.resolved);
+    return Array.from(this.pendingRequests.values()).filter(
+      (r) => r.projectId === projectId && !r.resolved
+    );
   }
 
   private createRequest(
     projectId: string,
     category: HilCategory,
     description: string,
-    options: Array<{ id: string; label: string; description: string }>,
+    options: Array<{ id: string; label: string; description: string }>
   ): HilRequest {
     const request: HilRequest = {
       id: uuid(),

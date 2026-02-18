@@ -40,3 +40,12 @@ export function set<T>(key: string, value: T, ttlMs: number = TTL_MS): void {
 export function clear(): void {
   cache.clear();
 }
+
+/** Periodically evict expired entries so they don't accumulate if never re-read. */
+const sweepTimer = setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of cache) {
+    if (now >= entry.expiresAt) cache.delete(key);
+  }
+}, TTL_MS);
+if (sweepTimer.unref) sweepTimer.unref();
