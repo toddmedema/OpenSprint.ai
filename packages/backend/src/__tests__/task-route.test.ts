@@ -364,4 +364,24 @@ Test review prompt generation.
     expect(res.status).toBe(200);
     expect(res.body.data.sourceFeedbackId).toBe("fb-direct-source");
   });
+
+  it("GET /tasks/:taskId includes Server-Timing header for regression detection", {
+    timeout: 20000,
+  }, async () => {
+    const app = createApp();
+    const project = await projectService.getProject(projectId);
+    const repoPath = project.repoPath;
+
+    const bead = await beads.create(repoPath, "Server-Timing Test Task", {
+      type: "task",
+      priority: 1,
+      description: "Test task for Server-Timing header",
+    });
+
+    const res = await request(app).get(`${API_PREFIX}/projects/${projectId}/tasks/${bead.id}`);
+    expect(res.status).toBe(200);
+    const serverTiming = res.headers["server-timing"];
+    expect(serverTiming).toBeDefined();
+    expect(serverTiming).toMatch(/task-detail;dur=\d+;desc="Task detail load"/);
+  });
 });
