@@ -17,7 +17,12 @@ import {
   clearDeliverToast,
 } from "../store/slices/websocketSlice";
 import { fetchSpecChat, fetchPrd, fetchPrdHistory, resetSpec } from "../store/slices/specSlice";
-import { fetchPlans, resetPlan, setSelectedPlanId } from "../store/slices/planSlice";
+import {
+  fetchPlans,
+  resetPlan,
+  setSelectedPlanId,
+  clearPlanBackgroundError,
+} from "../store/slices/planSlice";
 import {
   fetchTasks,
   fetchExecuteStatus,
@@ -73,6 +78,7 @@ export function ProjectView() {
   const hilRequest = useAppSelector((s) => s.websocket.hilRequest);
   const hilNotification = useAppSelector((s) => s.websocket.hilNotification);
   const deliverToast = useAppSelector((s) => s.websocket.deliverToast);
+  const planBackgroundError = useAppSelector((s) => s.plan.backgroundError);
 
   // Upfront data loading for ALL phases on mount
   useEffect(() => {
@@ -178,6 +184,10 @@ export function ProjectView() {
     dispatch(clearDeliverToast());
   };
 
+  const handleDismissPlanBackgroundError = () => {
+    dispatch(clearPlanBackgroundError());
+  };
+
   const handleProjectSaved = () => {
     if (projectId) dispatch(fetchProject(projectId));
   };
@@ -197,6 +207,10 @@ export function ProjectView() {
           onDismiss={handleDismissNotification}
         />
         <DeliverToast toast={deliverToast} onDismiss={handleDismissDeliverToast} />
+        <PlanRefreshToast
+          error={planBackgroundError}
+          onDismiss={handleDismissPlanBackgroundError}
+        />
       </>
     );
   }
@@ -219,6 +233,10 @@ export function ProjectView() {
           onDismiss={handleDismissNotification}
         />
         <DeliverToast toast={deliverToast} onDismiss={handleDismissDeliverToast} />
+        <PlanRefreshToast
+          error={planBackgroundError}
+          onDismiss={handleDismissPlanBackgroundError}
+        />
       </>
     );
   }
@@ -268,7 +286,48 @@ export function ProjectView() {
       {hilRequest && <HilApprovalModal request={hilRequest} onRespond={handleRespondToHil} />}
       <HilNotificationToast notification={hilNotification} onDismiss={handleDismissNotification} />
       <DeliverToast toast={deliverToast} onDismiss={handleDismissDeliverToast} />
+      <PlanRefreshToast
+        error={planBackgroundError}
+        onDismiss={handleDismissPlanBackgroundError}
+      />
     </>
+  );
+}
+
+function PlanRefreshToast({
+  error,
+  onDismiss,
+}: {
+  error: string | null;
+  onDismiss: () => void;
+}) {
+  if (!error) return null;
+  return (
+    <div
+      className="fixed bottom-4 right-4 z-40 max-w-md rounded-lg border border-theme-error-border bg-theme-error-bg p-4 shadow-lg text-theme-error-text"
+      data-testid="plan-refresh-toast"
+      role="alert"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-medium">{error}</p>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="shrink-0 rounded p-1 text-theme-muted hover:bg-theme-border-subtle hover:text-theme-text"
+          aria-label="Dismiss"
+        >
+          <svg
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
   );
 }
 

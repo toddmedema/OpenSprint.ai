@@ -124,6 +124,7 @@ function createStore(
         reExecutingPlanId: null,
         archivingPlanId: null,
         error: planError ?? null,
+        backgroundError: null,
       },
       execute: {
         tasks: [

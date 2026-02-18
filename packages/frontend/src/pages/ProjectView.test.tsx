@@ -7,7 +7,7 @@ import { ProjectView } from "./ProjectView";
 import projectReducer from "../store/slices/projectSlice";
 import websocketReducer, { setDeliverToast } from "../store/slices/websocketSlice";
 import specReducer from "../store/slices/specSlice";
-import planReducer from "../store/slices/planSlice";
+import planReducer, { fetchPlans } from "../store/slices/planSlice";
 import executeReducer from "../store/slices/executeSlice";
 import evalReducer from "../store/slices/evalSlice";
 import deployReducer from "../store/slices/deploySlice";
@@ -459,6 +459,25 @@ describe("ProjectView global deliver toast", () => {
     await waitFor(() => {
       expect(screen.getByTestId("deliver-toast")).toBeInTheDocument();
       expect(screen.getByText("Delivery failed")).toBeInTheDocument();
+    });
+  });
+});
+
+describe("ProjectView plan refresh toast", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("shows PlanRefreshToast when background refresh fails", async () => {
+    const { api } = await import("../api/client");
+    vi.mocked(api.plans.list).mockRejectedValue(new Error("Network error"));
+    const store = createStore();
+    await store.dispatch(fetchPlans({ projectId: "proj-1", background: true }));
+    renderWithRouter("/projects/proj-1/sketch", store);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("plan-refresh-toast")).toBeInTheDocument();
+      expect(screen.getByText("Network error")).toBeInTheDocument();
     });
   });
 });

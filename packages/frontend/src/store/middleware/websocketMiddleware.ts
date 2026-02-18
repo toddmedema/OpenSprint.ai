@@ -129,7 +129,7 @@ export const websocketMiddleware: Middleware = (storeApi) => {
         break;
 
       case "plan.updated":
-        d(fetchPlans(projectId));
+        d(fetchPlans({ projectId, background: true }));
         d(fetchSinglePlan({ projectId, planId: event.planId }));
         break;
 
