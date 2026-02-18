@@ -8,6 +8,8 @@ interface Message {
   timestamp: string;
 }
 
+export type FetchPlansArg = string | { projectId: string; background?: boolean };
+
 export interface PlanState {
   plans: Plan[];
   dependencyGraph: PlanDependencyGraph | null;
@@ -24,6 +26,8 @@ export interface PlanState {
   /** Plan ID currently being archived — for loading state */
   archivingPlanId: string | null;
   error: string | null;
+  /** Unobtrusive toast for background refresh failures (does not reset page) */
+  backgroundError: string | null;
 }
 
 const initialState: PlanState = {
@@ -38,6 +42,7 @@ const initialState: PlanState = {
   reExecutingPlanId: null,
   archivingPlanId: null,
   error: null,
+  backgroundError: null,
 };
 
 export const fetchPlanStatus = createAsyncThunk(
@@ -47,13 +52,18 @@ export const fetchPlanStatus = createAsyncThunk(
   },
 );
 
-export const fetchPlans = createAsyncThunk("plan/fetchPlans", async (projectId: string) => {
-  const graph = await api.plans.list(projectId);
-  return {
-    plans: graph.plans,
-    dependencyGraph: graph,
-  };
-});
+export const fetchPlans = createAsyncThunk(
+  "plan/fetchPlans",
+  async (arg: FetchPlansArg) => {
+    const projectId = typeof arg === "string" ? arg : arg.projectId;
+    const graph = await api.plans.list(projectId);
+    return {
+      plans: graph.plans,
+      dependencyGraph: graph,
+      background: typeof arg === "string" ? false : (arg.background ?? false),
+    };
+  },
+);
 
 export const decomposePlans = createAsyncThunk("plan/decompose", async (projectId: string) => {
   await api.plans.decompose(projectId);
@@ -139,6 +149,9 @@ const planSlice = createSlice({
     setPlanError(state, action: PayloadAction<string | null>) {
       state.error = action.payload;
     },
+    clearPlanBackgroundError(state) {
+      state.backgroundError = null;
+    },
     setPlansAndGraph(
       state,
       action: PayloadAction<{ plans: Plan[]; dependencyGraph: PlanDependencyGraph | null }>,
@@ -147,7 +160,7 @@ const planSlice = createSlice({
       state.dependencyGraph = action.payload.dependencyGraph;
     },
     resetPlan() {
-      return initialState;
+      return { ...initialState };
     },
   },
   extraReducers: (builder) => {
@@ -157,18 +170,28 @@ const planSlice = createSlice({
         state.planStatus = action.payload;
       })
       // fetchPlans
-      .addCase(fetchPlans.pending, (state) => {
-        state.loading = true;
-        state.error = null;
+      .addCase(fetchPlans.pending, (state, action) => {
+        const background = typeof action.meta.arg !== "string" && action.meta.arg.background;
+        if (!background) {
+          state.loading = true;
+          state.error = null;
+        }
       })
       .addCase(fetchPlans.fulfilled, (state, action) => {
         state.plans = action.payload.plans;
         state.dependencyGraph = action.payload.dependencyGraph;
         state.loading = false;
+        state.backgroundError = null;
       })
       .addCase(fetchPlans.rejected, (state, action) => {
+        const background = typeof action.meta.arg !== "string" && action.meta.arg.background;
         state.loading = false;
-        state.error = action.error.message ?? "Failed to load plans";
+        const msg = action.error.message ?? "Failed to load plans";
+        if (background) {
+          state.backgroundError = msg;
+        } else {
+          state.error = msg;
+        }
       })
       // decomposePlans
       .addCase(decomposePlans.pending, (state) => {
@@ -251,5 +274,12 @@ const planSlice = createSlice({
   },
 });
 
-export const { setSelectedPlanId, addPlanLocally, setPlanError, setPlansAndGraph, resetPlan } = planSlice.actions;
+export const {
+  setSelectedPlanId,
+  addPlanLocally,
+  setPlanError,
+  clearPlanBackgroundError,
+  setPlansAndGraph,
+  resetPlan,
+} = planSlice.actions;
 export default planSlice.reducer;

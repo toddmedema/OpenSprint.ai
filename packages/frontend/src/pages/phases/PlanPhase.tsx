@@ -156,7 +156,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
     }
     const result = await dispatch(executePlan({ projectId, planId }));
     if (executePlan.fulfilled.match(result)) {
-      dispatch(fetchPlans(projectId));
+      dispatch(fetchPlans({ projectId, background: true }));
     }
   };
 
@@ -166,21 +166,21 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
     setCrossEpicModal(null);
     const result = await dispatch(executePlan({ projectId, planId, prerequisitePlanIds }));
     if (executePlan.fulfilled.match(result)) {
-      dispatch(fetchPlans(projectId));
+      dispatch(fetchPlans({ projectId, background: true }));
     }
   };
 
   const handleReship = async (planId: string) => {
     const result = await dispatch(reExecutePlan({ projectId, planId }));
     if (reExecutePlan.fulfilled.match(result)) {
-      dispatch(fetchPlans(projectId));
+      dispatch(fetchPlans({ projectId, background: true }));
     }
   };
 
   const handleArchive = async (planId: string) => {
     const result = await dispatch(archivePlan({ projectId, planId }));
     if (archivePlan.fulfilled.match(result)) {
-      dispatch(fetchPlans(projectId));
+      dispatch(fetchPlans({ projectId, background: true }));
       dispatch(fetchTasks(projectId));
       dispatch(fetchSinglePlan({ projectId, planId }));
     }
@@ -208,7 +208,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
       const result = await dispatch(updatePlan({ projectId, planId: selectedPlanId, content }));
       setSavingPlanContentId(null);
       if (updatePlan.fulfilled.match(result)) {
-        dispatch(fetchPlans(projectId));
+        dispatch(fetchPlans({ projectId, background: true }));
       }
     },
     [dispatch, projectId, selectedPlanId]
@@ -226,7 +226,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
     );
 
     if (sendPlanMessage.fulfilled.match(result)) {
-      dispatch(fetchPlans(projectId));
+      dispatch(fetchPlans({ projectId, background: true }));
       dispatch(fetchSinglePlan({ projectId, planId: selectedPlan!.metadata.planId }));
     }
 

@@ -277,7 +277,7 @@ describe("websocketMiddleware", () => {
       });
     });
 
-    it("dispatches to domain slices on plan.updated", async () => {
+    it("dispatches to domain slices on plan.updated (background refresh)", async () => {
       const store = createStore();
       store.dispatch(wsConnect({ projectId: "proj-1" }));
       wsInstance!.simulateOpen();
@@ -290,6 +290,7 @@ describe("websocketMiddleware", () => {
         expect(api.plans.list).toHaveBeenCalledWith("proj-1");
         expect(api.plans.get).toHaveBeenCalledWith("proj-1", "plan-123");
       });
+      expect(store.getState().plan.loading).toBe(false);
     });
 
     it("dispatches fetchTasks on task.updated", async () => {

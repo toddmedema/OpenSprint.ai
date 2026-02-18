@@ -14,6 +14,7 @@ import planReducer, {
   setSelectedPlanId,
   addPlanLocally,
   setPlanError,
+  clearPlanBackgroundError,
   setPlansAndGraph,
   resetPlan,
   type PlanState,
@@ -92,6 +93,7 @@ describe("planSlice", () => {
       expect(state.decomposing).toBe(false);
       expect(state.planStatus).toBeNull();
       expect(state.error).toBeNull();
+      expect(state.backgroundError).toBeNull();
     });
   });
 
@@ -129,6 +131,16 @@ describe("planSlice", () => {
       expect(store.getState().plan.error).toBeNull();
     });
 
+    it("clearPlanBackgroundError clears backgroundError", async () => {
+      const store = createStore();
+      store.dispatch(setPlansAndGraph({ plans: [mockPlan], dependencyGraph: mockGraph }));
+      vi.mocked(api.plans.list).mockRejectedValue(new Error("Refresh failed"));
+      await store.dispatch(fetchPlans({ projectId: "proj-1", background: true }));
+      expect(store.getState().plan.backgroundError).toBe("Refresh failed");
+      store.dispatch(clearPlanBackgroundError());
+      expect(store.getState().plan.backgroundError).toBeNull();
+    });
+
     it("setPlansAndGraph sets plans and dependencyGraph", () => {
       const store = createStore();
       store.dispatch(setPlansAndGraph({ plans: [mockPlan], dependencyGraph: mockGraph }));
@@ -151,11 +163,12 @@ describe("planSlice", () => {
       expect(state.loading).toBe(false);
       expect(state.decomposing).toBe(false);
       expect(state.error).toBeNull();
+      expect(state.backgroundError).toBeNull();
     });
   });
 
   describe("fetchPlans thunk", () => {
-    it("sets loading true and clears error on pending", async () => {
+    it("sets loading true and clears error on pending (initial load)", async () => {
       let resolveApi: (v: PlanDependencyGraph) => void;
       const apiPromise = new Promise<PlanDependencyGraph>((r) => {
         resolveApi = r;
@@ -166,6 +179,23 @@ describe("planSlice", () => {
 
       expect(store.getState().plan.loading).toBe(true);
       expect(store.getState().plan.error).toBeNull();
+
+      resolveApi!(mockGraph);
+      await dispatchPromise;
+    });
+
+    it("does NOT set loading on pending when background refresh", async () => {
+      let resolveApi: (v: PlanDependencyGraph) => void;
+      const apiPromise = new Promise<PlanDependencyGraph>((r) => {
+        resolveApi = r;
+      });
+      vi.mocked(api.plans.list).mockReturnValue(apiPromise as never);
+      const store = createStore();
+      store.dispatch(setPlansAndGraph({ plans: [mockPlan], dependencyGraph: mockGraph }));
+      const dispatchPromise = store.dispatch(fetchPlans({ projectId: "proj-1", background: true }));
+
+      expect(store.getState().plan.loading).toBe(false);
+      expect(store.getState().plan.plans).toHaveLength(1);
 
       resolveApi!(mockGraph);
       await dispatchPromise;
@@ -183,7 +213,16 @@ describe("planSlice", () => {
       expect(api.plans.list).toHaveBeenCalledWith("proj-1");
     });
 
-    it("sets error and clears loading on rejected", async () => {
+    it("accepts string projectId for backward compatibility", async () => {
+      vi.mocked(api.plans.list).mockResolvedValue(mockGraph);
+      const store = createStore();
+      await store.dispatch(fetchPlans("proj-1"));
+
+      expect(store.getState().plan.plans).toEqual([mockPlan]);
+      expect(api.plans.list).toHaveBeenCalledWith("proj-1");
+    });
+
+    it("sets error and clears loading on rejected (initial load)", async () => {
       vi.mocked(api.plans.list).mockRejectedValue(new Error("Network error"));
       const store = createStore();
       await store.dispatch(fetchPlans("proj-1"));
@@ -191,6 +230,34 @@ describe("planSlice", () => {
       const state = store.getState().plan;
       expect(state.loading).toBe(false);
       expect(state.error).toBe("Network error");
+      expect(state.backgroundError).toBeNull();
+    });
+
+    it("sets backgroundError (not error) when background refresh rejected", async () => {
+      vi.mocked(api.plans.list).mockRejectedValue(new Error("Network error"));
+      const store = createStore();
+      store.dispatch(setPlansAndGraph({ plans: [mockPlan], dependencyGraph: mockGraph }));
+      await store.dispatch(fetchPlans({ projectId: "proj-1", background: true }));
+
+      const state = store.getState().plan;
+      expect(state.loading).toBe(false);
+      expect(state.error).toBeNull();
+      expect(state.backgroundError).toBe("Network error");
+      expect(state.plans).toHaveLength(1);
+    });
+
+    it("clears backgroundError on successful background refresh", async () => {
+      const store = createStore();
+      store.dispatch(setPlansAndGraph({ plans: [mockPlan], dependencyGraph: mockGraph }));
+      vi.mocked(api.plans.list)
+        .mockRejectedValueOnce(new Error("Previous error"))
+        .mockResolvedValueOnce(mockGraph);
+
+      await store.dispatch(fetchPlans({ projectId: "proj-1", background: true }));
+      expect(store.getState().plan.backgroundError).toBe("Previous error");
+
+      await store.dispatch(fetchPlans({ projectId: "proj-1", background: true }));
+      expect(store.getState().plan.backgroundError).toBeNull();
     });
 
     it("uses fallback error message when error has no message", async () => {
