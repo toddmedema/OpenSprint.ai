@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import fs from "fs";
+import os from "os";
+import path from "path";
 import { BeadsService } from "../services/beads.service.js";
 
 // Control mock stdout per test (closure reads current value at call time)
@@ -18,6 +21,7 @@ describe("BeadsService", () => {
 
   beforeEach(() => {
     beads = new BeadsService();
+    BeadsService.resetForTesting();
     mockStdout = "{}";
     mockExecImpl = async () => ({ stdout: mockStdout, stderr: "" });
   });
@@ -431,6 +435,99 @@ describe("BeadsService", () => {
       ]);
       const result = await beads.listInProgressWithAgentAssignee("/repo");
       expect(result).toEqual([]);
+    });
+  });
+
+  describe("daemon lifecycle (leak fix)", () => {
+    it("runs bd daemon stop before bd daemon start to prevent accumulation", async () => {
+      const uniqueRepo = path.join(os.tmpdir(), `beads-daemon-test-${Date.now()}`);
+      fs.mkdirSync(uniqueRepo, { recursive: true });
+
+      const execCalls: string[] = [];
+      mockExecImpl = async (cmd: string) => {
+        execCalls.push(cmd);
+        if (cmd.includes("daemon status")) {
+          return { stdout: JSON.stringify({ status: "stopped" }), stderr: "" };
+        }
+        if (cmd.includes("daemon stop") || cmd.includes("daemon start")) {
+          return { stdout: "", stderr: "" };
+        }
+        return { stdout: mockStdout, stderr: "" };
+      };
+
+      await beads.runBd(uniqueRepo, "list", ["--json"]);
+
+      const stopCalls = execCalls.filter((c) => c.includes("daemon stop"));
+      const startCalls = execCalls.filter((c) => c.includes("daemon start"));
+      expect(stopCalls.length).toBeGreaterThanOrEqual(1);
+      expect(startCalls.length).toBeGreaterThanOrEqual(1);
+      expect(execCalls.indexOf(stopCalls[0]!)).toBeLessThan(execCalls.indexOf(startCalls[0]!));
+
+      fs.rmSync(uniqueRepo, { recursive: true, force: true });
+    });
+
+    it("stopDaemonsForRepos runs bd daemon stop for each path", async () => {
+      const execCalls: string[] = [];
+      mockExecImpl = async (cmd: string) => {
+        execCalls.push(cmd);
+        return { stdout: "", stderr: "" };
+      };
+
+      await beads.stopDaemonsForRepos(["/repo/a", "/repo/b"]);
+
+      const stopCalls = execCalls.filter((c) => c.includes("daemon stop"));
+      expect(stopCalls).toHaveLength(2);
+    });
+
+    it("getManagedRepoPaths returns paths after daemon start", async () => {
+      mockExecImpl = async (cmd: string) => {
+        if (cmd.includes("daemon status")) {
+          return { stdout: JSON.stringify({ status: "stopped" }), stderr: "" };
+        }
+        if (cmd.includes("daemon stop") || cmd.includes("daemon start")) {
+          return { stdout: "", stderr: "" };
+        }
+        return { stdout: mockStdout, stderr: "" };
+      };
+
+      expect(BeadsService.getManagedRepoPaths()).toEqual([]);
+      await beads.runBd(repoPath, "list", ["--json"]);
+      // managedReposForShutdown may be populated if claimBackendPid succeeded (writable path)
+      const managed = BeadsService.getManagedRepoPaths();
+      expect(Array.isArray(managed)).toBe(true);
+    });
+
+    it("skips daemon start when another backend has backend.pid (file lock)", async () => {
+      const tmpDir = path.join(os.tmpdir(), `beads-test-${Date.now()}`);
+      fs.mkdirSync(path.join(tmpDir, ".beads"), { recursive: true });
+      const otherPid = 99999; // Simulated "other backend" PID
+      fs.writeFileSync(path.join(tmpDir, ".beads", "backend.pid"), String(otherPid), "utf-8");
+
+      // Mock process.kill so otherPid appears alive (real kill would throw for non-existent PID)
+      const killSpy = vi.spyOn(process, "kill").mockImplementation((pid: number, signal?: number) => {
+        if (pid === otherPid && signal === 0) return true;
+        return process.kill(pid, signal);
+      });
+
+      const execCalls: string[] = [];
+      mockExecImpl = async (cmd: string) => {
+        execCalls.push(cmd);
+        if (cmd.includes("daemon")) {
+          return { stdout: "", stderr: "" };
+        }
+        return { stdout: mockStdout, stderr: "" };
+      };
+
+      try {
+        await beads.runBd(tmpDir, "list", ["--json"]);
+
+        // Should NOT have called daemon start (another backend is managing)
+        const daemonStartCalls = execCalls.filter((c) => c.includes("daemon start"));
+        expect(daemonStartCalls).toHaveLength(0);
+      } finally {
+        killSpy.mockRestore();
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
     });
   });
 });

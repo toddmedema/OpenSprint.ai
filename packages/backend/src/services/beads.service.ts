@@ -1,5 +1,5 @@
 import { exec } from "child_process";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "fs";
 import path from "path";
 import { promisify } from "util";
 import type { TaskType, TaskPriority } from "@opensprint/shared";
@@ -12,8 +12,11 @@ const DEFAULT_TIMEOUT_MS = 30000;
 const MAX_BUFFER_BYTES = 2 * 1024 * 1024; // 2MB for large list output
 
 const daemonReady = new Map<string, { promise: Promise<void>; checkedAt: number }>();
+/** Repos where this backend instance has written backend.pid (for cleanup on shutdown) */
+const managedReposForShutdown = new Set<string>();
 const DAEMON_CHECK_INTERVAL_MS = 60_000;
 const DAEMON_STALE_THRESHOLD_MS = 5 * 60_000;
+const BACKEND_PID_FILE = "backend.pid";
 
 /**
  * Raw shape returned by `bd list --json` / `bd show --json`.
@@ -85,7 +88,63 @@ export class BeadsService {
     }
   }
 
+  /** Check if another backend instance is managing this repo's daemon (file-based lock) */
+  private isAnotherBackendManaging(repoPath: string): boolean {
+    try {
+      const backendPidPath = path.join(repoPath, ".beads", BACKEND_PID_FILE);
+      if (!existsSync(backendPidPath)) return false;
+      const pid = parseInt(readFileSync(backendPidPath, "utf-8").trim(), 10);
+      if (!pid || isNaN(pid)) return false;
+      if (pid === process.pid) return false; // we are the manager
+      process.kill(pid, 0);
+      return true; // other backend is alive and managing
+    } catch {
+      return false;
+    }
+  }
+
+  /** Write our PID to backend.pid to claim daemon management for this repo */
+  private claimBackendPid(repoPath: string): void {
+    try {
+      const beadsDir = path.join(repoPath, ".beads");
+      const backendPidPath = path.join(beadsDir, BACKEND_PID_FILE);
+      mkdirSync(beadsDir, { recursive: true });
+      writeFileSync(backendPidPath, String(process.pid), "utf-8");
+      managedReposForShutdown.add(repoPath);
+    } catch {
+      // Path may not exist or be unwritable (e.g. test paths like /repo)
+      // Continue without file lock — stop-then-start still prevents accumulation
+    }
+  }
+
+  /** Remove our backend.pid and run bd daemon stop for a repo (for shutdown) */
+  private async stopDaemonForRepo(repoPath: string): Promise<void> {
+    const backendPidPath = path.join(repoPath, ".beads", BACKEND_PID_FILE);
+    try {
+      if (existsSync(backendPidPath)) {
+        const content = readFileSync(backendPidPath, "utf-8").trim();
+        if (parseInt(content, 10) === process.pid) {
+          unlinkSync(backendPidPath);
+        }
+      }
+    } catch {
+      // best effort
+    }
+    try {
+      await execAsync("bd daemon stop", {
+        cwd: repoPath,
+        timeout: 5_000,
+        env: { ...process.env },
+      });
+    } catch {
+      // ignore — daemon may not be running
+    }
+  }
+
   private async startDaemonIfNeeded(repoPath: string): Promise<void> {
+    // Fix C: Skip if another backend instance is already managing this repo
+    if (this.isAnotherBackendManaging(repoPath)) return;
+
     if (this.isDaemonPidAlive(repoPath)) return;
 
     try {
@@ -102,6 +161,20 @@ export class BeadsService {
 
     if (this.isDaemonPidAlive(repoPath)) return;
 
+    // Fix C: Claim management before starting (removes stale backend.pid if PID dead)
+    this.claimBackendPid(repoPath);
+
+    // Fix A: Stop any potentially stale daemon before starting fresh
+    try {
+      await execAsync("bd daemon stop", {
+        cwd: repoPath,
+        timeout: 5_000,
+        env: { ...process.env },
+      });
+    } catch {
+      // ignore — may not be running
+    }
+
     try {
       await execAsync("bd daemon start", {
         cwd: repoPath,
@@ -109,12 +182,34 @@ export class BeadsService {
         env: { ...process.env },
       });
     } catch (err: unknown) {
+      managedReposForShutdown.delete(repoPath);
       const e = err as { stderr?: string; message?: string; killed?: boolean };
       if (e.killed || this.isDaemonPidAlive(repoPath)) return;
       const msg = e.stderr ?? e.message ?? "";
       if (msg.includes("already running")) return;
       throw new Error(`Failed to start daemon for ${repoPath}: ${msg}`);
     }
+  }
+
+  /**
+   * Stop bd daemons for the given repo paths. Call on backend shutdown.
+   * Also removes backend.pid for paths this process manages.
+   */
+  async stopDaemonsForRepos(repoPaths: string[]): Promise<void> {
+    const allPaths = [...new Set([...repoPaths, ...managedReposForShutdown])];
+    await Promise.all(allPaths.map((p) => this.stopDaemonForRepo(p)));
+    managedReposForShutdown.clear();
+  }
+
+  /** Get repo paths this backend has managed (for shutdown coordination) */
+  static getManagedRepoPaths(): string[] {
+    return [...managedReposForShutdown];
+  }
+
+  /** Reset module-level state (for tests only) */
+  static resetForTesting(): void {
+    daemonReady.clear();
+    managedReposForShutdown.clear();
   }
 
   private async syncImport(repoPath: string): Promise<void> {

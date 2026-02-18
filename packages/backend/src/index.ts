@@ -162,6 +162,22 @@ const shutdown = async () => {
   await killAllTrackedAgentProcesses();
   stopProcessReaper();
   orchestratorService.stopAll();
+
+  // Stop bd daemons for all known repos (prevents daemon process accumulation)
+  try {
+    const projectService = new ProjectService();
+    const projects = await projectService.listProjects();
+    const projectPaths = projects.map((p) => p.repoPath);
+    const managedPaths = BeadsService.getManagedRepoPaths();
+    const allRepoPaths = [...new Set([...projectPaths, ...managedPaths])];
+    if (allRepoPaths.length > 0) {
+      const beads = new BeadsService();
+      await beads.stopDaemonsForRepos(allRepoPaths);
+    }
+  } catch (err) {
+    console.warn("[shutdown] Failed to stop bd daemons:", (err as Error).message);
+  }
+
   removePidFile();
   closeWebSocket();
   server.close(() => {
