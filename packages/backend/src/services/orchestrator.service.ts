@@ -405,7 +405,8 @@ export class OrchestratorService {
           repoPath,
           taskId,
           branchName,
-          persisted.worktreePath
+          persisted.worktreePath,
+          persisted
         );
         return;
       }
@@ -488,7 +489,14 @@ export class OrchestratorService {
               );
             } catch (err) {
               console.error("[orchestrator] Recovery: timeout handler failed:", err);
-              await this.performCrashRecovery(projectId, repoPath, taskId, branchName, wtPath);
+              await this.performCrashRecovery(
+                projectId,
+                repoPath,
+                taskId,
+                branchName,
+                wtPath,
+                persisted
+              );
             }
           }, 5000);
           return;
@@ -514,7 +522,8 @@ export class OrchestratorService {
             repoPath,
             taskId,
             branchName,
-            persisted.worktreePath
+            persisted.worktreePath,
+            persisted
           );
         }
       }, RECOVERY_POLL_MS);
@@ -527,7 +536,8 @@ export class OrchestratorService {
       repoPath,
       taskId,
       branchName,
-      persisted.worktreePath
+      persisted.worktreePath,
+      persisted
     );
   }
 
@@ -539,6 +549,9 @@ export class OrchestratorService {
    * build on the progress. Only deletes the branch if there are no commits
    * beyond main (nothing worth preserving).
    *
+   * Before requeuing: if result.json exists with status success AND the branch
+   * has commits (coding phase), advance directly to review instead of re-coding.
+   *
    * CRITICAL: persisted state is cleared FIRST before any file-mutating operations.
    */
   private async performCrashRecovery(
@@ -546,7 +559,8 @@ export class OrchestratorService {
     repoPath: string,
     taskId: string,
     branchName: string,
-    _worktreePath?: string | null
+    worktreePath?: string | null,
+    persisted?: PersistedOrchestratorState | null
   ): Promise<void> {
     activeAgentsService.unregister(taskId);
     const state = this.getState(projectId);
@@ -554,10 +568,98 @@ export class OrchestratorService {
       `[orchestrator] Recovery: crash recovery for task ${taskId} (branch ${branchName})`
     );
 
-    // 1. Clear persisted state FIRST — breaks any restart loop
+    // 1. Check for result.json before tearing down — if coding agent finished successfully,
+    //    advance to review instead of requeuing (avoids wasting a full coding cycle)
+    if (
+      worktreePath &&
+      persisted &&
+      persisted.currentPhase === "coding"
+    ) {
+      const result = (await this.sessionManager.readResult(
+        worktreePath,
+        taskId
+      )) as CodingAgentResult | null;
+
+      // Normalize status: agents sometimes write "completed"/"done" instead of "success"
+      let normalizedStatus = result?.status;
+      if (result && result.status) {
+        const s = String(result.status).toLowerCase().trim();
+        if (["completed", "complete", "done", "passed"].includes(s)) {
+          normalizedStatus = "success";
+        }
+      }
+
+      const commitCount = await this.branchManager.getCommitCountAhead(repoPath, branchName);
+      if (normalizedStatus === "success" && commitCount > 0) {
+        console.log(
+          `[orchestrator] Recovery: found successful result.json with ${commitCount} commits, advancing to review`
+        );
+        try {
+          const task = await this.beads.show(repoPath, taskId);
+          const settings = await this.projectService.getSettings(projectId);
+          const testCommand = resolveTestCommand(settings) || undefined;
+          let changedFiles: string[] = [];
+          try {
+            changedFiles = await this.branchManager.getChangedFiles(repoPath, branchName);
+          } catch {
+            // Fall back to full suite
+          }
+          const scopedResult = await this.testRunner.runScopedTests(
+            worktreePath,
+            changedFiles,
+            testCommand
+          );
+
+          if (scopedResult.failed === 0) {
+            // Tests pass — advance to review
+            await this.clearPersistedState(repoPath);
+            state.status.currentTask = taskId;
+            state.status.currentPhase = "review";
+            state.activeBranchName = branchName;
+            state.activeTaskTitle = persisted.currentTaskTitle;
+            state.activeWorktreePath = worktreePath;
+            state.attempt = persisted.attempt;
+            state.startedAt = persisted.startedAt ?? new Date().toISOString();
+            state.lastCodingDiff = await this.branchManager.captureBranchDiff(repoPath, branchName);
+            state.lastCodingSummary = (result as CodingAgentResult).summary ?? "";
+            state.lastTestResults = scopedResult;
+            state.lastTestOutput = scopedResult.rawOutput;
+
+            await this.branchManager.commitWip(worktreePath, taskId);
+
+            const reviewMode = settings.reviewMode ?? DEFAULT_REVIEW_MODE;
+            if (reviewMode === "never") {
+              await this.performMergeAndDone(projectId, repoPath, task, branchName);
+            } else {
+              await this.persistState(projectId, repoPath);
+              broadcastToProject(projectId, {
+                type: "task.updated",
+                taskId,
+                status: "in_progress",
+                assignee: "agent-1",
+              });
+              broadcastToProject(projectId, {
+                type: "execute.status",
+                currentTask: taskId,
+                currentPhase: "review",
+                queueDepth: state.status.queueDepth,
+              });
+              await this.executeReviewPhase(projectId, repoPath, task, branchName);
+            }
+            return;
+          }
+          // Tests failed — fall through to normal recovery
+        } catch (err) {
+          console.warn("[orchestrator] Recovery: result.json advance-to-review failed:", err);
+          // Fall through to normal recovery
+        }
+      }
+    }
+
+    // 2. Clear persisted state — breaks any restart loop
     await this.clearPersistedState(repoPath);
 
-    // 2. Check for committed work on the branch (checkpoint detection)
+    // 3. Check for committed work on the branch (checkpoint detection)
     const commitCount = await this.branchManager.getCommitCountAhead(repoPath, branchName);
     const diff = await this.branchManager.captureBranchDiff(repoPath, branchName);
     if (diff) {
@@ -566,14 +668,14 @@ export class OrchestratorService {
       );
     }
 
-    // 3. Clean up worktree (always — it may be corrupted)
+    // 4. Clean up worktree (always — it may be corrupted)
     try {
       await this.branchManager.removeTaskWorktree(repoPath, taskId);
     } catch (err) {
       console.warn("[orchestrator] Recovery: worktree cleanup failed:", err);
     }
 
-    // 4. Decide whether to preserve or delete the branch
+    // 5. Decide whether to preserve or delete the branch
     if (commitCount > 0) {
       // Branch has committed work — PRESERVE it for the next attempt
       console.log(
@@ -606,7 +708,7 @@ export class OrchestratorService {
       }
     }
 
-    // 5. Requeue the task (set back to open/unassigned)
+    // 6. Requeue the task (set back to open/unassigned)
     try {
       await this.beads.update(repoPath, taskId, {
         status: "open",
