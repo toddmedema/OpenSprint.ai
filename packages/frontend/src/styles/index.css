@@ -75,6 +75,10 @@ html:not([data-theme]) {
   --color-graph-status-complete-stroke: #10b981;
   --color-graph-arrow: #9ca3af;
   --color-graph-arrow-critical: #dc2626;
+  /* Scrollbar (light mode) */
+  --color-scrollbar-track: #e5e7eb;
+  --color-scrollbar-thumb: #9ca3af;
+  --color-scrollbar-thumb-hover: #6b7280;
 }
 
 html[data-theme="dark"] {
@@ -147,6 +151,10 @@ html[data-theme="dark"] {
   --color-graph-status-complete-stroke: #34d399;
   --color-graph-arrow: #6b7280;
   --color-graph-arrow-critical: #ef4444;
+  /* Scrollbar (dark mode) — track uses surface, thumb muted (not white) */
+  --color-scrollbar-track: #1f2937;
+  --color-scrollbar-thumb: #6b7280;
+  --color-scrollbar-thumb-hover: #9ca3af;
 }
 
 @layer base {
@@ -225,10 +233,47 @@ html.sketch-phase-light {
   --color-graph-status-complete-stroke: #10b981;
   --color-graph-arrow: #9ca3af;
   --color-graph-arrow-critical: #dc2626;
+  --color-scrollbar-track: #e5e7eb;
+  --color-scrollbar-thumb: #9ca3af;
+  --color-scrollbar-thumb-hover: #6b7280;
 }
   body {
     @apply antialiased;
   }
+}
+
+/* ==========================================================================
+   Scrollbar styling — theme-aware (Chrome/Safari, Firefox)
+   Applies to all scrollable containers: body, sidebars, code/log viewers, feeds.
+   ========================================================================== */
+
+/* Firefox: scrollbar-color(thumb track) and scrollbar-width */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-scrollbar-thumb) var(--color-scrollbar-track);
+}
+
+/* WebKit (Chrome, Safari, Edge): pseudo-elements */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--color-scrollbar-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--color-scrollbar-thumb);
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-corner {
+  background: var(--color-scrollbar-track);
 }
 
 @layer components {
