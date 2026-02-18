@@ -273,7 +273,7 @@ function FeedbackCard({
             <button
               type="button"
               onClick={() => (isReplying ? onCancelReply() : onStartReply(item.id))}
-              className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs text-theme-muted hover:bg-theme-border-subtle hover:text-gray-800 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs text-theme-muted hover:bg-theme-border-subtle hover:text-theme-text transition-colors"
               title="Reply"
               aria-label={isReplying ? "Cancel reply" : "Reply"}
             >
@@ -284,7 +284,7 @@ function FeedbackCard({
               <button
                 type="button"
                 onClick={() => onToggleCollapse(item.id)}
-                className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-theme-muted hover:bg-theme-border-subtle hover:text-gray-800 transition-colors"
+                className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-theme-muted hover:bg-theme-border-subtle hover:text-theme-text transition-colors"
                 aria-label={isCollapsed ? "Expand replies" : "Collapse replies"}
               >
                 {isCollapsed ? "Expand" : "Collapse"} ({children.length} {children.length === 1 ? "reply" : "replies"})

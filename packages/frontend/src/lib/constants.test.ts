@@ -27,27 +27,27 @@ describe("constants", () => {
   });
 
   describe("PRD_SOURCE_COLORS", () => {
-    it("has colors for sketch, plan, execute, eval, deliver", () => {
-      expect(PRD_SOURCE_COLORS.sketch).toBe("bg-blue-100 text-blue-800");
-      expect(PRD_SOURCE_COLORS.plan).toBe("bg-amber-100 text-amber-800");
-      expect(PRD_SOURCE_COLORS.execute).toBe("bg-green-100 text-green-800");
-      expect(PRD_SOURCE_COLORS.eval).toBe("bg-purple-100 text-purple-800");
-      expect(PRD_SOURCE_COLORS.deliver).toBe("bg-slate-100 text-slate-800");
+    it("has theme-aware colors for sketch, plan, execute, eval, deliver", () => {
+      expect(PRD_SOURCE_COLORS.sketch).toContain("bg-blue-100");
+      expect(PRD_SOURCE_COLORS.plan).toContain("bg-amber-100");
+      expect(PRD_SOURCE_COLORS.execute).toContain("bg-green-100");
+      expect(PRD_SOURCE_COLORS.eval).toContain("bg-purple-100");
+      expect(PRD_SOURCE_COLORS.deliver).toContain("bg-theme-surface-muted");
     });
   });
 
   describe("getPrdSourceColor", () => {
     it("returns known source colors", () => {
-      expect(getPrdSourceColor("sketch")).toBe("bg-blue-100 text-blue-800");
-      expect(getPrdSourceColor("plan")).toBe("bg-amber-100 text-amber-800");
-      expect(getPrdSourceColor("execute")).toBe("bg-green-100 text-green-800");
-      expect(getPrdSourceColor("eval")).toBe("bg-purple-100 text-purple-800");
-      expect(getPrdSourceColor("deliver")).toBe("bg-slate-100 text-slate-800");
+      expect(getPrdSourceColor("sketch")).toContain("bg-blue-100");
+      expect(getPrdSourceColor("plan")).toContain("bg-amber-100");
+      expect(getPrdSourceColor("execute")).toContain("bg-green-100");
+      expect(getPrdSourceColor("eval")).toContain("bg-purple-100");
+      expect(getPrdSourceColor("deliver")).toContain("bg-theme-surface-muted");
     });
 
     it("returns default purple for unknown sources", () => {
-      expect(getPrdSourceColor("unknown")).toBe("bg-purple-100 text-purple-800");
-      expect(getPrdSourceColor("")).toBe("bg-purple-100 text-purple-800");
+      expect(getPrdSourceColor("unknown")).toContain("bg-purple-100");
+      expect(getPrdSourceColor("")).toContain("bg-purple-100");
     });
   });
 });

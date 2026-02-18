@@ -33,22 +33,22 @@ export function BuildEpicCard({
 
   return (
     <div
-      className="rounded-xl bg-white shadow-sm ring-1 ring-gray-200/80 overflow-hidden"
+      className="rounded-xl bg-theme-surface shadow-sm ring-1 ring-theme-border overflow-hidden"
       data-testid={`epic-card-${epicId || "other"}`}
     >
       {/* Epic header with progress */}
       <div className="px-4 pt-4 pb-3">
-        <h3 className="font-semibold text-gray-900 text-base truncate mb-2">{epicTitle}</h3>
+        <h3 className="font-semibold text-theme-text text-base truncate mb-2">{epicTitle}</h3>
         <div className="flex items-center justify-between mb-1.5">
-          <span className="text-xs font-medium text-gray-500">Progress</span>
-          <span className="text-xs font-semibold text-gray-700">
+          <span className="text-xs font-medium text-theme-muted">Progress</span>
+          <span className="text-xs font-semibold text-theme-text">
             {doneCount}/{totalCount}
             {totalCount > 0 && (
-              <span className="ml-1 text-gray-500 font-normal">({Math.round(progress)}%)</span>
+              <span className="ml-1 text-theme-muted font-normal">({Math.round(progress)}%)</span>
             )}
           </span>
         </div>
-        <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+        <div className="w-full bg-theme-surface-muted rounded-full h-2 overflow-hidden">
           <div
             className="h-2 rounded-full transition-all duration-500 ease-out bg-gradient-to-r from-brand-500 to-brand-600"
             style={{ width: `${progress}%` }}
@@ -63,8 +63,8 @@ export function BuildEpicCard({
 
       {/* Nested subtasks with names and statuses */}
       {tasks.length > 0 && (
-        <div className="border-t border-gray-100">
-          <ul className="divide-y divide-gray-50">
+        <div className="border-t border-theme-border-subtle">
+          <ul className="divide-y divide-theme-border-subtle">
             {visibleTasks.map((task) => {
               const startedAt = taskIdToStartedAt[task.id];
               const elapsed = startedAt ? formatUptime(startedAt) : null;
@@ -84,15 +84,15 @@ export function BuildEpicCard({
                             ? "bg-red-500"
                             : task.kanbanColumn === "in_progress" || task.kanbanColumn === "in_review"
                               ? "bg-blue-500"
-                              : "bg-gray-300"
+                              : "bg-theme-ring"
                       }`}
                     />
-                    <span className="flex-1 min-w-0 truncate font-medium text-gray-900" title={task.title}>
+                    <span className="flex-1 min-w-0 truncate font-medium text-theme-text" title={task.title}>
                       {task.title}
                     </span>
                     <TaskStatusBadge column={task.kanbanColumn} size="xs" />
                     {(task.assignee || elapsed) && (
-                      <span className="text-xs text-gray-500 shrink-0 tabular-nums">
+                      <span className="text-xs text-theme-muted shrink-0 tabular-nums">
                         {[task.assignee, elapsed].filter(Boolean).join(" · ")}
                       </span>
                     )}
@@ -118,7 +118,7 @@ export function BuildEpicCard({
             <button
               type="button"
               onClick={() => setExpanded(true)}
-              className="w-full px-4 py-2.5 text-xs font-medium text-brand-600 hover:text-brand-700 hover:bg-brand-50/50 transition-colors border-t border-gray-50"
+              className="w-full px-4 py-2.5 text-xs font-medium text-brand-600 hover:text-brand-700 hover:bg-brand-50/50 dark:hover:bg-brand-900/30 transition-colors border-t border-theme-border-subtle"
             >
               +{hiddenCount} more
             </button>

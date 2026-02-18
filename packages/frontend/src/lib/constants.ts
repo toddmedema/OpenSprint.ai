@@ -28,18 +28,18 @@ export const PRD_SOURCE_LABELS: Record<string, string> = {
   deliver: "Deliver",
 };
 
-/** Tailwind class pairs for PRD change log source badges (bg-* text-*). */
+/** Tailwind class pairs for PRD change log source badges (bg-* text-*). Theme-aware with dark variants. */
 export const PRD_SOURCE_COLORS: Record<string, string> = {
-  sketch: "bg-blue-100 text-blue-800",
-  spec: "bg-blue-100 text-blue-800", // legacy alias
-  plan: "bg-amber-100 text-amber-800",
-  execute: "bg-green-100 text-green-800",
-  eval: "bg-purple-100 text-purple-800",
-  deliver: "bg-slate-100 text-slate-800",
+  sketch: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200",
+  spec: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200", // legacy alias
+  plan: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
+  execute: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200",
+  eval: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200",
+  deliver: "bg-theme-surface-muted text-theme-text",
 };
 
 /** Default color for unknown PRD sources. */
-const PRD_SOURCE_DEFAULT = "bg-purple-100 text-purple-800";
+const PRD_SOURCE_DEFAULT = "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200";
 
 /** Returns Tailwind classes for a PRD change log source. */
 export function getPrdSourceColor(source: string): string {

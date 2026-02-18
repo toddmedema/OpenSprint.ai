@@ -8,7 +8,7 @@ export function RepositoryStep({ value, onChange, onBrowse }: RepositoryStepProp
   return (
     <div className="space-y-4" data-testid="repository-step">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Repository Path</label>
+        <label className="block text-sm font-medium text-theme-text mb-1">Repository Path</label>
         <div className="flex gap-2">
           <input
             type="text"
@@ -32,7 +32,7 @@ export function RepositoryStep({ value, onChange, onBrowse }: RepositoryStepProp
             Browse
           </button>
         </div>
-        <p className="mt-1 text-xs text-gray-400">Absolute path where the project repo will be created</p>
+        <p className="mt-1 text-xs text-theme-muted">Absolute path where the project repo will be created</p>
       </div>
     </div>
   );

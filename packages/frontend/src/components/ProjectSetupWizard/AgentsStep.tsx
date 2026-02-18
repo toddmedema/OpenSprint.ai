@@ -72,7 +72,7 @@ export function AgentsStep({
             {envKeys && !envKeys.anthropic && (
               <div className="flex gap-2 items-end">
                 <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">ANTHROPIC_API_KEY (Claude)</label>
+                  <label className="block text-xs font-medium text-theme-muted mb-1">ANTHROPIC_API_KEY (Claude)</label>
                   <input
                     type="password"
                     className="input font-mono text-sm"
@@ -95,7 +95,7 @@ export function AgentsStep({
             {envKeys && !envKeys.cursor && (
               <div className="flex gap-2 items-end">
                 <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">CURSOR_API_KEY</label>
+                  <label className="block text-xs font-medium text-theme-muted mb-1">CURSOR_API_KEY</label>
                   <input
                     type="password"
                     className="input font-mono text-sm"
@@ -119,12 +119,12 @@ export function AgentsStep({
         </>
       )}
       <div>
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">Planning Agent Slot</h3>
-        <p className="text-xs text-gray-500 mb-3">Used by Dreamer, Planner, Harmonizer, Analyst, Summarizer, Auditor, Delta Planner</p>
+        <h3 className="text-sm font-semibold text-theme-text mb-3">Planning Agent Slot</h3>
+        <p className="text-xs text-theme-muted mb-3">Used by Dreamer, Planner, Harmonizer, Analyst, Summarizer, Auditor, Delta Planner</p>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Provider</label>
+              <label className="block text-sm font-medium text-theme-text mb-1">Provider</label>
               <select
                 className="input"
                 value={planningAgent.type}
@@ -137,7 +137,7 @@ export function AgentsStep({
             </div>
             {planningAgent.type !== "custom" && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
+                <label className="block text-sm font-medium text-theme-text mb-1">Model</label>
                 <ModelSelect
                   provider={planningAgent.type}
                   value={planningAgent.model || null}
@@ -149,7 +149,7 @@ export function AgentsStep({
           </div>
           {planningAgent.type === "custom" && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">CLI command</label>
+              <label className="block text-sm font-medium text-theme-text mb-1">CLI command</label>
               <input
                 type="text"
                 className="input w-full font-mono text-sm"
@@ -157,7 +157,7 @@ export function AgentsStep({
                 value={planningAgent.cliCommand}
                 onChange={(e) => onPlanningAgentChange({ ...planningAgent, cliCommand: e.target.value })}
               />
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-theme-muted">
                 Command invoked with prompt as argument. Must accept input and produce output.
               </p>
             </div>
@@ -166,12 +166,12 @@ export function AgentsStep({
       </div>
       <hr />
       <div>
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">Coding Agent Slot</h3>
-        <p className="text-xs text-gray-500 mb-3">Used by Coder and Reviewer for Execute phase implementation and review</p>
+        <h3 className="text-sm font-semibold text-theme-text mb-3">Coding Agent Slot</h3>
+        <p className="text-xs text-theme-muted mb-3">Used by Coder and Reviewer for Execute phase implementation and review</p>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Provider</label>
+              <label className="block text-sm font-medium text-theme-text mb-1">Provider</label>
               <select
                 className="input"
                 value={codingAgent.type}
@@ -184,7 +184,7 @@ export function AgentsStep({
             </div>
             {codingAgent.type !== "custom" && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
+                <label className="block text-sm font-medium text-theme-text mb-1">Model</label>
                 <ModelSelect
                   provider={codingAgent.type}
                   value={codingAgent.model || null}
@@ -196,7 +196,7 @@ export function AgentsStep({
           </div>
           {codingAgent.type === "custom" && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">CLI command</label>
+              <label className="block text-sm font-medium text-theme-text mb-1">CLI command</label>
               <input
                 type="text"
                 className="input w-full font-mono text-sm"
@@ -204,7 +204,7 @@ export function AgentsStep({
                 value={codingAgent.cliCommand}
                 onChange={(e) => onCodingAgentChange({ ...codingAgent, cliCommand: e.target.value })}
               />
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-theme-muted">
                 Command invoked with prompt as argument. Must accept input and produce output.
               </p>
             </div>

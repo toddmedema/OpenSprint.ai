@@ -398,7 +398,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
                     type="button"
                     onClick={() => handleArchive(selectedPlan.metadata.planId)}
                     disabled={!!archivingPlanId}
-                    className="p-1.5 text-theme-muted hover:text-gray-600 hover:bg-theme-border-subtle/50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="p-1.5 text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle/50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Archive plan (mark all ready/open tasks as done)"
                   >
                     <svg

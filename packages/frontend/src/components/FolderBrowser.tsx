@@ -56,13 +56,13 @@ export function FolderBrowser({ initialPath, onSelect, onCancel }: FolderBrowser
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
+      <div className="absolute inset-0 bg-theme-overlay backdrop-blur-sm" onClick={onCancel} />
 
       {/* Dialog */}
-      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-xl mx-4 flex flex-col max-h-[80vh]">
+      <div className="relative bg-theme-surface rounded-xl shadow-2xl w-full max-w-xl mx-4 flex flex-col max-h-[80vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Select Folder</h2>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-theme-border">
+          <h2 className="text-lg font-semibold text-theme-text">Select Folder</h2>
           <CloseButton onClick={onCancel} ariaLabel="Close folder browser" />
         </div>
 
@@ -96,10 +96,10 @@ export function FolderBrowser({ initialPath, onSelect, onCancel }: FolderBrowser
               {parentPath && (
                 <button
                   onClick={() => handleNavigate(parentPath)}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left hover:bg-gray-50 transition-colors group"
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left hover:bg-theme-border-subtle transition-colors group"
                 >
                   <svg
-                    className="w-5 h-5 text-gray-400 group-hover:text-brand-500 flex-shrink-0"
+                    className="w-5 h-5 text-theme-muted group-hover:text-brand-500 flex-shrink-0"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -107,19 +107,19 @@ export function FolderBrowser({ initialPath, onSelect, onCancel }: FolderBrowser
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                   </svg>
-                  <span className="text-sm text-gray-500 group-hover:text-gray-700">..</span>
+                  <span className="text-sm text-theme-muted group-hover:text-theme-text">..</span>
                 </button>
               )}
 
               {/* Subdirectories */}
               {entries.length === 0 && !loading && (
-                <p className="text-sm text-gray-400 text-center py-8">No subdirectories</p>
+                <p className="text-sm text-theme-muted text-center py-8">No subdirectories</p>
               )}
               {entries.map((entry) => (
                 <button
                   key={entry.path}
                   onClick={() => handleNavigate(entry.path)}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left hover:bg-gray-50 transition-colors group"
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left hover:bg-theme-border-subtle transition-colors group"
                 >
                   <svg
                     className="w-5 h-5 text-amber-500 flex-shrink-0"
@@ -134,7 +134,7 @@ export function FolderBrowser({ initialPath, onSelect, onCancel }: FolderBrowser
                       d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"
                     />
                   </svg>
-                  <span className="text-sm text-gray-700 group-hover:text-gray-900 truncate">{entry.name}</span>
+                  <span className="text-sm text-theme-text group-hover:text-theme-text truncate">{entry.name}</span>
                 </button>
               ))}
             </div>
@@ -142,8 +142,8 @@ export function FolderBrowser({ initialPath, onSelect, onCancel }: FolderBrowser
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-5 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
-          <p className="text-xs text-gray-500 font-mono truncate max-w-[60%]" title={currentPath}>
+        <div className="flex items-center justify-between px-5 py-4 border-t border-theme-border bg-theme-surface-muted rounded-b-xl">
+          <p className="text-xs text-theme-muted font-mono truncate max-w-[60%]" title={currentPath}>
             {currentPath}
           </p>
           <div className="flex gap-2">

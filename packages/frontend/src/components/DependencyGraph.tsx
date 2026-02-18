@@ -288,20 +288,20 @@ export function DependencyGraph({ graph, onPlanClick }: DependencyGraphProps) {
 
   if (!graph || graph.plans.length === 0) {
     return (
-      <div className="h-40 flex items-center justify-center text-gray-400 text-sm border-2 border-dashed border-gray-200 rounded-lg">
+      <div className="h-40 flex items-center justify-center text-theme-muted text-sm border-2 border-dashed border-theme-border rounded-lg">
         No plans to display
       </div>
     );
   }
 
   return (
-    <div ref={containerRef} className="w-full overflow-hidden rounded-lg border border-gray-200 bg-white">
+    <div ref={containerRef} className="w-full overflow-hidden rounded-lg border border-theme-border bg-theme-surface">
       <svg ref={svgRef} className="block" />
       {computeCriticalPathEdges(
         graph.plans.map((p) => p.metadata.planId),
         graph.edges,
       ).size > 0 && (
-        <div className="px-3 py-1.5 text-xs text-gray-500 border-t border-gray-100 flex items-center gap-2">
+        <div className="px-3 py-1.5 text-xs text-theme-muted border-t border-theme-border-subtle flex items-center gap-2">
           <span className="inline-block w-3 h-0.5 bg-red-500 rounded" />
           Critical path (longest dependency chain)
         </div>

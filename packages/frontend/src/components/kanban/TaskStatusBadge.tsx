@@ -11,7 +11,7 @@ export const COLUMN_LABELS: Record<KanbanColumn, string> = {
 };
 
 const columnColors: Record<KanbanColumn, string> = {
-  planning: "bg-gray-400",
+  planning: "bg-theme-ring",
   backlog: "bg-yellow-400",
   ready: "bg-blue-400",
   in_progress: "bg-purple-400",

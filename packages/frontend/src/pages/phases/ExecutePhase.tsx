@@ -410,7 +410,7 @@ export function ExecutePhase({ projectId, onNavigateToPlan }: ExecutePhaseProps)
           {/* Backdrop for narrow screens: tap to close */}
           <button
             type="button"
-            className="md:hidden fixed inset-0 bg-black/40 z-40 animate-fade-in"
+            className="md:hidden fixed inset-0 bg-theme-overlay z-40 animate-fade-in"
             onClick={() => dispatch(setSelectedTaskId(null))}
             aria-label="Dismiss task detail"
           />

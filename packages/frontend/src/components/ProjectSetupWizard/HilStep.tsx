@@ -22,14 +22,14 @@ const HIL_CATEGORIES = [
 export function HilStep({ value, onChange }: HilStepProps) {
   return (
     <div className="space-y-4" data-testid="hil-step">
-      <p className="text-sm text-gray-500 mb-4">
+      <p className="text-sm text-theme-muted mb-4">
         Configure when OpenSprint should pause for your input vs. proceed autonomously.
       </p>
       {HIL_CATEGORIES.map((cat) => (
-        <div key={cat.key} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+        <div key={cat.key} className="flex items-center justify-between p-3 rounded-lg bg-theme-surface-muted">
           <div>
-            <p className="text-sm font-medium text-gray-900">{cat.label}</p>
-            <p className="text-xs text-gray-500">{cat.desc}</p>
+            <p className="text-sm font-medium text-theme-text">{cat.label}</p>
+            <p className="text-xs text-theme-muted">{cat.desc}</p>
           </div>
           <select
             className="input w-48"

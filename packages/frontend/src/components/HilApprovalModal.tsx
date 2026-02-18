@@ -37,33 +37,33 @@ export function HilApprovalModal({ request, onRespond }: HilApprovalModalProps) 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-theme-overlay p-4">
       <div
-        className={`mx-4 w-full rounded-lg bg-white shadow-xl ${
+        className={`mx-4 w-full rounded-lg bg-theme-surface shadow-xl ${
           hasSummary ? "max-w-3xl max-h-[90vh] overflow-hidden flex flex-col" : "max-w-md"
         } p-6`}
       >
-        <h3 className="text-lg font-semibold text-gray-900">
+        <h3 className="text-lg font-semibold text-theme-text">
           Approval required: {categoryLabel}
         </h3>
-        <p className="mt-2 text-sm text-gray-600">{request.description}</p>
+        <p className="mt-2 text-sm text-theme-muted">{request.description}</p>
 
         {hasSummary && (
-          <div className="mt-4 flex-1 min-h-0 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <h4 className="text-sm font-medium text-gray-700">Proposed PRD changes</h4>
+          <div className="mt-4 flex-1 min-h-0 overflow-y-auto rounded-lg border border-theme-border bg-theme-surface-muted p-4">
+            <h4 className="text-sm font-medium text-theme-text">Proposed PRD changes</h4>
             {request.scopeChangeSummary ? (
-              <pre className="mt-2 whitespace-pre-wrap font-sans text-sm text-gray-800">
+              <pre className="mt-2 whitespace-pre-wrap font-sans text-sm text-theme-text">
                 {request.scopeChangeSummary}
               </pre>
             ) : (
               <ul className="mt-2 space-y-2">
                 {request.scopeChangeProposedUpdates?.map((u) => (
-                  <li key={u.section} className="text-sm text-gray-800">
+                  <li key={u.section} className="text-sm text-theme-text">
                     <span className="font-medium">
                       {SECTION_LABELS[u.section] ?? u.section.replace(/_/g, " ")}
                     </span>
                     {u.changeLogEntry && (
-                      <span className="text-gray-600"> — {u.changeLogEntry}</span>
+                      <span className="text-theme-muted"> — {u.changeLogEntry}</span>
                     )}
                   </li>
                 ))}
@@ -81,12 +81,12 @@ export function HilApprovalModal({ request, onRespond }: HilApprovalModalProps) 
               className={`rounded-lg border px-4 py-3 text-left text-sm font-medium transition-colors ${
                 option.id === "approve" || option.id === "retry"
                   ? "border-green-300 bg-green-50 text-green-800 hover:bg-green-100"
-                  : "border-gray-200 bg-gray-50 text-gray-800 hover:bg-gray-100"
+                  : "border-theme-border bg-theme-surface-muted text-theme-text hover:bg-theme-border-subtle"
               }`}
             >
               <span className="block">{option.label}</span>
               {option.description && (
-                <span className="mt-0.5 block text-xs font-normal text-gray-500">
+                <span className="mt-0.5 block text-xs font-normal text-theme-muted">
                   {option.description}
                 </span>
               )}

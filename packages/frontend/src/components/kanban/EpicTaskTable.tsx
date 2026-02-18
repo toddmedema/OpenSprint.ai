@@ -11,10 +11,10 @@ export interface EpicTaskTableProps {
 
 export function EpicTaskTable({ swimlanes, onTaskSelect, onUnblock }: EpicTaskTableProps) {
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+    <div className="border border-theme-border rounded-lg overflow-hidden bg-theme-surface">
       {/* Single header row */}
       <div
-        className="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-4 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-600 uppercase tracking-wide"
+        className="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-4 py-3 bg-theme-surface-muted border-b border-theme-border text-xs font-semibold text-theme-muted uppercase tracking-wide"
         role="row"
       >
         <div role="columnheader">Task</div>
@@ -30,24 +30,24 @@ export function EpicTaskTable({ swimlanes, onTaskSelect, onUnblock }: EpicTaskTa
       </div>
 
       {/* Epic sections with sub-tasks */}
-      <div className="divide-y divide-gray-100">
+      <div className="divide-y divide-theme-border-subtle">
         {swimlanes.map((lane) => {
           const doneCount = lane.tasks.filter((t) => t.kanbanColumn === "done").length;
           const totalCount = lane.tasks.length;
           return (
-            <div key={lane.epicId || "other"} className="bg-white">
+            <div key={lane.epicId || "other"} className="bg-theme-surface">
               {/* Epic header row */}
               <div
-                className="px-4 py-2.5 bg-gray-50/80 border-b border-gray-100 font-medium text-gray-900 text-sm"
+                className="px-4 py-2.5 bg-theme-surface-muted/80 border-b border-theme-border-subtle font-medium text-theme-text text-sm"
                 role="rowheader"
               >
                 {lane.epicTitle}
-                <span className="ml-2 text-xs font-normal text-gray-500">
+                <span className="ml-2 text-xs font-normal text-theme-muted">
                   ({doneCount}/{totalCount} done)
                 </span>
               </div>
               {/* Sub-task rows */}
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-theme-border-subtle">
                 {lane.tasks.map((task) => (
                   <EpicTaskRow
                     key={task.id}
@@ -89,16 +89,16 @@ function EpicTaskRow({
       className="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-4 py-2.5 items-center hover:bg-brand-50/50 cursor-pointer transition-colors text-sm"
     >
       <div className="min-w-0">
-        <span className="font-medium text-gray-900 truncate block" title={task.title}>
+        <span className="font-medium text-theme-text truncate block" title={task.title}>
           {task.title}
         </span>
-        <span className="text-xs text-gray-400 font-mono truncate block" title={task.id}>
+        <span className="text-xs text-theme-muted font-mono truncate block" title={task.id}>
           {task.id}
         </span>
       </div>
       <div className="flex items-center justify-end gap-1.5">
         <TaskStatusBadge column={task.kanbanColumn} size="xs" title={COLUMN_LABELS[task.kanbanColumn]} />
-        <span className="text-xs text-gray-500">{COLUMN_LABELS[task.kanbanColumn]}</span>
+        <span className="text-xs text-theme-muted">{COLUMN_LABELS[task.kanbanColumn]}</span>
         {task.kanbanColumn === "blocked" && onUnblock && (
           <button
             type="button"
@@ -112,7 +112,7 @@ function EpicTaskRow({
           </button>
         )}
       </div>
-      <div className="text-right text-xs text-gray-500">
+      <div className="text-right text-xs text-theme-muted">
         {PRIORITY_LABELS[task.priority] ?? "Medium"}
       </div>
       <div className="text-right text-xs text-brand-600 truncate max-w-[8rem]" title={task.assignee ?? undefined}>

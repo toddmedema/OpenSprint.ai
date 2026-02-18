@@ -15,7 +15,7 @@ interface CloseButtonProps {
 export function CloseButton({
   onClick,
   ariaLabel = "Close",
-  className = "p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors",
+  className = "p-1 rounded-md text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle transition-colors",
   size = "w-5 h-5",
 }: CloseButtonProps) {
   return (

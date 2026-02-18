@@ -52,34 +52,34 @@ export function ConfirmStep({
 
   return (
     <div className="space-y-4" data-testid="confirm-step">
-      <h3 className="text-sm font-semibold text-gray-900">Review your project setup</h3>
+      <h3 className="text-sm font-semibold text-theme-text">Review your project setup</h3>
       <dl className="space-y-3 text-sm">
         <div className="flex justify-between">
-          <dt className="text-gray-500">Name</dt>
+          <dt className="text-theme-muted">Name</dt>
           <dd className="font-medium">{metadata.name}</dd>
         </div>
         <div className="flex justify-between">
-          <dt className="text-gray-500">Repository</dt>
+          <dt className="text-theme-muted">Repository</dt>
           <dd className="font-mono text-xs">{repoPath}</dd>
         </div>
         <div className="flex justify-between">
-          <dt className="text-gray-500">Planning Agent Slot</dt>
+          <dt className="text-theme-muted">Planning Agent Slot</dt>
           <dd className="font-medium capitalize">{planningLabel}</dd>
         </div>
         <div className="flex justify-between">
-          <dt className="text-gray-500">Coding Agent Slot</dt>
+          <dt className="text-theme-muted">Coding Agent Slot</dt>
           <dd className="font-medium capitalize">{codingLabel}</dd>
         </div>
         <div className="flex justify-between">
-          <dt className="text-gray-500">Deliver</dt>
+          <dt className="text-theme-muted">Deliver</dt>
           <dd className="font-medium">{deploymentLabel}</dd>
         </div>
         <div className="flex justify-between">
-          <dt className="text-gray-500">Test Framework</dt>
+          <dt className="text-theme-muted">Test Framework</dt>
           <dd className="font-medium">{testLabel}</dd>
         </div>
       </dl>
-      <p className="text-xs text-gray-500 pt-2 border-t border-gray-200">
+      <p className="text-xs text-theme-muted pt-2 border-t border-theme-border">
         On create: beads will be initialized with auto-flush and auto-commit disabled (orchestrator manages persistence).
         <code className="font-mono">.opensprint/orchestrator-state.json</code> and{" "}
         <code className="font-mono">.opensprint/worktrees/</code> will be added to .gitignore.

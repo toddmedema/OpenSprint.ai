@@ -46,8 +46,8 @@ const statusConfig: Record<
 };
 
 const defaultStatus = {
-  badge: "bg-gray-100 text-gray-600 ring-1 ring-gray-200/60",
-  accent: "bg-gray-400",
+  badge: "bg-theme-surface-muted text-theme-text ring-1 ring-theme-border/60",
+  accent: "bg-theme-ring",
   icon: null,
 };
 
@@ -65,7 +65,7 @@ export function EpicCard({
 
   return (
     <div
-      className="group relative overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 cursor-pointer
+      className="group relative overflow-hidden rounded-xl bg-theme-surface shadow-sm ring-1 ring-theme-border cursor-pointer
         hover:shadow-lg hover:ring-brand-200/80 transition-all duration-200 ease-out hover:-translate-y-0.5
         focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
       onClick={onSelect}
@@ -87,7 +87,7 @@ export function EpicCard({
       <div className="pl-4 pr-4 pt-4 pb-3">
         {/* Header */}
         <div className="flex items-start justify-between gap-3 mb-3">
-          <h3 className="font-semibold text-gray-900 text-base truncate flex-1 min-w-0 leading-tight">
+          <h3 className="font-semibold text-theme-text text-base truncate flex-1 min-w-0 leading-tight">
             {formatPlanIdAsTitle(plan.metadata.planId)}
           </h3>
           <span
@@ -101,17 +101,17 @@ export function EpicCard({
         {/* Progress section */}
         <div className="mb-3">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs font-medium text-gray-500">Progress</span>
-            <span className="text-xs font-semibold text-gray-700">
+            <span className="text-xs font-medium text-theme-muted">Progress</span>
+            <span className="text-xs font-semibold text-theme-text">
               {plan.doneTaskCount}/{plan.taskCount}
               {plan.taskCount > 0 && (
-                <span className="ml-1 text-gray-500 font-normal">
+                <span className="ml-1 text-theme-muted font-normal">
                   ({Math.round(progress)}%)
                 </span>
               )}
             </span>
           </div>
-          <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+          <div className="w-full bg-theme-surface-muted rounded-full h-2 overflow-hidden">
             <div
               className="h-2 rounded-full transition-all duration-500 ease-out bg-gradient-to-r from-brand-500 to-brand-600"
               style={{ width: `${progress}%` }}
@@ -123,7 +123,7 @@ export function EpicCard({
             />
           </div>
           {plan.doneTaskCount > 0 && plan.doneTaskCount < plan.taskCount && plan.metadata.complexity && (
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-theme-muted mt-1">
               {plan.metadata.complexity} complexity
             </p>
           )}
@@ -131,12 +131,12 @@ export function EpicCard({
 
         {/* Nested subtasks */}
         {tasks.length > 0 && (
-          <div className="mb-3 rounded-lg bg-gray-50/80 ring-1 ring-gray-200/50 overflow-hidden">
+          <div className="mb-3 rounded-lg bg-theme-surface-muted/80 ring-1 ring-theme-border overflow-hidden">
             <ul className="space-y-0.5 p-2 max-h-24 overflow-y-auto">
               {tasks.map((task) => (
                 <li
                   key={task.id}
-                  className="flex items-center gap-2 py-1 px-2 rounded-md hover:bg-white/60 transition-colors text-xs text-gray-700"
+                  className="flex items-center gap-2 py-1 px-2 rounded-md hover:bg-theme-border-subtle transition-colors text-xs text-theme-text"
                   title={`${task.title} — ${COLUMN_LABELS[task.kanbanColumn]}`}
                 >
                   <span
@@ -145,7 +145,7 @@ export function EpicCard({
                         ? "bg-emerald-500"
                         : task.kanbanColumn === "in_progress" || task.kanbanColumn === "in_review"
                           ? "bg-blue-500"
-                          : "bg-gray-300"
+                          : "bg-theme-ring"
                     }`}
                   />
                   <span className="truncate flex-1 min-w-0">{task.title}</span>

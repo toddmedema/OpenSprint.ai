@@ -16,11 +16,11 @@ export function TestingStep({
   return (
     <div className="space-y-4" data-testid="testing-step">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-3">Test Framework</label>
-        <p className="text-xs text-gray-500 mb-3">
+        <label className="block text-sm font-medium text-theme-text mb-3">Test Framework</label>
+        <p className="text-xs text-theme-muted mb-3">
           OpenSprint uses this to run tests during the Build phase. We detect from your project when possible.
         </p>
-        {detectingFramework && <p className="text-sm text-gray-500 mb-2">Detecting from project...</p>}
+        {detectingFramework && <p className="text-sm text-theme-muted mb-2">Detecting from project...</p>}
         {!detectingFramework && detectedFramework && (
           <p className="text-sm text-green-600 mb-2">
             Detected:{" "}

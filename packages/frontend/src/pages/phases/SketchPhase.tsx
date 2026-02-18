@@ -553,7 +553,7 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
           <button
             type="button"
             onClick={handleDiscuss}
-            className="flex items-center gap-1.5 px-3 py-2 bg-gray-800 text-white text-xs font-medium rounded-lg shadow-lg hover:bg-gray-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 bg-theme-surface text-theme-text text-xs font-medium rounded-lg shadow-lg ring-1 ring-theme-border hover:bg-theme-bg-elevated transition-colors"
           >
             <CommentIcon className="w-3.5 h-3.5" />
             Discuss

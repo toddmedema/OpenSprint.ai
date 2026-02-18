@@ -23,6 +23,8 @@ const THEME_VARS = [
   "color-input-placeholder",
   "color-code-bg",
   "color-code-text",
+  "color-overlay",
+  "color-surface-muted",
 ];
 
 describe("theme tokens", () => {

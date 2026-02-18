@@ -35,11 +35,11 @@ function formatDate(iso: string): string {
 
 function StatusBadge({ status }: { status: DeploymentRecord["status"] }) {
   const styles: Record<DeploymentRecord["status"], string> = {
-    pending: "bg-gray-100 text-theme-text",
-    running: "bg-blue-100 text-blue-700",
-    success: "bg-green-100 text-green-700",
-    failed: "bg-red-100 text-red-700",
-    rolled_back: "bg-amber-100 text-amber-700",
+    pending: "bg-theme-surface-muted text-theme-text",
+    running: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200",
+    success: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-200",
+    failed: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200",
+    rolled_back: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200",
   };
   return (
     <span

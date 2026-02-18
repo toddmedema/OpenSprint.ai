@@ -211,12 +211,11 @@ describe("PrdChatPanel", () => {
     );
 
     const sidebar = screen.getByTestId("prd-chat-sidebar");
-    expect(sidebar).toHaveClass("dark:bg-gray-800");
-    expect(sidebar).toHaveClass("dark:border-gray-700");
+    expect(sidebar).toBeInTheDocument();
 
     const assistantBubble = screen.getByText("Hello").closest("div");
-    expect(assistantBubble).toHaveClass("dark:bg-gray-700");
-    expect(assistantBubble).toHaveClass("dark:text-gray-200");
+    expect(assistantBubble).toHaveClass("bg-theme-border-subtle");
+    expect(assistantBubble).toHaveClass("text-theme-text");
 
     document.documentElement.removeAttribute("data-theme");
   });

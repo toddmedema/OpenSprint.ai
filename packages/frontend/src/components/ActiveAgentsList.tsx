@@ -101,7 +101,7 @@ export function ActiveAgentsList({ projectId }: ActiveAgentsListProps) {
       <div
         ref={dropdownRef}
         role="listbox"
-        className="fixed min-w-[220px] max-h-[320px] overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg py-2"
+        className="fixed min-w-[220px] max-h-[320px] overflow-y-auto bg-theme-surface border border-theme-border rounded-lg shadow-lg py-2"
         style={{
           top: dropdownRect.bottom + 4,
           right: window.innerWidth - dropdownRect.right,
@@ -109,24 +109,24 @@ export function ActiveAgentsList({ projectId }: ActiveAgentsListProps) {
         }}
       >
         {agents.length === 0 ? (
-          <div className="px-4 py-6 text-center text-sm text-gray-500">No agents running</div>
+          <div className="px-4 py-6 text-center text-sm text-theme-muted">No agents running</div>
         ) : (
-          <ul className="divide-y divide-gray-100">
+          <ul className="divide-y divide-theme-border-subtle">
             {agents.map((agent) => (
               <li key={agent.id} role="option">
                 <button
                   type="button"
-                  className="w-full px-4 py-2.5 text-sm text-left hover:bg-gray-50 transition-colors"
+                  className="w-full px-4 py-2.5 text-sm text-left hover:bg-theme-border-subtle transition-colors"
                   onClick={() => {
                     dispatch(setSelectedTaskId(agent.id));
                     navigate(getProjectPhasePath(projectId, "execute"));
                     setOpen(false);
                   }}
                 >
-                  <div className="font-medium text-gray-900">{agent.label || agent.id}</div>
-                  <div className="text-gray-500 mt-0.5">
+                  <div className="font-medium text-theme-text">{agent.label || agent.id}</div>
+                  <div className="text-theme-muted mt-0.5">
                     {roleLabel(agent)} &middot;{" "}
-                    <span className="text-gray-400 tabular-nums">{formatUptime(agent.startedAt, now)}</span>
+                    <span className="text-theme-muted tabular-nums">{formatUptime(agent.startedAt, now)}</span>
                   </div>
                 </button>
               </li>
@@ -142,7 +142,7 @@ export function ActiveAgentsList({ projectId }: ActiveAgentsListProps) {
         ref={buttonRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700 transition-colors"
+        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border border-theme-border bg-theme-surface-muted hover:bg-theme-border-subtle text-theme-text transition-colors"
         aria-expanded={open}
         aria-haspopup="listbox"
         title="Active agents"

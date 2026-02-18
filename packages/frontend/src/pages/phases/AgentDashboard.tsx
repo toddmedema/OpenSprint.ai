@@ -78,16 +78,16 @@ export function AgentDashboard({ projectId }: AgentDashboardProps) {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200 bg-white">
+      <div className="px-6 py-4 border-b border-theme-border bg-theme-surface">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Agent Dashboard</h2>
-            <p className="text-sm text-gray-500">Monitor and manage all agent instances</p>
+            <h2 className="text-lg font-semibold text-theme-text">Agent Dashboard</h2>
+            <p className="text-sm text-theme-muted">Monitor and manage all agent instances</p>
           </div>
           <div className="flex items-center gap-4">
             <div
               className={`px-3 py-1.5 rounded-full text-xs font-medium ${
-                currentTask ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"
+                currentTask ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-200" : "bg-theme-surface-muted text-theme-muted"
               }`}
             >
               {currentTask ? "Active" : "Idle"}
@@ -98,28 +98,28 @@ export function AgentDashboard({ projectId }: AgentDashboardProps) {
 
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Stats & Agent List */}
-        <div className="w-80 border-r border-gray-200 flex flex-col">
+        <div className="w-80 border-r border-theme-border flex flex-col">
           {/* Performance Metrics */}
-          <div className="p-4 border-b border-gray-200">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Performance</h3>
+          <div className="p-4 border-b border-theme-border">
+            <h3 className="text-xs font-semibold text-theme-muted uppercase tracking-wide mb-3">Performance</h3>
             <div className="grid grid-cols-3 gap-3">
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">{stats.totalDone}</div>
-                <div className="text-xs text-gray-500">Done</div>
+                <div className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.totalDone}</div>
+                <div className="text-xs text-theme-muted">Done</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-red-600">{stats.totalFailed}</div>
-                <div className="text-xs text-gray-500">Failed</div>
+                <div className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.totalFailed}</div>
+                <div className="text-xs text-theme-muted">Failed</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{stats.queueDepth}</div>
-                <div className="text-xs text-gray-500">Queue</div>
+                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.queueDepth}</div>
+                <div className="text-xs text-theme-muted">Queue</div>
               </div>
             </div>
             {stats.totalDone + stats.totalFailed > 0 && (
               <div className="mt-3">
-                <div className="text-xs text-gray-500 mb-1">Success Rate</div>
-                <div className="w-full bg-gray-100 rounded-full h-2">
+                <div className="text-xs text-theme-muted mb-1">Success Rate</div>
+                <div className="w-full bg-theme-surface-muted rounded-full h-2">
                   <div
                     className="bg-green-500 h-2 rounded-full"
                     style={{
@@ -133,12 +133,12 @@ export function AgentDashboard({ projectId }: AgentDashboardProps) {
 
           {/* Active Agents */}
           <div className="flex-1 overflow-y-auto p-4">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            <h3 className="text-xs font-semibold text-theme-muted uppercase tracking-wide mb-3">
               Active Agents ({agents.length})
             </h3>
 
             {agents.length === 0 ? (
-              <div className="text-center py-8 text-gray-400 text-sm">No agents currently running</div>
+              <div className="text-center py-8 text-theme-muted text-sm">No agents currently running</div>
             ) : (
               <div className="space-y-2">
                 {agents.map((agent) => (
@@ -147,22 +147,22 @@ export function AgentDashboard({ projectId }: AgentDashboardProps) {
                     onClick={() => setSelectedAgent(agent.taskId)}
                     className={`w-full text-left p-3 rounded-lg border transition-colors ${
                       selectedAgent === agent.taskId
-                        ? "border-brand-300 bg-brand-50"
-                        : "border-gray-200 hover:border-gray-300"
+                        ? "border-brand-300 bg-brand-50 dark:border-brand-600 dark:bg-brand-900/30"
+                        : "border-theme-border hover:border-theme-ring"
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium text-gray-900 font-mono">{agent.taskId}</span>
+                      <span className="text-sm font-medium text-theme-text font-mono">{agent.taskId}</span>
                       <span
                         className={`text-xs px-2 py-0.5 rounded-full ${
-                          agent.phase === "coding" ? "bg-purple-50 text-purple-700" : "bg-orange-50 text-orange-700"
+                          agent.phase === "coding" ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200" : "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-200"
                         }`}
                       >
                         {agent.phase}
                       </span>
                     </div>
-                    <div className="text-xs text-gray-500">Branch: {agent.branchName}</div>
-                    <div className="text-xs text-gray-400 mt-1">
+                    <div className="text-xs text-theme-muted">Branch: {agent.branchName}</div>
+                    <div className="text-xs text-theme-muted mt-1">
                       Started: {new Date(agent.startedAt).toLocaleTimeString()}
                     </div>
                   </button>
@@ -172,29 +172,29 @@ export function AgentDashboard({ projectId }: AgentDashboardProps) {
           </div>
         </div>
 
-        {/* Right: Agent Output Stream */}
-        <div className="flex-1 flex flex-col bg-gray-900">
+        {/* Right: Agent Output Stream (terminal-style) */}
+        <div className="flex-1 flex flex-col bg-theme-code-bg">
           {selectedAgent ? (
             <>
-              <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700">
+              <div className="flex items-center justify-between px-4 py-2 border-b border-theme-border">
                 <div className="flex items-center gap-3">
-                  <span className="text-xs font-mono text-green-400">Agent Output</span>
-                  <span className="text-xs text-gray-500">{selectedAgent}</span>
+                  <span className="text-xs font-mono text-theme-code-text">Agent Output</span>
+                  <span className="text-xs text-theme-muted">{selectedAgent}</span>
                 </div>
                 <CloseButton
                   onClick={() => setSelectedAgent(null)}
                   ariaLabel="Close agent output"
-                  className="p-1 rounded-md text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors"
+                  className="p-1 rounded-md text-theme-muted hover:text-theme-text hover:bg-theme-surface transition-colors"
                 />
               </div>
               <div className="flex-1 overflow-y-auto p-4">
-                <pre className="text-xs font-mono text-green-400 whitespace-pre-wrap">
+                <pre className="text-xs font-mono text-theme-code-text whitespace-pre-wrap">
                   {agentOutput.length > 0 ? agentOutput.join("") : "Waiting for agent output..."}
                 </pre>
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-gray-600 text-sm">
+            <div className="flex-1 flex items-center justify-center text-theme-muted text-sm">
               Select an agent to view its output stream
             </div>
           )}

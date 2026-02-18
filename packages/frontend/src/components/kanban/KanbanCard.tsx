@@ -20,12 +20,12 @@ export function KanbanCard({ task, onClick }: KanbanCardProps) {
         }
       }}
     >
-      <p className="text-sm font-medium text-gray-900 mb-2">{task.title}</p>
+      <p className="text-sm font-medium text-theme-text mb-2">{task.title}</p>
       <div className="flex items-center justify-between">
-        <span className="text-xs text-gray-400 font-mono truncate" title={task.id}>
+        <span className="text-xs text-theme-muted font-mono truncate" title={task.id}>
           {task.id}
         </span>
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-theme-muted">
           {PRIORITY_LABELS[task.priority] ?? "Medium"}
         </span>
       </div>

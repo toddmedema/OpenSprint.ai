@@ -20,6 +20,8 @@ export default {
           "input-placeholder": "var(--color-input-placeholder)",
           "code-bg": "var(--color-code-bg)",
           "code-text": "var(--color-code-text)",
+          overlay: "var(--color-overlay)",
+          "surface-muted": "var(--color-surface-muted)",
         },
         brand: {
           50: "#f0f7ff",

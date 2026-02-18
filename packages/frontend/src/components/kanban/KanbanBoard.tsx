@@ -26,10 +26,10 @@ export function KanbanBoard({ swimlanes, onTaskSelect }: KanbanBoardProps) {
           {} as Record<KanbanColumn, Task[]>,
         );
         return (
-          <div key={lane.epicId || "other"} className="border border-gray-200 rounded-lg overflow-hidden">
-            <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
-              <h3 className="text-sm font-semibold text-gray-700">{lane.epicTitle}</h3>
-              <p className="text-xs text-gray-500">
+          <div key={lane.epicId || "other"} className="border border-theme-border rounded-lg overflow-hidden">
+            <div className="px-4 py-2 bg-theme-surface-muted border-b border-theme-border">
+              <h3 className="text-sm font-semibold text-theme-text">{lane.epicTitle}</h3>
+              <p className="text-xs text-theme-muted">
                 {lane.tasks.filter((t) => t.kanbanColumn === "done").length}/{lane.tasks.length} done
               </p>
             </div>
@@ -38,8 +38,8 @@ export function KanbanBoard({ swimlanes, onTaskSelect }: KanbanBoardProps) {
                 <div key={col} className="kanban-column flex-shrink-0 w-56">
                   <div className="flex items-center gap-2 mb-2">
                     <TaskStatusBadge column={col} size="sm" title={COLUMN_LABELS[col]} />
-                    <span className="text-xs font-semibold text-gray-600">{COLUMN_LABELS[col]}</span>
-                    <span className="text-xs text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
+                    <span className="text-xs font-semibold text-theme-text">{COLUMN_LABELS[col]}</span>
+                    <span className="text-xs text-theme-muted bg-theme-surface-muted rounded-full px-2 py-0.5">
                       {laneTasksByCol[col].length}
                     </span>
                   </div>

@@ -18,7 +18,7 @@ export function ProjectMetadataStep({ value, onChange, error }: ProjectMetadataS
   return (
     <div className="space-y-4" data-testid="project-metadata-step">
       <div>
-        <label htmlFor="project-name" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="project-name" className="block text-sm font-medium text-theme-text mb-1">
           Project Name
         </label>
         <input
@@ -38,7 +38,7 @@ export function ProjectMetadataStep({ value, onChange, error }: ProjectMetadataS
         )}
       </div>
       <div>
-        <label htmlFor="project-description" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="project-description" className="block text-sm font-medium text-theme-text mb-1">
           Description
         </label>
         <textarea

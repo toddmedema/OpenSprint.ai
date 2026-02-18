@@ -187,7 +187,7 @@ export function ProjectView() {
     return (
       <>
         <Layout>
-          <div className="flex items-center justify-center h-full text-gray-400">
+          <div className="flex items-center justify-center h-full text-theme-muted">
             Loading project...
           </div>
         </Layout>
@@ -206,7 +206,7 @@ export function ProjectView() {
     return (
       <>
         <Layout>
-          <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-500">
+          <div className="flex flex-col items-center justify-center h-full gap-2 text-theme-muted">
             <p>Project not found or failed to load.</p>
             <Link to="/" className="text-brand-600 hover:text-brand-700 font-medium">
               Return to home
@@ -281,11 +281,11 @@ function DeliverToast({
 }) {
   if (!toast) return null;
   const variantStyles: Record<string, string> = {
-    started: "border-blue-200 bg-blue-50 text-blue-900",
-    succeeded: "border-green-200 bg-green-50 text-green-900",
-    failed: "border-red-200 bg-red-50 text-red-900",
+    started: "border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-800 dark:bg-blue-900/40 dark:text-blue-100",
+    succeeded: "border-green-200 bg-green-50 text-green-900 dark:border-green-800 dark:bg-green-900/40 dark:text-green-100",
+    failed: "border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-900/40 dark:text-red-100",
   };
-  const style = variantStyles[toast.variant] ?? "border-gray-200 bg-white text-gray-900";
+  const style = variantStyles[toast.variant] ?? "border-theme-border bg-theme-surface text-theme-text";
   return (
     <div
       className={`fixed bottom-4 right-4 z-40 max-w-md rounded-lg border p-4 shadow-lg ${style}`}
@@ -297,7 +297,7 @@ function DeliverToast({
         <button
           type="button"
           onClick={onDismiss}
-          className="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          className="shrink-0 rounded p-1 text-theme-muted hover:bg-theme-border-subtle hover:text-theme-text"
           aria-label="Dismiss"
         >
           <svg
@@ -324,21 +324,21 @@ function HilNotificationToast({
 }) {
   if (!notification) return null;
   return (
-    <div className="fixed bottom-4 right-4 z-40 max-w-md rounded-lg border border-gray-200 bg-white p-4 shadow-lg">
+    <div className="fixed bottom-4 right-4 z-40 max-w-md rounded-lg border border-theme-border bg-theme-surface p-4 shadow-lg">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-gray-900">
+          <p className="text-sm font-medium text-theme-text">
             {CATEGORY_LABELS[notification.category] ?? notification.category}
           </p>
-          <p className="mt-1 text-sm text-gray-600">{notification.description}</p>
-          <p className="mt-2 text-xs text-gray-500">
+          <p className="mt-1 text-sm text-theme-muted">{notification.description}</p>
+          <p className="mt-2 text-xs text-theme-muted">
             Proceeding automatically. You can review in the log.
           </p>
         </div>
         <button
           type="button"
           onClick={onDismiss}
-          className="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          className="shrink-0 rounded p-1 text-theme-muted hover:bg-theme-border-subtle hover:text-theme-text"
           aria-label="Dismiss"
         >
           <svg

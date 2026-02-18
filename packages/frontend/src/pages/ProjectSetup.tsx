@@ -151,21 +151,21 @@ export function ProjectSetup() {
   return (
     <Layout>
       <div className="max-w-2xl mx-auto px-6 py-10">
-        <h1 className="text-2xl font-bold text-gray-900 mb-8">Create New Project</h1>
+        <h1 className="text-2xl font-bold text-theme-text mb-8">Create New Project</h1>
 
         <div className="flex items-center gap-2 mb-8">
           {STEPS.map((s, i) => (
             <div key={s.key} className="flex items-center gap-2">
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  i <= currentStepIndex ? "bg-brand-600 text-white" : "bg-gray-100 text-gray-400"
+                  i <= currentStepIndex ? "bg-brand-600 text-white" : "bg-theme-surface-muted text-theme-muted"
                 }`}
               >
                 {i + 1}
               </div>
-              <span className={`text-sm ${i <= currentStepIndex ? "text-gray-900" : "text-gray-400"}`}>{s.label}</span>
+              <span className={`text-sm ${i <= currentStepIndex ? "text-theme-text" : "text-theme-muted"}`}>{s.label}</span>
               {i < STEPS.length - 1 && (
-                <div className={`w-8 h-0.5 ${i < currentStepIndex ? "bg-brand-600" : "bg-gray-200"}`} />
+                <div className={`w-8 h-0.5 ${i < currentStepIndex ? "bg-brand-600" : "bg-theme-border"}`} />
               )}
             </div>
           ))}

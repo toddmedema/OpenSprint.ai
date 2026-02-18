@@ -104,12 +104,12 @@ export function PlanDetailContent({
             onBlur={handleTitleBlur}
             onKeyDown={handleTitleKeyDown}
             disabled={saving}
-            className="w-full font-semibold text-gray-900 bg-transparent border border-transparent rounded px-2 py-1 -ml-2 hover:border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-colors disabled:opacity-50"
+            className="w-full font-semibold text-theme-text bg-transparent border border-transparent rounded px-2 py-1 -ml-2 hover:border-theme-border focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-colors disabled:opacity-50"
             placeholder="Title"
             aria-label="Title"
           />
           {saving && (
-            <span className="text-xs text-gray-500" aria-live="polite">
+            <span className="text-xs text-theme-muted" aria-live="polite">
               Saving...
             </span>
           )}
@@ -120,7 +120,7 @@ export function PlanDetailContent({
       <div className="px-4 pb-4">
         <div
           data-testid="plan-markdown-editor"
-          className="prose prose-sm max-w-none bg-white p-4 rounded-lg border border-gray-200 text-gray-900 text-xs"
+          className="prose prose-sm max-w-none bg-theme-surface p-4 rounded-lg border border-theme-border text-theme-text text-xs"
         >
           <PrdSectionEditor
             sectionKey="plan-body"

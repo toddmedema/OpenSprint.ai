@@ -77,7 +77,7 @@ export function PrdChatPanel({
           <button
             type="button"
             onClick={() => onCollapsedChange?.(false)}
-            className="flex flex-col items-center gap-1 p-2 shrink-0 text-theme-muted hover:text-brand-600 dark:hover:text-brand-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            className="flex flex-col items-center gap-1 p-2 shrink-0 text-theme-muted hover:text-brand-600 dark:hover:text-brand-400 hover:bg-theme-border-subtle rounded-lg transition-colors"
             title="Expand Discuss"
             aria-label="Expand Discuss sidebar"
           >
@@ -99,7 +99,7 @@ export function PrdChatPanel({
                 <button
                   type="button"
                   onClick={() => onCollapsedChange(true)}
-                  className="p-1.5 rounded-full hover:bg-theme-border-subtle text-theme-muted hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                  className="p-1.5 rounded-full hover:bg-theme-border-subtle text-theme-muted hover:text-theme-text transition-colors"
                   title="Collapse Discuss"
                   aria-label="Collapse Discuss sidebar"
                 >
@@ -241,7 +241,7 @@ export function PrdChatPanel({
             onClearSelectionContext();
           }}
           ariaLabel="Close chat panel"
-          className="p-1.5 rounded-full hover:bg-theme-border-subtle text-theme-muted hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+          className="p-1.5 rounded-full hover:bg-theme-border-subtle text-theme-muted hover:text-theme-text transition-colors"
           size="w-4 h-4"
         />
       </div>

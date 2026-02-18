@@ -151,10 +151,10 @@ describe("PlanDetailContent", () => {
     });
   });
 
-  it("renders title input with dark font for readability", () => {
+  it("renders title input with theme-aware font for readability", () => {
     render(<PlanDetailContent plan={mockPlan} onContentSave={onContentSave} />);
     const titleInput = screen.getByRole("textbox", { name: /title/i });
-    expect(titleInput.className).toMatch(/text-gray-900/);
+    expect(titleInput.className).toMatch(/text-theme-text/);
   });
 
   it("renders headerActions in header row when provided", () => {
@@ -168,15 +168,13 @@ describe("PlanDetailContent", () => {
     expect(screen.getByRole("button", { name: /archive/i })).toBeInTheDocument();
   });
 
-  it("renders plan markdown editor with light mode styles only", () => {
+  it("renders plan markdown editor with theme-aware styles", () => {
     render(<PlanDetailContent plan={mockPlan} onContentSave={onContentSave} />);
     const editorContainer = screen.getByTestId("plan-markdown-editor");
     expect(editorContainer).toBeInTheDocument();
-    // Light mode only: no dark: variants
-    expect(editorContainer.className).toMatch(/text-gray-900/);
-    expect(editorContainer.className).toMatch(/bg-white/);
-    expect(editorContainer.className).toMatch(/border-gray-200/);
-    expect(editorContainer.className).not.toMatch(/dark:/);
+    expect(editorContainer.className).toMatch(/text-theme-text/);
+    expect(editorContainer.className).toMatch(/bg-theme-surface/);
+    expect(editorContainer.className).toMatch(/border-theme-border/);
   });
 
   it("renders header with title aligned to top and no HR (border-b)", () => {
