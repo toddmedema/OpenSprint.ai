@@ -37,11 +37,27 @@ function set<T>(cache: Map<string, CacheEntry<unknown>>, key: string, value: T):
   });
 }
 
+function sweep(cache: Map<string, CacheEntry<unknown>>): void {
+  const now = Date.now();
+  for (const [key, entry] of cache) {
+    if (now >= entry.expiresAt) cache.delete(key);
+  }
+}
+
+const sweepTimer = setInterval(() => {
+  sweep(listAllCache);
+  sweep(showCache);
+}, 30_000);
+if (sweepTimer.unref) sweepTimer.unref();
+
 export const beadsCache = {
   getListAll: <T>(repoPath: string): T | undefined => get(listAllCache, listAllKey(repoPath)),
-  setListAll: <T>(repoPath: string, value: T): void => set(listAllCache, listAllKey(repoPath), value),
-  getShow: <T>(repoPath: string, id: string): T | undefined => get(showCache, showKey(repoPath, id)),
-  setShow: <T>(repoPath: string, id: string, value: T): void => set(showCache, showKey(repoPath, id), value),
+  setListAll: <T>(repoPath: string, value: T): void =>
+    set(listAllCache, listAllKey(repoPath), value),
+  getShow: <T>(repoPath: string, id: string): T | undefined =>
+    get(showCache, showKey(repoPath, id)),
+  setShow: <T>(repoPath: string, id: string, value: T): void =>
+    set(showCache, showKey(repoPath, id), value),
   clear: (): void => {
     listAllCache.clear();
     showCache.clear();

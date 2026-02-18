@@ -40,7 +40,7 @@ function acquirePidFile(): void {
       console.error(
         `[FATAL] Another OpenSprint server is already running on port ${port} (PID ${oldPid}).\n` +
           `  Kill it with: kill ${oldPid}\n` +
-          `  Or force:     kill -9 ${oldPid}`,
+          `  Or force:     kill -9 ${oldPid}`
       );
       process.exit(1);
     }
@@ -90,7 +90,9 @@ async function initAlwaysOnOrchestrator(): Promise<void> {
       return;
     }
 
-    console.log(`[orchestrator] ${projects.length} project(s) registered — starting always-on orchestrator`);
+    console.log(
+      `[orchestrator] ${projects.length} project(s) registered — starting always-on orchestrator`
+    );
 
     for (const project of projects) {
       try {
@@ -98,7 +100,9 @@ async function initAlwaysOnOrchestrator(): Promise<void> {
         await orchestratorService.ensureRunning(project.id);
 
         const allTasks = await beads.list(project.repoPath);
-        const nonEpicTasks = allTasks.filter((t) => (t.issue_type ?? (t as Record<string, unknown>).type) !== "epic");
+        const nonEpicTasks = allTasks.filter(
+          (t) => (t.issue_type ?? (t as Record<string, unknown>).type) !== "epic"
+        );
         const inProgress = nonEpicTasks.filter((t) => t.status === "in_progress");
         const open = nonEpicTasks.filter((t) => t.status === "open");
 
@@ -121,10 +125,14 @@ async function initAlwaysOnOrchestrator(): Promise<void> {
         }
         // Retry any pending feedback categorizations that failed during a previous run
         feedbackService.retryPendingCategorizations(project.id).catch((err) => {
-          console.warn(`[feedback] Pending categorization retry failed for "${project.name}": ${(err as Error).message}`);
+          console.warn(
+            `[feedback] Pending categorization retry failed for "${project.name}": ${(err as Error).message}`
+          );
         });
       } catch (err) {
-        console.warn(`[orchestrator] Could not read tasks for "${project.name}": ${(err as Error).message}`);
+        console.warn(
+          `[orchestrator] Could not read tasks for "${project.name}": ${(err as Error).message}`
+        );
       }
     }
   } catch (err) {
@@ -135,6 +143,7 @@ async function initAlwaysOnOrchestrator(): Promise<void> {
 // Graceful shutdown
 const shutdown = () => {
   console.log("\nShutting down...");
+  orchestratorService.stopAll();
   removePidFile();
   closeWebSocket();
   server.close(() => {
@@ -153,7 +162,7 @@ server.on("error", (err: NodeJS.ErrnoException) => {
   if (err.code === "EADDRINUSE") {
     console.error(
       `[FATAL] Port ${port} is already in use. ` +
-        `Kill the existing process (lsof -ti :${port} | xargs kill -9) or use a different PORT.`,
+        `Kill the existing process (lsof -ti :${port} | xargs kill -9) or use a different PORT.`
     );
     process.exit(1);
   }

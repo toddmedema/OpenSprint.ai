@@ -102,10 +102,11 @@ export class HilService {
 
       case "notify_and_proceed": {
         // Notify user but proceed immediately with default (PRD §6.5.2)
-        const request = this.createRequest(projectId, category, description, defaultOptions);
+        // Don't persist to pendingRequests — nobody will respond to a non-blocking request
+        const requestId = uuid();
         broadcastToProject(projectId, {
           type: "hil.request",
-          requestId: request.id,
+          requestId,
           category,
           description,
           options: defaultOptions,

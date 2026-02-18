@@ -176,6 +176,8 @@ interface OrchestratorState {
   recoveryPollTimer: ReturnType<typeof setInterval> | null;
   /** Timer ID for merger agent safety timeout (so it can be cleared on early exit) */
   mergerTimeout: ReturnType<typeof setTimeout> | null;
+  /** Guard: prevents double-handling when both onExit and inactivity poll detect a dead process */
+  exitHandled: boolean;
 }
 
 /**
@@ -219,6 +221,7 @@ export class OrchestratorService {
         pendingFeedbackCategorizations: [],
         recoveryPollTimer: null,
         mergerTimeout: null,
+        exitHandled: false,
       });
     }
     return this.state.get(projectId)!;
@@ -570,11 +573,7 @@ export class OrchestratorService {
 
     // 1. Check for result.json before tearing down — if coding agent finished successfully,
     //    advance to review instead of requeuing (avoids wasting a full coding cycle)
-    if (
-      worktreePath &&
-      persisted &&
-      persisted.currentPhase === "coding"
-    ) {
+    if (worktreePath && persisted && persisted.currentPhase === "coding") {
       const result = (await this.sessionManager.readResult(
         worktreePath,
         taskId
@@ -788,6 +787,13 @@ export class OrchestratorService {
     this.state.delete(projectId);
 
     console.log(`[orchestrator] Orchestrator stopped for project ${projectId}`);
+  }
+
+  /** Stop all running orchestrators (for graceful shutdown). */
+  stopAll(): void {
+    for (const projectId of [...this.state.keys()]) {
+      this.stopProject(projectId);
+    }
   }
 
   /**
@@ -1022,6 +1028,7 @@ export class OrchestratorService {
   ): Promise<void> {
     const state = this.getState(projectId);
     state.killedDueToTimeout = false;
+    state.exitHandled = false;
     const settings = await this.projectService.getSettings(projectId);
     const branchName = `opensprint/${task.id}`;
 
@@ -1144,6 +1151,8 @@ export class OrchestratorService {
           sendAgentOutputToProject(projectId, task.id, chunk);
         },
         onExit: async (code: number | null) => {
+          if (state.exitHandled) return;
+          state.exitHandled = true;
           state.activeProcess = null;
           if (state.inactivityTimer) {
             clearInterval(state.inactivityTimer);
@@ -1177,10 +1186,13 @@ export class OrchestratorService {
       // Start inactivity monitoring (commit WIP in worktree before killing)
       // Also check heartbeat: if process is dead (pid check) but timer hasn't fired, recover immediately
       state.inactivityTimer = setInterval(() => {
+        if (state.exitHandled) return;
         const elapsed = Date.now() - state.lastOutputTime;
         const proc = state.activeProcess;
         const pidDead = proc && proc.pid !== null && !isPidAlive(proc.pid);
         if (pidDead) {
+          if (state.exitHandled) return;
+          state.exitHandled = true;
           console.warn(
             `Agent process dead for task ${task.id} (PID ${proc.pid}), recovering immediately`
           );
@@ -1359,6 +1371,7 @@ export class OrchestratorService {
   ): Promise<void> {
     const state = this.getState(projectId);
     state.killedDueToTimeout = false;
+    state.exitHandled = false;
     const settings = await this.projectService.getSettings(projectId);
     const wtPath = state.activeWorktreePath ?? repoPath;
 
@@ -1419,6 +1432,8 @@ export class OrchestratorService {
           sendAgentOutputToProject(projectId, task.id, chunk);
         },
         onExit: async (code: number | null) => {
+          if (state.exitHandled) return;
+          state.exitHandled = true;
           state.activeProcess = null;
           if (state.inactivityTimer) {
             clearInterval(state.inactivityTimer);
@@ -1452,10 +1467,13 @@ export class OrchestratorService {
       // Start inactivity monitoring (commit WIP in worktree before killing)
       // Also check heartbeat: if process is dead (pid check) but timer hasn't fired, recover immediately
       state.inactivityTimer = setInterval(() => {
+        if (state.exitHandled) return;
         const elapsed = Date.now() - state.lastOutputTime;
         const proc = state.activeProcess;
         const pidDead = proc && proc.pid !== null && !isPidAlive(proc.pid);
         if (pidDead) {
+          if (state.exitHandled) return;
+          state.exitHandled = true;
           console.warn(
             `Agent process dead for task ${task.id} (PID ${proc.pid}), recovering immediately`
           );
