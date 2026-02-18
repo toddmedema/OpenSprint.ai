@@ -11,6 +11,7 @@ const mockGet = vi.fn().mockResolvedValue({});
 const mockMarkDone = vi.fn().mockResolvedValue(undefined);
 const mockUnblock = vi.fn().mockResolvedValue({ taskUnblocked: true });
 const mockFeedbackGet = vi.fn().mockResolvedValue(null);
+const mockAgentsActive = vi.fn().mockResolvedValue([]);
 
 vi.mock("../../api/client", () => ({
   api: {
@@ -28,7 +29,7 @@ vi.mock("../../api/client", () => ({
       status: vi.fn().mockResolvedValue({}),
     },
     agents: {
-      active: vi.fn().mockResolvedValue([]),
+      active: (...args: unknown[]) => mockAgentsActive(...args),
     },
     feedback: {
       get: (...args: unknown[]) => mockFeedbackGet(...args),
@@ -115,6 +116,7 @@ function createStore(
 describe("ExecutePhase epic card task order", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAgentsActive.mockResolvedValue([]);
   });
 
   it("sorts epic card tasks by status: In Progress → In Review → Ready → Backlog → Done", () => {
@@ -1507,6 +1509,7 @@ describe("ExecutePhase task detail cached state", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAgentsActive.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -1556,7 +1559,7 @@ describe("ExecutePhase task detail cached state", () => {
       </Provider>
     );
 
-    // Header shows only title, no metadata
+    // Header shows only title, no metadata (no state badge, assignee, or running time in header)
     const header = screen.getByTestId("task-detail-title");
     expect(header).toHaveTextContent("Task A");
     expect(screen.queryByTestId("task-detail-metadata")).not.toBeInTheDocument();
@@ -1565,6 +1568,49 @@ describe("ExecutePhase task detail cached state", () => {
     const statusSection = screen.getByTestId("task-detail-status-section");
     expect(statusSection).toHaveTextContent("In Review");
     expect(statusSection).toHaveTextContent("agent-1");
+  });
+
+  it("shows status with color indicator and icon in detail section below divider", () => {
+    mockGet.mockImplementation(() => new Promise(() => {}));
+    const tasks = [
+      { id: "epic-1.1", title: "Task A", epicId: "epic-1", kanbanColumn: "done", priority: 0, assignee: null },
+    ];
+    const store = createStore(tasks, { selectedTaskId: "epic-1.1" });
+    render(
+      <Provider store={store}>
+        <ExecutePhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    const statusSection = screen.getByTestId("task-detail-status-section");
+    expect(statusSection).toHaveTextContent("Done");
+    // TaskStatusBadge renders with title attribute for accessibility
+    const badge = statusSection.querySelector('[title="Done"]');
+    expect(badge).toBeInTheDocument();
+  });
+
+  it("shows running time in detail section below divider when task has active agent", async () => {
+    mockGet.mockImplementation(() => new Promise(() => {}));
+    const startedAt = new Date(Date.now() - 125000).toISOString(); // 2m 5s ago
+    mockAgentsActive.mockResolvedValue([
+      { id: "epic-1.1", phase: "coding", role: "coder", label: "Task A", startedAt },
+    ]);
+    const tasks = [
+      { id: "epic-1.1", title: "Task A", epicId: "epic-1", kanbanColumn: "in_progress", priority: 0, assignee: "agent-1" },
+    ];
+    const store = createStore(tasks, { selectedTaskId: "epic-1.1" });
+    render(
+      <Provider store={store}>
+        <ExecutePhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    const statusSection = screen.getByTestId("task-detail-status-section");
+    expect(statusSection).toHaveTextContent("agent-1");
+    // Wait for async agents fetch to populate running time (formatUptime produces "2m 5s" or similar)
+    await vi.waitFor(() => {
+      expect(statusSection.textContent).toMatch(/\d+m\s+\d+s/);
+    });
   });
 
   it("shows loading skeleton for detail-dependent fields while fetching", () => {
