@@ -25,6 +25,8 @@ export interface ExecuteState {
   selectedTaskId: string | null;
   taskDetail: Task | null;
   taskDetailLoading: boolean;
+  /** Error message when task detail fetch fails (kept so we can show it below header) */
+  taskDetailError: string | null;
   agentOutput: string[];
   completionState: {
     status: string;
@@ -49,6 +51,7 @@ const initialState: ExecuteState = {
   selectedTaskId: null,
   taskDetail: null,
   taskDetailLoading: false,
+  taskDetailError: null,
   agentOutput: [],
   completionState: null,
   archivedSessions: [],
@@ -134,6 +137,7 @@ const executeSlice = createSlice({
       state.completionState = null;
       state.archivedSessions = [];
       state.taskDetail = null;
+      state.taskDetailError = null;
       state.agentOutput = [];
       resetAgentOutputFilter();
     },
@@ -251,14 +255,17 @@ const executeSlice = createSlice({
       // fetchTaskDetail
       .addCase(fetchTaskDetail.pending, (state) => {
         state.taskDetailLoading = true;
+        state.taskDetailError = null;
       })
       .addCase(fetchTaskDetail.fulfilled, (state, action) => {
         state.taskDetail = action.payload;
         state.taskDetailLoading = false;
+        state.taskDetailError = null;
       })
-      .addCase(fetchTaskDetail.rejected, (state) => {
+      .addCase(fetchTaskDetail.rejected, (state, action) => {
         state.taskDetail = null;
         state.taskDetailLoading = false;
+        state.taskDetailError = action.error.message ?? "Failed to load task details";
       })
       // fetchArchivedSessions
       .addCase(fetchArchivedSessions.pending, (state) => {

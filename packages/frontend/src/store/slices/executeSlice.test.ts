@@ -133,6 +133,17 @@ describe("executeSlice", () => {
       expect(store.getState().execute.completionState).toBeNull();
     });
 
+    it("setSelectedTaskId clears taskDetailError when switching tasks", async () => {
+      vi.mocked(api.tasks.get).mockRejectedValue(new Error("Fetch failed"));
+      const store = createStore();
+      store.dispatch(setTasks([mockTask]));
+      store.dispatch(setSelectedTaskId("task-1"));
+      await store.dispatch(fetchTaskDetail({ projectId: "proj-1", taskId: "task-1" }));
+      expect(store.getState().execute.taskDetailError).toBe("Fetch failed");
+      store.dispatch(setSelectedTaskId(null));
+      expect(store.getState().execute.taskDetailError).toBeNull();
+    });
+
     it("appendAgentOutput appends filtered chunk for selected task only", () => {
       const store = createStore();
       store.dispatch(setSelectedTaskId("task-1"));
@@ -307,6 +318,16 @@ describe("executeSlice", () => {
       const store = createStore();
       await store.dispatch(fetchTaskDetail({ projectId: "proj-1", taskId: "task-1" }));
       expect(store.getState().execute.taskDetail).toEqual(fullTask);
+      expect(store.getState().execute.taskDetailError).toBeNull();
+    });
+
+    it("sets taskDetailError on rejected", async () => {
+      vi.mocked(api.tasks.get).mockRejectedValue(new Error("Network error"));
+      const store = createStore();
+      await store.dispatch(fetchTaskDetail({ projectId: "proj-1", taskId: "task-1" }));
+      expect(store.getState().execute.taskDetail).toBeNull();
+      expect(store.getState().execute.taskDetailLoading).toBe(false);
+      expect(store.getState().execute.taskDetailError).toBe("Network error");
     });
   });
 
