@@ -15,6 +15,7 @@ import { BeadsService } from "./services/beads.service.js";
 import { FeedbackService } from "./services/feedback.service.js";
 import { orchestratorService } from "./services/orchestrator.service.js";
 import { startProcessReaper, stopProcessReaper } from "./services/process-reaper.js";
+import { killAllTrackedAgentProcesses } from "./services/agent-process-registry.js";
 
 const port = parseInt(process.env.PORT || String(DEFAULT_API_PORT), 10);
 
@@ -158,6 +159,7 @@ async function initAlwaysOnOrchestrator(): Promise<void> {
 // Graceful shutdown
 const shutdown = () => {
   console.log("\nShutting down...");
+  killAllTrackedAgentProcesses();
   stopProcessReaper();
   orchestratorService.stopAll();
   removePidFile();
