@@ -33,6 +33,7 @@ import { TestRunner } from "./test-runner.js";
 import { orphanRecoveryService } from "./orphan-recovery.service.js";
 import { heartbeatService } from "./heartbeat.service.js";
 import { activeAgentsService } from "./active-agents.service.js";
+import { FeedbackService } from "./feedback.service.js";
 import { broadcastToProject, sendAgentOutputToProject } from "../websocket/index.js";
 import { writeJsonAtomic } from "../utils/file-utils.js";
 
@@ -180,6 +181,7 @@ export class OrchestratorService {
   private contextAssembler = new ContextAssembler();
   private sessionManager = new SessionManager();
   private testRunner = new TestRunner();
+  private feedbackService = new FeedbackService();
 
   private getState(projectId: string): OrchestratorState {
     if (!this.state.has(projectId)) {
@@ -1538,6 +1540,11 @@ export class OrchestratorService {
       taskId: task.id,
       status: "closed",
       assignee: null,
+    });
+
+    // PRD §10.2: Auto-resolve feedback when all its created tasks are Done
+    this.feedbackService.checkAutoResolveOnTaskDone(projectId, task.id).catch((err) => {
+      console.warn(`[orchestrator] Auto-resolve feedback on task done failed for ${task.id}:`, err);
     });
 
     broadcastToProject(projectId, {

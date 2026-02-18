@@ -57,12 +57,13 @@ vi.mock("../utils/feedback-id.js", () => ({
   generateShortFeedbackId: () => feedbackIdSequence.shift() ?? "xyz123",
 }));
 
+const mockBeadsListAll = vi.fn().mockResolvedValue([]);
 vi.mock("../services/beads.service.js", () => ({
   BeadsService: vi.fn().mockImplementation(() => ({
     init: vi.fn().mockResolvedValue(undefined),
     create: (...args: unknown[]) => mockBeadsCreate(...args),
     addDependency: (...args: unknown[]) => mockBeadsAddDependency(...args),
-    listAll: vi.fn().mockResolvedValue([]),
+    listAll: (...args: unknown[]) => mockBeadsListAll(...args),
     list: vi.fn().mockResolvedValue([]),
     ready: vi.fn().mockResolvedValue([]),
     show: vi.fn().mockResolvedValue({}),
@@ -81,6 +82,7 @@ describe("FeedbackService", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    mockBeadsListAll.mockResolvedValue([]);
     feedbackIdSequence = [];
     mockHilEvaluate.mockResolvedValue({ approved: false });
     mockSyncPrdFromScopeChange.mockResolvedValue(undefined);
@@ -771,6 +773,102 @@ describe("FeedbackService", () => {
       expect(mockRegister).toHaveBeenCalledTimes(1);
       expect(mockUnregister).toHaveBeenCalledTimes(1);
       expect(mockUnregister).toHaveBeenCalledWith(mockRegister.mock.calls[0][0]);
+    });
+  });
+
+  describe("checkAutoResolveOnTaskDone (PRD §10.2)", () => {
+    it("should auto-resolve feedback when all created tasks are closed and setting enabled", async () => {
+      const settingsPath = path.join(tempDir, "my-project", OPENSPRINT_PATHS.settings);
+      const settings = JSON.parse(await fs.readFile(settingsPath, "utf-8"));
+      settings.deployment.autoResolveFeedbackOnTaskCompletion = true;
+      await fs.writeFile(settingsPath, JSON.stringify(settings), "utf-8");
+
+      const feedbackDir = path.join(tempDir, "my-project", OPENSPRINT_PATHS.feedback);
+      await fs.mkdir(feedbackDir, { recursive: true });
+      const feedbackItem = {
+        id: "fb-auto-1",
+        text: "Bug in login",
+        category: "bug",
+        mappedPlanId: "plan-1",
+        createdTaskIds: ["task-1", "task-2"],
+        status: "mapped",
+        createdAt: new Date().toISOString(),
+      };
+      await fs.writeFile(
+        path.join(feedbackDir, "fb-auto-1.json"),
+        JSON.stringify(feedbackItem),
+        "utf-8",
+      );
+
+      mockBeadsListAll.mockResolvedValue([
+        { id: "task-1", status: "closed" },
+        { id: "task-2", status: "closed" },
+      ]);
+
+      await feedbackService.checkAutoResolveOnTaskDone(projectId, "task-1");
+
+      const stored = await feedbackService.getFeedback(projectId, "fb-auto-1");
+      expect(stored.status).toBe("resolved");
+    });
+
+    it("should not resolve when autoResolveFeedbackOnTaskCompletion is false", async () => {
+      const feedbackDir = path.join(tempDir, "my-project", OPENSPRINT_PATHS.feedback);
+      await fs.mkdir(feedbackDir, { recursive: true });
+      const feedbackItem = {
+        id: "fb-auto-2",
+        text: "Bug",
+        category: "bug",
+        mappedPlanId: null,
+        createdTaskIds: ["task-1"],
+        status: "mapped",
+        createdAt: new Date().toISOString(),
+      };
+      await fs.writeFile(
+        path.join(feedbackDir, "fb-auto-2.json"),
+        JSON.stringify(feedbackItem),
+        "utf-8",
+      );
+
+      mockBeadsListAll.mockResolvedValue([{ id: "task-1", status: "closed" }]);
+
+      await feedbackService.checkAutoResolveOnTaskDone(projectId, "task-1");
+
+      const stored = await feedbackService.getFeedback(projectId, "fb-auto-2");
+      expect(stored.status).toBe("mapped");
+    });
+
+    it("should not resolve when not all created tasks are closed", async () => {
+      const settingsPath = path.join(tempDir, "my-project", OPENSPRINT_PATHS.settings);
+      const settings = JSON.parse(await fs.readFile(settingsPath, "utf-8"));
+      settings.deployment.autoResolveFeedbackOnTaskCompletion = true;
+      await fs.writeFile(settingsPath, JSON.stringify(settings), "utf-8");
+
+      const feedbackDir = path.join(tempDir, "my-project", OPENSPRINT_PATHS.feedback);
+      await fs.mkdir(feedbackDir, { recursive: true });
+      const feedbackItem = {
+        id: "fb-auto-3",
+        text: "Bug",
+        category: "bug",
+        mappedPlanId: null,
+        createdTaskIds: ["task-1", "task-2"],
+        status: "mapped",
+        createdAt: new Date().toISOString(),
+      };
+      await fs.writeFile(
+        path.join(feedbackDir, "fb-auto-3.json"),
+        JSON.stringify(feedbackItem),
+        "utf-8",
+      );
+
+      mockBeadsListAll.mockResolvedValue([
+        { id: "task-1", status: "closed" },
+        { id: "task-2", status: "open" },
+      ]);
+
+      await feedbackService.checkAutoResolveOnTaskDone(projectId, "task-1");
+
+      const stored = await feedbackService.getFeedback(projectId, "fb-auto-3");
+      expect(stored.status).toBe("mapped");
     });
   });
 });

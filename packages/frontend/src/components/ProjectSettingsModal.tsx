@@ -122,6 +122,7 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
             envVars: deployment.envVars,
             autoDeployOnEpicCompletion: deployment.autoDeployOnEpicCompletion ?? false,
             autoDeployOnEvalResolution: deployment.autoDeployOnEvalResolution ?? false,
+            autoResolveFeedbackOnTaskCompletion: deployment.autoResolveFeedbackOnTaskCompletion ?? false,
           },
           hilConfig,
           testCommand: settings?.testCommand ?? undefined,
@@ -659,6 +660,21 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
                     </label>
                     <p className="text-xs text-gray-500 ml-1">
                       When all critical (bug) feedback is resolved, trigger deployment automatically.
+                    </p>
+                    <label className="flex items-center justify-between gap-3 cursor-pointer">
+                      <span className="text-sm text-gray-700">Auto-resolve feedback when tasks done</span>
+                      <input
+                        type="checkbox"
+                        checked={deployment.autoResolveFeedbackOnTaskCompletion ?? false}
+                        onChange={(e) =>
+                          updateDeployment({ autoResolveFeedbackOnTaskCompletion: e.target.checked })
+                        }
+                        className="rounded"
+                        data-testid="auto-resolve-feedback-toggle"
+                      />
+                    </label>
+                    <p className="text-xs text-gray-500 ml-1">
+                      When all tasks created from feedback reach Done, mark the feedback as resolved (PRD §10.2).
                     </p>
                   </div>
                   <div>

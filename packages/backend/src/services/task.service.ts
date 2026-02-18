@@ -11,11 +11,13 @@ import { broadcastToProject } from "../websocket/index.js";
 import { triggerDeploy } from "./deploy-trigger.service.js";
 import { ContextAssembler } from "./context-assembler.js";
 import { BranchManager } from "./branch-manager.js";
+import { FeedbackService } from "./feedback.service.js";
 import type { BeadsIssue } from "./beads.service.js";
 
 export class TaskService {
   private projectService = new ProjectService();
   private beads = new BeadsService();
+  private feedbackService = new FeedbackService();
   private sessionManager = new SessionManager();
   private contextAssembler = new ContextAssembler();
   private branchManager = new BranchManager();
@@ -237,6 +239,11 @@ export class TaskService {
       taskId,
       status: "closed",
       assignee: null,
+    });
+
+    // PRD §10.2: Auto-resolve feedback when all its created tasks are Done
+    this.feedbackService.checkAutoResolveOnTaskDone(projectId, taskId).catch((err) => {
+      console.warn(`[task] Auto-resolve feedback on task done failed for ${taskId}:`, err);
     });
 
     const epicId = this.extractEpicId(taskId);
