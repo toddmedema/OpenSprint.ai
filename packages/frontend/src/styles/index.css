@@ -21,6 +21,46 @@ html:not([data-theme]) {
   --color-code-text: #10b981;
   --color-overlay: rgba(0, 0, 0, 0.4);
   --color-surface-muted: #f3f4f6;
+  /* Semantic theme tokens */
+  --color-error-bg: #fef2f2;
+  --color-error-text: #b91c1c;
+  --color-error-border: #fecaca;
+  --color-error-solid: #dc2626;
+  --color-error-solid-hover: #b91c1c;
+  --color-success-bg: #f0fdf4;
+  --color-success-text: #166534;
+  --color-success-border: #bbf7d0;
+  --color-success-solid: #22c55e;
+  --color-success-muted: #10b981;
+  --color-warning-bg: #fffbeb;
+  --color-warning-text: #b45309;
+  --color-warning-border: #fde68a;
+  --color-warning-solid: #f59e0b;
+  --color-info-bg: #eff6ff;
+  --color-info-text: #1d4ed8;
+  --color-info-border: #bfdbfe;
+  --color-info-solid: #3b82f6;
+  /* Notification/toast severity (solid bg, white text) */
+  --color-notification-error: #dc2626;
+  --color-notification-warning: #d97706;
+  --color-notification-info: #2563eb;
+  --color-notification-success: #059669;
+  /* Feedback category tokens */
+  --color-feedback-bug-bg: #fef2f2;
+  --color-feedback-bug-text: #b91c1c;
+  --color-feedback-feature-bg: #faf5ff;
+  --color-feedback-feature-text: #7c3aed;
+  --color-feedback-ux-bg: #eff6ff;
+  --color-feedback-ux-text: #1d4ed8;
+  --color-feedback-scope-bg: #fefce8;
+  --color-feedback-scope-text: #a16207;
+  /* Status indicator tokens (dots, badges) */
+  --color-status-backlog: #eab308;
+  --color-status-ready: #3b82f6;
+  --color-status-in-progress: #a855f7;
+  --color-status-in-review: #f97316;
+  --color-status-done: #22c55e;
+  --color-status-blocked: #ef4444;
   /* DependencyGraph D3/SVG theme tokens */
   --color-graph-edge: #d1d5db;
   --color-graph-edge-critical: #dc2626;
@@ -53,6 +93,46 @@ html[data-theme="dark"] {
   --color-code-text: #34d399;
   --color-overlay: rgba(0, 0, 0, 0.6);
   --color-surface-muted: #1f2937;
+  /* Semantic theme tokens (dark mode) */
+  --color-error-bg: #450a0a;
+  --color-error-text: #fca5a5;
+  --color-error-border: #7f1d1d;
+  --color-error-solid: #dc2626;
+  --color-error-solid-hover: #ef4444;
+  --color-success-bg: #052e16;
+  --color-success-text: #86efac;
+  --color-success-border: #14532d;
+  --color-success-solid: #22c55e;
+  --color-success-muted: #34d399;
+  --color-warning-bg: #422006;
+  --color-warning-text: #fcd34d;
+  --color-warning-border: #78350f;
+  --color-warning-solid: #f59e0b;
+  --color-info-bg: #1e3a8a;
+  --color-info-text: #93c5fd;
+  --color-info-border: #1e40af;
+  --color-info-solid: #3b82f6;
+  /* Notification severity (dark mode) */
+  --color-notification-error: #b91c1c;
+  --color-notification-warning: #b45309;
+  --color-notification-info: #1d4ed8;
+  --color-notification-success: #047857;
+  /* Feedback category tokens (dark mode) */
+  --color-feedback-bug-bg: #450a0a;
+  --color-feedback-bug-text: #fca5a5;
+  --color-feedback-feature-bg: #3b0764;
+  --color-feedback-feature-text: #e9d5ff;
+  --color-feedback-ux-bg: #1e3a8a;
+  --color-feedback-ux-text: #93c5fd;
+  --color-feedback-scope-bg: #422006;
+  --color-feedback-scope-text: #fde68a;
+  /* Status indicator tokens (dark mode) */
+  --color-status-backlog: #eab308;
+  --color-status-ready: #60a5fa;
+  --color-status-in-progress: #c084fc;
+  --color-status-in-review: #fb923c;
+  --color-status-done: #34d399;
+  --color-status-blocked: #f87171;
   /* DependencyGraph D3/SVG theme tokens (dark mode) */
   --color-graph-edge: #4b5563;
   --color-graph-edge-critical: #ef4444;
@@ -98,6 +178,40 @@ html.sketch-phase-light {
   --color-code-text: #10b981;
   --color-overlay: rgba(0, 0, 0, 0.4);
   --color-surface-muted: #f3f4f6;
+  --color-error-bg: #fef2f2;
+  --color-error-text: #b91c1c;
+  --color-error-border: #fecaca;
+  --color-error-solid: #dc2626;
+  --color-error-solid-hover: #b91c1c;
+  --color-success-bg: #f0fdf4;
+  --color-success-text: #166534;
+  --color-success-border: #bbf7d0;
+  --color-success-solid: #22c55e;
+  --color-success-muted: #10b981;
+  --color-warning-bg: #fffbeb;
+  --color-warning-text: #b45309;
+  --color-warning-border: #fde68a;
+  --color-info-bg: #eff6ff;
+  --color-info-text: #1d4ed8;
+  --color-info-border: #bfdbfe;
+  --color-feedback-bug-bg: #fef2f2;
+  --color-feedback-bug-text: #b91c1c;
+  --color-feedback-feature-bg: #faf5ff;
+  --color-feedback-feature-text: #7c3aed;
+  --color-feedback-ux-bg: #eff6ff;
+  --color-feedback-ux-text: #1d4ed8;
+  --color-feedback-scope-bg: #fefce8;
+  --color-feedback-scope-text: #a16207;
+  --color-notification-error: #dc2626;
+  --color-notification-warning: #d97706;
+  --color-notification-info: #2563eb;
+  --color-notification-success: #059669;
+  --color-status-backlog: #eab308;
+  --color-status-ready: #3b82f6;
+  --color-status-in-progress: #a855f7;
+  --color-status-in-review: #f97316;
+  --color-status-done: #22c55e;
+  --color-status-blocked: #ef4444;
   --color-graph-edge: #d1d5db;
   --color-graph-edge-critical: #dc2626;
   --color-graph-text: #111827;
@@ -132,8 +246,8 @@ html.sketch-phase-light {
   }
 
   .btn-danger {
-    @apply inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2.5
-      text-sm font-semibold text-white shadow-sm hover:bg-red-700 transition-colors;
+    @apply inline-flex items-center justify-center rounded-lg bg-theme-error-solid px-4 py-2.5
+      text-sm font-semibold text-white shadow-sm hover:bg-theme-error-solid-hover transition-colors;
   }
 
   .card {

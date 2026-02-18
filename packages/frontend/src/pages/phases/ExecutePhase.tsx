@@ -41,7 +41,7 @@ function ArchivedSessionView({ sessions }: { sessions: AgentSession[] }) {
           <select
             value={safeIdx}
             onChange={(e) => setSelectedIdx(Number(e.target.value))}
-            className="bg-theme-bg-elevated text-green-400 border border-theme-border rounded px-2 py-1"
+            className="bg-theme-bg-elevated text-theme-success-muted border border-theme-border rounded px-2 py-1"
           >
             {sessions.map((s, i) => (
               <option key={s.attempt} value={i}>
@@ -55,13 +55,13 @@ function ArchivedSessionView({ sessions }: { sessions: AgentSession[] }) {
           </span>
         )}
         {session.testResults && session.testResults.total > 0 && (
-          <span className="text-green-400">
+          <span className="text-theme-success-muted">
             {session.testResults.passed} passed
             {session.testResults.failed > 0 && `, ${session.testResults.failed} failed`}
           </span>
         )}
         {session.failureReason && (
-          <span className="text-amber-400 truncate max-w-[200px]" title={session.failureReason}>
+          <span className="text-theme-warning-solid truncate max-w-[200px]" title={session.failureReason}>
             {session.failureReason}
           </span>
         )}
@@ -71,7 +71,7 @@ function ArchivedSessionView({ sessions }: { sessions: AgentSession[] }) {
           type="button"
           onClick={() => setActiveTab("output")}
           className={`text-xs font-medium ${
-            activeTab === "output" ? "text-green-400" : "text-theme-muted hover:text-theme-text"
+            activeTab === "output" ? "text-theme-success-muted" : "text-theme-muted hover:text-theme-text"
           }`}
         >
           Output log
@@ -81,7 +81,7 @@ function ArchivedSessionView({ sessions }: { sessions: AgentSession[] }) {
             type="button"
             onClick={() => setActiveTab("diff")}
             className={`text-xs font-medium ${
-              activeTab === "diff" ? "text-green-400" : "text-theme-muted hover:text-theme-text"
+              activeTab === "diff" ? "text-theme-success-muted" : "text-theme-muted hover:text-theme-text"
             }`}
           >
             Git diff
@@ -103,10 +103,10 @@ function getEpicTitleFromPlan(plan: Plan): string {
 }
 
 const feedbackCategoryColors: Record<string, string> = {
-  bug: "bg-red-50 text-red-700",
-  feature: "bg-purple-50 text-purple-700",
-  ux: "bg-blue-50 text-blue-700",
-  scope: "bg-yellow-50 text-yellow-700",
+  bug: "bg-theme-feedback-bug-bg text-theme-feedback-bug-text",
+  feature: "bg-theme-feedback-feature-bg text-theme-feedback-feature-text",
+  ux: "bg-theme-feedback-ux-bg text-theme-feedback-ux-text",
+  scope: "bg-theme-feedback-scope-bg text-theme-feedback-scope-text",
 };
 
 function getFeedbackTypeLabel(item: FeedbackItem): string {
@@ -181,7 +181,7 @@ function SourceFeedbackSection({
                 </span>
                 {feedback.status === "resolved" && (
                   <span
-                    className="inline-flex rounded-full px-2 py-0.5 font-medium flex-shrink-0 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                    className="inline-flex rounded-full px-2 py-0.5 font-medium flex-shrink-0 bg-theme-success-bg text-theme-success-text"
                     aria-label="Resolved"
                   >
                     Resolved
@@ -371,7 +371,7 @@ export function ExecutePhase({ projectId, onNavigateToPlan }: ExecutePhaseProps)
               </p>
             </div>
             {awaitingApproval && (
-              <span className="text-sm font-medium text-amber-600">Awaiting approval…</span>
+              <span className="text-sm font-medium text-theme-warning-text">Awaiting approval…</span>
             )}
           </div>
           <div className="w-full bg-theme-border-subtle rounded-full h-2">
@@ -448,7 +448,7 @@ export function ExecutePhase({ projectId, onNavigateToPlan }: ExecutePhaseProps)
                   type="button"
                   onClick={handleUnblock}
                   disabled={unblockLoading}
-                  className="text-xs py-1.5 px-3 font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="text-xs py-1.5 px-3 font-medium text-theme-error-text hover:bg-theme-error-bg rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {unblockLoading ? "Unblocking…" : "Unblock"}
                 </button>
@@ -470,7 +470,7 @@ export function ExecutePhase({ projectId, onNavigateToPlan }: ExecutePhaseProps)
             <div className="flex-1 overflow-y-auto min-h-0">
               <div className="p-4 border-b border-theme-border">
               {activeRoleLabel && (
-                <div className="mb-3 px-3 py-1.5 rounded-md bg-amber-50 border border-amber-200 text-xs font-medium text-amber-800">
+                <div className="mb-3 px-3 py-1.5 rounded-md bg-theme-warning-bg border border-theme-warning-border text-xs font-medium text-theme-warning-text">
                   Active: {activeRoleLabel}
                 </div>
               )}
@@ -556,14 +556,14 @@ export function ExecutePhase({ projectId, onNavigateToPlan }: ExecutePhaseProps)
                   )
                 ) : (
                   <div className="flex flex-col min-h-0 flex-1">
-                    <pre className="p-4 text-xs font-mono whitespace-pre-wrap text-green-400 min-h-[120px] overflow-y-auto flex-1 min-h-0" data-testid="live-agent-output">
+                    <pre className="p-4 text-xs font-mono whitespace-pre-wrap text-theme-success-muted min-h-[120px] overflow-y-auto flex-1 min-h-0" data-testid="live-agent-output">
                       {agentOutput.length > 0 ? agentOutput.join("") : "Waiting for agent output..."}
                     </pre>
                     {completionState && (
                       <div className="px-4 pb-4 border-t border-theme-border pt-3 mt-0">
                         <div
                           className={`text-sm font-medium ${
-                            completionState.status === "approved" ? "text-green-400" : "text-amber-400"
+                            completionState.status === "approved" ? "text-theme-success-muted" : "text-theme-warning-solid"
                           }`}
                         >
                           Agent done: {completionState.status}

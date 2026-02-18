@@ -281,9 +281,9 @@ function DeliverToast({
 }) {
   if (!toast) return null;
   const variantStyles: Record<string, string> = {
-    started: "border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-800 dark:bg-blue-900/40 dark:text-blue-100",
-    succeeded: "border-green-200 bg-green-50 text-green-900 dark:border-green-800 dark:bg-green-900/40 dark:text-green-100",
-    failed: "border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-900/40 dark:text-red-100",
+    started: "border-theme-info-border bg-theme-info-bg text-theme-info-text",
+    succeeded: "border-theme-success-border bg-theme-success-bg text-theme-success-text",
+    failed: "border-theme-error-border bg-theme-error-bg text-theme-error-text",
   };
   const style = variantStyles[toast.variant] ?? "border-theme-border bg-theme-surface text-theme-text";
   return (

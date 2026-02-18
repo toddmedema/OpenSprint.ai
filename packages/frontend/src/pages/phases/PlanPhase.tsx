@@ -241,14 +241,14 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
         {planError && (
           <div
             role="alert"
-            className="mb-4 flex items-center justify-between gap-3 p-3 bg-red-50 border border-red-200 rounded-lg"
+            className="mb-4 flex items-center justify-between gap-3 p-3 bg-theme-error-bg border border-theme-error-border rounded-lg"
             data-testid="plan-error-banner"
           >
-            <span className="flex-1 min-w-0 text-sm text-red-700">{planError}</span>
+            <span className="flex-1 min-w-0 text-sm text-theme-error-text">{planError}</span>
             <button
               type="button"
               onClick={() => dispatch(setPlanError(null))}
-              className="shrink-0 p-1.5 rounded hover:bg-red-100 text-red-600 hover:text-red-800 transition-colors"
+              className="shrink-0 p-1.5 rounded hover:bg-theme-error-border/50 text-theme-error-text hover:opacity-80 transition-colors"
               aria-label="Dismiss error"
             >
               <svg
@@ -474,10 +474,10 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
                         <span
                           className={`shrink-0 w-2 h-2 rounded-full ${
                             task.kanbanColumn === "done"
-                              ? "bg-green-500"
+                              ? "bg-theme-success-solid"
                               : task.kanbanColumn === "in_progress" ||
                                   task.kanbanColumn === "in_review"
-                                ? "bg-blue-500"
+                                ? "bg-theme-info-solid"
                                 : "bg-theme-ring"
                           }`}
                           title={task.kanbanColumn}

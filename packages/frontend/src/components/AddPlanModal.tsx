@@ -94,8 +94,8 @@ export function AddPlanModal({ projectId, onClose, onCreated }: AddPlanModalProp
         </div>
 
         {error && (
-          <div className="mx-5 mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-700">{error}</p>
+          <div className="mx-5 mb-3 p-3 bg-theme-error-bg border border-theme-error-border rounded-lg">
+            <p className="text-sm text-theme-error-text">{error}</p>
           </div>
         )}
 

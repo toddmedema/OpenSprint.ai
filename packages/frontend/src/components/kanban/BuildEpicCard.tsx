@@ -79,11 +79,11 @@ export function BuildEpicCard({
                     <span
                       className={`shrink-0 w-2 h-2 rounded-full ${
                         task.kanbanColumn === "done"
-                          ? "bg-emerald-500"
+                          ? "bg-theme-status-done"
                           : task.kanbanColumn === "blocked"
-                            ? "bg-red-500"
+                            ? "bg-theme-status-blocked"
                             : task.kanbanColumn === "in_progress" || task.kanbanColumn === "in_review"
-                              ? "bg-blue-500"
+                              ? "bg-theme-status-in-progress"
                               : "bg-theme-ring"
                       }`}
                     />
@@ -104,7 +104,7 @@ export function BuildEpicCard({
                         e.stopPropagation();
                         onUnblock(task.id);
                       }}
-                      className="shrink-0 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                      className="shrink-0 text-xs font-medium text-theme-error-text hover:bg-theme-error-bg px-2 py-1 rounded transition-colors"
                     >
                       Unblock
                     </button>

@@ -106,7 +106,7 @@ function EpicTaskRow({
               e.stopPropagation();
               onUnblock(task.id);
             }}
-            className="text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded transition-colors shrink-0"
+            className="text-xs font-medium text-theme-error-text hover:bg-theme-error-bg px-2 py-1 rounded transition-colors shrink-0"
           >
             Unblock
           </button>

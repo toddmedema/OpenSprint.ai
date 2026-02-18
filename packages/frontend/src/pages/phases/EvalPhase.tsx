@@ -84,10 +84,10 @@ function matchesStatusFilter(item: FeedbackItem, filter: FeedbackStatusFilter): 
 }
 
 const categoryColors: Record<string, string> = {
-  bug: "bg-red-50 text-red-700",
-  feature: "bg-purple-50 text-purple-700",
-  ux: "bg-blue-50 text-blue-700",
-  scope: "bg-yellow-50 text-yellow-700",
+  bug: "bg-theme-feedback-bug-bg text-theme-feedback-bug-text",
+  feature: "bg-theme-feedback-feature-bg text-theme-feedback-feature-text",
+  ux: "bg-theme-feedback-ux-bg text-theme-feedback-ux-text",
+  scope: "bg-theme-feedback-scope-bg text-theme-feedback-scope-text",
 };
 
 /** Display label for feedback type chip (Bug/Feature/UX/Scope). */
@@ -189,7 +189,7 @@ function FeedbackCard({
             <>
               {item.status === "resolved" && (
                 <span
-                  className="float-right ml-2 mb-1 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium flex-shrink-0 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                  className="float-right ml-2 mb-1 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium flex-shrink-0 bg-theme-success-bg text-theme-success-text"
                   aria-label="Resolved"
                 >
                   Resolved
@@ -263,7 +263,7 @@ function FeedbackCard({
               <button
                 type="button"
                 onClick={() => onResolve(item.id)}
-                className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs text-green-600 hover:bg-green-50 hover:text-green-800 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs text-theme-success-text hover:bg-theme-success-bg transition-colors"
                 title="Mark as resolved"
                 aria-label="Resolve"
               >
@@ -538,7 +538,7 @@ export function EvalPhase({ projectId, onNavigateToBuildTask }: EvalPhaseProps) 
                   <button
                     type="button"
                     onClick={() => removeImage(i)}
-                    className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center hover:bg-red-600 transition-colors shadow"
+                    className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-theme-error-solid text-white text-xs flex items-center justify-center hover:bg-theme-error-solid-hover transition-colors shadow"
                     aria-label="Remove image"
                   >
                     ×

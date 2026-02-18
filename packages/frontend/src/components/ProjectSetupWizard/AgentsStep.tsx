@@ -43,8 +43,8 @@ export function AgentsStep({
     <div className="space-y-6" data-testid="agents-step">
       {needsApiKeys && (
         <>
-          <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
-            <p className="text-sm text-amber-800">
+          <div className="p-3 rounded-lg bg-theme-warning-bg border border-theme-warning-border">
+            <p className="text-sm text-theme-warning-text">
               <strong>API keys required:</strong> Add <code className="font-mono text-xs">ANTHROPIC_API_KEY</code>{" "}
               and/or <code className="font-mono text-xs">CURSOR_API_KEY</code> to your project&apos;s{" "}
               <code className="font-mono text-xs">.env</code> file to use Claude and Cursor. Get keys from{" "}
@@ -52,7 +52,7 @@ export function AgentsStep({
                 href="https://console.anthropic.com/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline hover:text-amber-900"
+                className="underline hover:opacity-80"
               >
                 Anthropic Console
               </a>{" "}
@@ -61,7 +61,7 @@ export function AgentsStep({
                 href="https://cursor.com/settings"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline hover:text-amber-900"
+                className="underline hover:opacity-80"
               >
                 Cursor → Integrations → User API Keys
               </a>

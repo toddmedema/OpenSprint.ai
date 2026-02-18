@@ -36,10 +36,10 @@ function formatDate(iso: string): string {
 function StatusBadge({ status }: { status: DeploymentRecord["status"] }) {
   const styles: Record<DeploymentRecord["status"], string> = {
     pending: "bg-theme-surface-muted text-theme-text",
-    running: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200",
-    success: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-200",
-    failed: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200",
-    rolled_back: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200",
+    running: "bg-theme-info-bg text-theme-info-text",
+    success: "bg-theme-success-bg text-theme-success-text",
+    failed: "bg-theme-error-bg text-theme-error-text",
+    rolled_back: "bg-theme-warning-bg text-theme-warning-text",
   };
   return (
     <span
@@ -230,7 +230,7 @@ export function DeliverPhase({ projectId, onOpenSettings }: DeliverPhaseProps) {
                   type="button"
                   onClick={handleRollback}
                   disabled={rollbackLoading}
-                  className="text-sm text-amber-600 hover:text-amber-700 disabled:opacity-50"
+                  className="text-sm text-theme-warning-text hover:opacity-80 disabled:opacity-50"
                 >
                   {rollbackLoading ? "Rolling back…" : "Rollback"}
                 </button>
@@ -256,7 +256,7 @@ export function DeliverPhase({ projectId, onOpenSettings }: DeliverPhaseProps) {
                 </div>
               )}
               {selectedRecord?.error && (
-                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                <div className="mt-3 p-3 bg-theme-error-bg border border-theme-error-border rounded text-sm text-theme-error-text">
                   {selectedRecord.error}
                   {selectedRecord.fixEpicId && (
                     <div className="mt-2">

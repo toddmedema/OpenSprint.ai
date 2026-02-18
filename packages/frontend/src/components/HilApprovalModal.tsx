@@ -80,7 +80,7 @@ export function HilApprovalModal({ request, onRespond }: HilApprovalModalProps) 
               onClick={() => handleOption(option)}
               className={`rounded-lg border px-4 py-3 text-left text-sm font-medium transition-colors ${
                 option.id === "approve" || option.id === "retry"
-                  ? "border-green-300 bg-green-50 text-green-800 hover:bg-green-100"
+                  ? "border-theme-success-border bg-theme-success-bg text-theme-success-text hover:opacity-90"
                   : "border-theme-border bg-theme-surface-muted text-theme-text hover:bg-theme-border-subtle"
               }`}
             >

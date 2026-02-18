@@ -147,7 +147,7 @@ export function ActiveAgentsList({ projectId }: ActiveAgentsListProps) {
         aria-haspopup="listbox"
         title="Active agents"
       >
-        <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" aria-hidden />
+        <span className="w-2 h-2 rounded-full bg-theme-warning-solid animate-pulse" aria-hidden />
         <span>
           {agents.length > 0 ? `${agents.length} agent${agents.length === 1 ? "" : "s"} running` : "No agents running"}
         </span>

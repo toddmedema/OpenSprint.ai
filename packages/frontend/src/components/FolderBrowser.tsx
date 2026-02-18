@@ -84,7 +84,7 @@ export function FolderBrowser({ initialPath, onSelect, onCancel }: FolderBrowser
 
         {/* Directory listing */}
         <div className="flex-1 overflow-y-auto px-5 py-2 min-h-[300px]">
-          {error && <div className="p-3 rounded-lg bg-red-50 text-red-700 text-sm mb-2">{error}</div>}
+          {error && <div className="p-3 rounded-lg bg-theme-error-bg text-theme-error-text text-sm mb-2">{error}</div>}
 
           {loading ? (
             <div className="flex justify-center py-12">
@@ -122,7 +122,7 @@ export function FolderBrowser({ initialPath, onSelect, onCancel }: FolderBrowser
                   className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left hover:bg-theme-border-subtle transition-colors group"
                 >
                   <svg
-                    className="w-5 h-5 text-amber-500 flex-shrink-0"
+                    className="w-5 h-5 text-theme-warning-solid flex-shrink-0"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"

@@ -1003,8 +1003,7 @@ describe("EvalPhase feedback input", () => {
 
     const resolvedChip = screen.getByText("Resolved");
     expect(resolvedChip).toBeInTheDocument();
-    expect(resolvedChip).toHaveClass("bg-green-100", "text-green-800");
-    expect(resolvedChip).toHaveClass("dark:bg-green-900/30", "dark:text-green-300");
+    expect(resolvedChip).toHaveClass("bg-theme-success-bg", "text-theme-success-text");
     expect(screen.getByText("Bug")).toBeInTheDocument();
   });
 

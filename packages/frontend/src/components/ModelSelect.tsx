@@ -76,7 +76,7 @@ export function ModelSelect({
         <select className={className} disabled>
           <option value="">No models ({hint})</option>
         </select>
-        <p className="text-xs text-amber-600">{error}</p>
+        <p className="text-xs text-theme-warning-text">{error}</p>
       </div>
     );
   }

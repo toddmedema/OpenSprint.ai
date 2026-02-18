@@ -87,7 +87,7 @@ export function AgentDashboard({ projectId }: AgentDashboardProps) {
           <div className="flex items-center gap-4">
             <div
               className={`px-3 py-1.5 rounded-full text-xs font-medium ${
-                currentTask ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-200" : "bg-theme-surface-muted text-theme-muted"
+                currentTask ? "bg-theme-success-bg text-theme-success-text" : "bg-theme-surface-muted text-theme-muted"
               }`}
             >
               {currentTask ? "Active" : "Idle"}
@@ -104,15 +104,15 @@ export function AgentDashboard({ projectId }: AgentDashboardProps) {
             <h3 className="text-xs font-semibold text-theme-muted uppercase tracking-wide mb-3">Performance</h3>
             <div className="grid grid-cols-3 gap-3">
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.totalDone}</div>
+                <div className="text-2xl font-bold text-theme-success-text">{stats.totalDone}</div>
                 <div className="text-xs text-theme-muted">Done</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.totalFailed}</div>
+                <div className="text-2xl font-bold text-theme-error-text">{stats.totalFailed}</div>
                 <div className="text-xs text-theme-muted">Failed</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.queueDepth}</div>
+                <div className="text-2xl font-bold text-theme-info-text">{stats.queueDepth}</div>
                 <div className="text-xs text-theme-muted">Queue</div>
               </div>
             </div>
@@ -121,7 +121,7 @@ export function AgentDashboard({ projectId }: AgentDashboardProps) {
                 <div className="text-xs text-theme-muted mb-1">Success Rate</div>
                 <div className="w-full bg-theme-surface-muted rounded-full h-2">
                   <div
-                    className="bg-green-500 h-2 rounded-full"
+                    className="bg-theme-success-solid h-2 rounded-full"
                     style={{
                       width: `${Math.round((stats.totalDone / (stats.totalDone + stats.totalFailed)) * 100)}%`,
                     }}
@@ -155,7 +155,7 @@ export function AgentDashboard({ projectId }: AgentDashboardProps) {
                       <span className="text-sm font-medium text-theme-text font-mono">{agent.taskId}</span>
                       <span
                         className={`text-xs px-2 py-0.5 rounded-full ${
-                          agent.phase === "coding" ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200" : "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-200"
+                          agent.phase === "coding" ? "bg-theme-feedback-feature-bg text-theme-feedback-feature-text" : "bg-theme-warning-bg text-theme-warning-text"
                         }`}
                       >
                         {agent.phase}

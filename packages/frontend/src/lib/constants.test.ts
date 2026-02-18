@@ -28,26 +28,26 @@ describe("constants", () => {
 
   describe("PRD_SOURCE_COLORS", () => {
     it("has theme-aware colors for sketch, plan, execute, eval, deliver", () => {
-      expect(PRD_SOURCE_COLORS.sketch).toContain("bg-blue-100");
-      expect(PRD_SOURCE_COLORS.plan).toContain("bg-amber-100");
-      expect(PRD_SOURCE_COLORS.execute).toContain("bg-green-100");
-      expect(PRD_SOURCE_COLORS.eval).toContain("bg-purple-100");
+      expect(PRD_SOURCE_COLORS.sketch).toContain("bg-theme-info-bg");
+      expect(PRD_SOURCE_COLORS.plan).toContain("bg-theme-warning-bg");
+      expect(PRD_SOURCE_COLORS.execute).toContain("bg-theme-success-bg");
+      expect(PRD_SOURCE_COLORS.eval).toContain("bg-theme-feedback-feature-bg");
       expect(PRD_SOURCE_COLORS.deliver).toContain("bg-theme-surface-muted");
     });
   });
 
   describe("getPrdSourceColor", () => {
     it("returns known source colors", () => {
-      expect(getPrdSourceColor("sketch")).toContain("bg-blue-100");
-      expect(getPrdSourceColor("plan")).toContain("bg-amber-100");
-      expect(getPrdSourceColor("execute")).toContain("bg-green-100");
-      expect(getPrdSourceColor("eval")).toContain("bg-purple-100");
+      expect(getPrdSourceColor("sketch")).toContain("bg-theme-info-bg");
+      expect(getPrdSourceColor("plan")).toContain("bg-theme-warning-bg");
+      expect(getPrdSourceColor("execute")).toContain("bg-theme-success-bg");
+      expect(getPrdSourceColor("eval")).toContain("bg-theme-feedback-feature-bg");
       expect(getPrdSourceColor("deliver")).toContain("bg-theme-surface-muted");
     });
 
     it("returns default purple for unknown sources", () => {
-      expect(getPrdSourceColor("unknown")).toContain("bg-purple-100");
-      expect(getPrdSourceColor("")).toContain("bg-purple-100");
+      expect(getPrdSourceColor("unknown")).toContain("bg-theme-feedback-feature-bg");
+      expect(getPrdSourceColor("")).toContain("bg-theme-feedback-feature-bg");
     });
   });
 });

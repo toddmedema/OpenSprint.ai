@@ -341,8 +341,8 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
                 <div className="space-y-6">
                   {envKeys && (!envKeys.anthropic || !envKeys.cursor) && (
                     <>
-                      <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
-                        <p className="text-sm text-amber-800">
+                      <div className="p-3 rounded-lg bg-theme-warning-bg border border-theme-warning-border">
+                        <p className="text-sm text-theme-warning-text">
                           <strong>API keys required:</strong> Add{" "}
                           <code className="font-mono text-xs">ANTHROPIC_API_KEY</code> and/or{" "}
                           <code className="font-mono text-xs">CURSOR_API_KEY</code> to your
@@ -352,7 +352,7 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
                             href="https://console.anthropic.com/"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="underline hover:text-amber-900"
+                            className="underline hover:opacity-80"
                           >
                             Anthropic Console
                           </a>{" "}
@@ -361,7 +361,7 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
                             href="https://cursor.com/settings"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="underline hover:text-amber-900"
+                            className="underline hover:opacity-80"
                           >
                             Cursor → Integrations → User API Keys
                           </a>
@@ -933,7 +933,7 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
                                   const next = (deployment.targets ?? []).filter((_, j) => j !== i);
                                   updateDeployment({ targets: next.length ? next : undefined });
                                 }}
-                                className="text-red-600 hover:text-red-700 text-xs ml-1"
+                                className="text-theme-error-text hover:opacity-80 text-xs ml-1"
                               >
                                 Remove
                               </button>
@@ -1018,7 +1018,7 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
                                   envVars: Object.keys(next).length ? next : undefined,
                                 });
                               }}
-                              className="text-red-600 hover:text-red-700 text-xs"
+                              className="text-theme-error-text hover:opacity-80 text-xs"
                             >
                               Remove
                             </button>
@@ -1097,8 +1097,8 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
 
         {/* Error */}
         {error && (
-          <div className="mx-5 mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-700">{error}</p>
+          <div className="mx-5 mb-3 p-3 bg-theme-error-bg border border-theme-error-border rounded-lg">
+            <p className="text-sm text-theme-error-text">{error}</p>
           </div>
         )}
 

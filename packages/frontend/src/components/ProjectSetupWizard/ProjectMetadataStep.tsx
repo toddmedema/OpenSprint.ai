@@ -32,7 +32,7 @@ export function ProjectMetadataStep({ value, onChange, error }: ProjectMetadataS
           aria-describedby={error ? "name-error" : undefined}
         />
         {error && (
-          <p id="name-error" className="mt-1 text-sm text-red-600" role="alert">
+          <p id="name-error" className="mt-1 text-sm text-theme-error-text" role="alert">
             {error}
           </p>
         )}

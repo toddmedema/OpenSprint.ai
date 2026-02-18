@@ -28,18 +28,18 @@ export const PRD_SOURCE_LABELS: Record<string, string> = {
   deliver: "Deliver",
 };
 
-/** Tailwind class pairs for PRD change log source badges (bg-* text-*). Theme-aware with dark variants. */
+/** Tailwind class pairs for PRD change log source badges (bg-* text-*). Theme-aware. */
 export const PRD_SOURCE_COLORS: Record<string, string> = {
-  sketch: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200",
-  spec: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200", // legacy alias
-  plan: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
-  execute: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200",
-  eval: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200",
+  sketch: "bg-theme-info-bg text-theme-info-text",
+  spec: "bg-theme-info-bg text-theme-info-text", // legacy alias
+  plan: "bg-theme-warning-bg text-theme-warning-text",
+  execute: "bg-theme-success-bg text-theme-success-text",
+  eval: "bg-theme-feedback-feature-bg text-theme-feedback-feature-text",
   deliver: "bg-theme-surface-muted text-theme-text",
 };
 
 /** Default color for unknown PRD sources. */
-const PRD_SOURCE_DEFAULT = "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200";
+const PRD_SOURCE_DEFAULT = "bg-theme-feedback-feature-bg text-theme-feedback-feature-text";
 
 /** Returns Tailwind classes for a PRD change log source. */
 export function getPrdSourceColor(source: string): string {

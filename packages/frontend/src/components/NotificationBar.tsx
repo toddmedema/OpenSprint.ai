@@ -9,26 +9,11 @@ import {
 /** Navbar height in px — used to position the fixed bar below it. */
 const NAVBAR_HEIGHT = 56;
 
-const SEVERITY_STYLES: Record<
-  NotificationSeverity,
-  { light: string; dark: string }
-> = {
-  error: {
-    light: "bg-red-600 text-white border-red-700",
-    dark: "dark:bg-red-700 dark:border-red-800",
-  },
-  warning: {
-    light: "bg-amber-600 text-white border-amber-700",
-    dark: "dark:bg-amber-700 dark:border-amber-800",
-  },
-  info: {
-    light: "bg-blue-600 text-white border-blue-700",
-    dark: "dark:bg-blue-700 dark:border-blue-800",
-  },
-  success: {
-    light: "bg-emerald-600 text-white border-emerald-700",
-    dark: "dark:bg-emerald-700 dark:border-emerald-800",
-  },
+const SEVERITY_STYLES: Record<NotificationSeverity, string> = {
+  error: "bg-theme-notification-error text-white border-theme-notification-error",
+  warning: "bg-theme-notification-warning text-white border-theme-notification-warning",
+  info: "bg-theme-notification-info text-white border-theme-notification-info",
+  success: "bg-theme-notification-success text-white border-theme-notification-success",
 };
 
 function NotificationItem({
@@ -39,7 +24,7 @@ function NotificationItem({
   onDismiss: () => void;
 }) {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const styles = SEVERITY_STYLES[notification.severity];
+  const styleClass = SEVERITY_STYLES[notification.severity];
 
   useEffect(() => {
     if (notification.timeout && notification.timeout > 0) {
@@ -72,7 +57,7 @@ function NotificationItem({
       className={`
         flex items-center justify-between gap-3 px-4 py-3 rounded-lg border shadow-sm
         animate-[slide-up-fade_0.25s_ease-out]
-        ${styles.light} ${styles.dark}
+        ${styleClass}
       `}
       data-testid={`notification-${notification.severity}`}
     >

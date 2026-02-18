@@ -12,12 +12,12 @@ export const COLUMN_LABELS: Record<KanbanColumn, string> = {
 
 const columnColors: Record<KanbanColumn, string> = {
   planning: "bg-theme-ring",
-  backlog: "bg-yellow-400",
-  ready: "bg-blue-400",
-  in_progress: "bg-purple-400",
-  in_review: "bg-orange-400",
-  done: "bg-green-400",
-  blocked: "bg-red-500",
+  backlog: "bg-theme-status-backlog",
+  ready: "bg-theme-status-ready",
+  in_progress: "bg-theme-status-in-progress",
+  in_review: "bg-theme-status-in-review",
+  done: "bg-theme-status-done",
+  blocked: "bg-theme-status-blocked",
 };
 
 export interface TaskStatusBadgeProps {
@@ -34,7 +34,7 @@ export function TaskStatusBadge({ column, size = "sm", title }: TaskStatusBadgeP
     return (
       <span className="inline-flex" title={label}>
         <svg
-          className={`${dim} shrink-0 text-green-500`}
+          className={`${dim} shrink-0 text-theme-status-done`}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -49,7 +49,7 @@ export function TaskStatusBadge({ column, size = "sm", title }: TaskStatusBadgeP
     return (
       <span className="inline-flex" title={label}>
         <svg
-          className={`${dim} shrink-0 text-red-500`}
+          className={`${dim} shrink-0 text-theme-status-blocked`}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"

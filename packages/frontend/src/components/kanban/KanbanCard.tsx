@@ -33,7 +33,7 @@ export function KanbanCard({ task, onClick }: KanbanCardProps) {
       {task.testResults && task.testResults.total > 0 && (
         <div
           className={`mt-2 text-xs font-medium ${
-            task.testResults.failed > 0 ? "text-red-600" : "text-green-600"
+            task.testResults.failed > 0 ? "text-theme-error-text" : "text-theme-success-text"
           }`}
         >
           {task.testResults.passed} passed

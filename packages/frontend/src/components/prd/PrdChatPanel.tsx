@@ -215,7 +215,7 @@ export function PrdChatPanel({
       >
         <ChatIcon className="w-6 h-6 group-hover:scale-110 transition-transform" />
         {messages.filter((m) => m.role === "assistant").length > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 w-5 h-5 bg-theme-error-solid text-white text-[10px] font-bold rounded-full flex items-center justify-center">
             {messages.filter((m) => m.role === "assistant").length}
           </span>
         )}

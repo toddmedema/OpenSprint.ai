@@ -247,12 +247,12 @@ export function ProjectSetup() {
         </div>
 
         {createError && (
-          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex justify-between items-center">
+          <div className="mt-4 p-3 bg-theme-error-bg border border-theme-error-border rounded-lg text-sm text-theme-error-text flex justify-between items-center">
             <span>{createError}</span>
             <button
               type="button"
               onClick={() => setCreateError(null)}
-              className="text-red-500 hover:text-red-700 underline"
+              className="text-theme-error-text hover:opacity-80 underline"
             >
               Dismiss
             </button>

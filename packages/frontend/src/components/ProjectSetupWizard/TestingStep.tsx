@@ -22,7 +22,7 @@ export function TestingStep({
         </p>
         {detectingFramework && <p className="text-sm text-theme-muted mb-2">Detecting from project...</p>}
         {!detectingFramework && detectedFramework && (
-          <p className="text-sm text-green-600 mb-2">
+          <p className="text-sm text-theme-success-text mb-2">
             Detected:{" "}
             <strong>
               {TEST_FRAMEWORKS.find((f) => f.id === detectedFramework)?.label ?? detectedFramework}
