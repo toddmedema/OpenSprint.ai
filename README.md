@@ -8,10 +8,10 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 <p align="center">
-  <img src="docs/assets/hero-screenshot.png" alt="OpenSprint — Dream, Plan, Build, Verify" width="800" />
+  <img src="docs/assets/hero-demo.gif" alt="OpenSprint — Sketch, Plan, Execute, Eval, Deliver" width="800" />
 </p>
 
-Open Sprint orchestrates AI agents across five phases — SPEED: **Sketch**, **Plan**, **Execute**, **Eval**, and **Deliver** — to transform a high-level product idea into well-architected, working software with minimal manual intervention.
+Open Sprint orchestrates AI agents across five phases — SPEED: **Sketch**, **Plan**, **Execute**, **Evaluate**, and **Deliver** — to transform a high-level product idea into well-architected, working software with minimal manual intervention.
 
 ## Why Open Sprint?
 
