@@ -190,14 +190,14 @@ export function DeliverPhase({ projectId, onOpenSettings }: DeliverPhaseProps) {
           <ResizableSidebar storageKey="deliver" defaultWidth={280} visible>
             <div className="h-full flex flex-col border-r border-gray-200 bg-gray-50">
               <div className="px-3 py-2 border-b border-gray-200">
-                <h3 className="text-sm font-medium text-gray-900">Deployment History</h3>
+                <h3 className="text-sm font-medium text-gray-900">Delivery History</h3>
               </div>
               <div className="flex-1 overflow-y-auto">
                 {historyLoading ? (
                   <div className="p-4 text-center text-sm text-gray-500">Loading…</div>
                 ) : history.length === 0 ? (
                   <div className="p-4 text-center text-sm text-gray-500">
-                    No deployments yet. Click Deliver! to start.
+                    No deliveries yet. Click Deliver! to start.
                   </div>
                 ) : (
                   <ul className="py-2">
@@ -229,7 +229,7 @@ export function DeliverPhase({ projectId, onOpenSettings }: DeliverPhaseProps) {
           <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-white">
             <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between shrink-0">
               <h3 className="text-sm font-medium text-gray-900">
-                {selectedRecord ? `Deployment ${formatDate(selectedRecord.startedAt)}` : "Live Log"}
+                {selectedRecord ? `Delivery ${formatDate(selectedRecord.startedAt)}` : "Live Log"}
               </h3>
               {canRollback && (
                 <button
@@ -257,7 +257,7 @@ export function DeliverPhase({ projectId, onOpenSettings }: DeliverPhaseProps) {
                     rel="noopener noreferrer"
                     className="text-brand-600 hover:text-brand-700 text-sm"
                   >
-                    Open deployment →
+                    Open delivery →
                   </a>
                 </div>
               )}

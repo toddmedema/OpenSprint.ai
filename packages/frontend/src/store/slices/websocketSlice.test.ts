@@ -115,16 +115,16 @@ describe("websocketSlice", () => {
   describe("setDeliverToast", () => {
     it("stores deliver toast", () => {
       const store = configureStore({ reducer: { websocket: websocketReducer } });
-      store.dispatch(setDeliverToast({ message: "Deployment started", variant: "started" }));
+      store.dispatch(setDeliverToast({ message: "Delivery started", variant: "started" }));
       expect(store.getState().websocket.deliverToast).toEqual({
-        message: "Deployment started",
+        message: "Delivery started",
         variant: "started",
       });
     });
 
     it("clears deliver toast when null passed", () => {
       const store = configureStore({ reducer: { websocket: websocketReducer } });
-      store.dispatch(setDeliverToast({ message: "Deployment succeeded", variant: "succeeded" }));
+      store.dispatch(setDeliverToast({ message: "Delivery succeeded", variant: "succeeded" }));
       store.dispatch(setDeliverToast(null));
       expect(store.getState().websocket.deliverToast).toBeNull();
     });
@@ -133,7 +133,7 @@ describe("websocketSlice", () => {
   describe("clearDeliverToast", () => {
     it("clears deliverToast to null", () => {
       const store = configureStore({ reducer: { websocket: websocketReducer } });
-      store.dispatch(setDeliverToast({ message: "Deployment failed", variant: "failed" }));
+      store.dispatch(setDeliverToast({ message: "Delivery failed", variant: "failed" }));
       store.dispatch(clearDeliverToast());
       expect(store.getState().websocket.deliverToast).toBeNull();
     });
@@ -145,7 +145,7 @@ describe("websocketSlice", () => {
       store.dispatch(setConnected(true));
       store.dispatch(setHilRequest(mockHilRequest));
       store.dispatch(setHilNotification(mockHilNotification));
-      store.dispatch(setDeliverToast({ message: "Deployment started", variant: "started" }));
+      store.dispatch(setDeliverToast({ message: "Delivery started", variant: "started" }));
 
       store.dispatch(resetWebsocket());
 

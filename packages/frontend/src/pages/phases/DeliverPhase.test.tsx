@@ -73,13 +73,13 @@ describe("DeliverPhase", () => {
   it("renders deployment history section", () => {
     const store = createStore();
     renderWithRouter(store);
-    expect(screen.getByText("Deployment History")).toBeInTheDocument();
+    expect(screen.getByText("Delivery History")).toBeInTheDocument();
   });
 
-  it("shows empty state when no deployments", () => {
+  it("shows empty state when no deliveries", () => {
     const store = createStore();
     renderWithRouter(store);
-    expect(screen.getByText(/No deployments yet\. Click Deliver! to start\./)).toBeInTheDocument();
+    expect(screen.getByText(/No deliveries yet\. Click Deliver! to start\./)).toBeInTheDocument();
   });
 
   it("renders live log panel", () => {
