@@ -57,6 +57,7 @@ function createStore(
     selectedTaskId: string | null;
     awaitingApproval: boolean;
     agentOutput: string[];
+    taskDetailError: string | null;
   }>,
 ) {
   return configureStore({
@@ -1131,5 +1132,78 @@ describe("ExecutePhase Source feedback section", () => {
     expect(resolvedChip).toBeInTheDocument();
     expect(resolvedChip).toHaveClass("bg-theme-success-bg", "text-theme-success-text");
     expect(screen.getByText("Bug")).toBeInTheDocument();
+  });
+});
+
+describe("ExecutePhase task detail cached state", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("shows task title immediately in sidebar header from cached list data (no wait for detail API)", () => {
+    mockGet.mockImplementation(() => new Promise(() => {})); // Never resolves
+    const tasks = [
+      { id: "epic-1.1", title: "Cached Task Title", epicId: "epic-1", kanbanColumn: "in_progress", priority: 0, assignee: "agent-1" },
+    ];
+    const store = createStore(tasks, { selectedTaskId: "epic-1.1" });
+    render(
+      <Provider store={store}>
+        <ExecutePhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    const title = screen.getByTestId("task-detail-title");
+    expect(title).toHaveTextContent("Cached Task Title");
+    expect(screen.getByTestId("task-detail-loading")).toBeInTheDocument();
+  });
+
+  it("shows list-level metadata (status, assignee) immediately in sidebar header", () => {
+    mockGet.mockImplementation(() => new Promise(() => {}));
+    const tasks = [
+      { id: "epic-1.1", title: "Task A", epicId: "epic-1", kanbanColumn: "in_review", priority: 0, assignee: "agent-1" },
+    ];
+    const store = createStore(tasks, { selectedTaskId: "epic-1.1" });
+    render(
+      <Provider store={store}>
+        <ExecutePhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    const metadata = screen.getByTestId("task-detail-metadata");
+    expect(metadata).toHaveTextContent("In Review");
+    expect(metadata).toHaveTextContent("agent-1");
+  });
+
+  it("shows loading skeleton for detail-dependent fields while fetching", () => {
+    mockGet.mockImplementation(() => new Promise(() => {}));
+    const tasks = [
+      { id: "epic-1.1", title: "Task A", epicId: "epic-1", kanbanColumn: "in_progress", priority: 0, assignee: null },
+    ];
+    const store = createStore(tasks, { selectedTaskId: "epic-1.1" });
+    render(
+      <Provider store={store}>
+        <ExecutePhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    expect(screen.getByTestId("task-detail-loading")).toBeInTheDocument();
+    expect(screen.getByTestId("artifacts-loading")).toBeInTheDocument();
+  });
+
+  it("shows error state below header without clearing task name when detail fetch fails", async () => {
+    mockGet.mockRejectedValue(new Error("Network error"));
+    const tasks = [
+      { id: "epic-1.1", title: "Task With Error", epicId: "epic-1", kanbanColumn: "in_progress", priority: 0, assignee: null },
+    ];
+    const store = createStore(tasks, { selectedTaskId: "epic-1.1" });
+    render(
+      <Provider store={store}>
+        <ExecutePhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    expect(screen.getByTestId("task-detail-title")).toHaveTextContent("Task With Error");
+    const errorEl = await vi.waitFor(() => screen.getByTestId("task-detail-error"));
+    expect(errorEl).toHaveTextContent("Network error");
   });
 });

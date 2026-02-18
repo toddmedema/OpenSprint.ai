@@ -18,6 +18,7 @@ import { CloseButton } from "../../components/CloseButton";
 import { ResizableSidebar } from "../../components/layout/ResizableSidebar";
 import { BuildEpicCard, TaskStatusBadge, COLUMN_LABELS } from "../../components/kanban";
 import { sortEpicTasksByStatus } from "../../lib/executeTaskSort";
+import { formatUptime } from "../../lib/formatting";
 
 interface ExecutePhaseProps {
   projectId: string;
@@ -259,6 +260,7 @@ export function ExecutePhase({ projectId, onNavigateToPlan }: ExecutePhaseProps)
   const selectedTask = useAppSelector((s) => s.execute.selectedTaskId);
   const taskDetail = useAppSelector((s) => s.execute.taskDetail);
   const taskDetailLoading = useAppSelector((s) => s.execute.taskDetailLoading);
+  const taskDetailError = useAppSelector((s) => s.execute.taskDetailError);
   const agentOutput = useAppSelector((s) => s.execute.agentOutput);
   const completionState = useAppSelector((s) => s.execute.completionState);
   const archivedSessions = useAppSelector((s) => s.execute.archivedSessions);
@@ -471,11 +473,33 @@ export function ExecutePhase({ projectId, onNavigateToPlan }: ExecutePhaseProps)
           >
             <div className="flex items-center justify-between p-4 border-b border-theme-border shrink-0">
               <div className="min-w-0 flex-1 pr-2">
-              <h3 className="font-semibold text-theme-text truncate">
-                {taskDetailLoading ? "Loading…" : taskDetail?.title ?? selectedTask}
+              {/* Task title: show immediately from cached list data, never wait for detail API */}
+              <h3 className="font-semibold text-theme-text truncate" data-testid="task-detail-title">
+                {selectedTaskData?.title ?? taskDetail?.title ?? selectedTask ?? ""}
               </h3>
-              {taskDetail?.epicId && !taskDetailLoading && (() => {
-                const plan = plans.find((p) => p.metadata.beadEpicId === taskDetail.epicId);
+              {/* List-level metadata: status, assignee, elapsed — render immediately from cache */}
+              {selectedTaskData && (
+                <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-theme-muted" data-testid="task-detail-metadata">
+                  <TaskStatusBadge column={selectedTaskData.kanbanColumn} size="xs" title={COLUMN_LABELS[selectedTaskData.kanbanColumn]} />
+                  <span>{COLUMN_LABELS[selectedTaskData.kanbanColumn]}</span>
+                  {selectedTaskData.assignee && (
+                    <>
+                      <span>·</span>
+                      <span className="text-brand-600">{selectedTaskData.assignee}</span>
+                    </>
+                  )}
+                  {taskIdToStartedAt[selectedTask] && (
+                    <>
+                      <span>·</span>
+                      <span className="tabular-nums">{formatUptime(taskIdToStartedAt[selectedTask])}</span>
+                    </>
+                  )}
+                </div>
+              )}
+              {/* View plan link: use cached epicId from list or detail */}
+              {(selectedTaskData?.epicId ?? taskDetail?.epicId) && (() => {
+                const epicId = selectedTaskData?.epicId ?? taskDetail?.epicId;
+                const plan = plans.find((p) => p.metadata.beadEpicId === epicId);
                 if (!plan || !onNavigateToPlan) return null;
                 const planTitle = getEpicTitleFromPlan(plan);
                 return (
@@ -522,8 +546,17 @@ export function ExecutePhase({ projectId, onNavigateToPlan }: ExecutePhaseProps)
                   Active: {activeRoleLabel}
                 </div>
               )}
-              {taskDetailLoading ? (
-                <div className="text-sm text-theme-muted">Loading task details...</div>
+              {taskDetailError ? (
+                <div className="rounded-lg border border-theme-error-border bg-theme-error-bg p-4 text-sm text-theme-error-text" data-testid="task-detail-error">
+                  {taskDetailError}
+                </div>
+              ) : taskDetailLoading ? (
+                <div className="space-y-3" data-testid="task-detail-loading">
+                  <div className="h-4 w-3/4 bg-theme-surface-muted rounded animate-pulse" />
+                  <div className="h-3 w-full bg-theme-surface-muted rounded animate-pulse" />
+                  <div className="h-3 w-2/3 bg-theme-surface-muted rounded animate-pulse" />
+                  <div className="h-24 w-full bg-theme-surface-muted rounded animate-pulse" />
+                </div>
               ) : taskDetail ? (
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-center gap-2 text-xs text-theme-muted">
@@ -586,7 +619,9 @@ export function ExecutePhase({ projectId, onNavigateToPlan }: ExecutePhaseProps)
                   )}
                 </div>
               ) : (
-                <div className="text-sm text-theme-muted">Could not load task details.</div>
+                <div className="text-sm text-theme-muted" data-testid="task-detail-empty">
+                  Could not load task details.
+                </div>
               )}
               </div>
 
@@ -595,7 +630,13 @@ export function ExecutePhase({ projectId, onNavigateToPlan }: ExecutePhaseProps)
                 {isDoneTask ? "Done work artifacts" : "Live agent output"}
               </h4>
               <div className="bg-theme-code-bg rounded-lg border border-theme-border overflow-hidden min-h-[200px] max-h-[400px] flex flex-col">
-                {isDoneTask ? (
+                {taskDetailLoading ? (
+                  <div className="p-4 space-y-2" data-testid="artifacts-loading">
+                    <div className="h-3 w-full bg-theme-surface-muted rounded animate-pulse" />
+                    <div className="h-3 w-4/5 bg-theme-surface-muted rounded animate-pulse" />
+                    <div className="h-20 w-full bg-theme-surface-muted rounded animate-pulse mt-4" />
+                  </div>
+                ) : isDoneTask ? (
                   archivedLoading ? (
                     <div className="p-4 text-theme-muted text-sm">Loading archived sessions...</div>
                   ) : archivedSessions.length === 0 ? (
