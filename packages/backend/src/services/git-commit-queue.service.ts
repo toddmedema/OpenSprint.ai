@@ -14,7 +14,7 @@ const execAsync = promisify(exec);
 /** Job types for main-branch git operations.
  * Commit message patterns per PRD §5.9:
  * - beads: <summary of changes>
- * - prd: updated after Plan <plan-id> built | prd: Spec session update
+ * - prd: updated after Plan <plan-id> built | prd: Sketch session update
  * - merge: opensprint/<task-id> — <task title>
  */
 export type GitCommitJobType = "beads_export" | "prd_update" | "worktree_merge";
@@ -28,8 +28,8 @@ export interface BeadsExportJob {
 export interface PrdUpdateJob {
   type: "prd_update";
   repoPath: string;
-  /** "plan" | "spec" | "eval" — for commit message */
-  source: "plan" | "spec" | "eval";
+  /** "plan" | "sketch" | "eval" — for commit message */
+  source: "plan" | "sketch" | "eval";
   planId?: string;
 }
 
@@ -106,8 +106,8 @@ class GitCommitQueueImpl implements GitCommitQueueService {
       }
       case "prd_update": {
         const msg =
-          job.source === "spec"
-            ? "prd: Spec session update"
+          job.source === "sketch"
+            ? "prd: Sketch session update"
             : job.source === "eval"
               ? "prd: Eval feedback"
               : job.planId
