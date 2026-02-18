@@ -1671,7 +1671,7 @@ export class OrchestratorService {
             return;
           }
 
-          // Read result.json if agent wrote one
+          // Read result.json if agent wrote one — its status is authoritative
           try {
             const raw = await fs.readFile(resultPath, "utf-8");
             const result = JSON.parse(raw) as { status: string; summary?: string };
@@ -1679,10 +1679,13 @@ export class OrchestratorService {
             if (result.status === "success") {
               console.log(`[orchestrator] Merger agent: ${result.summary ?? "conflicts resolved"}`);
               resolve(true);
-              return;
+            } else {
+              console.warn(`[orchestrator] Merger agent reported status: ${result.status}`);
+              resolve(false);
             }
+            return;
           } catch {
-            // No result file — check exit code
+            // No result file — fall back to exit code
           }
 
           resolve(code === 0 && !rebaseStillActive);
