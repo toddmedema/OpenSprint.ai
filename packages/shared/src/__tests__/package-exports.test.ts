@@ -1,8 +1,8 @@
 /**
  * Integration test: verifies that @opensprint/shared package exports resolve
- * correctly when main/types/exports point at ./src/index.ts (source resolution).
- * Both Vite (frontend) and tsx (backend) should resolve to TypeScript source
- * during development.
+ * correctly. Exports use fallback: dist (production) first, src (dev) when dist
+ * is absent. Both Vite (frontend) and tsx (backend) resolve during development;
+ * production build uses compiled dist/ for node dist/index.js.
  */
 import { describe, it, expect } from "vitest";
 import * as shared from "@opensprint/shared";
