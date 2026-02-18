@@ -21,8 +21,9 @@ Building software with AI today is **fragmented and unstructured**. Developers u
 - **No dependency tracking** — parallel features have no mechanism to account for shared dependencies
 - **Manual orchestration overhead** — users spend time managing prompts, context windows, and task sequencing instead of making product decisions
 - **No feedback loop** — there is no structured way to validate completed work and feed findings back into development
+- **Complex tooling** - using advanced AI tools currently requires deep technical familiarity with terminal commands, preventing ordinary people from participating in their full power.
 
-Open Sprint solves this by maintaining context across the entire lifecycle and automating the orchestration of AI development agents. Humans focus on _what_ to build and _why_; AI handles _how_.
+Open Sprint solves this with a Product-Driven web UI that maintains context across the entire lifecycle and automates the orchestration of AI agents. Humans focus on _what_ to build and _why_; AI handles _how_.
 
 _Open Sprint_: The speed of a full-out open sprint. Agile methodology sprints of quick iteration and user feedback. Open source software. And a nod to OpenAI for starting this crazy new era.
 
@@ -36,9 +37,6 @@ cd opensprint
 # Install all dependencies
 npm install
 
-# Add at least one API key (see Configuration below)
-cp .env.example .env
-
 # Start both backend and frontend in development mode
 npm run dev
 ```
@@ -50,22 +48,6 @@ The app will be available at:
 | Frontend  | http://localhost:5173  |
 | Backend   | http://localhost:3100  |
 | WebSocket | ws://localhost:3100/ws |
-
-## Configuration
-
-Open Sprint requires at least one AI provider API key. Create a `.env` file in the project root:
-
-```bash
-# Required — at least one of the following:
-ANTHROPIC_API_KEY=sk-ant-...      # For Claude agents (https://console.anthropic.com/)
-CURSOR_API_KEY=...                 # For Cursor agents (Cursor → Settings → Integrations → User API Keys)
-
-# Optional
-PORT=3100                          # Backend API port (default: 3100)
-NODE_ENV=production                # Set to "production" for production mode
-```
-
-API keys can also be configured through the UI via **Project Settings** after the app is running.
 
 ### Auto-created directories
 
@@ -80,9 +62,9 @@ These are created automatically — no manual setup needed:
 
 ```mermaid
 flowchart LR
-    A["🌙 Dream"] -->|PRD| B["📋 Plan"]
-    B -->|Epics & Tasks| C["🔨 Build"]
-    C -->|Working Code| D["✅ Verify"]
+    A["🌙 Sketch"] -->|PRD| B["📋 Plan"]
+    B -->|Epics & Tasks| C["🔨 Execute"]
+    C -->|Working Code| D["✅ Evaludate"]
     D -->|Feedback| B
 
     style A fill:#3B82F6,color:#fff
@@ -91,12 +73,13 @@ flowchart LR
     style D fill:#10B981,color:#fff
 ```
 
-| Phase      | What happens                                                                     |
-| ---------- | -------------------------------------------------------------------------------- |
-| **Dream**  | Chat with AI to refine your idea into a structured Product Requirements Document |
-| **Plan**   | AI decomposes the PRD into epics, tasks, and a dependency graph                  |
-| **Build**  | AI agents autonomously execute tasks with two-agent code + review cycles         |
-| **Verify** | Submit feedback that AI categorizes and maps back to plan epics for iteration    |
+| Phase        | What happens                                                                     |
+| ------------ | -------------------------------------------------------------------------------- |
+| **Sketch**   | Chat with AI to refine your idea into a structured Product Requirements Document |
+| **Plan**     | AI decomposes the PRD into epics, tasks, and a dependency graph                  |
+| **Execute**  | AI agents autonomously execute tasks with two-agent code + review cycles         |
+| **Evaluate** | Submit feedback that AI categorizes and maps back to plan epics for iteration    |
+| **Deliver**  | Ship your code and deliver value!                                                |
 
 ## Project Structure
 
