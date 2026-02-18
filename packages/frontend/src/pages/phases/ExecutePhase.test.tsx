@@ -1537,7 +1537,7 @@ describe("ExecutePhase task detail cached state", () => {
     expect(screen.getByTestId("task-detail-loading")).toBeInTheDocument();
   });
 
-  it("shows list-level metadata (status, assignee) immediately in sidebar header", () => {
+  it("shows status and assignee in detail section below divider (not in header)", () => {
     mockGet.mockImplementation(() => neverResolves());
     const tasks = [
       {
@@ -1556,9 +1556,15 @@ describe("ExecutePhase task detail cached state", () => {
       </Provider>
     );
 
-    const metadata = screen.getByTestId("task-detail-metadata");
-    expect(metadata).toHaveTextContent("In Review");
-    expect(metadata).toHaveTextContent("agent-1");
+    // Header shows only title, no metadata
+    const header = screen.getByTestId("task-detail-title");
+    expect(header).toHaveTextContent("Task A");
+    expect(screen.queryByTestId("task-detail-metadata")).not.toBeInTheDocument();
+
+    // Status and assignee appear in consolidated section below divider
+    const statusSection = screen.getByTestId("task-detail-status-section");
+    expect(statusSection).toHaveTextContent("In Review");
+    expect(statusSection).toHaveTextContent("agent-1");
   });
 
   it("shows loading skeleton for detail-dependent fields while fetching", () => {

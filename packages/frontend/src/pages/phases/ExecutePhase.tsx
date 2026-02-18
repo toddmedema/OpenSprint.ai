@@ -477,25 +477,6 @@ export function ExecutePhase({ projectId, onNavigateToPlan }: ExecutePhaseProps)
               <h3 className="font-semibold text-theme-text truncate" data-testid="task-detail-title">
                 {selectedTaskData?.title ?? taskDetail?.title ?? selectedTask ?? ""}
               </h3>
-              {/* List-level metadata: status, assignee, elapsed — render immediately from cache */}
-              {selectedTaskData && (
-                <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-theme-muted" data-testid="task-detail-metadata">
-                  <TaskStatusBadge column={selectedTaskData.kanbanColumn} size="xs" title={COLUMN_LABELS[selectedTaskData.kanbanColumn]} />
-                  <span>{COLUMN_LABELS[selectedTaskData.kanbanColumn]}</span>
-                  {selectedTaskData.assignee && (
-                    <>
-                      <span>·</span>
-                      <span className="text-brand-600">{selectedTaskData.assignee}</span>
-                    </>
-                  )}
-                  {taskIdToStartedAt[selectedTask] && (
-                    <>
-                      <span>·</span>
-                      <span className="tabular-nums">{formatUptime(taskIdToStartedAt[selectedTask])}</span>
-                    </>
-                  )}
-                </div>
-              )}
               {/* View plan link: use cached epicId from list or detail */}
               {(selectedTaskData?.epicId ?? taskDetail?.epicId) && (() => {
                 const epicId = selectedTaskData?.epicId ?? taskDetail?.epicId;
@@ -542,6 +523,25 @@ export function ExecutePhase({ projectId, onNavigateToPlan }: ExecutePhaseProps)
 
             <div className="flex-1 overflow-y-auto min-h-0">
               <div className="p-4 border-b border-theme-border">
+              {/* Status details: consolidated below divider with color indicator, icon, assignee, running time */}
+              {(selectedTaskData ?? taskDetail) && (
+                <div className="flex flex-wrap items-center gap-2 mb-3 text-xs text-theme-muted" data-testid="task-detail-status-section">
+                  <TaskStatusBadge column={(taskDetail ?? selectedTaskData)!.kanbanColumn} size="xs" title={COLUMN_LABELS[(taskDetail ?? selectedTaskData)!.kanbanColumn]} />
+                  <span>{COLUMN_LABELS[(taskDetail ?? selectedTaskData)!.kanbanColumn]}</span>
+                  {((taskDetail ?? selectedTaskData)!.assignee) && (
+                    <>
+                      <span>·</span>
+                      <span className="text-brand-600">{((taskDetail ?? selectedTaskData)!).assignee}</span>
+                    </>
+                  )}
+                  {selectedTask && taskIdToStartedAt[selectedTask] && (
+                    <>
+                      <span>·</span>
+                      <span className="tabular-nums">{formatUptime(taskIdToStartedAt[selectedTask])}</span>
+                    </>
+                  )}
+                </div>
+              )}
               {activeRoleLabel && (
                 <div className="mb-3 px-3 py-1.5 rounded-md bg-theme-warning-bg border border-theme-warning-border text-xs font-medium text-theme-warning-text">
                   Active: {activeRoleLabel}
@@ -562,14 +562,6 @@ export function ExecutePhase({ projectId, onNavigateToPlan }: ExecutePhaseProps)
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-center gap-2 text-xs text-theme-muted">
                     <span className="text-theme-muted">{PRIORITY_LABELS[taskDetail.priority] ?? "Medium"}</span>
-                    <span className="text-theme-muted">·</span>
-                    <span className="text-theme-muted">{COLUMN_LABELS[taskDetail.kanbanColumn]}</span>
-                    {taskDetail.assignee && (
-                      <>
-                        <span className="text-theme-muted">·</span>
-                        <span className="text-brand-600">{taskDetail.assignee}</span>
-                      </>
-                    )}
                   </div>
                   {taskDetail.sourceFeedbackId && (
                     <SourceFeedbackSection
