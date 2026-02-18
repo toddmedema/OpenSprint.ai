@@ -342,17 +342,23 @@ export class BranchManager {
   }
 
   /**
-   * Capture uncommitted changes (working tree + staged) in the given path.
+   * Capture uncommitted changes (working tree + staged + untracked) in the given path.
    * Use worktree path when agent runs in a worktree.
    * Returns empty string if no uncommitted changes or on error.
+   * Temporarily stages all changes to include untracked files, then unstages.
    */
   async captureUncommittedDiff(gitPath: string): Promise<string> {
     try {
-      const { stdout } = await execAsync("git diff HEAD", {
-        cwd: gitPath,
-        maxBuffer: 10 * 1024 * 1024,
-      });
-      return stdout;
+      await execAsync("git add -A", { cwd: gitPath });
+      try {
+        const { stdout } = await execAsync("git diff --cached HEAD", {
+          cwd: gitPath,
+          maxBuffer: 10 * 1024 * 1024,
+        });
+        return stdout;
+      } finally {
+        await execAsync("git reset HEAD", { cwd: gitPath }).catch(() => {});
+      }
     } catch {
       return "";
     }
