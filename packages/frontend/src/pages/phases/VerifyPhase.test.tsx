@@ -100,6 +100,19 @@ describe("EvalPhase header", () => {
     expect(description).toBeInTheDocument();
     expect(description).toHaveClass("text-theme-muted");
   });
+
+  it("renders header with dark-mode-compatible surface styling", () => {
+    const store = createStore();
+    render(
+      <Provider store={store}>
+        <EvalPhase projectId="proj-1" />
+      </Provider>,
+    );
+
+    const headerSection = screen.getByTestId("eval-phase-header");
+    expect(headerSection).toBeInTheDocument();
+    expect(headerSection).toHaveClass("bg-theme-surface", "border-b", "border-theme-border");
+  });
 });
 
 describe("EvalPhase feedback input", () => {
