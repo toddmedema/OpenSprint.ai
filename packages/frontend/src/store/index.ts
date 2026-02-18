@@ -7,7 +7,9 @@ import planReducer from "./slices/planSlice";
 import executeReducer from "./slices/executeSlice";
 import evalReducer from "./slices/evalSlice";
 import deployReducer from "./slices/deploySlice";
+import notificationReducer from "./slices/notificationSlice";
 import { websocketMiddleware } from "./middleware/websocketMiddleware";
+import { notificationListener } from "./listeners/notificationListener";
 
 export const store = configureStore({
   reducer: {
@@ -18,13 +20,16 @@ export const store = configureStore({
     execute: executeReducer,
     eval: evalReducer,
     deploy: deployReducer,
+    notification: notificationReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: {
         ignoredActions: ["ws/connect", "ws/disconnect", "ws/send"],
       },
-    }).concat(websocketMiddleware),
+    })
+      .concat(websocketMiddleware)
+      .prepend(notificationListener.middleware),
 });
 
 export type RootState = ReturnType<typeof store.getState>;

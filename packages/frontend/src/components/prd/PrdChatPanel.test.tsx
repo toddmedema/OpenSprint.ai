@@ -8,8 +8,6 @@ const defaultProps = {
   onOpenChange: vi.fn(),
   messages: [],
   sending: false,
-  error: null,
-  onDismissError: vi.fn(),
   selectionContext: null,
   onClearSelectionContext: vi.fn(),
   onSend: vi.fn(),

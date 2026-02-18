@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams, useNavigate, useLocation, Navigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation, Navigate, Link } from "react-router-dom";
 import type { ProjectPhase } from "@opensprint/shared";
 import {
   phaseFromSlug,
@@ -201,13 +201,16 @@ export function ProjectView() {
     );
   }
 
-  // Error state
+  // Error state — notification bar shows error details
   if (projectError || !project) {
     return (
       <>
         <Layout>
-          <div className="flex items-center justify-center h-full text-red-500">
-            {projectError ?? "Project not found"}
+          <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-500">
+            <p>Project not found or failed to load.</p>
+            <Link to="/" className="text-brand-600 hover:text-brand-700 font-medium">
+              Return to home
+            </Link>
           </div>
         </Layout>
         {hilRequest && <HilApprovalModal request={hilRequest} onRespond={handleRespondToHil} />}

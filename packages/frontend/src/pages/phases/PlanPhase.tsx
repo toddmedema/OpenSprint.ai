@@ -13,7 +13,6 @@ import {
   updatePlan,
   setSelectedPlanId,
   addPlanLocally,
-  setPlanError,
 } from "../../store/slices/planSlice";
 import { api } from "../../api/client";
 import { AddPlanModal } from "../../components/AddPlanModal";
@@ -65,7 +64,6 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   const executingPlanId = useAppSelector((s) => s.plan.executingPlanId);
   const reExecutingPlanId = useAppSelector((s) => s.plan.reExecutingPlanId);
   const archivingPlanId = useAppSelector((s) => s.plan.archivingPlanId);
-  const error = useAppSelector((s) => s.plan.error);
   const executeTasks = useAppSelector((s) => s.execute.tasks);
 
   /* ── Local UI state (preserved by mount-all) ── */
@@ -77,7 +75,6 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   const [statusFilter, setStatusFilter] = useState<"all" | PlanStatus>("all");
   const [chatInput, setChatInput] = useState("");
   const [chatSending, setChatSending] = useState(false);
-  const [chatError, setChatError] = useState<string | null>(null);
   const [tasksSectionExpanded, setTasksSectionExpanded] = useState(true);
   const [dependencyGraphExpanded, setDependencyGraphExpanded] = useState(
     loadDependencyGraphExpanded
@@ -137,7 +134,6 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   useEffect(() => {
     if (planContext) {
       dispatch(fetchPlanChat({ projectId, context: planContext }));
-      setChatError(null);
     }
   }, [planContext, projectId, dispatch]);
 
@@ -147,7 +143,6 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   }, [currentChatMessages]);
 
   const handleShip = async (planId: string) => {
-    dispatch(setPlanError(null));
     try {
       const deps = await api.plans.getCrossEpicDependencies(projectId, planId);
       if (deps.prerequisitePlanIds.length > 0) {
@@ -167,7 +162,6 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
     if (!crossEpicModal) return;
     const { planId, prerequisitePlanIds } = crossEpicModal;
     setCrossEpicModal(null);
-    dispatch(setPlanError(null));
     const result = await dispatch(executePlan({ projectId, planId, prerequisitePlanIds }));
     if (executePlan.fulfilled.match(result)) {
       dispatch(fetchPlans(projectId));
@@ -175,7 +169,6 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   };
 
   const handleReship = async (planId: string) => {
-    dispatch(setPlanError(null));
     const result = await dispatch(reExecutePlan({ projectId, planId }));
     if (reExecutePlan.fulfilled.match(result)) {
       dispatch(fetchPlans(projectId));
@@ -183,7 +176,6 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   };
 
   const handleArchive = async (planId: string) => {
-    dispatch(setPlanError(null));
     const result = await dispatch(archivePlan({ projectId, planId }));
     if (archivePlan.fulfilled.match(result)) {
       dispatch(fetchPlans(projectId));
@@ -226,7 +218,6 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
     const text = chatInput.trim();
     setChatInput("");
     setChatSending(true);
-    setChatError(null);
 
     const result = await dispatch(
       sendPlanMessage({ projectId, message: text, context: planContext })
@@ -235,8 +226,6 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
     if (sendPlanMessage.fulfilled.match(result)) {
       dispatch(fetchPlans(projectId));
       dispatch(fetchSinglePlan({ projectId, planId: selectedPlan!.metadata.planId }));
-    } else if (sendPlanMessage.rejected.match(result)) {
-      setChatError(result.error.message ?? "Failed to send message. Please try again.");
     }
 
     setChatSending(false);
@@ -244,18 +233,6 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
 
   return (
     <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
-      {error && (
-        <div className="mx-4 mt-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex justify-between items-center shrink-0">
-          <span>{error}</span>
-          <button
-            type="button"
-            onClick={() => dispatch(setPlanError(null))}
-            className="text-red-500 hover:text-red-700 underline"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
       {/* Main content */}
       <div className="flex-1 min-w-0 min-h-0 overflow-y-auto p-6">
         {/* Dependency Graph — collapsible top-level container */}
@@ -530,19 +507,6 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
 
           {/* Pinned chat input at bottom */}
           <div className="shrink-0 border-t border-gray-200 p-4 bg-gray-50">
-            {chatError && (
-              <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700 flex justify-between items-center">
-                <span>{chatError}</span>
-                <button
-                  type="button"
-                  onClick={() => setChatError(null)}
-                  className="text-red-500 hover:text-red-700 underline"
-                >
-                  Dismiss
-                </button>
-              </div>
-            )}
-
             <div className="flex gap-2">
               <input
                 type="text"

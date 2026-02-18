@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useMemo } from "react";
 import type { FeedbackItem, KanbanColumn } from "@opensprint/shared";
 import { useAppDispatch, useAppSelector } from "../../store";
-import { submitFeedback, resolveFeedback, setEvalError } from "../../store/slices/evalSlice";
+import { submitFeedback, resolveFeedback } from "../../store/slices/evalSlice";
 import { TaskStatusBadge, COLUMN_LABELS } from "../../components/kanban";
 
 /** Reply icon (message turn / corner up-right) */
@@ -370,7 +370,6 @@ export function EvalPhase({ projectId, onNavigateToBuildTask }: EvalPhaseProps) 
   const executeTasks = useAppSelector((s) => s.execute.tasks);
   const loading = useAppSelector((s) => s.eval.loading);
   const submitting = useAppSelector((s) => s.eval.submitting);
-  const error = useAppSelector((s) => s.eval.error);
 
   const getTaskColumn = useCallback(
     (taskId: string): KanbanColumn => {
@@ -498,14 +497,6 @@ export function EvalPhase({ projectId, onNavigateToBuildTask }: EvalPhaseProps) 
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-3xl mx-auto px-6 py-8">
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex justify-between items-center">
-            <span>{error}</span>
-            <button type="button" onClick={() => dispatch(setEvalError(null))} className="text-red-500 hover:text-red-700 underline">
-              Dismiss
-            </button>
-          </div>
-        )}
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-1">Eval</h2>
           <p className="text-sm text-gray-500">

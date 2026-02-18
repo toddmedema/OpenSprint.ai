@@ -69,7 +69,6 @@ export function DeliverPhase({ projectId, onOpenSettings }: DeliverPhaseProps) {
   const deployLoading = useAppSelector((s) => s.deploy.deployLoading);
   const historyLoading = useAppSelector((s) => s.deploy.historyLoading);
   const rollbackLoading = useAppSelector((s) => s.deploy.rollbackLoading);
-  const error = useAppSelector((s) => s.deploy.error);
 
   useEffect(() => {
     api.projects
@@ -180,11 +179,6 @@ export function DeliverPhase({ projectId, onOpenSettings }: DeliverPhaseProps) {
           </div>
         </div>
 
-        {error && (
-          <div className="mx-4 mt-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 shrink-0">
-            {error}
-          </div>
-        )}
 
         <div className="flex-1 min-h-0 flex overflow-hidden">
           <ResizableSidebar storageKey="deliver" defaultWidth={280} visible>

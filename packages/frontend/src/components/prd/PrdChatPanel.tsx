@@ -19,8 +19,10 @@ export interface PrdChatPanelProps {
   onOpenChange: (open: boolean) => void;
   messages: ChatMessage[];
   sending: boolean;
-  error: string | null;
-  onDismissError: () => void;
+  /** @deprecated Use global notification bar instead */
+  error?: string | null;
+  /** @deprecated Use global notification bar instead */
+  onDismissError?: () => void;
   selectionContext: SelectionContext | null;
   onClearSelectionContext: () => void;
   onSend: (message: string) => void;
@@ -38,8 +40,6 @@ export function PrdChatPanel({
   onOpenChange,
   messages,
   sending,
-  error,
-  onDismissError,
   selectionContext,
   onClearSelectionContext,
   onSend,
@@ -163,16 +163,6 @@ export function PrdChatPanel({
                 <p className="text-brand-600 dark:text-brand-400 line-clamp-2 italic">
                   &ldquo;{selectionContext.text}&rdquo;
                 </p>
-              </div>
-            )}
-
-            {/* Error banner */}
-            {error && (
-              <div className="mx-3 mb-1 p-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg text-xs text-red-700 dark:text-red-300">
-                {error}
-                <button type="button" onClick={onDismissError} className="ml-1 underline">
-                  Dismiss
-                </button>
               </div>
             )}
 
@@ -311,16 +301,6 @@ export function PrdChatPanel({
           <p className="text-brand-600 dark:text-brand-400 line-clamp-2 italic">
             &ldquo;{selectionContext.text}&rdquo;
           </p>
-        </div>
-      )}
-
-      {/* Error banner */}
-      {error && (
-        <div className="mx-3 mb-1 p-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg text-xs text-red-700 dark:text-red-300">
-          {error}
-          <button type="button" onClick={onDismissError} className="ml-1 underline">
-            Dismiss
-          </button>
         </div>
       )}
 
