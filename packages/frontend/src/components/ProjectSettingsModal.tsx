@@ -797,7 +797,7 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
                       Delivery Mode
                     </label>
                     <div className="space-y-3">
-                      <label className="flex items-start gap-3 p-3 rounded-lg border border-theme-border hover:border-brand-300 cursor-pointer transition-colors">
+                      <label className="flex items-start gap-3 p-3 rounded-lg border border-theme-border hover:border-theme-info-border cursor-pointer transition-colors">
                         <input
                           type="radio"
                           name="deployment"
@@ -815,7 +815,7 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
                           </p>
                         </div>
                       </label>
-                      <label className="flex items-start gap-3 p-3 rounded-lg border border-theme-border hover:border-brand-300 cursor-pointer transition-colors">
+                      <label className="flex items-start gap-3 p-3 rounded-lg border border-theme-border hover:border-theme-info-border cursor-pointer transition-colors">
                         <input
                           type="radio"
                           name="deployment"

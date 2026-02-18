@@ -469,7 +469,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
                         key={task.id}
                         type="button"
                         onClick={() => onNavigateToBuildTask?.(task.id)}
-                        className="w-full flex items-center gap-2 p-2 bg-theme-surface rounded-lg border border-theme-border text-sm text-left hover:border-brand-500 hover:bg-brand-50/50 transition-colors cursor-pointer"
+                        className="w-full flex items-center gap-2 p-2 bg-theme-surface rounded-lg border border-theme-border text-sm text-left hover:border-theme-info-border hover:bg-theme-info-bg/50 transition-colors cursor-pointer"
                       >
                         <span
                           className={`shrink-0 w-2 h-2 rounded-full ${

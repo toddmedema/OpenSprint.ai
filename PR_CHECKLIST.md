@@ -2,6 +2,20 @@
 
 All major UI surfaces audited and updated to use theme-aware design tokens. No hard-coded color literals remain in component styles.
 
+## Fixes Applied (opensprint.dev-ax8.5)
+
+- **DependencyGraph**: Replaced `#6b7280` fallback with theme-aware `getThemeColor()` using `--color-text-muted` fallback
+- **Navbar**: Selected project `bg-brand-50 text-brand-700` → `bg-theme-info-bg text-theme-info-text`; Create link `hover:bg-brand-50` → `hover:bg-theme-info-bg`
+- **HomeScreen**: Phase badge `bg-brand-50 text-brand-700` → `bg-theme-info-bg text-theme-info-text`
+- **PlanPhase**: Plan list hover → `hover:border-theme-info-border hover:bg-theme-info-bg/50`
+- **EvalPhase**: Feedback ID hover → `hover:bg-theme-info-bg hover:text-theme-info-text`
+- **PlanDetailContent**: Focus ring → `focus:border-theme-info-border focus:ring-theme-info-border/30`
+- **EpicCard**: Hover ring → `hover:ring-theme-info-border/50`
+- **EpicTaskTable**, **BuildEpicCard**: Row/item hover → `hover:bg-theme-info-bg/50`
+- **AgentDashboard**: Selected agent → `border-theme-info-border bg-theme-info-bg`
+- **ProjectSettingsModal**, **DeploymentStep**: Radio hover → `hover:border-theme-info-border`
+- **Layout**: Outer and main use `bg-theme-bg` for proper page background layering
+
 ## Theme System
 
 - **index.css**: Added semantic theme tokens for light/dark/system:
@@ -73,3 +87,4 @@ All major UI surfaces audited and updated to use theme-aware design tokens. No h
 - `TaskStatusBadge.test.tsx` — Column and icon class assertions
 - `ExecutePhase.test.tsx` — Resolved chip classes
 - `VerifyPhase.test.tsx` — Resolved chip classes (EvalPhase)
+- `components/__tests__/themeTokens.integration.test.tsx` — Layout, HomeScreen, dark theme token usage

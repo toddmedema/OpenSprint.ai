@@ -147,7 +147,7 @@ export function AgentDashboard({ projectId }: AgentDashboardProps) {
                     onClick={() => setSelectedAgent(agent.taskId)}
                     className={`w-full text-left p-3 rounded-lg border transition-colors ${
                       selectedAgent === agent.taskId
-                        ? "border-brand-300 bg-brand-50 dark:border-brand-600 dark:bg-brand-900/30"
+                        ? "border-theme-info-border bg-theme-info-bg"
                         : "border-theme-border hover:border-theme-ring"
                     }`}
                   >

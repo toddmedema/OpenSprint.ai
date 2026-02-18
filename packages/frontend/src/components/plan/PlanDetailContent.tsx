@@ -104,7 +104,7 @@ export function PlanDetailContent({
             onBlur={handleTitleBlur}
             onKeyDown={handleTitleKeyDown}
             disabled={saving}
-            className="w-full font-semibold text-theme-text bg-transparent border border-transparent rounded px-2 py-1 -ml-2 hover:border-theme-border focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-colors disabled:opacity-50"
+            className="w-full font-semibold text-theme-text bg-transparent border border-transparent rounded px-2 py-1 -ml-2 hover:border-theme-border focus:border-theme-info-border focus:ring-2 focus:ring-theme-info-border/30 outline-none transition-colors disabled:opacity-50"
             placeholder="Title"
             aria-label="Title"
           />

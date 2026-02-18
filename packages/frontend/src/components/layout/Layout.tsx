@@ -23,7 +23,7 @@ export function Layout({
   onSettingsOpenChange,
 }: LayoutProps) {
   return (
-    <div className="h-full flex flex-col bg-theme-surface">
+    <div className="h-full flex flex-col bg-theme-bg">
       <Navbar
         project={project}
         currentPhase={currentPhase}
@@ -33,7 +33,7 @@ export function Layout({
         onSettingsOpenChange={onSettingsOpenChange}
       />
       <NotificationBar />
-      <main className="flex-1 min-h-0 flex flex-col overflow-hidden bg-theme-surface">{children}</main>
+      <main className="flex-1 min-h-0 flex flex-col overflow-hidden bg-theme-bg">{children}</main>
     </div>
   );
 }

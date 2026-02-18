@@ -13,10 +13,12 @@ interface Dimensions {
 }
 
 /** Read theme token from CSS variable (D3/SVG cannot inherit Tailwind classes). */
-function getThemeColor(varName: string): string {
-  if (typeof document === "undefined") return "#6b7280";
+function getThemeColor(varName: string, fallbackVar = "--color-text-muted"): string {
+  if (typeof document === "undefined") return "currentColor";
   const value = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
-  return value || "#6b7280";
+  if (value) return value;
+  const fallback = getComputedStyle(document.documentElement).getPropertyValue(fallbackVar).trim();
+  return fallback || "currentColor";
 }
 
 /** Compute critical path edges (longest path in DAG). Returns Set of "from->to" keys. */

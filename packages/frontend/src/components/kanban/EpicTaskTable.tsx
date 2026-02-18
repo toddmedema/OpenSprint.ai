@@ -86,7 +86,7 @@ function EpicTaskRow({
           onClick();
         }
       }}
-      className="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-4 py-2.5 items-center hover:bg-brand-50/50 cursor-pointer transition-colors text-sm"
+      className="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-4 py-2.5 items-center hover:bg-theme-info-bg/50 cursor-pointer transition-colors text-sm"
     >
       <div className="min-w-0">
         <span className="font-medium text-theme-text truncate block" title={task.title}>

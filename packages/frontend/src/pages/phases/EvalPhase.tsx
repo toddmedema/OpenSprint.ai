@@ -234,7 +234,7 @@ function FeedbackCard({
                     key={taskId}
                     type="button"
                     onClick={() => onNavigateToBuildTask(taskId)}
-                    className="inline-flex items-center gap-1.5 rounded bg-theme-border-subtle px-1.5 py-0.5 text-xs font-mono text-brand-600 hover:bg-brand-50 hover:text-brand-700 underline transition-colors"
+                    className="inline-flex items-center gap-1.5 rounded bg-theme-border-subtle px-1.5 py-0.5 text-xs font-mono text-brand-600 hover:bg-theme-info-bg hover:text-theme-info-text underline transition-colors"
                     title={`Go to ${taskId} on Execute tab (${statusLabel})`}
                   >
                     <TaskStatusBadge column={column} size="xs" />

@@ -22,7 +22,7 @@ export function DeploymentStep({
       <div>
         <label className="block text-sm font-medium text-theme-text mb-3">Delivery Mode</label>
         <div className="space-y-3">
-          <label className="flex items-start gap-3 p-3 rounded-lg border border-theme-border hover:border-brand-300 cursor-pointer transition-colors">
+          <label className="flex items-start gap-3 p-3 rounded-lg border border-theme-border hover:border-theme-info-border cursor-pointer transition-colors">
             <input
               type="radio"
               name="deployment"
@@ -36,7 +36,7 @@ export function DeploymentStep({
               <p className="text-xs text-theme-muted">Automatic delivery for React Native and web projects</p>
             </div>
           </label>
-          <label className="flex items-start gap-3 p-3 rounded-lg border border-theme-border hover:border-brand-300 cursor-pointer transition-colors">
+          <label className="flex items-start gap-3 p-3 rounded-lg border border-theme-border hover:border-theme-info-border cursor-pointer transition-colors">
             <input
               type="radio"
               name="deployment"

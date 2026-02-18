@@ -109,7 +109,7 @@ export function Navbar({
                       navigate(getProjectPhasePath(p.id, currentPhase ?? "sketch"));
                     }}
                     className={`w-full text-left px-4 py-2 text-sm hover:bg-theme-bg-elevated transition-colors ${
-                      p.id === project?.id ? "bg-brand-50 text-brand-700 font-medium" : "text-theme-muted"
+                      p.id === project?.id ? "bg-theme-info-bg text-theme-info-text font-medium" : "text-theme-muted"
                     }`}
                   >
                     {p.name}
@@ -123,7 +123,7 @@ export function Navbar({
                       setDropdownOpen(false);
                       navigate("/projects/new");
                     }}
-                    className="w-full text-left px-4 py-2 text-sm text-brand-600 hover:bg-brand-50 font-medium"
+                    className="w-full text-left px-4 py-2 text-sm text-brand-600 hover:bg-theme-info-bg font-medium"
                   >
                     + Create New Project
                   </button>

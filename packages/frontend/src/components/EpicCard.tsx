@@ -66,7 +66,7 @@ export function EpicCard({
   return (
     <div
       className="group relative overflow-hidden rounded-xl bg-theme-surface shadow-sm ring-1 ring-theme-border cursor-pointer
-        hover:shadow-lg hover:ring-brand-200/80 transition-all duration-200 ease-out hover:-translate-y-0.5
+        hover:shadow-lg hover:ring-theme-info-border/50 transition-all duration-200 ease-out hover:-translate-y-0.5
         focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
       onClick={onSelect}
       role="button"

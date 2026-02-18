@@ -74,7 +74,7 @@ export function BuildEpicCard({
                   <button
                     type="button"
                     onClick={() => onTaskSelect(task.id)}
-                    className="flex-1 flex items-center gap-3 text-left hover:bg-brand-50/50 transition-colors text-sm min-w-0"
+                    className="flex-1 flex items-center gap-3 text-left hover:bg-theme-info-bg/50 transition-colors text-sm min-w-0"
                   >
                     <span
                       className={`shrink-0 w-2 h-2 rounded-full ${
@@ -118,7 +118,7 @@ export function BuildEpicCard({
             <button
               type="button"
               onClick={() => setExpanded(true)}
-              className="w-full px-4 py-2.5 text-xs font-medium text-brand-600 hover:text-brand-700 hover:bg-brand-50/50 dark:hover:bg-brand-900/30 transition-colors border-t border-theme-border-subtle"
+              className="w-full px-4 py-2.5 text-xs font-medium text-brand-600 hover:text-brand-700 hover:bg-theme-info-bg/50 transition-colors border-t border-theme-border-subtle"
             >
               +{hiddenCount} more
             </button>
