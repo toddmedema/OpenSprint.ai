@@ -1,4 +1,4 @@
-# OpenSprint
+# Open Sprint
 
 **Build _good_ software at the speed of thought.**
 
@@ -11,9 +11,9 @@
   <img src="docs/assets/hero-screenshot.png" alt="OpenSprint — Dream, Plan, Build, Verify" width="800" />
 </p>
 
-OpenSprint orchestrates AI agents across five phases — SPEED: **Sketch**, **Plan**, **Execute**, **Eval**, and **Deliver** — to transform a high-level product idea into well-architected, working software with minimal manual intervention.
+Open Sprint orchestrates AI agents across five phases — SPEED: **Sketch**, **Plan**, **Execute**, **Eval**, and **Deliver** — to transform a high-level product idea into well-architected, working software with minimal manual intervention.
 
-## Why OpenSprint?
+## Why Open Sprint?
 
 Building software with AI today is **fragmented and unstructured**. Developers use AI coding assistants for individual tasks, but there is no cohesive system that manages the full journey from idea to deployed product. This leads to:
 
@@ -22,9 +22,9 @@ Building software with AI today is **fragmented and unstructured**. Developers u
 - **Manual orchestration overhead** — users spend time managing prompts, context windows, and task sequencing instead of making product decisions
 - **No feedback loop** — there is no structured way to validate completed work and feed findings back into development
 
-OpenSprint solves this by maintaining context across the entire lifecycle and automating the orchestration of AI development agents. Humans focus on _what_ to build and _why_; AI handles _how_.
+Open Sprint solves this by maintaining context across the entire lifecycle and automating the orchestration of AI development agents. Humans focus on _what_ to build and _why_; AI handles _how_.
 
-_OpenSprint_: The speed of a full-out open sprint. Agile methodology sprints of quick iteration and user feedback. Open source software. And a nod to OpenAI for starting this crazy new era.
+_Open Sprint_: The speed of a full-out open sprint. Agile methodology sprints of quick iteration and user feedback. Open source software. And a nod to OpenAI for starting this crazy new era.
 
 ## Quick Start
 
@@ -53,7 +53,7 @@ The app will be available at:
 
 ## Configuration
 
-OpenSprint requires at least one AI provider API key. Create a `.env` file in the project root:
+Open Sprint requires at least one AI provider API key. Create a `.env` file in the project root:
 
 ```bash
 # Required — at least one of the following:

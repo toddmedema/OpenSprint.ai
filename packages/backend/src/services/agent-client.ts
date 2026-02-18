@@ -43,7 +43,7 @@ function formatAgentError(agentType: "claude" | "cursor" | "custom", raw: string
 
   // Timeout
   if (lower.includes("timeout") || lower.includes("etimedout")) {
-    return `Agent timed out after 2 minutes. ${raw}`;
+    return `Agent timed out after 5 minutes. ${raw}`;
   }
 
   // API key / 401
@@ -272,7 +272,7 @@ export class AgentClient {
         `claude ${modelArg} --print "${fullPrompt.replace(/"/g, '\\"')}"`,
         {
           cwd: options.cwd || process.cwd(),
-          timeout: 120000,
+          timeout: 300_000,
           maxBuffer: 10 * 1024 * 1024,
         }
       );
@@ -347,7 +347,7 @@ export class AgentClient {
           );
 
       const raw = isTimeout
-        ? `The Cursor agent timed out. Try a different model in Project Settings, or use Claude instead.`
+        ? `The Cursor agent timed out after 5 minutes. Try a faster model (e.g. sonnet-4.6-thinking) in Project Settings, or use Claude instead.`
         : isAppErr
           ? error.message
           : (error as { stderr?: string }).stderr || (error as Error).message;
@@ -369,7 +369,7 @@ export class AgentClient {
   /** Run Cursor agent via spawn; stream stdout/stderr to terminal and collect output */
   private runCursorAgentSpawn(args: string[], cwd: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      const TIMEOUT_MS = 120_000;
+      const TIMEOUT_MS = 300_000;
       let stdout = "";
       let stderr = "";
 
@@ -462,7 +462,7 @@ export class AgentClient {
     try {
       const { stdout } = await execAsync(`${config.cliCommand} "${prompt.replace(/"/g, '\\"')}"`, {
         cwd: options.cwd || process.cwd(),
-        timeout: 120000,
+        timeout: 300_000,
         maxBuffer: 10 * 1024 * 1024,
       });
 
