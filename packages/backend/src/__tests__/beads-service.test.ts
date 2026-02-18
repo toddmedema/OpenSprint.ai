@@ -41,6 +41,7 @@ describe("BeadsService", () => {
     expect(typeof beads.runBd).toBe("function");
     expect(typeof beads.getBlockers).toBe("function");
     expect(typeof beads.areAllBlockersClosed).toBe("function");
+    expect(typeof beads.configSet).toBe("function");
   });
 
   it("runBd should return parsed JSON from bd output", async () => {

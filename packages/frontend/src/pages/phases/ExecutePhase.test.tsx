@@ -22,7 +22,7 @@ vi.mock("../../api/client", () => ({
       unblock: (...args: unknown[]) => mockUnblock(...args),
     },
     plans: {
-      list: vi.fn().mockResolvedValue({ plans: [], dependencyGraph: null }),
+      list: vi.fn().mockResolvedValue({ plans: [], edges: [] }),
     },
     execute: {
       status: vi.fn().mockResolvedValue({}),
