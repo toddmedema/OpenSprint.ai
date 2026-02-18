@@ -23,7 +23,7 @@ const STEPS: { key: Step; label: string }[] = [
   { key: "basics", label: "Project Info" },
   { key: "repository", label: "Repository" },
   { key: "agents", label: "Agent Config" },
-  { key: "deployment", label: "Deployment" },
+  { key: "deployment", label: "Deliver" },
   { key: "testing", label: "Testing" },
   { key: "hil", label: "Autonomy" },
   { key: "confirm", label: "Confirm" },

@@ -434,23 +434,23 @@ describe("ProjectView global deliver toast", () => {
 
   it("shows DeliverToast when deliverToast is in state (global, regardless of active tab)", async () => {
     const store = createStore();
-    store.dispatch(setDeliverToast({ message: "Deployment succeeded", variant: "succeeded" }));
+    store.dispatch(setDeliverToast({ message: "Delivery succeeded", variant: "succeeded" }));
     renderWithRouter("/projects/proj-1/spec", store);
 
     await waitFor(() => {
       expect(screen.getByTestId("deliver-toast")).toBeInTheDocument();
-      expect(screen.getByText("Deployment succeeded")).toBeInTheDocument();
+      expect(screen.getByText("Delivery succeeded")).toBeInTheDocument();
     });
   });
 
   it("shows deliver toast on deliver phase as well (confirms global visibility)", async () => {
     const store = createStore();
-    store.dispatch(setDeliverToast({ message: "Deployment failed", variant: "failed" }));
+    store.dispatch(setDeliverToast({ message: "Delivery failed", variant: "failed" }));
     renderWithRouter("/projects/proj-1/deliver", store);
 
     await waitFor(() => {
       expect(screen.getByTestId("deliver-toast")).toBeInTheDocument();
-      expect(screen.getByText("Deployment failed")).toBeInTheDocument();
+      expect(screen.getByText("Delivery failed")).toBeInTheDocument();
     });
   });
 });

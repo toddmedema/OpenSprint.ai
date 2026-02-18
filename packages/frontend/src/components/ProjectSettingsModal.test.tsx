@@ -59,7 +59,7 @@ describe("ProjectSettingsModal", () => {
     await screen.findByText("Project Settings");
     expect(screen.getByText("Project Info")).toBeInTheDocument();
     expect(screen.getByText("Agent Config")).toBeInTheDocument();
-    expect(screen.getByText("Deployment")).toBeInTheDocument();
+    expect(screen.getByText("Deliver")).toBeInTheDocument();
     expect(screen.getByText("Autonomy")).toBeInTheDocument();
   });
 
@@ -210,11 +210,11 @@ describe("ProjectSettingsModal", () => {
     expect(screen.queryByText(/Test Failures|testFailuresAndRetries/i)).not.toBeInTheDocument();
   });
 
-  it("Deployment tab shows auto-deploy toggles (PRD §7.5.3)", async () => {
+  it("Deliver tab shows auto-deploy toggles (PRD §7.5.3)", async () => {
     render(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
     await screen.findByText("Project Settings");
 
-    const deploymentTab = screen.getByRole("button", { name: "Deployment" });
+    const deploymentTab = screen.getByRole("button", { name: "Deliver" });
     await userEvent.click(deploymentTab);
 
     expect(screen.getByText("Auto-deploy on epic completion")).toBeInTheDocument();
@@ -229,7 +229,7 @@ describe("ProjectSettingsModal", () => {
     render(<ProjectSettingsModal project={mockProject} onClose={onClose} onSaved={onSaved} />);
     await screen.findByText("Project Settings");
 
-    const deploymentTab = screen.getByRole("button", { name: "Deployment" });
+    const deploymentTab = screen.getByRole("button", { name: "Deliver" });
     await userEvent.click(deploymentTab);
 
     const epicToggle = screen.getByTestId("auto-deploy-epic-toggle");

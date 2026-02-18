@@ -179,7 +179,7 @@ export const websocketMiddleware: Middleware = (storeApi) => {
 
       case "deliver.started":
         d(deployStarted({ deployId: event.deployId }));
-        d(setDeliverToast({ message: "Deployment started", variant: "started" }));
+        d(setDeliverToast({ message: "Delivery started", variant: "started" }));
         break;
 
       case "deliver.output":
@@ -196,7 +196,7 @@ export const websocketMiddleware: Middleware = (storeApi) => {
         );
         d(
           setDeliverToast({
-            message: event.success ? "Deployment succeeded" : "Deployment failed",
+            message: event.success ? "Delivery succeeded" : "Delivery failed",
             variant: event.success ? "succeeded" : "failed",
           }),
         );

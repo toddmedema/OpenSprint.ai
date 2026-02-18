@@ -506,7 +506,7 @@ describe("websocketMiddleware", () => {
 
       await vi.waitFor(() => {
         expect(store.getState().websocket.deliverToast).toEqual({
-          message: "Deployment started",
+          message: "Delivery started",
           variant: "started",
         });
       });
@@ -526,7 +526,7 @@ describe("websocketMiddleware", () => {
 
       await vi.waitFor(() => {
         expect(store.getState().websocket.deliverToast).toEqual({
-          message: "Deployment succeeded",
+          message: "Delivery succeeded",
           variant: "succeeded",
         });
       });
@@ -546,7 +546,7 @@ describe("websocketMiddleware", () => {
 
       await vi.waitFor(() => {
         expect(store.getState().websocket.deliverToast).toEqual({
-          message: "Deployment failed",
+          message: "Delivery failed",
           variant: "failed",
         });
       });

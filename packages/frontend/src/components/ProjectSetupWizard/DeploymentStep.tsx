@@ -20,7 +20,7 @@ export function DeploymentStep({
   return (
     <div className="space-y-4" data-testid="deployment-step">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-3">Deployment Mode</label>
+        <label className="block text-sm font-medium text-gray-700 mb-3">Delivery Mode</label>
         <div className="space-y-3">
           <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 hover:border-brand-300 cursor-pointer transition-colors">
             <input
@@ -33,7 +33,7 @@ export function DeploymentStep({
             />
             <div>
               <p className="text-sm font-medium text-gray-900">Expo.dev</p>
-              <p className="text-xs text-gray-500">Automatic deployment for React Native and web projects</p>
+              <p className="text-xs text-gray-500">Automatic delivery for React Native and web projects</p>
             </div>
           </label>
           <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 hover:border-brand-300 cursor-pointer transition-colors">
@@ -55,7 +55,7 @@ export function DeploymentStep({
       {mode === "custom" && (
         <div className="space-y-3 pt-2 border-t border-gray-200">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Deployment command</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Delivery command</label>
             <input
               type="text"
               className="input w-full font-mono text-sm"

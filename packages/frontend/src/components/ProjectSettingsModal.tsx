@@ -26,7 +26,7 @@ type Tab = "basics" | "agents" | "deployment" | "hil";
 const TABS: { key: Tab; label: string }[] = [
   { key: "basics", label: "Project Info" },
   { key: "agents", label: "Agent Config" },
-  { key: "deployment", label: "Deployment" },
+  { key: "deployment", label: "Deliver" },
   { key: "hil", label: "Autonomy" },
 ];
 
@@ -794,7 +794,7 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-3">
-                      Deployment Mode
+                      Delivery Mode
                     </label>
                     <div className="space-y-3">
                       <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 hover:border-brand-300 cursor-pointer transition-colors">
@@ -811,7 +811,7 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
                         <div>
                           <p className="text-sm font-medium text-gray-900">Expo.dev</p>
                           <p className="text-xs text-gray-500">
-                            Automatic deployment for React Native and web projects
+                            Automatic delivery for React Native and web projects
                           </p>
                         </div>
                       </label>
@@ -837,7 +837,7 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
                     <div className="space-y-3 pt-2 border-t border-gray-200">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Deployment command
+                          Delivery command
                         </label>
                         <input
                           type="text"
@@ -884,12 +884,12 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
                           }
                         />
                         <p className="mt-1 text-xs text-gray-500">
-                          Shell command for rolling back to a previous deployment (Deliver phase)
+                          Shell command for rolling back to a previous delivery (Deliver phase)
                         </p>
                       </div>
                       <div className="pt-3 border-t border-gray-200">
                         <h4 className="text-sm font-medium text-gray-700 mb-2">
-                          Deployment targets (PRD §7.5.2/7.5.4)
+                          Delivery targets (PRD §7.5.2/7.5.4)
                         </h4>
                         <p className="text-xs text-gray-500 mb-2">
                           Define staging/production targets with per-target command or webhook.

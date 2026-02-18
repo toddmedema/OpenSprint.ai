@@ -73,7 +73,7 @@ describe("DeliverPhase", () => {
   it("renders deployment history section", () => {
     const store = createStore();
     renderWithRouter(store);
-    expect(screen.getByText("Deployment History")).toBeInTheDocument();
+    expect(screen.getByText("Delivery History")).toBeInTheDocument();
   });
 
   it("shows empty state when no deployments", () => {

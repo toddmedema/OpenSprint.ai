@@ -71,7 +71,7 @@ export function ConfirmStep({
           <dd className="font-medium capitalize">{codingLabel}</dd>
         </div>
         <div className="flex justify-between">
-          <dt className="text-gray-500">Deployment</dt>
+          <dt className="text-gray-500">Deliver</dt>
           <dd className="font-medium">{deploymentLabel}</dd>
         </div>
         <div className="flex justify-between">
