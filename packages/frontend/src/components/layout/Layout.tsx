@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Project, ProjectPhase } from '@opensprint/shared';
 import { Navbar } from './Navbar';
+import { NotificationBar } from '../NotificationBar';
 
 interface LayoutProps {
   children: ReactNode;
@@ -31,6 +32,7 @@ export function Layout({
         settingsOpen={settingsOpen}
         onSettingsOpenChange={onSettingsOpenChange}
       />
+      <NotificationBar />
       <main className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white">{children}</main>
     </div>
   );

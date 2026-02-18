@@ -11,8 +11,8 @@ import {
   markTaskDone,
   unblockTask,
   setSelectedTaskId,
-  setExecuteError,
 } from "../../store/slices/executeSlice";
+import { addNotification } from "../../store/slices/notificationSlice";
 import { wsSend } from "../../store/middleware/websocketMiddleware";
 import { CloseButton } from "../../components/CloseButton";
 import { ResizableSidebar } from "../../components/layout/ResizableSidebar";
@@ -121,21 +121,23 @@ function SourceFeedbackSection({
   feedbackId: string;
   plans: Plan[];
 }) {
+  const dispatch = useAppDispatch();
   const [expanded, setExpanded] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackItem | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!expanded) return;
     setLoading(true);
-    setError(null);
     api.feedback
       .get(projectId, feedbackId)
       .then(setFeedback)
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load feedback"))
+      .catch((err) => {
+        const msg = err instanceof Error ? err.message : "Failed to load feedback";
+        dispatch(addNotification({ message: msg, severity: "error" }));
+      })
       .finally(() => setLoading(false));
-  }, [projectId, feedbackId, expanded]);
+  }, [projectId, feedbackId, expanded, dispatch]);
 
   const mappedPlan = feedback?.mappedPlanId
     ? plans.find((p) => p.metadata.planId === feedback.mappedPlanId)
@@ -166,8 +168,6 @@ function SourceFeedbackSection({
         >
           {loading ? (
             <div className="text-xs text-gray-500 py-2">Loading feedback…</div>
-          ) : error ? (
-            <div className="text-xs text-red-600 py-2">{error}</div>
           ) : feedback ? (
             <div className="card p-3 text-xs space-y-2" data-testid="source-feedback-card">
               <div className="flex items-start justify-between gap-2 overflow-hidden flex-wrap">
@@ -224,7 +224,6 @@ export function ExecutePhase({ projectId, onNavigateToPlan }: ExecutePhaseProps)
   const markDoneLoading = useAppSelector((s) => s.execute.markDoneLoading);
   const unblockLoading = useAppSelector((s) => s.execute.unblockLoading);
   const loading = useAppSelector((s) => s.execute.loading);
-  const error = useAppSelector((s) => s.execute.error);
   const selectedTaskData = selectedTask ? tasks.find((t) => t.id === selectedTask) : null;
   const isDoneTask = selectedTaskData?.kanbanColumn === "done";
   const currentTaskId = useAppSelector((s) => s.execute.currentTaskId);
@@ -335,14 +334,6 @@ export function ExecutePhase({ projectId, onNavigateToPlan }: ExecutePhaseProps)
 
   return (
     <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
-      {error && (
-        <div className="mx-4 mt-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex justify-between items-center shrink-0">
-          <span>{error}</span>
-          <button type="button" onClick={() => dispatch(setExecuteError(null))} className="text-red-500 hover:text-red-700 underline">
-            Dismiss
-          </button>
-        </div>
-      )}
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
         <div className="px-6 py-4 border-b border-gray-200 bg-white shrink-0">
           <div className="flex items-center justify-between mb-3">

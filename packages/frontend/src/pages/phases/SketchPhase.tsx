@@ -5,7 +5,6 @@ import {
   savePrdSection,
   uploadPrdFile,
   addUserMessage,
-  setSpecError,
   fetchPrd,
   fetchPrdHistory,
   fetchSpecChat,
@@ -90,7 +89,6 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
   const prdHistory = useAppSelector((s) => s.spec.prdHistory);
   const sending = useAppSelector((s) => s.spec.sendingChat);
   const savingSections = useAppSelector((s) => s.spec.savingSections);
-  const error = useAppSelector((s) => s.spec.error);
   const planStatus = useAppSelector((s) => s.plan.planStatus);
   const decomposing = useAppSelector((s) => s.plan.decomposing);
 
@@ -349,7 +347,6 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
   );
 
   const handlePlanIt = async () => {
-    dispatch(setSpecError(null));
     setPlanningIt(true);
     const result = await dispatch(decomposePlans(projectId));
     setPlanningIt(false);
@@ -433,18 +430,6 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
           </div>
         </div>
 
-        {error && (
-          <div className="mt-6 w-full max-w-2xl p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-            {error}
-            <button
-              type="button"
-              onClick={() => dispatch(setSpecError(null))}
-              className="ml-2 text-red-500 hover:text-red-700 underline"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
       </div>
     );
   }
@@ -507,8 +492,6 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
         onOpenChange={() => {}}
         messages={messages}
         sending={sending}
-        error={error}
-        onDismissError={() => dispatch(setSpecError(null))}
         selectionContext={selectionContext}
         onClearSelectionContext={() => setSelectionContext(null)}
         onSend={handleChatSend}
