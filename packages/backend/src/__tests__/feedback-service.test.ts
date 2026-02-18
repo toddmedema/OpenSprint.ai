@@ -62,6 +62,7 @@ const mockBeadsListAll = vi.fn().mockResolvedValue([]);
 vi.mock("../services/beads.service.js", () => ({
   BeadsService: vi.fn().mockImplementation(() => ({
     init: vi.fn().mockResolvedValue(undefined),
+    configSet: vi.fn().mockResolvedValue(undefined),
     create: (...args: unknown[]) => mockBeadsCreate(...args),
     addDependency: (...args: unknown[]) => mockBeadsAddDependency(...args),
     listAll: (...args: unknown[]) => mockBeadsListAll(...args),
