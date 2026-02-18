@@ -59,8 +59,14 @@ tasksRouter.post('/:taskId/done', async (req: Request<TaskParams>, res, next) =>
 
 // GET /projects/:projectId/tasks/:taskId — Get task details
 tasksRouter.get('/:taskId', async (req: Request<TaskParams>, res, next) => {
+  const start = performance.now();
   try {
     const task = await taskService.getTask(req.params.projectId, req.params.taskId);
+    const durationMs = Math.round(performance.now() - start);
+    res.set('Server-Timing', `task-detail;dur=${durationMs};desc="Task detail load"`);
+    if (durationMs > 500) {
+      console.warn(`[tasks] GET /:taskId slow: ${durationMs}ms for ${req.params.taskId}`);
+    }
     const body: ApiResponse<Task> = { data: task };
     res.json(body);
   } catch (err) {
