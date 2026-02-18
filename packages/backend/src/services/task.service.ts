@@ -3,6 +3,7 @@ import type { Task, AgentSession, KanbanColumn, TaskDependency } from "@openspri
 import { resolveTestCommand } from "@opensprint/shared";
 import { ProjectService } from "./project.service.js";
 import { BeadsService } from "./beads.service.js";
+import { beadsCache } from "./beads-cache.js";
 import { AppError } from "../middleware/error-handler.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
 import { SessionManager } from "./session-manager.js";
@@ -60,17 +61,46 @@ export class TaskService {
     return nonEpicReady.map((issue) => this.beadsIssueToTask(issue, readyIds, idToIssue));
   }
 
-  /** Get a single task with full details (wraps bd show --json) */
+  /** Get a single task with full details (wraps bd show --json).
+   * Optimized: avoids beads.ready() (which does N bd show calls) by computing ready for this task only.
+   * Uses short-TTL cache for show/listAll to reduce redundant bd invocations.
+   */
   async getTask(projectId: string, taskId: string): Promise<Task> {
     const project = await this.projectService.getProject(projectId);
-    const [issue, allIssues, readyIssues] = await Promise.all([
-      this.beads.show(project.repoPath, taskId),
-      this.beads.listAll(project.repoPath),
-      this.beads.ready(project.repoPath),
+    const repoPath = project.repoPath;
+
+    const [issue, allIssues] = await Promise.all([
+      beadsCache.getShow<BeadsIssue>(repoPath, taskId) ?? this.beads.show(repoPath, taskId),
+      beadsCache.getListAll<BeadsIssue[]>(repoPath) ?? this.beads.listAll(repoPath),
     ]);
-    const readyIds = new Set(readyIssues.filter((i) => (i.issue_type ?? i.type) !== "epic").map((i) => i.id));
+
+    beadsCache.setShow(repoPath, taskId, issue);
+    beadsCache.setListAll(repoPath, allIssues);
+
     const idToIssue = new Map(allIssues.map((i) => [i.id, i]));
+    const readyIds = this.computeReadyForSingleTask(issue, idToIssue);
     return this.beadsIssueToTask(issue, readyIds, idToIssue);
+  }
+
+  /** Compute whether this task is ready (avoids expensive beads.ready() which does N bd show calls). */
+  private computeReadyForSingleTask(
+    issue: BeadsIssue,
+    idToIssue: Map<string, BeadsIssue>,
+  ): Set<string> {
+    const status = (issue.status as string) ?? "open";
+    if (status !== "open") return new Set();
+    if ((issue.issue_type ?? issue.type) === "epic") return new Set();
+
+    const rawDeps = (issue.dependencies as Array<Record<string, unknown>>) ?? [];
+    const blocksDeps = rawDeps
+      .map((d) => this.normalizeDependency(d))
+      .filter((x): x is { targetId: string; type: string } => x != null && x.type === "blocks");
+
+    const allBlockersClosed = blocksDeps.every((d) => {
+      const dep = idToIssue.get(d.targetId);
+      return dep && (dep.status as string) === "closed";
+    });
+    return allBlockersClosed ? new Set([issue.id ?? ""]) : new Set();
   }
 
   /**
