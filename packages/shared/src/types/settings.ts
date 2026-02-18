@@ -44,6 +44,8 @@ export interface DeploymentConfig {
   autoDeployOnEpicCompletion?: boolean;
   /** Auto-deploy when all critical feedback (bugs) are resolved (PRD §7.5.3). Default: false. */
   autoDeployOnEvalResolution?: boolean;
+  /** Auto-resolve feedback when all its created tasks are Done (PRD §10.2). Default: false. */
+  autoResolveFeedbackOnTaskCompletion?: boolean;
   expoConfig?: {
     projectId?: string;
     /** OTA update channel (default: preview) */
@@ -82,6 +84,7 @@ export const DEFAULT_DEPLOYMENT_CONFIG: DeploymentConfig = {
   mode: 'custom',
   autoDeployOnEpicCompletion: false,
   autoDeployOnEvalResolution: false,
+  autoResolveFeedbackOnTaskCompletion: false,
 };
 
 /** HIL notification mode for each category */

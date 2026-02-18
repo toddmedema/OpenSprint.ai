@@ -665,6 +665,38 @@ export class FeedbackService {
   }
 
   /**
+   * Check if any mapped feedback items should be auto-resolved after a task is closed.
+   * PRD §10.2: When all created tasks from feedback are Done and autoResolveFeedbackOnTaskCompletion is enabled,
+   * auto-resolve the feedback item.
+   */
+  async checkAutoResolveOnTaskDone(projectId: string, closedTaskId: string): Promise<void> {
+    const settings = await this.projectService.getSettings(projectId);
+    if (!settings.deployment.autoResolveFeedbackOnTaskCompletion) {
+      return;
+    }
+
+    const items = await this.listFeedback(projectId);
+    const candidates = items.filter(
+      (i) =>
+        i.status === 'mapped' &&
+        i.createdTaskIds.length > 0 &&
+        i.createdTaskIds.includes(closedTaskId),
+    );
+    if (candidates.length === 0) return;
+
+    const project = await this.projectService.getProject(projectId);
+    const allIssues = await this.beadsService.listAll(project.repoPath);
+    const idToStatus = new Map(allIssues.map((i) => [i.id, (i.status as string) ?? 'open']));
+
+    for (const item of candidates) {
+      const allClosed = item.createdTaskIds.every((tid) => idToStatus.get(tid) === 'closed');
+      if (allClosed) {
+        await this.resolveFeedback(projectId, item.id);
+      }
+    }
+  }
+
+  /**
    * Resolve a feedback item (status -> resolved).
    * PRD §7.5.3: When all critical feedback (bugs) are resolved and autoDeployOnEvalResolution is enabled,
    * auto-triggers deployment.

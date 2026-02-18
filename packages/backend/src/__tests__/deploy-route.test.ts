@@ -128,22 +128,25 @@ describe("Deploy API", () => {
       });
     });
 
-    it("should accept and persist autoDeployOnEpicCompletion and autoDeployOnEvalResolution (PRD §7.5.3)", async () => {
+    it("should accept and persist autoDeployOnEpicCompletion, autoDeployOnEvalResolution, and autoResolveFeedbackOnTaskCompletion (PRD §7.5.3, §10.2)", async () => {
       const res = await request(app)
         .put(`${API_PREFIX}/projects/${projectId}/deploy/settings`)
         .send({
           mode: "custom",
           autoDeployOnEpicCompletion: true,
           autoDeployOnEvalResolution: true,
+          autoResolveFeedbackOnTaskCompletion: true,
         });
 
       expect(res.status).toBe(200);
       expect(res.body.data.deployment.autoDeployOnEpicCompletion).toBe(true);
       expect(res.body.data.deployment.autoDeployOnEvalResolution).toBe(true);
+      expect(res.body.data.deployment.autoResolveFeedbackOnTaskCompletion).toBe(true);
 
       const getRes = await request(app).get(`${API_PREFIX}/projects/${projectId}/settings`);
       expect(getRes.body.data.deployment.autoDeployOnEpicCompletion).toBe(true);
       expect(getRes.body.data.deployment.autoDeployOnEvalResolution).toBe(true);
+      expect(getRes.body.data.deployment.autoResolveFeedbackOnTaskCompletion).toBe(true);
     });
 
     it("should accept and persist targets and envVars (PRD §7.5.2/7.5.4)", async () => {
