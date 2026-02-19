@@ -140,7 +140,7 @@ export class AgentService {
       onChunk,
     });
 
-    return { content: response.content };
+    return { content: response?.content ?? "" };
   }
 
   /**
@@ -252,8 +252,14 @@ export class AgentService {
       });
 
       const finalMessage = await stream.finalMessage();
-      const textBlock = finalMessage.content.find((b) => b.type === "text");
-      const content = textBlock && "text" in textBlock ? textBlock.text : fullContent;
+      const contentBlocks = finalMessage?.content ?? [];
+      const textBlock = Array.isArray(contentBlocks)
+        ? contentBlocks.find((b: { type?: string }) => b.type === "text")
+        : undefined;
+      const content =
+        textBlock && typeof textBlock === "object" && "text" in textBlock
+          ? String(textBlock.text)
+          : fullContent;
       return { content };
     }
 
@@ -265,8 +271,14 @@ export class AgentService {
       messages: anthropicMessages,
     });
 
-    const textBlock = response.content.find((b) => b.type === "text");
-    const content = textBlock && "text" in textBlock ? textBlock.text : "";
+    const contentBlocks = response?.content ?? [];
+    const textBlock = Array.isArray(contentBlocks)
+      ? contentBlocks.find((b: { type?: string }) => b.type === "text")
+      : undefined;
+    const content =
+      textBlock && typeof textBlock === "object" && "text" in textBlock
+        ? String(textBlock.text)
+        : "";
     return { content };
   }
 }

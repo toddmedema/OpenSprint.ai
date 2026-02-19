@@ -373,7 +373,7 @@ export class OrchestratorService {
         reason: string,
         tr: TestResults | null,
         ft: string
-      ) => this.handleTaskFailure(pid, rp, t, bn, reason, tr, ft),
+      ) => this.handleTaskFailure(pid, rp, t, bn, reason, tr, ft as FailureType),
       executeReviewPhase: (pid: string, rp: string, t: BeadsIssue, bn: string) =>
         this.executeReviewPhase(pid, rp, t, bn),
       performMergeAndDone: (pid: string, rp: string, t: BeadsIssue, bn: string) =>

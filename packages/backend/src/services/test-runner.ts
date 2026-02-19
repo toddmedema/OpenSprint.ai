@@ -1,5 +1,6 @@
 import { spawn } from "child_process";
 import type { TestResults, TestResultDetail } from "@opensprint/shared";
+import { registerAgentProcess, unregisterAgentProcess } from "./agent-process-registry.js";
 
 const TEST_TIMEOUT_MS = 300_000;
 const MAX_BUFFER_BYTES = 10 * 1024 * 1024;
@@ -117,6 +118,10 @@ export class TestRunner {
         env: { ...process.env, CI: "true", FORCE_COLOR: "0" },
       });
 
+      if (child.pid) {
+        registerAgentProcess(child.pid, { processGroup: true });
+      }
+
       const killProcessGroup = () => {
         if (!child.pid) return;
         try {
@@ -149,6 +154,9 @@ export class TestRunner {
         if (settled) return;
         settled = true;
         clearTimeout(timeout);
+        if (child.pid) {
+          unregisterAgentProcess(child.pid, { processGroup: true });
+        }
         resolve({ stdout, stderr, exitCode });
       };
 

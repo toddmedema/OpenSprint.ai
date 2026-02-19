@@ -1,4 +1,9 @@
-import type { AgentPhase, CodingAgentResult, TestResults } from "@opensprint/shared";
+import type {
+  AgentPhase,
+  CodingAgentResult,
+  ProjectSettings,
+  TestResults,
+} from "@opensprint/shared";
 import {
   AGENT_INACTIVITY_TIMEOUT_MS,
   resolveTestCommand,
@@ -44,16 +49,15 @@ export interface PersistedOrchestratorState {
 export interface CrashRecoveryDeps {
   beads: {
     show(repoPath: string, taskId: string): Promise<BeadsIssue>;
-    update(repoPath: string, taskId: string, opts: Record<string, unknown>): Promise<void>;
+    update(
+      repoPath: string,
+      taskId: string,
+      opts: Record<string, unknown>
+    ): Promise<BeadsIssue | void>;
     comment(repoPath: string, taskId: string, text: string): Promise<void>;
   };
   projectService: {
-    getSettings(projectId: string): Promise<{
-      reviewMode?: string;
-      testFramework?: string;
-      codingAgent: { type: string; model?: string };
-      testCommand?: string;
-    }>;
+    getSettings(projectId: string): Promise<ProjectSettings>;
   };
   branchManager: {
     getCommitCountAhead(repoPath: string, branchName: string): Promise<number>;
@@ -61,7 +65,7 @@ export interface CrashRecoveryDeps {
     removeTaskWorktree(repoPath: string, taskId: string): Promise<void>;
     deleteBranch(repoPath: string, branchName: string): Promise<void>;
     getChangedFiles(repoPath: string, branchName: string): Promise<string[]>;
-    commitWip(wtPath: string, taskId: string): Promise<void>;
+    commitWip(wtPath: string, taskId: string): Promise<boolean | void>;
   };
   sessionManager: {
     readResult(wtPath: string, taskId: string): Promise<unknown>;
@@ -546,7 +550,7 @@ export class CrashRecoveryService {
         );
         state.phaseResult.codingSummary = (result as CodingAgentResult).summary ?? "";
         state.phaseResult.testResults = scopedResult;
-        state.phaseResult.testOutput = scopedResult.rawOutput;
+        state.phaseResult.testOutput = (scopedResult as { rawOutput?: string }).rawOutput ?? "";
 
         await deps.branchManager.commitWip(worktreePath, taskId);
 

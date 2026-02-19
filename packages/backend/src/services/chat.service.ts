@@ -427,8 +427,11 @@ export class ChatService {
       },
     });
 
-    const legacyUpdates = this.parsePrdUpdates(response.content);
-    const result = parseHarmonizerResult(response.content, legacyUpdates);
+    const responseContent = response?.content ?? "";
+    if (!responseContent) return;
+
+    const legacyUpdates = this.parsePrdUpdates(responseContent);
+    const result = parseHarmonizerResult(responseContent, legacyUpdates);
     if (!result || result.status === "no_changes_needed" || result.prdUpdates.length === 0) return;
 
     const filtered = await this.filterArchitectureUpdatesWithHil(
@@ -479,8 +482,11 @@ export class ChatService {
       },
     });
 
-    const legacyUpdates = this.parsePrdUpdates(response.content);
-    const result = parseHarmonizerResultFull(response.content, legacyUpdates);
+    const responseContent = response?.content ?? "";
+    if (!responseContent) return null;
+
+    const legacyUpdates = this.parsePrdUpdates(responseContent);
+    const result = parseHarmonizerResultFull(responseContent, legacyUpdates);
     if (!result || result.status === "no_changes_needed" || result.prdUpdates.length === 0)
       return null;
 
@@ -551,8 +557,11 @@ export class ChatService {
       },
     });
 
-    const legacyUpdates = this.parsePrdUpdates(response.content);
-    const result = parseHarmonizerResult(response.content, legacyUpdates);
+    const responseContent = response?.content ?? "";
+    if (!responseContent) return;
+
+    const legacyUpdates = this.parsePrdUpdates(responseContent);
+    const result = parseHarmonizerResult(responseContent, legacyUpdates);
     if (!result || result.status === "no_changes_needed" || result.prdUpdates.length === 0) return;
 
     const filtered = await this.filterArchitectureUpdatesWithHil(
