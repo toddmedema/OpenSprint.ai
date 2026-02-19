@@ -24,6 +24,8 @@ const {
   mockBeadsAddLabel,
   mockBeadsRemoveLabel,
   mockBeadsExport,
+  mockBeadsGetStatusMap,
+  mockBeadsListAll,
   mockGetProject,
   mockGetRepoPath,
   mockGetSettings,
@@ -54,6 +56,8 @@ const {
   mockRecoverOrphanedTasks,
   mockRecoverFromStaleHeartbeats,
   mockWriteJsonAtomic,
+  mockGitQueueEnqueue,
+  mockGitQueueEnqueueAndWait,
 } = vi.hoisted(() => ({
   mockBroadcastToProject: vi.fn(),
   mockSendAgentOutputToProject: vi.fn(),
@@ -69,6 +73,8 @@ const {
   mockBeadsAddLabel: vi.fn(),
   mockBeadsRemoveLabel: vi.fn(),
   mockBeadsExport: vi.fn().mockResolvedValue(undefined),
+  mockBeadsGetStatusMap: vi.fn(),
+  mockBeadsListAll: vi.fn(),
   mockGetProject: vi.fn(),
   mockGetRepoPath: vi.fn(),
   mockGetSettings: vi.fn(),
@@ -99,6 +105,8 @@ const {
   mockRecoverOrphanedTasks: vi.fn(),
   mockRecoverFromStaleHeartbeats: vi.fn(),
   mockWriteJsonAtomic: vi.fn(),
+  mockGitQueueEnqueue: vi.fn().mockResolvedValue(undefined),
+  mockGitQueueEnqueueAndWait: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../websocket/index.js", () => ({
@@ -120,6 +128,8 @@ vi.mock("../services/beads.service.js", () => ({
     addLabel: mockBeadsAddLabel,
     removeLabel: mockBeadsRemoveLabel,
     export: mockBeadsExport,
+    getStatusMap: mockBeadsGetStatusMap,
+    listAll: mockBeadsListAll,
   })),
 }));
 
@@ -217,6 +227,14 @@ vi.mock("../services/heartbeat.service.js", () => ({
   },
 }));
 
+vi.mock("../services/git-commit-queue.service.js", () => ({
+  gitCommitQueue: {
+    enqueue: mockGitQueueEnqueue,
+    enqueueAndWait: mockGitQueueEnqueueAndWait,
+    drain: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 vi.mock("../utils/file-utils.js", () => ({
   writeJsonAtomic: (...args: unknown[]) => mockWriteJsonAtomic(...args),
 }));
@@ -245,6 +263,30 @@ describe("OrchestratorService", () => {
     });
     mockRecoverOrphanedTasks.mockResolvedValue({ recovered: [] });
     mockRecoverFromStaleHeartbeats.mockResolvedValue({ recovered: [] });
+    mockBeadsGetStatusMap.mockResolvedValue(new Map());
+    mockBeadsListAll.mockResolvedValue([]);
+    mockCaptureBranchDiff.mockResolvedValue("");
+    mockCommitWip.mockResolvedValue(undefined);
+    mockRemoveTaskWorktree.mockResolvedValue(undefined);
+    mockDeleteBranch.mockResolvedValue(undefined);
+    mockBeadsComment.mockResolvedValue(undefined);
+    mockBeadsUpdate.mockResolvedValue(undefined);
+    mockBeadsClose.mockResolvedValue(undefined);
+    mockBeadsSetCumulativeAttempts.mockResolvedValue(undefined);
+    mockCreateSession.mockResolvedValue({ id: "sess-default" });
+    mockArchiveSession.mockResolvedValue(undefined);
+    mockGetChangedFiles.mockResolvedValue([]);
+    mockEnsureOnMain.mockResolvedValue(undefined);
+    mockWaitForGitReady.mockResolvedValue(undefined);
+    mockPushMain.mockResolvedValue(undefined);
+    mockMergeToMain.mockResolvedValue(undefined);
+    mockRunScopedTests.mockResolvedValue({ passed: 0, failed: 0, rawOutput: "" });
+    mockBuildContext.mockResolvedValue({
+      prdExcerpt: "",
+      planContent: "",
+      dependencyOutputs: [],
+      taskDescription: "",
+    });
   });
 
   afterEach(async () => {
@@ -299,6 +341,8 @@ describe("OrchestratorService", () => {
         queueDepth: 0,
         totalDone: 0,
         totalFailed: 0,
+        pendingFeedbackCategorizations: [],
+        worktreePath: null,
       });
       expect(mockGetProject).toHaveBeenCalledWith(projectId);
     });
@@ -364,7 +408,6 @@ describe("OrchestratorService", () => {
       mockGetActiveDir.mockReturnValue(
         path.join(repoPath, "wt-1", ".opensprint", "active", "task-1")
       );
-      mockBuildContext.mockResolvedValue({});
       mockAssembleTaskDirectory.mockResolvedValue(undefined);
 
       // Never actually spawn agent - make createTaskWorktree throw after first call to simulate
@@ -390,7 +433,11 @@ describe("OrchestratorService", () => {
       expect(agentStartedCalls.length).toBeLessThanOrEqual(1);
       // agent.started includes startedAt so frontend can compute elapsed time without separate fetch
       if (agentStartedCalls.length > 0) {
-        const payload = agentStartedCalls[0][1] as { type: string; taskId: string; startedAt?: string };
+        const payload = agentStartedCalls[0][1] as {
+          type: string;
+          taskId: string;
+          startedAt?: string;
+        };
         expect(payload.startedAt).toBeDefined();
         expect(typeof payload.startedAt).toBe("string");
       }
@@ -732,7 +779,6 @@ describe("OrchestratorService", () => {
       mockGetActiveDir.mockReturnValue(
         path.join(repoPath, "wt-complete", ".opensprint", "active", "task-complete-1")
       );
-      mockBuildContext.mockResolvedValue({});
       mockAssembleTaskDirectory.mockResolvedValue(undefined);
       mockGetChangedFiles.mockResolvedValue([]);
       mockRunScopedTests.mockResolvedValue({
@@ -765,7 +811,13 @@ describe("OrchestratorService", () => {
 
       // Should have merged and closed
       expect(mockBeadsClose).toHaveBeenCalledWith(repoPath, "task-complete-1", "Done");
-      expect(mockMergeToMain).toHaveBeenCalledWith(repoPath, "opensprint/task-complete-1");
+      expect(mockGitQueueEnqueueAndWait).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "worktree_merge",
+          repoPath,
+          branchName: "opensprint/task-complete-1",
+        })
+      );
       expect(mockBroadcastToProject).toHaveBeenCalledWith(
         projectId,
         expect.objectContaining({
@@ -801,7 +853,6 @@ describe("OrchestratorService", () => {
       mockGetActiveDir.mockReturnValue(
         path.join(wtPath, ".opensprint", "active", "task-review-approve")
       );
-      mockBuildContext.mockResolvedValue({});
       mockAssembleTaskDirectory.mockResolvedValue(undefined);
       mockGetChangedFiles.mockResolvedValue([]);
       mockRunScopedTests.mockResolvedValue({
@@ -844,11 +895,9 @@ describe("OrchestratorService", () => {
 
       // Review agent should have been invoked
       expect(mockInvokeReviewAgent).toHaveBeenCalled();
-      expect(mockMergeToMain).not.toHaveBeenCalled();
       expect(mockBeadsClose).not.toHaveBeenCalled();
 
       mockBeadsShow.mockResolvedValue({ ...task, status: "in_progress" });
-      mockMergeToMain.mockResolvedValue(undefined);
       mockCreateSession.mockResolvedValue({ id: "sess-1" });
       mockArchiveSession.mockResolvedValue(undefined);
 
@@ -857,7 +906,13 @@ describe("OrchestratorService", () => {
       await new Promise((r) => setTimeout(r, 300));
 
       // On result.json approved: merge and Done
-      expect(mockMergeToMain).toHaveBeenCalledWith(repoPath, "opensprint/task-review-approve");
+      expect(mockGitQueueEnqueueAndWait).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "worktree_merge",
+          repoPath,
+          branchName: "opensprint/task-review-approve",
+        })
+      );
       expect(mockBeadsClose).toHaveBeenCalledWith(
         repoPath,
         "task-review-approve",
@@ -907,7 +962,6 @@ describe("OrchestratorService", () => {
       mockGetActiveDir.mockReturnValue(
         path.join(wtPath, ".opensprint", "active", "task-approve-normalize")
       );
-      mockBuildContext.mockResolvedValue({});
       mockAssembleTaskDirectory.mockResolvedValue(undefined);
       mockGetChangedFiles.mockResolvedValue([]);
       mockRunScopedTests.mockResolvedValue({
@@ -942,14 +996,19 @@ describe("OrchestratorService", () => {
       await codingOnExit(0);
       await new Promise((r) => setTimeout(r, 300));
 
-      mockMergeToMain.mockResolvedValue(undefined);
       mockCreateSession.mockResolvedValue({ id: "sess-1" });
       mockArchiveSession.mockResolvedValue(undefined);
 
       await reviewOnExit(0);
       await new Promise((r) => setTimeout(r, 300));
 
-      expect(mockMergeToMain).toHaveBeenCalledWith(repoPath, "opensprint/task-approve-normalize");
+      expect(mockGitQueueEnqueueAndWait).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "worktree_merge",
+          repoPath,
+          branchName: "opensprint/task-approve-normalize",
+        })
+      );
       expect(mockBeadsClose).toHaveBeenCalledWith(repoPath, "task-approve-normalize", "Done");
     });
   });
@@ -974,7 +1033,6 @@ describe("OrchestratorService", () => {
       mockGetActiveDir.mockReturnValue(
         path.join(repoPath, "wt-fail", ".opensprint", "active", "task-test-fail")
       );
-      mockBuildContext.mockResolvedValue({});
       mockAssembleTaskDirectory.mockResolvedValue(undefined);
       mockGetChangedFiles.mockResolvedValue([]);
       // Agent succeeds but tests fail
@@ -1039,7 +1097,6 @@ describe("OrchestratorService", () => {
       mockGetActiveDir.mockReturnValue(
         path.join(repoPath, "wt-coding-fail", ".opensprint", "active", "task-coding-fail")
       );
-      mockBuildContext.mockResolvedValue({});
       mockAssembleTaskDirectory.mockResolvedValue(undefined);
       mockReadResult.mockResolvedValue({
         status: "failed",
@@ -1104,7 +1161,6 @@ describe("OrchestratorService", () => {
       mockGetActiveDir.mockReturnValue(
         path.join(repoPath, "wt-no-result", ".opensprint", "active", "task-no-result")
       );
-      mockBuildContext.mockResolvedValue({});
       mockAssembleTaskDirectory.mockResolvedValue(undefined);
       mockReadResult.mockResolvedValue(null);
 
@@ -1151,7 +1207,6 @@ describe("OrchestratorService", () => {
       mockGetActiveDir.mockReturnValue(
         path.join(repoPath, "wt-no-result-other", ".opensprint", "active", "task-no-result-other")
       );
-      mockBuildContext.mockResolvedValue({});
       mockAssembleTaskDirectory.mockResolvedValue(undefined);
       mockReadResult.mockResolvedValue(null);
 
