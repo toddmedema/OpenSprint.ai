@@ -194,6 +194,8 @@ export const api = {
   // ─── Execute ───
   execute: {
     status: (projectId: string) => request<OrchestratorStatus>(`/projects/${projectId}/execute/status`),
+    liveOutput: (projectId: string, taskId: string) =>
+      request<{ output: string }>(`/projects/${projectId}/execute/tasks/${taskId}/output`),
   },
 
   // ─── Deliver (phase API for deployment records) ───

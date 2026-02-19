@@ -97,6 +97,14 @@ export const fetchArchivedSessions = createAsyncThunk(
   },
 );
 
+export const fetchLiveOutputBackfill = createAsyncThunk(
+  "execute/fetchLiveOutputBackfill",
+  async ({ projectId, taskId }: { projectId: string; taskId: string }) => {
+    const output = (await api.execute.liveOutput(projectId, taskId)).output;
+    return { taskId, output };
+  },
+);
+
 export const markTaskDone = createAsyncThunk(
   "execute/markTaskDone",
   async ({ projectId, taskId }: { projectId: string; taskId: string }, { dispatch }) => {
@@ -278,6 +286,15 @@ const executeSlice = createSlice({
       .addCase(fetchArchivedSessions.rejected, (state) => {
         state.archivedSessions = [];
         state.archivedLoading = false;
+      })
+      // fetchLiveOutputBackfill
+      .addCase(fetchLiveOutputBackfill.fulfilled, (state, action) => {
+        if (
+          action.payload.taskId === state.selectedTaskId &&
+          action.payload.output
+        ) {
+          state.agentOutput = [action.payload.output];
+        }
       })
       // markTaskDone
       .addCase(markTaskDone.pending, (state) => {
