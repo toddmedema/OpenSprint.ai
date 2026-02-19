@@ -93,7 +93,9 @@ const categoryColors: Record<string, string> = {
 
 /** Display label for feedback type chip (Bug/Feature/UX/Scope). */
 function getFeedbackTypeLabel(item: FeedbackItem): string {
-  return item.category === "ux" ? "UX" : item.category.charAt(0).toUpperCase() + item.category.slice(1);
+  return item.category === "ux"
+    ? "UX"
+    : item.category.charAt(0).toUpperCase() + item.category.slice(1);
 }
 
 /** Tree node for feedback display (parent + children) */
@@ -197,7 +199,7 @@ function FeedbackCard({
     startCollapse();
   }, [item.status, isAnimatingOut]);
 
-  const removeRef = useRef<() => void>();
+  const removeRef = useRef<(() => void) | undefined>(undefined);
   removeRef.current = () => onRemoveAfterAnimation(item.id);
 
   const handleTransitionEnd = useCallback((e: React.TransitionEvent) => {
@@ -222,15 +224,14 @@ function FeedbackCard({
 
   const isResolvedAndAnimating = item.status === "resolved" && collapseHeight !== null;
 
-  const wrapperStyle: React.CSSProperties =
-    isResolvedAndAnimating
-      ? {
-          height: collapseHeight,
-          overflow: "hidden",
-          margin: 0,
-          transition: `height ${RESOLVE_COLLAPSE_DURATION_MS}ms ${RESOLVE_COLLAPSE_EASING}`,
-        }
-      : {};
+  const wrapperStyle: React.CSSProperties = isResolvedAndAnimating
+    ? {
+        height: collapseHeight,
+        overflow: "hidden",
+        margin: 0,
+        transition: `height ${RESOLVE_COLLAPSE_DURATION_MS}ms ${RESOLVE_COLLAPSE_EASING}`,
+      }
+    : {};
 
   return (
     <div
@@ -291,7 +292,10 @@ function FeedbackCard({
         )}
 
         {/* Ticket info on left, action buttons (Reply, Resolve, etc.) on right — same line */}
-        <div className="mt-1 flex flex-wrap items-center justify-between gap-2" data-testid="feedback-card-actions-row">
+        <div
+          className="mt-1 flex flex-wrap items-center justify-between gap-2"
+          data-testid="feedback-card-actions-row"
+        >
           {item.createdTaskIds.length > 0 && (
             <div className="flex gap-1 flex-wrap min-w-0" data-testid="feedback-card-ticket-info">
               {item.createdTaskIds.map((taskId) => {
@@ -305,17 +309,21 @@ function FeedbackCard({
                     title={`Go to ${taskId} on Execute tab (${statusLabel})`}
                   >
                     <TaskStatusBadge column={column} size="xs" />
-                    <span className="text-theme-muted font-sans font-normal no-underline" aria-label={`Status: ${statusLabel}`}>
+                    <span
+                      className="text-theme-muted font-sans font-normal no-underline"
+                      aria-label={`Status: ${statusLabel}`}
+                    >
                       {statusLabel}
                     </span>
                     {taskId}
                   </button>
                 ) : (
-                  <span
-                    className="inline-flex items-center gap-1.5 rounded bg-theme-border-subtle px-1.5 py-0.5 text-xs font-mono text-theme-muted"
-                  >
+                  <span className="inline-flex items-center gap-1.5 rounded bg-theme-border-subtle px-1.5 py-0.5 text-xs font-mono text-theme-muted">
                     <TaskStatusBadge column={column} size="xs" />
-                    <span className="text-theme-muted font-sans font-normal" aria-label={`Status: ${statusLabel}`}>
+                    <span
+                      className="text-theme-muted font-sans font-normal"
+                      aria-label={`Status: ${statusLabel}`}
+                    >
                       {statusLabel}
                     </span>
                     {taskId}
@@ -363,7 +371,8 @@ function FeedbackCard({
                 className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-theme-muted hover:bg-theme-border-subtle hover:text-theme-text transition-colors"
                 aria-label={isCollapsed ? "Expand replies" : "Collapse replies"}
               >
-                {isCollapsed ? "Expand" : "Collapse"} ({children.length} {children.length === 1 ? "reply" : "replies"})
+                {isCollapsed ? "Expand" : "Collapse"} ({children.length}{" "}
+                {children.length === 1 ? "reply" : "replies"})
               </button>
             )}
           </div>
@@ -374,7 +383,9 @@ function FeedbackCard({
       {isReplying && (
         <div className="mt-2 ml-0 card p-3">
           <blockquote className="mb-2 pl-3 border-l-2 border-theme-border text-sm text-theme-muted italic">
-            {item.text && item.text.length > 80 ? `${item.text.slice(0, 80)}…` : (item.text || "(No feedback text)")}
+            {item.text && item.text.length > 80
+              ? `${item.text.slice(0, 80)}…`
+              : item.text || "(No feedback text)"}
           </blockquote>
           <textarea
             className="input min-h-[60px] mb-2 text-sm"
@@ -454,7 +465,7 @@ export function EvalPhase({ projectId, onNavigateToBuildTask }: EvalPhaseProps) 
       const task = executeTasks.find((t) => t.id === taskId);
       return task?.kanbanColumn ?? "backlog";
     },
-    [executeTasks],
+    [executeTasks]
   );
 
   const getTaskTitle = useCallback(
@@ -462,7 +473,7 @@ export function EvalPhase({ projectId, onNavigateToBuildTask }: EvalPhaseProps) 
       const task = executeTasks.find((t) => t.id === taskId);
       return task?.title;
     },
-    [executeTasks],
+    [executeTasks]
   );
 
   /* ── Local UI state (preserved by mount-all) ── */
@@ -470,7 +481,9 @@ export function EvalPhase({ projectId, onNavigateToBuildTask }: EvalPhaseProps) 
   const [images, setImages] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => loadFeedbackCollapsedIds(projectId));
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() =>
+    loadFeedbackCollapsedIds(projectId)
+  );
   const [statusFilter, setStatusFilter] = useState<FeedbackStatusFilter>("all");
 
   const addImagesFromFiles = useCallback(async (files: FileList | File[]) => {
@@ -512,7 +525,7 @@ export function EvalPhase({ projectId, onNavigateToBuildTask }: EvalPhaseProps) 
         await addImagesFromFiles(files);
       }
     },
-    [addImagesFromFiles],
+    [addImagesFromFiles]
   );
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -528,7 +541,7 @@ export function EvalPhase({ projectId, onNavigateToBuildTask }: EvalPhaseProps) 
       const files = e.dataTransfer?.files;
       if (files?.length) await addImagesFromFiles(files);
     },
-    [addImagesFromFiles],
+    [addImagesFromFiles]
   );
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -551,7 +564,7 @@ export function EvalPhase({ projectId, onNavigateToBuildTask }: EvalPhaseProps) 
       if (!text.trim() || submitting) return;
       await dispatch(submitFeedback({ projectId, text, parentId }));
     },
-    [dispatch, projectId, submitting],
+    [dispatch, projectId, submitting]
   );
 
   const feedbackFeedRef = useRef<HTMLDivElement>(null);
@@ -568,14 +581,14 @@ export function EvalPhase({ projectId, onNavigateToBuildTask }: EvalPhaseProps) 
         });
       });
     },
-    [dispatch, projectId],
+    [dispatch, projectId]
   );
 
   const handleRemoveAfterAnimation = useCallback(
     (feedbackId: string) => {
       dispatch(removeFeedbackItem(feedbackId));
     },
-    [dispatch],
+    [dispatch]
   );
 
   const handleToggleCollapse = useCallback(
@@ -588,162 +601,163 @@ export function EvalPhase({ projectId, onNavigateToBuildTask }: EvalPhaseProps) 
         return next;
       });
     },
-    [projectId],
+    [projectId]
   );
 
   const filteredFeedback = useMemo(
     () => feedback.filter((item) => matchesStatusFilter(item, statusFilter)),
-    [feedback, statusFilter],
+    [feedback, statusFilter]
   );
   const feedbackTree = useMemo(() => buildFeedbackTree(filteredFeedback), [filteredFeedback]);
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div ref={feedbackFeedRef} className="flex-1 min-h-0 overflow-y-auto" data-testid="eval-feedback-feed-scroll">
+      <div
+        ref={feedbackFeedRef}
+        className="flex-1 min-h-0 overflow-y-auto"
+        data-testid="eval-feedback-feed-scroll"
+      >
         <div className="max-w-3xl mx-auto px-6 py-8">
+          {/* Feedback Input */}
+          <div className="card p-5 mb-8" onDragOver={handleDragOver} onDrop={handleDrop}>
+            <label className="block text-sm font-medium text-theme-text mb-2">
+              What did you find?
+            </label>
+            <textarea
+              className="input min-h-[100px] mb-3"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onPaste={handlePaste}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                  e.preventDefault();
+                  handleSubmit();
+                }
+              }}
+              placeholder="Describe a bug, suggest a feature, or report a UX issue..."
+              disabled={submitting}
+            />
+            {images.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {images.map((dataUrl, i) => (
+                  <div key={i} className="relative group">
+                    <img
+                      src={dataUrl}
+                      alt={`Attachment ${i + 1}`}
+                      className="h-16 w-16 object-cover rounded border border-theme-border"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(i)}
+                      className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-theme-error-solid text-white text-xs flex items-center justify-center hover:bg-theme-error-solid-hover transition-colors shadow"
+                      aria-label="Remove image"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex justify-end items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+                multiple
+                className="hidden"
+                onChange={handleFileInputChange}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={submitting || images.length >= MAX_IMAGES}
+                className="btn-secondary p-2 disabled:opacity-50"
+                title="Attach image"
+                aria-label="Attach image"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="w-5 h-5"
+                >
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <polyline points="21 15 16 10 5 21" />
+                </svg>
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={submitting || !input.trim()}
+                className="btn-primary disabled:opacity-50"
+              >
+                {submitting ? "Submitting..." : "Submit Feedback"}
+              </button>
+            </div>
+          </div>
 
-        {/* Feedback Input */}
-        <div
-          className="card p-5 mb-8"
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
-        >
-          <label className="block text-sm font-medium text-theme-text mb-2">What did you find?</label>
-          <textarea
-            className="input min-h-[100px] mb-3"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onPaste={handlePaste}
-            onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                e.preventDefault();
-                handleSubmit();
-              }
-            }}
-            placeholder="Describe a bug, suggest a feature, or report a UX issue..."
-            disabled={submitting}
-          />
-          {images.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-3">
-              {images.map((dataUrl, i) => (
-                <div key={i} className="relative group">
-                  <img
-                    src={dataUrl}
-                    alt={`Attachment ${i + 1}`}
-                    className="h-16 w-16 object-cover rounded border border-theme-border"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeImage(i)}
-                    className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-theme-error-solid text-white text-xs flex items-center justify-center hover:bg-theme-error-solid-hover transition-colors shadow"
-                    aria-label="Remove image"
-                  >
-                    ×
-                  </button>
-                </div>
+          {/* Feedback Feed */}
+          <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
+            <h3 className="text-sm font-semibold text-theme-text">
+              Feedback History ({filteredFeedback.length})
+            </h3>
+            {feedback.length > 0 && (
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as FeedbackStatusFilter)}
+                className="input text-sm py-1.5 px-2.5 w-auto min-w-[7rem] bg-theme-input-bg text-theme-input-text ring-theme-ring"
+                aria-label="Filter feedback by status"
+                data-testid="feedback-status-filter"
+              >
+                <option value="all">All</option>
+                <option value="pending">Pending</option>
+                <option value="resolved">Resolved</option>
+              </select>
+            )}
+          </div>
+
+          {loading ? (
+            <div className="text-center py-10 text-theme-muted">Loading feedback...</div>
+          ) : feedback.length === 0 ? (
+            <div className="text-center py-10 text-theme-muted text-sm">
+              No feedback submitted yet. Test your app and report findings above.
+            </div>
+          ) : filteredFeedback.length === 0 ? (
+            <div className="text-center py-10 text-theme-muted text-sm">
+              {statusFilter === "pending"
+                ? "No pending feedback yet."
+                : statusFilter === "resolved"
+                  ? "No resolved feedback yet."
+                  : "No feedback matches the current filter."}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {feedbackTree.map((node) => (
+                <FeedbackCard
+                  key={node.item.id}
+                  node={node}
+                  depth={0}
+                  projectId={projectId}
+                  getTaskColumn={getTaskColumn}
+                  getTaskTitle={getTaskTitle}
+                  onNavigateToBuildTask={onNavigateToBuildTask}
+                  replyingToId={replyingToId}
+                  onStartReply={setReplyingToId}
+                  onCancelReply={() => setReplyingToId(null)}
+                  onSubmitReply={handleSubmitReply}
+                  onResolve={handleResolve}
+                  onRemoveAfterAnimation={handleRemoveAfterAnimation}
+                  collapsedIds={collapsedIds}
+                  onToggleCollapse={handleToggleCollapse}
+                  submitting={submitting}
+                />
               ))}
             </div>
           )}
-          <div className="flex justify-end items-center gap-2">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
-              multiple
-              className="hidden"
-              onChange={handleFileInputChange}
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={submitting || images.length >= MAX_IMAGES}
-              className="btn-secondary p-2 disabled:opacity-50"
-              title="Attach image"
-              aria-label="Attach image"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="w-5 h-5"
-              >
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <polyline points="21 15 16 10 5 21" />
-              </svg>
-            </button>
-            <button
-              onClick={handleSubmit}
-              disabled={submitting || !input.trim()}
-              className="btn-primary disabled:opacity-50"
-            >
-              {submitting ? "Submitting..." : "Submit Feedback"}
-            </button>
-          </div>
-        </div>
-
-        {/* Feedback Feed */}
-        <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
-          <h3 className="text-sm font-semibold text-theme-text">
-            Feedback History ({filteredFeedback.length})
-          </h3>
-          {feedback.length > 0 && (
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as FeedbackStatusFilter)}
-              className="input text-sm py-1.5 px-2.5 w-auto min-w-[7rem] bg-theme-input-bg text-theme-input-text ring-theme-ring"
-              aria-label="Filter feedback by status"
-              data-testid="feedback-status-filter"
-            >
-              <option value="all">All</option>
-              <option value="pending">Pending</option>
-              <option value="resolved">Resolved</option>
-            </select>
-          )}
-        </div>
-
-        {loading ? (
-          <div className="text-center py-10 text-theme-muted">Loading feedback...</div>
-        ) : feedback.length === 0 ? (
-          <div className="text-center py-10 text-theme-muted text-sm">
-            No feedback submitted yet. Test your app and report findings above.
-          </div>
-        ) : filteredFeedback.length === 0 ? (
-          <div className="text-center py-10 text-theme-muted text-sm">
-            {statusFilter === "pending"
-              ? "No pending feedback yet."
-              : statusFilter === "resolved"
-                ? "No resolved feedback yet."
-                : "No feedback matches the current filter."}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {feedbackTree.map((node) => (
-              <FeedbackCard
-                key={node.item.id}
-                node={node}
-                depth={0}
-                projectId={projectId}
-                getTaskColumn={getTaskColumn}
-                getTaskTitle={getTaskTitle}
-                onNavigateToBuildTask={onNavigateToBuildTask}
-                replyingToId={replyingToId}
-                onStartReply={setReplyingToId}
-                onCancelReply={() => setReplyingToId(null)}
-                onSubmitReply={handleSubmitReply}
-                onResolve={handleResolve}
-                onRemoveAfterAnimation={handleRemoveAfterAnimation}
-                collapsedIds={collapsedIds}
-                onToggleCollapse={handleToggleCollapse}
-                submitting={submitting}
-              />
-            ))}
-          </div>
-        )}
         </div>
       </div>
     </div>

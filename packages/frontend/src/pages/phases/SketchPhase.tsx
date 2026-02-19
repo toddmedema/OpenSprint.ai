@@ -263,7 +263,7 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
       const current = selectionRef.current;
       if (!current) return;
 
-      const target = e.target as Node;
+      const target = e.target as Element;
       if (target.closest("[data-selection-toolbar]")) return;
 
       const { clientX, clientY } = e;
@@ -468,7 +468,6 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
             </span>
           </div>
         </div>
-
       </div>
     );
   }
