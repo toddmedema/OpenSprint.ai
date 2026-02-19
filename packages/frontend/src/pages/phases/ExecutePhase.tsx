@@ -124,7 +124,7 @@ function SourceFeedbackSection({
   plans: Plan[];
 }) {
   const dispatch = useAppDispatch();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const [feedback, setFeedback] = useState<FeedbackItem | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -147,16 +147,18 @@ function SourceFeedbackSection({
   const planTitle = mappedPlan ? getEpicTitleFromPlan(mappedPlan) : feedback?.mappedPlanId ?? null;
 
   return (
-    <div className="border border-theme-border rounded-lg overflow-hidden">
+    <div className="border-b border-theme-border">
       <button
         type="button"
         onClick={() => setExpanded((e) => !e)}
-        className="w-full flex items-center justify-between p-3 text-left hover:bg-theme-border-subtle transition-colors text-sm font-medium text-theme-text"
+        className="w-full flex items-center justify-between p-4 text-left hover:bg-theme-border-subtle/50 transition-colors"
         aria-expanded={expanded}
         aria-controls="source-feedback-content"
         id="source-feedback-header"
       >
-        <span>Source feedback</span>
+        <h4 className="text-xs font-medium text-theme-muted uppercase tracking-wide">
+          Source feedback
+        </h4>
         <span className="text-theme-muted text-xs" aria-hidden>
           {expanded ? "▼" : "▶"}
         </span>
@@ -166,7 +168,7 @@ function SourceFeedbackSection({
           id="source-feedback-content"
           role="region"
           aria-labelledby="source-feedback-header"
-          className="p-3 pt-0 border-t border-theme-border"
+          className="px-4 pb-4"
         >
           {loading ? (
             <div className="text-xs text-theme-muted py-2">Loading feedback…</div>
@@ -228,6 +230,7 @@ export function ExecutePhase({ projectId, onNavigateToPlan }: ExecutePhaseProps)
   const dispatch = useAppDispatch();
   const [taskIdToStartedAt, setTaskIdToStartedAt] = useState<Record<string, string>>({});
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [artifactsSectionExpanded, setArtifactsSectionExpanded] = useState(true);
 
   const tasks = useAppSelector((s) => s.execute.tasks);
 
@@ -618,10 +621,29 @@ export function ExecutePhase({ projectId, onNavigateToPlan }: ExecutePhaseProps)
               )}
               </div>
 
-              <div className="p-4">
-              <h4 className="text-xs font-medium text-theme-muted uppercase tracking-wide mb-2">
-                {isDoneTask ? "Done work artifacts" : "Live agent output"}
-              </h4>
+              <div className="border-b border-theme-border">
+              <button
+                type="button"
+                onClick={() => setArtifactsSectionExpanded(!artifactsSectionExpanded)}
+                className="w-full flex items-center justify-between p-4 text-left hover:bg-theme-border-subtle/50 transition-colors"
+                aria-expanded={artifactsSectionExpanded}
+                aria-controls="artifacts-content"
+                id="artifacts-header"
+              >
+                <h4 className="text-xs font-medium text-theme-muted uppercase tracking-wide">
+                  {isDoneTask ? "Done work artifacts" : "Live agent output"}
+                </h4>
+                <span className="text-theme-muted text-xs" aria-hidden>
+                  {artifactsSectionExpanded ? "▼" : "▶"}
+                </span>
+              </button>
+              {artifactsSectionExpanded && (
+              <div
+                id="artifacts-content"
+                role="region"
+                aria-labelledby="artifacts-header"
+                className="p-4 pt-0"
+              >
               <div className="bg-theme-code-bg rounded-lg border border-theme-border overflow-hidden min-h-[200px] max-h-[400px] flex flex-col">
                 {taskDetailLoading ? (
                   <div className="p-4 space-y-2" data-testid="artifacts-loading">
@@ -664,6 +686,8 @@ export function ExecutePhase({ projectId, onNavigateToPlan }: ExecutePhaseProps)
                   </div>
                 )}
               </div>
+              </div>
+              )}
               </div>
             </div>
           </ResizableSidebar>

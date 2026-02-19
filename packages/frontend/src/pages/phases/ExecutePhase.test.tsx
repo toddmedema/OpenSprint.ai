@@ -1380,7 +1380,6 @@ describe("ExecutePhase Source feedback section", () => {
   });
 
   it("displays full feedback card when Source feedback section is expanded", async () => {
-    const user = userEvent.setup();
     const taskDetail = {
       id: "epic-1.1",
       title: "Implement feature",
@@ -1424,9 +1423,6 @@ describe("ExecutePhase Source feedback section", () => {
       </Provider>
     );
 
-    const expandBtn = await screen.findByRole("button", { name: /source feedback/i });
-    await user.click(expandBtn);
-
     await vi.waitFor(() => {
       expect(mockFeedbackGet).toHaveBeenCalledWith("proj-1", "fb-xyz");
     });
@@ -1438,7 +1434,6 @@ describe("ExecutePhase Source feedback section", () => {
   });
 
   it("shows Resolved chip in Source feedback section when feedback is resolved", async () => {
-    const user = userEvent.setup();
     const taskDetail = {
       id: "epic-1.1",
       title: "Implement feature",
@@ -1481,9 +1476,6 @@ describe("ExecutePhase Source feedback section", () => {
         <ExecutePhase projectId="proj-1" />
       </Provider>
     );
-
-    const expandBtn = await screen.findByRole("button", { name: /source feedback/i });
-    await user.click(expandBtn);
 
     await vi.waitFor(() => {
       expect(mockFeedbackGet).toHaveBeenCalledWith("proj-1", "fb-resolved");
