@@ -11,7 +11,10 @@ export class TimerRegistry {
 
   setTimeout(name: string, fn: () => void, ms: number): void {
     this.clear(name);
-    const ref = setTimeout(fn, ms);
+    const ref = setTimeout(() => {
+      this.timers.delete(name);
+      fn();
+    }, ms);
     this.timers.set(name, { ref, type: "timeout" });
   }
 
