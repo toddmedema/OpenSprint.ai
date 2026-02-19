@@ -1,0 +1,28 @@
+{
+  "id": "lxdd0h",
+  "text": "Please increase the size of the agent icons in the agent running dropdown by 15%",
+  "category": "ux",
+  "mappedPlanId": "build-phase-kanban-and-task-listing",
+  "createdTaskIds": [
+    "opensprint.dev-cxx.33"
+  ],
+  "status": "mapped",
+  "createdAt": "2026-02-19T04:33:57.273Z",
+  "parent_id": null,
+  "depth": 0,
+  "mappedEpicId": "opensprint.dev-cxx",
+  "isScopeChange": false,
+  "proposedTasks": [
+    {
+      "index": 0,
+      "title": "Increase agent icon size in running-agent dropdown by 15%",
+      "description": "In the Build/Execute phase UI, the agent icons displayed in the 'agent running' dropdown are too small. Increase their rendered size by 15% (e.g., if currently 16px, change to ~18px; if 20px, change to 23px). Acceptance criteria: (1) agent icons in the running-agent dropdown are 15% larger than their current size, (2) icons remain crisp and properly aligned within the dropdown row, (3) dropdown layout does not overflow or clip due to the size increase, (4) change applies consistently across light and dark themes.",
+      "priority": 3,
+      "depends_on": []
+    }
+  ],
+  "taskTitles": [
+    "Increase agent icon size in running-agent dropdown by 15%"
+  ],
+  "feedbackSourceBeadId": "opensprint.dev-cdrp"
+}

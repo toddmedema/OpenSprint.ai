@@ -1,0 +1,26 @@
+{
+  "id": "3jwl6b",
+  "text": "Please fix all failing tests",
+  "category": "bug",
+  "mappedPlanId": "agent-invocation-service",
+  "createdTaskIds": [],
+  "status": "mapped",
+  "createdAt": "2026-02-19T04:32:58.065Z",
+  "parent_id": null,
+  "depth": 0,
+  "mappedEpicId": "opensprint.dev-z0v",
+  "isScopeChange": false,
+  "proposedTasks": [
+    {
+      "index": 0,
+      "title": "Investigate and fix all failing tests",
+      "description": "Run the full test suite (`npm test`), collect all failing test cases, diagnose root causes, and apply fixes. Acceptance criteria: (1) `npm test` exits with code 0 and all tests pass, (2) no tests are skipped or disabled to achieve a passing run, (3) each fix is minimal and does not alter intended behavior — if a test failure reveals a genuine code bug, fix the code; if it reveals a stale/incorrect test expectation, update the test with justification in a comment.",
+      "priority": 1,
+      "depends_on": []
+    }
+  ],
+  "taskTitles": [
+    "Investigate and fix all failing tests"
+  ],
+  "feedbackSourceBeadId": "opensprint.dev-iscf"
+}
