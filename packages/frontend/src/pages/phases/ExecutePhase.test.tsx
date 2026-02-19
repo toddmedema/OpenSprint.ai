@@ -601,6 +601,260 @@ describe("ExecutePhase top bar", () => {
   });
 });
 
+describe("ExecutePhase expandable search bar", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renders search icon on the far right of the Execute toolbar", () => {
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Task A",
+        epicId: "epic-1",
+        kanbanColumn: "ready",
+        priority: 0,
+        assignee: null,
+      },
+    ];
+    const store = createStore(tasks);
+    render(
+      <Provider store={store}>
+        <ExecutePhase projectId="proj-1" />
+      </Provider>
+    );
+
+    expect(screen.getByTestId("execute-search-expand")).toBeInTheDocument();
+    expect(screen.getByTestId("execute-search-expand")).toHaveAttribute("aria-label", "Expand search");
+    expect(screen.queryByTestId("execute-search-expanded")).not.toBeInTheDocument();
+  });
+
+  it("expands into text input when search icon is clicked", async () => {
+    const user = userEvent.setup();
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Task A",
+        epicId: "epic-1",
+        kanbanColumn: "ready",
+        priority: 0,
+        assignee: null,
+      },
+    ];
+    const store = createStore(tasks);
+    render(
+      <Provider store={store}>
+        <ExecutePhase projectId="proj-1" />
+      </Provider>
+    );
+
+    await user.click(screen.getByTestId("execute-search-expand"));
+
+    expect(screen.getByTestId("execute-search-expanded")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Search tickets…")).toBeInTheDocument();
+    expect(screen.getByTestId("execute-search-close")).toBeInTheDocument();
+    expect(screen.queryByTestId("execute-search-expand")).not.toBeInTheDocument();
+  });
+
+  it("shows X close button when input is visible", async () => {
+    const user = userEvent.setup();
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Task A",
+        epicId: "epic-1",
+        kanbanColumn: "ready",
+        priority: 0,
+        assignee: null,
+      },
+    ];
+    const store = createStore(tasks);
+    render(
+      <Provider store={store}>
+        <ExecutePhase projectId="proj-1" />
+      </Provider>
+    );
+
+    await user.click(screen.getByTestId("execute-search-expand"));
+
+    const closeBtn = screen.getByTestId("execute-search-close");
+    expect(closeBtn).toBeInTheDocument();
+    expect(closeBtn).toHaveAttribute("aria-label", "Close search");
+  });
+
+  it("clicking X clears input, hides input, and reverts to icon state", async () => {
+    const user = userEvent.setup();
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Task A",
+        epicId: "epic-1",
+        kanbanColumn: "ready",
+        priority: 0,
+        assignee: null,
+      },
+    ];
+    const store = createStore(tasks);
+    render(
+      <Provider store={store}>
+        <ExecutePhase projectId="proj-1" />
+      </Provider>
+    );
+
+    await user.click(screen.getByTestId("execute-search-expand"));
+    const input = screen.getByPlaceholderText("Search tickets…");
+    await user.type(input, "foo");
+
+    expect(input).toHaveValue("foo");
+
+    await user.click(screen.getByTestId("execute-search-close"));
+
+    expect(screen.queryByTestId("execute-search-expanded")).not.toBeInTheDocument();
+    expect(screen.getByTestId("execute-search-expand")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Search tickets…")).not.toBeInTheDocument();
+  });
+
+  it("input receives focus automatically on expand", async () => {
+    const user = userEvent.setup();
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Task A",
+        epicId: "epic-1",
+        kanbanColumn: "ready",
+        priority: 0,
+        assignee: null,
+      },
+    ];
+    const store = createStore(tasks);
+    render(
+      <Provider store={store}>
+        <ExecutePhase projectId="proj-1" />
+      </Provider>
+    );
+
+    await user.click(screen.getByTestId("execute-search-expand"));
+
+    const input = screen.getByPlaceholderText("Search tickets…");
+    expect(document.activeElement).toBe(input);
+  });
+
+  it("pressing Escape closes and clears the search bar", async () => {
+    const user = userEvent.setup();
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Task A",
+        epicId: "epic-1",
+        kanbanColumn: "ready",
+        priority: 0,
+        assignee: null,
+      },
+    ];
+    const store = createStore(tasks);
+    render(
+      <Provider store={store}>
+        <ExecutePhase projectId="proj-1" />
+      </Provider>
+    );
+
+    await user.click(screen.getByTestId("execute-search-expand"));
+    const input = screen.getByPlaceholderText("Search tickets…");
+    await user.type(input, "bar");
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByTestId("execute-search-expanded")).not.toBeInTheDocument();
+    expect(screen.getByTestId("execute-search-expand")).toBeInTheDocument();
+  });
+
+  it("filters tasks by search query", async () => {
+    const user = userEvent.setup();
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Add login form",
+        epicId: "epic-1",
+        kanbanColumn: "ready",
+        priority: 0,
+        assignee: null,
+      },
+      {
+        id: "epic-1.2",
+        title: "Add logout button",
+        epicId: "epic-1",
+        kanbanColumn: "ready",
+        priority: 1,
+        assignee: null,
+      },
+      {
+        id: "epic-1.3",
+        title: "Fix password reset",
+        epicId: "epic-1",
+        kanbanColumn: "ready",
+        priority: 2,
+        assignee: null,
+      },
+    ];
+    const store = createStore(tasks);
+    const { container } = render(
+      <Provider store={store}>
+        <ExecutePhase projectId="proj-1" />
+      </Provider>
+    );
+
+    await user.click(screen.getByTestId("execute-search-expand"));
+    const input = screen.getByPlaceholderText("Search tickets…");
+    await user.type(input, "login");
+
+    const epicCard = container.querySelector('[data-testid="epic-card-epic-1"]');
+    expect(epicCard!.querySelectorAll("ul li")).toHaveLength(1);
+    expect(epicCard!.textContent).toContain("Add login form");
+  });
+
+  it("works alongside status filter without layout conflicts", async () => {
+    const user = userEvent.setup();
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Login task",
+        epicId: "epic-1",
+        kanbanColumn: "done",
+        priority: 0,
+        assignee: null,
+      },
+      {
+        id: "epic-1.2",
+        title: "Logout task",
+        epicId: "epic-1",
+        kanbanColumn: "ready",
+        priority: 1,
+        assignee: null,
+      },
+    ];
+    const store = createStore(tasks);
+    const { container } = render(
+      <Provider store={store}>
+        <ExecutePhase projectId="proj-1" />
+      </Provider>
+    );
+
+    await user.click(screen.getByTestId("filter-chip-done"));
+    expect(container.querySelector('[data-testid="epic-card-epic-1"]')!.querySelectorAll("ul li")).toHaveLength(1);
+
+    await user.click(screen.getByTestId("execute-search-expand"));
+    await user.type(screen.getByPlaceholderText("Search tickets…"), "Logout");
+
+    expect(container.querySelector('[data-testid="epic-card-epic-1"]')).not.toBeInTheDocument();
+
+    await user.clear(screen.getByPlaceholderText("Search tickets…"));
+    await user.type(screen.getByPlaceholderText("Search tickets…"), "Login");
+
+    expect(container.querySelector('[data-testid="epic-card-epic-1"]')!.querySelectorAll("ul li")).toHaveLength(1);
+    expect(container.querySelector('[data-testid="epic-card-epic-1"]')!.textContent).toContain("Login task");
+  });
+});
+
 describe("ExecutePhase Redux integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
