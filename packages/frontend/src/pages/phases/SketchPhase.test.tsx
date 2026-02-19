@@ -106,7 +106,7 @@ function renderSketchPhase(store = createStore()) {
   );
 }
 
-describe("SketchPhase with specSlice", () => {
+describe("SketchPhase with sketchSlice", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockChatSend.mockResolvedValue({ message: "Response" });

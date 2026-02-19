@@ -228,7 +228,7 @@ describe("websocketMiddleware", () => {
   });
 
   describe("ServerEvent handling", () => {
-    it("dispatches to spec and plan slices on prd.updated (fetchPrd, fetchPrdHistory, fetchSpecChat, fetchPlanStatus)", async () => {
+    it("dispatches to sketch and plan slices on prd.updated (fetchPrd, fetchPrdHistory, fetchSketchChat, fetchPlanStatus)", async () => {
       const store = createStore();
       store.dispatch(wsConnect({ projectId: "proj-1" }));
       wsInstance!.simulateOpen();
