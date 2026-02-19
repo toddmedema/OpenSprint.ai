@@ -1,6 +1,4 @@
 import { exec } from "child_process";
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "fs";
-import path from "path";
 import { promisify } from "util";
 import type { TaskType, TaskPriority } from "@opensprint/shared";
 import { AppError } from "../middleware/error-handler.js";
@@ -11,12 +9,13 @@ const execAsync = promisify(exec);
 const DEFAULT_TIMEOUT_MS = 30000;
 const MAX_BUFFER_BYTES = 2 * 1024 * 1024; // 2MB for large list output
 
-const daemonReady = new Map<string, { promise: Promise<void>; checkedAt: number }>();
-/** Repos where this backend instance has written backend.pid (for cleanup on shutdown) */
-const managedReposForShutdown = new Set<string>();
-const DAEMON_CHECK_INTERVAL_MS = 60_000;
-const DAEMON_STALE_THRESHOLD_MS = 5 * 60_000;
-const BACKEND_PID_FILE = "backend.pid";
+/**
+ * All backend bd commands use --no-daemon to bypass the daemon and access
+ * storage directly. This prevents the bd CLI from auto-starting a background
+ * daemon on each invocation — a behaviour that previously caused thousands
+ * of orphaned daemon processes and 50+ GB of leaked RAM.
+ */
+const BD_GLOBAL_FLAGS = "--no-daemon";
 
 /**
  * Raw shape returned by `bd list --json` / `bd show --json`.
@@ -47,177 +46,30 @@ export interface BeadsIssue {
  */
 export class BeadsService {
   /**
-   * Ensure exactly one bd daemon is running for the given repo.
-   * Uses a per-path singleton promise so concurrent callers coalesce
-   * rather than each spawning their own daemon.
+   * @deprecated No-op. Daemon management has been removed — all bd commands
+   * now use --no-daemon for direct storage access. Kept for API compatibility
+   * with callers that may still reference it.
    */
-  async ensureDaemon(repoPath: string): Promise<void> {
-    const now = Date.now();
-
-    // Prune entries that haven't been refreshed recently
-    for (const [path, entry] of daemonReady) {
-      if (now - entry.checkedAt > DAEMON_STALE_THRESHOLD_MS) {
-        daemonReady.delete(path);
-      }
-    }
-
-    const existing = daemonReady.get(repoPath);
-    if (existing && now - existing.checkedAt < DAEMON_CHECK_INTERVAL_MS) {
-      return existing.promise;
-    }
-
-    const promise = this.startDaemonIfNeeded(repoPath).catch((err) => {
-      daemonReady.delete(repoPath);
-      console.warn("[beads] Daemon startup failed, will retry next call:", (err as Error).message);
-    });
-    daemonReady.set(repoPath, { promise, checkedAt: now });
-
-    return promise;
+  async ensureDaemon(_repoPath: string): Promise<void> {
+    // Intentional no-op — see BD_GLOBAL_FLAGS
   }
 
-  private isDaemonPidAlive(repoPath: string): boolean {
-    try {
-      const pidFile = path.join(repoPath, ".beads", "daemon.pid");
-      if (!existsSync(pidFile)) return false;
-      const pid = parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
-      if (!pid || isNaN(pid)) return false;
-      process.kill(pid, 0);
-      return true;
-    } catch {
-      return false;
-    }
-  }
+  /** @deprecated No-op — daemons are no longer started. Kept for API compat. */
+  async stopDaemonsForRepos(_repoPaths: string[]): Promise<void> {}
 
-  /** Check if another backend instance is managing this repo's daemon (file-based lock) */
-  private isAnotherBackendManaging(repoPath: string): boolean {
-    try {
-      const backendPidPath = path.join(repoPath, ".beads", BACKEND_PID_FILE);
-      if (!existsSync(backendPidPath)) return false;
-      const pid = parseInt(readFileSync(backendPidPath, "utf-8").trim(), 10);
-      if (!pid || isNaN(pid)) return false;
-      if (pid === process.pid) return false; // we are the manager
-      process.kill(pid, 0);
-      return true; // other backend is alive and managing
-    } catch {
-      return false;
-    }
-  }
-
-  /** Write our PID to backend.pid to claim daemon management for this repo */
-  private claimBackendPid(repoPath: string): void {
-    try {
-      const beadsDir = path.join(repoPath, ".beads");
-      const backendPidPath = path.join(beadsDir, BACKEND_PID_FILE);
-      mkdirSync(beadsDir, { recursive: true });
-      writeFileSync(backendPidPath, String(process.pid), "utf-8");
-      managedReposForShutdown.add(repoPath);
-    } catch {
-      // Path may not exist or be unwritable (e.g. test paths like /repo)
-      // Continue without file lock — stop-then-start still prevents accumulation
-    }
-  }
-
-  /** Remove our backend.pid and run bd daemon stop for a repo (for shutdown) */
-  private async stopDaemonForRepo(repoPath: string): Promise<void> {
-    const backendPidPath = path.join(repoPath, ".beads", BACKEND_PID_FILE);
-    try {
-      if (existsSync(backendPidPath)) {
-        const content = readFileSync(backendPidPath, "utf-8").trim();
-        if (parseInt(content, 10) === process.pid) {
-          unlinkSync(backendPidPath);
-        }
-      }
-    } catch {
-      // best effort
-    }
-    try {
-      await execAsync("bd daemon stop", {
-        cwd: repoPath,
-        timeout: 5_000,
-        env: { ...process.env },
-      });
-    } catch {
-      // ignore — daemon may not be running
-    }
-  }
-
-  private async startDaemonIfNeeded(repoPath: string): Promise<void> {
-    // Fix C: Skip if another backend instance is already managing this repo
-    if (this.isAnotherBackendManaging(repoPath)) return;
-
-    if (this.isDaemonPidAlive(repoPath)) return;
-
-    try {
-      const { stdout } = await execAsync("bd daemon status --json", {
-        cwd: repoPath,
-        timeout: 5_000,
-        env: { ...process.env },
-      });
-      const status = JSON.parse(stdout.trim());
-      if (status.status === "running") return;
-    } catch {
-      // status check failed or timed out
-    }
-
-    if (this.isDaemonPidAlive(repoPath)) return;
-
-    // Fix C: Claim management before starting (removes stale backend.pid if PID dead)
-    this.claimBackendPid(repoPath);
-
-    // Fix A: Stop any potentially stale daemon before starting fresh
-    try {
-      await execAsync("bd daemon stop", {
-        cwd: repoPath,
-        timeout: 5_000,
-        env: { ...process.env },
-      });
-    } catch {
-      // ignore — may not be running
-    }
-
-    try {
-      await execAsync("bd daemon start", {
-        cwd: repoPath,
-        timeout: 10_000,
-        env: { ...process.env },
-      });
-    } catch (err: unknown) {
-      managedReposForShutdown.delete(repoPath);
-      const e = err as { stderr?: string; message?: string; killed?: boolean };
-      if (e.killed || this.isDaemonPidAlive(repoPath)) return;
-      const msg = e.stderr ?? e.message ?? "";
-      if (msg.includes("already running")) return;
-      throw new Error(`Failed to start daemon for ${repoPath}: ${msg}`);
-    }
-  }
-
-  /**
-   * Stop bd daemons for the given repo paths. Call on backend shutdown.
-   * Also removes backend.pid for paths this process manages.
-   */
-  async stopDaemonsForRepos(repoPaths: string[]): Promise<void> {
-    const allPaths = [...new Set([...repoPaths, ...managedReposForShutdown])];
-    await Promise.all(allPaths.map((p) => this.stopDaemonForRepo(p)));
-    managedReposForShutdown.clear();
-  }
-
-  /** Get repo paths this backend has managed (for shutdown coordination) */
+  /** @deprecated No-op — daemons are no longer started. Kept for API compat. */
   static getManagedRepoPaths(): string[] {
-    return [...managedReposForShutdown];
+    return [];
   }
 
   /** Reset module-level state (for tests only) */
-  static resetForTesting(): void {
-    daemonReady.clear();
-    managedReposForShutdown.clear();
-  }
+  static resetForTesting(): void {}
 
   private async syncImport(repoPath: string): Promise<void> {
     try {
-      await execAsync("bd sync --import-only", {
+      await execAsync(`bd ${BD_GLOBAL_FLAGS} sync --import-only`, {
         cwd: repoPath,
         timeout: 15_000,
-        env: { ...process.env },
       });
     } catch (err: unknown) {
       const e = err as { stderr?: string; message?: string };
@@ -231,8 +83,8 @@ export class BeadsService {
 
   /**
    * Execute a bd command in the context of a project directory.
-   * Handles exec errors, timeouts, and surfaces stderr to caller.
-   * Ensures a daemon is running before executing.
+   * All commands include --no-daemon to prevent the CLI from auto-starting
+   * background daemon processes.
    * Auto-recovers from stale-database errors by running sync --import-only and retrying once.
    */
   private async exec(
@@ -240,15 +92,13 @@ export class BeadsService {
     command: string,
     options?: { timeout?: number }
   ): Promise<string> {
-    await this.ensureDaemon(repoPath);
-
     const timeout = options?.timeout ?? DEFAULT_TIMEOUT_MS;
+    const fullCmd = `bd ${BD_GLOBAL_FLAGS} ${command}`;
     try {
-      const { stdout } = await execAsync(`bd ${command}`, {
+      const { stdout } = await execAsync(fullCmd, {
         cwd: repoPath,
         timeout,
         maxBuffer: MAX_BUFFER_BYTES,
-        env: { ...process.env },
       });
       return stdout;
     } catch (error: unknown) {
@@ -264,9 +114,9 @@ export class BeadsService {
         throw new AppError(
           504,
           ErrorCodes.BEADS_TIMEOUT,
-          `Beads command timed out after ${timeout}ms: bd ${command}\n${err.stderr || err.message}`,
+          `Beads command timed out after ${timeout}ms: ${fullCmd}\n${err.stderr || err.message}`,
           {
-            command: `bd ${command}`,
+            command: fullCmd,
             timeout,
           }
         );
@@ -274,14 +124,13 @@ export class BeadsService {
 
       const stderr = err.stderr || err.stdout || err.message;
       if (this.isStaleDbError(stderr)) {
-        console.warn(`[beads] Stale DB detected for bd ${command}, running sync --import-only`);
+        console.warn(`[beads] Stale DB detected for ${fullCmd}, running sync --import-only`);
         await this.syncImport(repoPath);
         try {
-          const { stdout } = await execAsync(`bd ${command}`, {
+          const { stdout } = await execAsync(fullCmd, {
             cwd: repoPath,
             timeout,
             maxBuffer: MAX_BUFFER_BYTES,
-            env: { ...process.env },
           });
           return stdout;
         } catch (retryError: unknown) {
@@ -290,9 +139,9 @@ export class BeadsService {
           throw new AppError(
             502,
             ErrorCodes.BEADS_COMMAND_FAILED,
-            `Beads command failed after sync retry: bd ${command}\n${retryStderr}`,
+            `Beads command failed after sync retry: ${fullCmd}\n${retryStderr}`,
             {
-              command: `bd ${command}`,
+              command: fullCmd,
               stderr: retryStderr,
             }
           );
@@ -302,9 +151,9 @@ export class BeadsService {
       throw new AppError(
         502,
         ErrorCodes.BEADS_COMMAND_FAILED,
-        `Beads command failed: bd ${command}\n${stderr}`,
+        `Beads command failed: ${fullCmd}\n${stderr}`,
         {
-          command: `bd ${command}`,
+          command: fullCmd,
           stderr,
         }
       );
@@ -390,10 +239,9 @@ export class BeadsService {
   /** Initialize beads in a project repository */
   async init(repoPath: string): Promise<void> {
     try {
-      await execAsync("bd init", {
+      await execAsync(`bd ${BD_GLOBAL_FLAGS} init`, {
         cwd: repoPath,
         timeout: DEFAULT_TIMEOUT_MS,
-        env: { ...process.env },
       });
     } catch (error: unknown) {
       const err = error as { stderr?: string; stdout?: string; message: string };
@@ -509,20 +357,22 @@ export class BeadsService {
    * Get ready tasks (priority-sorted, all blocks deps resolved).
    * bd ready may return tasks whose blockers are in_progress; we only consider
    * a blocks dependency resolved when the blocker status is closed.
+   *
+   * Fetches the status map once and reuses it for all blocker checks to avoid
+   * redundant bd list calls (previously N+1 calls for N tasks).
    */
   async ready(repoPath: string): Promise<BeadsIssue[]> {
     const stdout = await this.exec(repoPath, "ready --json -n 0");
     const rawTasks = this.parseJsonArray(stdout);
     if (rawTasks.length === 0) return [];
 
-    const allIssues = await this.listAll(repoPath);
-    const idToStatus = new Map(allIssues.map((i) => [i.id, i.status]));
+    const statusMap = await this.getStatusMap(repoPath);
 
     const filtered: BeadsIssue[] = [];
     for (const task of rawTasks) {
       const blockers = await this.getBlockers(repoPath, task.id);
       const allBlockersClosed =
-        blockers.length === 0 || blockers.every((bid) => idToStatus.get(bid) === "closed");
+        blockers.length === 0 || blockers.every((bid) => statusMap.get(bid) === "closed");
       if (allBlockersClosed) {
         filtered.push(task);
       }
@@ -566,15 +416,29 @@ export class BeadsService {
   }
 
   /**
-   * Check whether all blocks dependencies for a task are closed.
-   * Used as a pre-flight guard before claiming a task.
+   * Build an id→status map from all issues. Callers that need to check
+   * multiple tasks in a loop should call this once and pass it through
+   * to avoid N redundant `bd list --all` invocations.
    */
-  async areAllBlockersClosed(repoPath: string, taskId: string): Promise<boolean> {
+  async getStatusMap(repoPath: string): Promise<Map<string, string>> {
+    const allIssues = await this.listAll(repoPath);
+    return new Map(allIssues.map((i) => [i.id, i.status]));
+  }
+
+  /**
+   * Check whether all blocks dependencies for a task are closed.
+   * Accepts an optional pre-fetched statusMap to avoid redundant listAll calls
+   * when checking multiple tasks in a loop.
+   */
+  async areAllBlockersClosed(
+    repoPath: string,
+    taskId: string,
+    statusMap?: Map<string, string>
+  ): Promise<boolean> {
     const blockers = await this.getBlockers(repoPath, taskId);
     if (blockers.length === 0) return true;
-    const allIssues = await this.listAll(repoPath);
-    const idToStatus = new Map(allIssues.map((i) => [i.id, i.status]));
-    return blockers.every((bid) => idToStatus.get(bid) === "closed");
+    const map = statusMap ?? (await this.getStatusMap(repoPath));
+    return blockers.every((bid) => map.get(bid) === "closed");
   }
 
   /** Get IDs of issues that block this one (this task depends on them) */

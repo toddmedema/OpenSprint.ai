@@ -1,5 +1,6 @@
 import path from "path";
 import fs from "fs";
+import { execSync } from "child_process";
 import { config } from "dotenv";
 import { createServer } from "http";
 import { createApp } from "./app.js";
@@ -8,6 +9,12 @@ import { createApp } from "./app.js";
 config({ path: path.resolve(process.cwd(), ".env") });
 config({ path: path.resolve(process.cwd(), "../.env") });
 config({ path: path.resolve(process.cwd(), "../../.env") });
+
+// Prevent the bd CLI from auto-starting daemon processes. Without this, every
+// `bd` invocation (from our service, agents, test runners) spawns a detached
+// daemon that is never reaped — previously causing 3000+ orphaned processes
+// and 50+ GB of leaked RAM. All child processes inherit this.
+process.env.BEADS_NO_DAEMON = "1";
 import { setupWebSocket, closeWebSocket } from "./websocket/index.js";
 import { DEFAULT_API_PORT } from "@opensprint/shared";
 import { ProjectService } from "./services/project.service.js";
@@ -106,11 +113,27 @@ async function initAlwaysOnOrchestrator(): Promise<void> {
       return;
     }
 
+    // Prune projects whose repoPath no longer contains a git repo (stale temp dirs, deleted repos)
+    const validProjects = projects.filter((p) => {
+      if (!fs.existsSync(p.repoPath) || !fs.existsSync(path.join(p.repoPath, ".git"))) {
+        console.warn(
+          `[orchestrator] Skipping "${p.name}" — repoPath is not a valid git repo: ${p.repoPath}`
+        );
+        return false;
+      }
+      return true;
+    });
+
+    if (validProjects.length === 0) {
+      console.log("[orchestrator] No projects with valid repo paths found");
+      return;
+    }
+
     console.log(
-      `[orchestrator] ${projects.length} project(s) registered — starting always-on orchestrator`
+      `[orchestrator] ${validProjects.length} project(s) registered — starting always-on orchestrator`
     );
 
-    for (const project of projects) {
+    for (const project of validProjects) {
       try {
         // Auto-start always-on orchestrator for each project (PRDv2 §5.7)
         await orchestratorService.ensureRunning(project.id);
@@ -162,19 +185,12 @@ const shutdown = async () => {
   await killAllTrackedAgentProcesses();
   stopProcessReaper();
   orchestratorService.stopAll();
-
-  // Stop bd daemons only for repos this backend actually started/managed.
-  // Do NOT stop daemons for all project paths — other backends may be managing them.
+  // Kill any lingering bd daemons spawned by this or previous sessions
   try {
-    const managedPaths = BeadsService.getManagedRepoPaths();
-    if (managedPaths.length > 0) {
-      const beads = new BeadsService();
-      await beads.stopDaemonsForRepos(managedPaths);
-    }
-  } catch (err) {
-    console.warn("[shutdown] Failed to stop bd daemons:", (err as Error).message);
+    execSync("bd daemon killall 2>/dev/null", { timeout: 5_000 });
+  } catch {
+    /* best effort */
   }
-
   removePidFile();
   closeWebSocket();
   server.close(() => {

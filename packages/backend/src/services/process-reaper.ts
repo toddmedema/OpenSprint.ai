@@ -3,9 +3,12 @@ import { execSync } from "child_process";
 const REAP_INTERVAL_MS = 60_000;
 let timer: ReturnType<typeof setInterval> | null = null;
 
+const ORPHAN_SIGNATURES = ["vitest", "bd daemon --start", "bd daemon start"];
+
 /**
- * Finds and kills orphaned vitest/node worker processes (ppid=1) that were
- * abandoned when their parent was killed. These leak memory indefinitely.
+ * Finds and kills orphaned worker processes (ppid=1) that were abandoned when
+ * their parent was killed. Targets vitest workers and leaked bd daemon
+ * processes, which can accumulate hundreds of instances and consume tens of GB.
  *
  * Only targets processes whose ppid is 1 (adopted by init/launchd), meaning
  * the original parent is already gone — safe to kill.
@@ -14,8 +17,9 @@ function reapOrphanedWorkers(): void {
   if (process.platform === "win32") return;
 
   try {
+    // Find orphaned node AND bd processes (ppid=1)
     const output = execSync(
-      `ps -eo pid,ppid,comm 2>/dev/null | awk '$2 == 1 && $3 == "node"' | awk '{print $1}'`,
+      `ps -eo pid,ppid,comm 2>/dev/null | awk '$2 == 1 && ($3 == "node" || $3 == "bd")' | awk '{print $1}'`,
       { encoding: "utf-8", timeout: 5_000 }
     ).trim();
 
@@ -31,13 +35,12 @@ function reapOrphanedWorkers(): void {
     let killed = 0;
     for (const pid of pids) {
       try {
-        // Verify this is actually a vitest worker before killing
         const cmdline = execSync(`ps -p ${pid} -o command=`, {
           encoding: "utf-8",
           timeout: 2_000,
         }).trim();
 
-        if (!cmdline.includes("vitest")) continue;
+        if (!ORPHAN_SIGNATURES.some((sig) => cmdline.includes(sig))) continue;
 
         process.kill(pid, "SIGKILL");
         killed++;
@@ -47,7 +50,7 @@ function reapOrphanedWorkers(): void {
     }
 
     if (killed > 0) {
-      console.log(`[reaper] Killed ${killed} orphaned vitest worker(s)`);
+      console.log(`[reaper] Killed ${killed} orphaned worker(s)`);
     }
   } catch {
     /* ps/awk not available or timed out — skip silently */

@@ -937,9 +937,11 @@ export class OrchestratorService {
       }
 
       // 2. Pick the highest-priority task (pre-flight: verify all blockers are closed)
+      //    Fetch the status map once so the loop doesn't call listAll per task.
+      const statusMap = await this.beads.getStatusMap(repoPath);
       let task: BeadsIssue | null = null;
       for (const t of readyTasks) {
-        const allClosed = await this.beads.areAllBlockersClosed(repoPath, t.id);
+        const allClosed = await this.beads.areAllBlockersClosed(repoPath, t.id, statusMap);
         if (allClosed) {
           task = t;
           break;
