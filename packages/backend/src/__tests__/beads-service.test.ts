@@ -518,6 +518,21 @@ describe("BeadsService", () => {
       expect(stopCalls).toHaveLength(2);
     });
 
+    it("stopDaemonsForRepos removes backend.pid for managed repos on shutdown", async () => {
+      const tmpDir = path.join(os.tmpdir(), `beads-stop-test-${Date.now()}`);
+      const beadsDir = path.join(tmpDir, ".beads");
+      const backendPidPath = path.join(beadsDir, "backend.pid");
+      fs.mkdirSync(beadsDir, { recursive: true });
+      fs.writeFileSync(backendPidPath, String(process.pid), "utf-8");
+
+      mockExecImpl = async () => ({ stdout: "", stderr: "" });
+
+      await beads.stopDaemonsForRepos([tmpDir]);
+
+      expect(fs.existsSync(backendPidPath)).toBe(false);
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
     it("getManagedRepoPaths returns paths after daemon start", async () => {
       mockExecImpl = async (cmd: string) => {
         if (cmd.includes("daemon status")) {

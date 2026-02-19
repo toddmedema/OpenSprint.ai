@@ -64,7 +64,8 @@ export class BeadsService {
 
   /**
    * Stops bd daemons for the given repo paths. Called on backend shutdown
-   * to clean up daemons this process started.
+   * to clean up daemons this process started. Also removes backend.pid so
+   * the next backend can claim the repo without seeing a stale PID.
    */
   async stopDaemonsForRepos(repoPaths: string[]): Promise<void> {
     for (const p of repoPaths) {
@@ -76,6 +77,18 @@ export class BeadsService {
         });
       } catch {
         /* ignore — may not be running */
+      }
+      // Remove our backend.pid claim so next backend can take over cleanly
+      try {
+        const pidPath = path.join(p, BACKEND_PID_FILE);
+        if (fs.existsSync(pidPath)) {
+          const content = fs.readFileSync(pidPath, "utf-8").trim();
+          if (parseInt(content, 10) === process.pid) {
+            fs.unlinkSync(pidPath);
+          }
+        }
+      } catch {
+        /* best effort */
       }
     }
   }
