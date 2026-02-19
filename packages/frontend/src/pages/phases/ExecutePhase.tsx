@@ -459,9 +459,7 @@ export function ExecutePhase({ projectId, onNavigateToPlan }: ExecutePhaseProps)
 
   const totalTasks = implTasks.length;
   const readyCount = implTasks.filter((t) => t.kanbanColumn === "ready").length;
-  const blockedCount = implTasks.filter((t) =>
-    ["planning", "backlog", "blocked"].includes(t.kanbanColumn),
-  ).length;
+  const blockedOnHumanCount = implTasks.filter((t) => t.kanbanColumn === "blocked").length;
   const inProgressCount = implTasks.filter((t) => t.kanbanColumn === "in_progress").length;
   const inReviewCount = implTasks.filter((t) => t.kanbanColumn === "in_review").length;
   const doneCount = implTasks.filter((t) => t.kanbanColumn === "done").length;
@@ -472,7 +470,9 @@ export function ExecutePhase({ projectId, onNavigateToPlan }: ExecutePhaseProps)
     { label: "In Progress", filter: "in_progress", count: inProgressCount },
     { label: "In Review", filter: "in_review", count: inReviewCount },
     { label: "Done", filter: "done", count: doneCount },
-    { label: "Blocked", filter: "blocked", count: blockedCount },
+    ...(blockedOnHumanCount > 0
+      ? [{ label: "⚠️ Blocked on Human", filter: "blocked" as StatusFilter, count: blockedOnHumanCount }]
+      : []),
   ];
 
   return (

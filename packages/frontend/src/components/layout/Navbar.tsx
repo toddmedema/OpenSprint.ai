@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { Project, ProjectPhase } from "@opensprint/shared";
+import { useAppSelector } from "../../store";
 import { getProjectPhasePath } from "../../lib/phaseRouting";
 import { api } from "../../api/client";
 import { ActiveAgentsList } from "../ActiveAgentsList";
@@ -17,13 +18,13 @@ interface NavbarProps {
   onSettingsOpenChange?: (open: boolean) => void;
 }
 
-const phases: { key: ProjectPhase; label: string }[] = [
-  { key: "sketch", label: "Sketch" },
-  { key: "plan", label: "Plan" },
-  { key: "execute", label: "Execute" },
-  { key: "eval", label: "Evaluate" },
-  { key: "deliver", label: "Deliver" },
-];
+const PHASE_LABELS: Record<ProjectPhase, string> = {
+  sketch: "Sketch",
+  plan: "Plan",
+  execute: "Execute",
+  eval: "Evaluate",
+  deliver: "Deliver",
+};
 
 export function Navbar({
   project,
@@ -40,6 +41,25 @@ export function Navbar({
   const settingsOpen = controlledSettingsOpen ?? internalSettingsOpen;
   const setSettingsOpen = onSettingsOpenChange ?? setInternalSettingsOpen;
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const executeBlockedCount = useAppSelector((s) => {
+    const implTasks = s.execute.tasks.filter((t) => {
+      const isEpic = t.type === "epic";
+      const isGating = /\.0$/.test(t.id);
+      return !isEpic && !isGating;
+    });
+    return implTasks.filter((t) => t.kanbanColumn === "blocked").length;
+  });
+
+  const phaseTabs = useMemo(
+    () =>
+      (["sketch", "plan", "execute", "eval", "deliver"] as const).map((key) => ({
+        key,
+        label:
+          key === "execute" && executeBlockedCount > 0 ? "⚠️ Execute" : PHASE_LABELS[key],
+      })),
+    [executeBlockedCount]
+  );
 
   useEffect(() => {
     if (dropdownOpen) {
@@ -149,7 +169,7 @@ export function Navbar({
         {/* Center: Phase Tabs */}
         {project && currentPhase && onPhaseChange && (
           <div className="flex items-center gap-1 bg-theme-border-subtle rounded-lg p-1">
-            {phases.map((phase) => (
+            {phaseTabs.map((phase) => (
               <button
                 key={phase.key}
                 onClick={() => onPhaseChange(phase.key)}

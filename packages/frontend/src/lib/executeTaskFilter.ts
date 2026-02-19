@@ -8,9 +8,10 @@ export type StatusFilter =
   | "done"
   | "blocked";
 
+/** Blocked-on-human = beads status blocked (kanbanColumn "blocked"); excludes planning/backlog. */
 export function matchesStatusFilter(kanbanColumn: string, filter: StatusFilter): boolean {
   if (filter === "all") return true;
-  if (filter === "blocked") return ["planning", "backlog", "blocked"].includes(kanbanColumn);
+  if (filter === "blocked") return kanbanColumn === "blocked";
   return kanbanColumn === filter;
 }
 

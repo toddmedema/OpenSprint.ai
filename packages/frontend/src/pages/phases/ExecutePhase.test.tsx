@@ -401,7 +401,7 @@ describe("ExecutePhase top bar", () => {
     expect(topBar?.querySelector('[role="progressbar"]')).not.toBeInTheDocument();
   });
 
-  it("shows status filter chips with task counts (All, Ready, In Progress, In Review, Done, Blocked)", () => {
+  it("shows status filter chips with task counts (All, Ready, In Progress, In Review, Done; Blocked on Human only when count > 0)", () => {
     const tasks = [
       {
         id: "epic-1.1",
@@ -433,6 +433,7 @@ describe("ExecutePhase top bar", () => {
     expect(screen.getByTestId("filter-chip-ready")).toHaveTextContent("1");
     expect(screen.getByTestId("filter-chip-done")).toHaveTextContent("Done");
     expect(screen.getByTestId("filter-chip-done")).toHaveTextContent("1");
+    expect(screen.queryByTestId("filter-chip-blocked")).not.toBeInTheDocument();
   });
 
   it("shows in-progress and in-review counts separately in chips", () => {
@@ -474,19 +475,19 @@ describe("ExecutePhase top bar", () => {
     expect(screen.getByTestId("filter-chip-done")).toHaveTextContent("1");
   });
 
-  it("shows separate ready and blocked counts in chips", () => {
+  it("shows Blocked on Human chip only when kanbanColumn blocked count > 0", () => {
     const tasks = [
       {
         id: "epic-1.1",
-        title: "Task A",
+        title: "Blocked task",
         epicId: "epic-1",
-        kanbanColumn: "backlog",
+        kanbanColumn: "blocked",
         priority: 0,
         assignee: null,
       },
       {
         id: "epic-1.2",
-        title: "Task B",
+        title: "Ready task",
         epicId: "epic-1",
         kanbanColumn: "ready",
         priority: 1,
@@ -501,10 +502,11 @@ describe("ExecutePhase top bar", () => {
     );
 
     expect(screen.getByTestId("filter-chip-ready")).toHaveTextContent("1");
+    expect(screen.getByTestId("filter-chip-blocked")).toHaveTextContent("⚠️ Blocked on Human");
     expect(screen.getByTestId("filter-chip-blocked")).toHaveTextContent("1");
   });
 
-  it("counts planning, backlog, and blocked as Blocked chip", () => {
+  it("counts only kanbanColumn blocked for Blocked on Human chip", () => {
     const tasks = [
       {
         id: "epic-1.1",
@@ -538,7 +540,8 @@ describe("ExecutePhase top bar", () => {
       </Provider>
     );
 
-    expect(screen.getByTestId("filter-chip-blocked")).toHaveTextContent("3");
+    expect(screen.getByTestId("filter-chip-blocked")).toHaveTextContent("⚠️ Blocked on Human");
+    expect(screen.getByTestId("filter-chip-blocked")).toHaveTextContent("1");
   });
 
   it("filters task list when chip is clicked", async () => {

@@ -42,10 +42,10 @@ describe("executeTaskFilter", () => {
       expect(matchesStatusFilter("done", "ready")).toBe(false);
     });
 
-    it("maps planning/backlog/blocked to blocked filter", () => {
+    it("maps only kanbanColumn blocked to blocked filter (blocked-on-human)", () => {
       expect(matchesStatusFilter("blocked", "blocked")).toBe(true);
-      expect(matchesStatusFilter("planning", "blocked")).toBe(true);
-      expect(matchesStatusFilter("backlog", "blocked")).toBe(true);
+      expect(matchesStatusFilter("planning", "blocked")).toBe(false);
+      expect(matchesStatusFilter("backlog", "blocked")).toBe(false);
     });
   });
 

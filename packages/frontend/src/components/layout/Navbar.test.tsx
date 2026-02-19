@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
+import type { Task } from "@opensprint/shared";
 import { ThemeProvider } from "../../contexts/ThemeContext";
 import { Navbar } from "./Navbar";
 import executeReducer from "../../store/slices/executeSlice";
@@ -47,25 +48,64 @@ beforeEach(() => {
   Object.keys(storage).forEach((k) => delete storage[k]);
 });
 
-function renderNavbar(ui: ReactElement) {
+function renderNavbar(ui: ReactElement, store = createStore()) {
   return render(
     <ThemeProvider>
-      <Provider store={createStore()}>
+      <Provider store={store}>
         <MemoryRouter>{ui}</MemoryRouter>
       </Provider>
     </ThemeProvider>,
   );
 }
 
-function createStore() {
+function createStore(executeTasks: Task[] = []) {
   return configureStore({
     reducer: {
       execute: executeReducer,
       plan: planReducer,
       websocket: websocketReducer,
     },
+    preloadedState: {
+      execute: {
+        tasks: executeTasks,
+        plans: [],
+        awaitingApproval: false,
+        orchestratorRunning: false,
+        currentTaskId: null,
+        currentPhase: null,
+        selectedTaskId: null,
+        taskDetail: null,
+        taskDetailLoading: false,
+        taskDetailError: null,
+        agentOutput: [],
+        completionState: null,
+        archivedSessions: [],
+        archivedLoading: false,
+        markDoneLoading: false,
+        unblockLoading: false,
+        statusLoading: false,
+        loading: false,
+        error: null,
+      },
+      plan: { plans: [], dependencyGraph: null, selectedPlanId: null, chatMessages: {}, loading: false, decomposing: false, executingPlanId: null, reExecutingPlanId: null, archivingPlanId: null, error: null },
+      websocket: { connected: false, hilRequest: null, hilNotification: null, deliverToast: null },
+    },
   });
 }
+
+const baseTask: Partial<Task> = {
+  title: "Task",
+  description: "",
+  type: "task",
+  status: "open",
+  priority: 0,
+  assignee: null,
+  labels: [],
+  dependencies: [],
+  epicId: "epic-1",
+  createdAt: "2024-01-01T00:00:00Z",
+  updatedAt: "2024-01-01T00:00:00Z",
+};
 
 describe("Navbar", () => {
   it("has z-[60] so dropdowns appear above Build sidebar (z-50)", () => {
@@ -81,6 +121,87 @@ describe("Navbar", () => {
     expect(screen.queryByTestId("navbar-theme-light")).not.toBeInTheDocument();
     expect(screen.queryByTestId("navbar-theme-dark")).not.toBeInTheDocument();
     expect(screen.queryByTestId("navbar-theme-system")).not.toBeInTheDocument();
+  });
+
+  it("shows Execute tab label when no blocked tasks", () => {
+    const mockProject = {
+      id: "proj-1",
+      name: "Test",
+      description: "",
+      repoPath: "/path",
+      currentPhase: "sketch" as const,
+      createdAt: "2025-01-01T00:00:00Z",
+      updatedAt: "2025-01-01T00:00:00Z",
+    };
+    const store = createStore([
+      { ...baseTask, id: "epic-1.1", kanbanColumn: "ready" } as Task,
+    ]);
+    const onPhaseChange = vi.fn();
+    renderNavbar(
+      <Navbar
+        project={mockProject}
+        currentPhase="sketch"
+        onPhaseChange={onPhaseChange}
+      />,
+      store,
+    );
+
+    expect(screen.getByRole("button", { name: "Execute" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "⚠️ Execute" })).not.toBeInTheDocument();
+  });
+
+  it("shows ⚠️ Execute badge in phase nav when blocked task count > 0", () => {
+    const mockProject = {
+      id: "proj-1",
+      name: "Test",
+      description: "",
+      repoPath: "/path",
+      currentPhase: "sketch" as const,
+      createdAt: "2025-01-01T00:00:00Z",
+      updatedAt: "2025-01-01T00:00:00Z",
+    };
+    const store = createStore([
+      { ...baseTask, id: "epic-1.1", kanbanColumn: "blocked" } as Task,
+    ]);
+    const onPhaseChange = vi.fn();
+    renderNavbar(
+      <Navbar
+        project={mockProject}
+        currentPhase="sketch"
+        onPhaseChange={onPhaseChange}
+      />,
+      store,
+    );
+
+    expect(screen.getByRole("button", { name: "⚠️ Execute" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Execute" })).not.toBeInTheDocument();
+  });
+
+  it("shows Execute (no badge) when blocked count returns to zero", () => {
+    const mockProject = {
+      id: "proj-1",
+      name: "Test",
+      description: "",
+      repoPath: "/path",
+      currentPhase: "sketch" as const,
+      createdAt: "2025-01-01T00:00:00Z",
+      updatedAt: "2025-01-01T00:00:00Z",
+    };
+    const store = createStore([
+      { ...baseTask, id: "epic-1.1", kanbanColumn: "ready" } as Task,
+    ]);
+    const onPhaseChange = vi.fn();
+    renderNavbar(
+      <Navbar
+        project={mockProject}
+        currentPhase="execute"
+        onPhaseChange={onPhaseChange}
+      />,
+      store,
+    );
+
+    expect(screen.getByRole("button", { name: "Execute" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "⚠️ Execute" })).not.toBeInTheDocument();
   });
 
   it("theme is configurable from project settings Display section", async () => {
