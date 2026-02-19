@@ -1,0 +1,28 @@
+{
+  "id": "4alm2t",
+  "text": "Hovering over the \"Submit feedback\" button should give a tooltip: On Mac OS, it should show \"Cmd + Enter to submit\" - on all other operating systems, it should show \"Ctrl + Enter to submit\"",
+  "category": "ux",
+  "mappedPlanId": "verify-phase-feedback-submission-and-mapping",
+  "createdTaskIds": [
+    "opensprint.dev-srl.28"
+  ],
+  "status": "mapped",
+  "createdAt": "2026-02-19T07:23:35.096Z",
+  "parent_id": null,
+  "depth": 0,
+  "mappedEpicId": "opensprint.dev-srl",
+  "isScopeChange": false,
+  "proposedTasks": [
+    {
+      "index": 0,
+      "title": "Add OS-aware keyboard shortcut tooltip to Submit Feedback button",
+      "description": "Add a tooltip to the 'Submit feedback' button in the Eval phase feedback form. On hover, the tooltip should display the keyboard shortcut for submission:\n- On macOS (detect via `navigator.platform` or `navigator.userAgentData`): show \"Cmd + Enter to submit\"\n- On all other operating systems: show \"Ctrl + Enter to submit\"\n\nAcceptance criteria:\n1. Hovering over the Submit feedback button shows a tooltip after a short delay (~300ms).\n2. On macOS, tooltip text reads \"Cmd + Enter to submit\".\n3. On Windows/Linux/other, tooltip text reads \"Ctrl + Enter to submit\".\n4. Tooltip disappears when the cursor leaves the button.\n5. Tooltip does not interfere with clicking the button.\n6. Unit test covers OS detection logic and correct label rendering for both platforms.",
+      "priority": 3,
+      "depends_on": []
+    }
+  ],
+  "taskTitles": [
+    "Add OS-aware keyboard shortcut tooltip to Submit Feedback button"
+  ],
+  "feedbackSourceBeadId": "opensprint.dev-3072"
+}
