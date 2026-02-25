@@ -1,0 +1,285 @@
+/**
+ * Full integration test: settings lifecycle.
+ * Verifies settings read/write round-trip with two-tier format (lowComplexityAgent/highComplexityAgent).
+ */
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import request from "supertest";
+import fs from "fs/promises";
+import path from "path";
+import os from "os";
+import { createApp } from "../app.js";
+import { ProjectService } from "../services/project.service.js";
+import { API_PREFIX, DEFAULT_HIL_CONFIG, DEFAULT_REVIEW_MODE } from "@opensprint/shared";
+
+describe("Settings lifecycle — service-level", () => {
+  let projectService: ProjectService;
+  let tempDir: string;
+  let originalHome: string | undefined;
+
+  beforeEach(async () => {
+    projectService = new ProjectService();
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-settings-lifecycle-"));
+    originalHome = process.env.HOME;
+    process.env.HOME = tempDir;
+  });
+
+  afterEach(async () => {
+    process.env.HOME = originalHome;
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("writes two-tier settings.json → getSettings returns shape → updateSettings persists → raw file confirms", async () => {
+    const repoPath = path.join(tempDir, "lifecycle");
+    const project = await projectService.createProject({
+      name: "Lifecycle",
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: "code-model", cliCommand: null },
+      highComplexityAgent: { type: "cursor", model: "plan-model", cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    const settingsPath = path.join(repoPath, ".opensprint", "settings.json");
+
+    // getSettings() returns two-tier shape and gitWorkingMode default
+    const fetched = await projectService.getSettings(project.id);
+    expect(fetched.lowComplexityAgent.type).toBe("claude");
+    expect(fetched.lowComplexityAgent.model).toBe("code-model");
+    expect(fetched.highComplexityAgent.type).toBe("cursor");
+    expect(fetched.highComplexityAgent.model).toBe("plan-model");
+    expect(fetched.gitWorkingMode).toBe("worktree");
+
+    // updateSettings() persists
+    await projectService.updateSettings(project.id, { testFramework: "vitest" });
+
+    // Read raw file confirms two-tier shape on disk
+    const raw = await fs.readFile(settingsPath, "utf-8");
+    const persisted = JSON.parse(raw);
+    expect(persisted.lowComplexityAgent).toBeDefined();
+    expect(persisted.highComplexityAgent).toBeDefined();
+    expect(persisted.testFramework).toBe("vitest");
+  });
+
+  it("persists maxConcurrentCoders to disk and returns it after getSettings (survives restart)", async () => {
+    const repoPath = path.join(tempDir, "parallelism");
+    const project = await projectService.createProject({
+      name: "Parallelism",
+      repoPath,
+      lowComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+      highComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    const settingsPath = path.join(repoPath, ".opensprint", "settings.json");
+
+    await projectService.updateSettings(project.id, { maxConcurrentCoders: 3 });
+
+    const fetched = await projectService.getSettings(project.id);
+    expect(fetched.maxConcurrentCoders).toBe(3);
+
+    const raw = await fs.readFile(settingsPath, "utf-8");
+    const persisted = JSON.parse(raw);
+    expect(persisted.maxConcurrentCoders).toBe(3);
+  });
+
+  it("round-trip: save new shape → read → save again → output is identical (idempotent)", async () => {
+    const repoPath = path.join(tempDir, "round-trip");
+    const project = await projectService.createProject({
+      name: "Round Trip",
+      repoPath,
+      lowComplexityAgent: { type: "cursor", model: "composer-1.5", cliCommand: null },
+      highComplexityAgent: { type: "claude", model: "claude-opus-4", cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    const settingsPath = path.join(repoPath, ".opensprint", "settings.json");
+
+    // First save: read current (new shape), then update with same values
+    const first = await projectService.getSettings(project.id);
+    const firstRaw = await fs.readFile(settingsPath, "utf-8");
+
+    // Save again with minimal/no change (trigger write)
+    await projectService.updateSettings(project.id, { testFramework: first.testFramework ?? null });
+
+    const secondRaw = await fs.readFile(settingsPath, "utf-8");
+    const firstParsed = JSON.parse(firstRaw);
+    const secondParsed = JSON.parse(secondRaw);
+
+    // Output should be identical (idempotent)
+    expect(secondParsed.lowComplexityAgent).toEqual(firstParsed.lowComplexityAgent);
+    expect(secondParsed.highComplexityAgent).toEqual(firstParsed.highComplexityAgent);
+    expect(secondParsed.deployment).toEqual(firstParsed.deployment);
+    expect(secondParsed.hilConfig).toEqual(firstParsed.hilConfig);
+    expect(secondParsed.testFramework).toEqual(firstParsed.testFramework);
+    expect(secondParsed.reviewMode).toEqual(firstParsed.reviewMode ?? DEFAULT_REVIEW_MODE);
+    expect(secondParsed.gitWorkingMode).toEqual(firstParsed.gitWorkingMode ?? "worktree");
+  });
+});
+
+describe("Settings API lifecycle", () => {
+  let app: ReturnType<typeof createApp>;
+  let projectService: ProjectService;
+  let tempDir: string;
+  let projectId: string;
+  let originalHome: string | undefined;
+
+  beforeEach(async () => {
+    app = createApp();
+    projectService = new ProjectService();
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-settings-api-"));
+    originalHome = process.env.HOME;
+    process.env.HOME = tempDir;
+
+    const repoPath = path.join(tempDir, "api-project");
+    await fs.mkdir(repoPath, { recursive: true });
+    const project = await projectService.createProject({
+      name: "API Lifecycle Test",
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
+      highComplexityAgent: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+    projectId = project.id;
+  });
+
+  afterEach(async () => {
+    process.env.HOME = originalHome;
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("GET /api/v1/projects/:id/settings returns two-tier shape and gitWorkingMode", async () => {
+    const res = await request(app).get(`${API_PREFIX}/projects/${projectId}/settings`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toBeDefined();
+    expect(res.body.data.lowComplexityAgent).toBeDefined();
+    expect(res.body.data.lowComplexityAgent.type).toBe("claude");
+    expect(res.body.data.highComplexityAgent).toBeDefined();
+    expect(res.body.data.highComplexityAgent.type).toBe("claude");
+    expect(res.body.data.gitWorkingMode).toBe("worktree");
+  });
+
+  it("PUT /api/v1/projects/:id/settings with new field names succeeds", async () => {
+    const res = await request(app)
+      .put(`${API_PREFIX}/projects/${projectId}/settings`)
+      .send({
+        lowComplexityAgent: { type: "cursor", model: "composer-1.5", cliCommand: null },
+        highComplexityAgent: { type: "claude", model: "claude-opus-4", cliCommand: null },
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.lowComplexityAgent.type).toBe("cursor");
+    expect(res.body.data.lowComplexityAgent.model).toBe("composer-1.5");
+    expect(res.body.data.highComplexityAgent.type).toBe("claude");
+    expect(res.body.data.highComplexityAgent.model).toBe("claude-opus-4");
+  });
+
+  it("PUT /api/v1/projects/:id/settings accepts and persists gitWorkingMode", async () => {
+    const res = await request(app)
+      .put(`${API_PREFIX}/projects/${projectId}/settings`)
+      .send({ gitWorkingMode: "branches" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.gitWorkingMode).toBe("branches");
+
+    const getRes = await request(app).get(`${API_PREFIX}/projects/${projectId}/settings`);
+    expect(getRes.body.data.gitWorkingMode).toBe("branches");
+
+    const settingsPath = path.join(tempDir, "api-project", ".opensprint", "settings.json");
+    const raw = await fs.readFile(settingsPath, "utf-8");
+    const settings = JSON.parse(raw);
+    expect(settings.gitWorkingMode).toBe("branches");
+  });
+
+  it("PUT /api/v1/projects/:id/settings forces maxConcurrentCoders to 1 when gitWorkingMode is branches", async () => {
+    const res = await request(app)
+      .put(`${API_PREFIX}/projects/${projectId}/settings`)
+      .send({ gitWorkingMode: "branches", maxConcurrentCoders: 5 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.gitWorkingMode).toBe("branches");
+    expect(res.body.data.maxConcurrentCoders).toBe(1);
+
+    const settingsPath = path.join(tempDir, "api-project", ".opensprint", "settings.json");
+    const raw = await fs.readFile(settingsPath, "utf-8");
+    const settings = JSON.parse(raw);
+    expect(settings.maxConcurrentCoders).toBe(1);
+  });
+
+  it("PUT /api/v1/projects/:id/settings rejects invalid gitWorkingMode and keeps current", async () => {
+    // First set to branches
+    await request(app)
+      .put(`${API_PREFIX}/projects/${projectId}/settings`)
+      .send({ gitWorkingMode: "branches" });
+
+    // Send invalid value — should keep branches (not persist invalid)
+    const res = await request(app)
+      .put(`${API_PREFIX}/projects/${projectId}/settings`)
+      .send({ gitWorkingMode: "invalid" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.gitWorkingMode).toBe("branches");
+
+    const settingsPath = path.join(tempDir, "api-project", ".opensprint", "settings.json");
+    const raw = await fs.readFile(settingsPath, "utf-8");
+    const settings = JSON.parse(raw);
+    expect(settings.gitWorkingMode).toBe("branches");
+  });
+
+  it("Create project via API with new field names → settings.json on disk has new shape", async () => {
+    const repoPath = path.join(tempDir, "create-via-api");
+    await fs.mkdir(repoPath, { recursive: true });
+
+    const body = {
+      name: "New Project via API",
+      repoPath,
+      lowComplexityAgent: { type: "cursor", model: "composer-1.5", cliCommand: null },
+      highComplexityAgent: { type: "claude", model: "claude-opus-4", cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    };
+
+    const res = await request(app).post(`${API_PREFIX}/projects`).send(body);
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.id).toBeDefined();
+
+    const settingsPath = path.join(repoPath, ".opensprint", "settings.json");
+    const raw = await fs.readFile(settingsPath, "utf-8");
+    const settings = JSON.parse(raw);
+
+    expect(settings.lowComplexityAgent).toBeDefined();
+    expect(settings.lowComplexityAgent.type).toBe("cursor");
+    expect(settings.lowComplexityAgent.model).toBe("composer-1.5");
+    expect(settings.highComplexityAgent).toBeDefined();
+    expect(settings.highComplexityAgent.type).toBe("claude");
+    expect(settings.highComplexityAgent.model).toBe("claude-opus-4");
+  });
+
+  it("Create project with gitWorkingMode branches → settings.json persists it", async () => {
+    const repoPath = path.join(tempDir, "branches-mode");
+    await fs.mkdir(repoPath, { recursive: true });
+
+    const body = {
+      name: "Branches Mode Project",
+      repoPath,
+      lowComplexityAgent: { type: "cursor", model: "composer-1.5", cliCommand: null },
+      highComplexityAgent: { type: "claude", model: "claude-opus-4", cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+      gitWorkingMode: "branches",
+    };
+
+    const res = await request(app).post(`${API_PREFIX}/projects`).send(body);
+
+    expect(res.status).toBe(201);
+
+    const settingsPath = path.join(repoPath, ".opensprint", "settings.json");
+    const raw = await fs.readFile(settingsPath, "utf-8");
+    const settings = JSON.parse(raw);
+    expect(settings.gitWorkingMode).toBe("branches");
+  });
+});

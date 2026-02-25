@@ -1,0 +1,137 @@
+import { describe, it, expect } from "vitest";
+import { renderHook } from "@testing-library/react";
+import { useExecuteSwimlanes } from "./useExecuteSwimlanes";
+import type { Task, Plan } from "@opensprint/shared";
+
+function task(overrides: Partial<Task> = {}): Task {
+  return {
+    id: "task-1",
+    title: "Implement feature",
+    description: "",
+    type: "task",
+    status: "open",
+    priority: 1,
+    assignee: null,
+    labels: [],
+    dependencies: [],
+    epicId: "epic-a",
+    kanbanColumn: "ready",
+    createdAt: "2024-01-01T00:00:00Z",
+    updatedAt: "2024-01-01T00:00:00Z",
+    ...overrides,
+  };
+}
+
+function plan(overrides: Partial<Plan> = {}): Plan {
+  return {
+    content: "# Epic A Plan\n\nOverview.",
+    status: "building",
+    taskCount: 1,
+    doneTaskCount: 0,
+    dependencyCount: 0,
+    metadata: {
+      planId: "plan-1",
+      epicId: "epic-a",
+      shippedAt: null,
+      complexity: "medium",
+    },
+    ...overrides,
+  };
+}
+
+describe("useExecuteSwimlanes", () => {
+  it("filters out epics from implTasks (no gate exclusion in epic-blocked model)", () => {
+    const tasks: Task[] = [
+      task({ id: "epic-a", type: "epic", epicId: null }),
+      task({ id: "epic-a.1", title: "Task 1", epicId: "epic-a" }),
+      task({ id: "epic-a.2", title: "Task 2", epicId: "epic-a" }),
+    ];
+    const plans: Plan[] = [plan()];
+    const { result } = renderHook(() => useExecuteSwimlanes(tasks, plans, "all", ""));
+    expect(result.current.implTasks).toHaveLength(2);
+    expect(result.current.implTasks.map((t) => t.id)).toEqual(["epic-a.1", "epic-a.2"]);
+  });
+
+  it("groups tasks by epic into swimlanes", () => {
+    const tasks: Task[] = [
+      task({ id: "epic-a.1", epicId: "epic-a", title: "A1" }),
+      task({ id: "epic-a.2", epicId: "epic-a", title: "A2" }),
+      task({ id: "epic-b.1", epicId: "epic-b", title: "B1" }),
+    ];
+    const plans: Plan[] = [
+      plan({
+        content: "# Epic A\n",
+        metadata: {
+          planId: "p1",
+          epicId: "epic-a",
+          shippedAt: null,
+          complexity: "medium",
+        },
+      }),
+      plan({
+        content: "# Epic B\n",
+        metadata: {
+          planId: "p2",
+          epicId: "epic-b",
+          shippedAt: null,
+          complexity: "medium",
+        },
+      }),
+    ];
+    const { result } = renderHook(() => useExecuteSwimlanes(tasks, plans, "all", ""));
+    expect(result.current.swimlanes.length).toBeGreaterThanOrEqual(2);
+    const laneA = result.current.swimlanes.find((s) => s.epicId === "epic-a");
+    expect(laneA).toBeDefined();
+    expect(laneA!.tasks).toHaveLength(2);
+    expect(laneA!.epicTitle).toBe("Epic A");
+  });
+
+  it("returns chipConfig with counts", () => {
+    const tasks: Task[] = [
+      task({ id: "epic-a.1", kanbanColumn: "ready" }),
+      task({ id: "epic-a.2", kanbanColumn: "done" }),
+    ];
+    const plans: Plan[] = [plan()];
+    const { result } = renderHook(() => useExecuteSwimlanes(tasks, plans, "all", ""));
+    expect(result.current.chipConfig).toBeDefined();
+    expect(result.current.chipConfig.some((c) => c.filter === "all" && c.count === 2)).toBe(true);
+    expect(result.current.chipConfig.some((c) => c.filter === "in_line" && c.count === 0)).toBe(
+      true
+    );
+    expect(result.current.chipConfig.some((c) => c.filter === "ready" && c.count === 1)).toBe(true);
+    expect(result.current.chipConfig.some((c) => c.filter === "done" && c.count === 1)).toBe(true);
+  });
+
+  it("In Line chip is between All and Ready and counts backlog, blocked, planning", () => {
+    const tasks: Task[] = [
+      task({ id: "epic-a.1", kanbanColumn: "backlog" }),
+      task({ id: "epic-a.2", kanbanColumn: "blocked" }),
+      task({ id: "epic-a.3", kanbanColumn: "planning" }),
+      task({ id: "epic-a.4", kanbanColumn: "ready" }),
+    ];
+    const plans: Plan[] = [plan()];
+    const { result } = renderHook(() => useExecuteSwimlanes(tasks, plans, "all", ""));
+    const chips = result.current.chipConfig;
+    const allIdx = chips.findIndex((c) => c.filter === "all");
+    const inLineIdx = chips.findIndex((c) => c.filter === "in_line");
+    const readyIdx = chips.findIndex((c) => c.filter === "ready");
+    expect(allIdx).toBeLessThan(inLineIdx);
+    expect(inLineIdx).toBeLessThan(readyIdx);
+    expect(chips[inLineIdx].label).toBe("In Line");
+    expect(chips[inLineIdx].count).toBe(3);
+  });
+
+  it("filters by search query", () => {
+    const tasks: Task[] = [
+      task({ id: "epic-a.1", title: "Login form", epicId: "epic-a" }),
+      task({ id: "epic-a.2", title: "Logout button", epicId: "epic-a" }),
+    ];
+    const plans: Plan[] = [plan()];
+    const { result } = renderHook(() => useExecuteSwimlanes(tasks, plans, "all", "Login"));
+    expect(result.current.implTasks).toHaveLength(2);
+    expect(result.current.filteredTasks).toHaveLength(1);
+    expect(result.current.filteredTasks[0].title).toBe("Login form");
+    expect(result.current.swimlanes[0].tasks).toHaveLength(1);
+    expect(result.current.swimlanes[0].tasks[0].title).toBe("Login form");
+  });
+});

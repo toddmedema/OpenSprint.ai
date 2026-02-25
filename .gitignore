@@ -1,0 +1,54 @@
+# Dependencies
+node_modules
+node_modules/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# packages/shared build artifacts (generated for production only)
+packages/shared/dist/
+packages/shared/tsconfig.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+.cursor/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# Vite
+packages/frontend/.vite/
+
+# OpenSprint runtime data (local only); feedback/counters/events/stats/deployments are in DB
+.opensprint/active/
+.opensprint/conversations/
+.opensprint/agent-images/
+.opensprint/sessions/
+.opensprint/orchestrator-state.json
+.opensprint/pending-commits.json
+.opensprint/merge-result.json
+packages/backend/.opensprint/
+
+# Temporary files
+*.tmp
+*.bak
+
+.opensprint/worktrees/

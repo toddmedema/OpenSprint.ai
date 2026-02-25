@@ -1,0 +1,383 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Theme CSS variables — light/dark */
+:root,
+html[data-theme="light"],
+html:not([data-theme]) {
+  --color-bg: #f9fafb;
+  --color-bg-elevated: #ffffff;
+  --color-text: #111827;
+  --color-text-muted: #6b7280;
+  --color-surface: #ffffff;
+  --color-border: #e5e7eb;
+  --color-border-subtle: #f3f4f6;
+  --color-ring: #d1d5db;
+  --color-input-bg: #ffffff;
+  --color-input-text: #111827;
+  --color-input-placeholder: #9ca3af;
+  --color-code-bg: #1f2937;
+  --color-code-text: #10b981;
+  --color-overlay: rgba(0, 0, 0, 0.4);
+  --color-surface-muted: #f3f4f6;
+  /* Semantic theme tokens */
+  --color-error-bg: #fef2f2;
+  --color-error-text: #b91c1c;
+  --color-error-border: #fecaca;
+  --color-error-solid: #dc2626;
+  --color-error-solid-hover: #b91c1c;
+  --color-success-bg: #f0fdf4;
+  --color-success-text: #166534;
+  --color-success-border: #bbf7d0;
+  --color-success-solid: #22c55e;
+  --color-success-muted: #10b981;
+  --color-warning-bg: #fffbeb;
+  --color-warning-text: #b45309;
+  --color-warning-border: #fde68a;
+  --color-warning-solid: #f59e0b;
+  --color-info-bg: #eff6ff;
+  --color-info-text: #1d4ed8;
+  --color-info-border: #bfdbfe;
+  --color-info-solid: #3b82f6;
+  /* Notification/toast severity (solid bg, white text) */
+  --color-notification-error: #dc2626;
+  --color-notification-warning: #d97706;
+  --color-notification-info: #2563eb;
+  --color-notification-success: #059669;
+  /* Feedback category tokens */
+  --color-feedback-bug-bg: #fef2f2;
+  --color-feedback-bug-text: #b91c1c;
+  --color-feedback-feature-bg: #faf5ff;
+  --color-feedback-feature-text: #7c3aed;
+  --color-feedback-ux-bg: #eff6ff;
+  --color-feedback-ux-text: #1d4ed8;
+  --color-feedback-scope-bg: #fefce8;
+  --color-feedback-scope-text: #a16207;
+  /* Status indicator tokens (dots, badges) */
+  --color-status-backlog: #eab308;
+  --color-status-ready: #3b82f6;
+  --color-status-in-progress: #a855f7;
+  --color-status-in-review: #f97316;
+  --color-status-done: #22c55e;
+  --color-status-blocked: #ef4444;
+  /* DependencyGraph D3/SVG theme tokens */
+  --color-graph-edge: #d1d5db;
+  --color-graph-edge-critical: #dc2626;
+  --color-graph-text: #111827;
+  --color-graph-node-default-fill: #f9fafb;
+  --color-graph-node-default-stroke: #e5e7eb;
+  --color-graph-status-planning-fill: #fef3c7;
+  --color-graph-status-planning-stroke: #f59e0b;
+  --color-graph-status-building-fill: #dbeafe;
+  --color-graph-status-building-stroke: #3b82f6;
+  --color-graph-status-complete-fill: #d1fae5;
+  --color-graph-status-complete-stroke: #10b981;
+  --color-graph-arrow: #9ca3af;
+  --color-graph-arrow-critical: #dc2626;
+  /* Scrollbar (light mode) */
+  --color-scrollbar-track: #e5e7eb;
+  --color-scrollbar-thumb: #9ca3af;
+  --color-scrollbar-thumb-hover: #6b7280;
+}
+
+html[data-theme="dark"] {
+  --color-bg: #111827;
+  --color-bg-elevated: #1f2937;
+  --color-text: #f3f4f6;
+  --color-text-muted: #9ca3af;
+  --color-surface: #1f2937;
+  --color-border: #374151;
+  --color-border-subtle: #1f2937;
+  --color-ring: #4b5563;
+  --color-input-bg: #1f2937;
+  --color-input-text: #f3f4f6;
+  --color-input-placeholder: #6b7280;
+  --color-code-bg: #111827;
+  --color-code-text: #34d399;
+  --color-overlay: rgba(0, 0, 0, 0.6);
+  --color-surface-muted: #1f2937;
+  /* Semantic theme tokens (dark mode) */
+  --color-error-bg: #450a0a;
+  --color-error-text: #fca5a5;
+  --color-error-border: #7f1d1d;
+  --color-error-solid: #dc2626;
+  --color-error-solid-hover: #ef4444;
+  --color-success-bg: #052e16;
+  --color-success-text: #86efac;
+  --color-success-border: #14532d;
+  --color-success-solid: #22c55e;
+  --color-success-muted: #34d399;
+  --color-warning-bg: #422006;
+  --color-warning-text: #fcd34d;
+  --color-warning-border: #78350f;
+  --color-warning-solid: #f59e0b;
+  --color-info-bg: #1e3a8a;
+  --color-info-text: #93c5fd;
+  --color-info-border: #1e40af;
+  --color-info-solid: #3b82f6;
+  /* Notification severity (dark mode) */
+  --color-notification-error: #b91c1c;
+  --color-notification-warning: #b45309;
+  --color-notification-info: #1d4ed8;
+  --color-notification-success: #047857;
+  /* Feedback category tokens (dark mode) */
+  --color-feedback-bug-bg: #450a0a;
+  --color-feedback-bug-text: #fca5a5;
+  --color-feedback-feature-bg: #3b0764;
+  --color-feedback-feature-text: #e9d5ff;
+  --color-feedback-ux-bg: #1e3a8a;
+  --color-feedback-ux-text: #93c5fd;
+  --color-feedback-scope-bg: #422006;
+  --color-feedback-scope-text: #fde68a;
+  /* Status indicator tokens (dark mode) */
+  --color-status-backlog: #eab308;
+  --color-status-ready: #60a5fa;
+  --color-status-in-progress: #c084fc;
+  --color-status-in-review: #fb923c;
+  --color-status-done: #34d399;
+  --color-status-blocked: #f87171;
+  /* DependencyGraph D3/SVG theme tokens (dark mode) */
+  --color-graph-edge: #4b5563;
+  --color-graph-edge-critical: #ef4444;
+  --color-graph-text: #f3f4f6;
+  --color-graph-node-default-fill: #374151;
+  --color-graph-node-default-stroke: #4b5563;
+  --color-graph-status-planning-fill: #78350f;
+  --color-graph-status-planning-stroke: #f59e0b;
+  --color-graph-status-building-fill: #1e3a8a;
+  --color-graph-status-building-stroke: #60a5fa;
+  --color-graph-status-complete-fill: #064e3b;
+  --color-graph-status-complete-stroke: #34d399;
+  --color-graph-arrow: #6b7280;
+  --color-graph-arrow-critical: #ef4444;
+  /* Scrollbar (dark mode) — track uses surface, thumb muted (not white) */
+  --color-scrollbar-track: #1f2937;
+  --color-scrollbar-thumb: #6b7280;
+  --color-scrollbar-thumb-hover: #9ca3af;
+}
+
+@layer base {
+  html[data-theme="light"],
+  html:not([data-theme]) {
+    @apply bg-theme-bg text-theme-text;
+  }
+  html[data-theme="dark"] {
+    @apply bg-theme-bg text-theme-text;
+  }
+
+  body {
+    @apply antialiased;
+  }
+}
+
+/* ==========================================================================
+   Scrollbar styling — theme-aware (Chrome/Safari, Firefox)
+   Applies to all scrollable containers: body, sidebars, code/log viewers, feeds.
+   ========================================================================== */
+
+/* Firefox: scrollbar-color(thumb track) and scrollbar-width */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-scrollbar-thumb) var(--color-scrollbar-track);
+}
+
+/* WebKit (Chrome, Safari, Edge): pseudo-elements */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--color-scrollbar-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--color-scrollbar-thumb);
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-corner {
+  background: var(--color-scrollbar-track);
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-lg bg-brand-600 px-4 py-2.5
+      text-sm font-semibold text-white shadow-sm hover:bg-brand-700
+      focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2
+      focus-visible:outline-brand-600 transition-colors;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-lg bg-theme-surface px-4 py-2.5
+      text-sm font-semibold text-theme-text shadow-sm ring-1 ring-inset ring-theme-ring
+      hover:bg-theme-bg-elevated transition-colors;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center rounded-lg bg-theme-error-solid px-4 py-2.5
+      text-sm font-semibold text-white shadow-sm hover:bg-theme-error-solid-hover transition-colors;
+  }
+
+  .card {
+    @apply rounded-xl bg-theme-surface shadow-sm ring-1 ring-theme-border;
+  }
+
+  .input {
+    @apply block w-full rounded-lg border-0 py-2.5 px-3 shadow-sm sm:text-sm
+      bg-theme-input-bg text-theme-input-text placeholder:text-theme-input-placeholder
+      ring-1 ring-inset ring-theme-ring focus:ring-2 focus:ring-inset focus:ring-brand-600;
+  }
+
+  .phase-tab {
+    @apply px-3 py-1.5 text-sm font-medium rounded-lg transition-colors;
+  }
+
+  .phase-tab-active {
+    @apply bg-brand-600 text-white;
+  }
+
+  .phase-tab-inactive {
+    @apply text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle;
+  }
+
+  /* Execute task detail markdown: WCAG AA contrast (4.5:1 normal, 3:1 large) in light/dark themes.
+   * Uses explicit text-gray-900/dark:text-gray-100 (feedback kutduv) so text is readable.
+   * Higher specificity (.prose.prose-execute-task) ensures our variables override prose defaults. */
+  .prose.prose-execute-task {
+    --tw-prose-body: var(--color-text);
+    --tw-prose-headings: var(--color-text);
+    --tw-prose-lead: var(--color-text);
+    --tw-prose-links: var(--color-text);
+    --tw-prose-bold: var(--color-text);
+    --tw-prose-counters: var(--color-text);
+    --tw-prose-bullets: var(--color-border);
+    --tw-prose-hr: var(--color-border);
+    --tw-prose-quotes: var(--color-text);
+    --tw-prose-quote-borders: var(--color-border);
+    --tw-prose-captions: var(--color-text);
+    --tw-prose-code: var(--color-text);
+    --tw-prose-pre-code: var(--color-code-text);
+    --tw-prose-pre-bg: var(--color-code-bg);
+    --tw-prose-kbd: var(--color-text);
+    --tw-prose-kbd-shadows: rgba(0, 0, 0, 0.1);
+    --tw-prose-th-borders: var(--color-border);
+    --tw-prose-td-borders: var(--color-border);
+  }
+  /* Execute task description markdown: prose + layout + explicit high-contrast text (feedback kutduv).
+   * Uses !important to override prose-neutral/prose-invert defaults for WCAG AA contrast. */
+  .prose-task-description {
+    @apply prose prose-sm prose-neutral dark:prose-invert prose-execute-task max-w-none p-4 rounded-lg border overflow-y-auto min-h-0 max-h-[50vh] text-xs;
+    @apply bg-theme-surface border-theme-border;
+    @apply !text-gray-900 dark:!text-gray-100;
+    @apply prose-headings:!text-gray-900 dark:prose-headings:!text-gray-100 prose-p:!text-gray-900 dark:prose-p:!text-gray-100 prose-li:!text-gray-900 dark:prose-li:!text-gray-100;
+    @apply prose-td:!text-gray-900 dark:prose-td:!text-gray-100 prose-th:!text-gray-900 dark:prose-th:!text-gray-100;
+    @apply prose-em:!text-gray-900 dark:prose-em:!text-gray-100 prose-code:!text-gray-900 dark:prose-code:!text-gray-100;
+    @apply prose-strong:!text-gray-900 dark:prose-strong:!text-gray-100 prose-blockquote:!text-gray-900 dark:prose-blockquote:!text-gray-100;
+    @apply prose-ol:!text-gray-900 dark:prose-ol:!text-gray-100 prose-ul:!text-gray-900 dark:prose-ul:!text-gray-100;
+    @apply prose-blockquote:border-theme-border prose-hr:border-theme-border;
+    @apply prose-pre:bg-theme-code-bg prose-pre:text-theme-code-text prose-pre:border prose-pre:border-theme-border prose-pre:rounded-lg;
+    @apply prose-kbd:!text-gray-900 dark:prose-kbd:!text-gray-100 prose-figcaption:!text-gray-900 dark:prose-figcaption:!text-gray-100;
+    @apply prose-a:text-brand-600 dark:prose-a:text-brand-400;
+  }
+
+  /* Sketch Discuss chat bubble markdown: compact prose for sidebar chat messages */
+  .prose-chat-bubble {
+    @apply prose prose-sm prose-neutral dark:prose-invert max-w-none;
+    @apply text-inherit;
+    /* Tighten spacing for chat context */
+    @apply prose-p:my-1.5 prose-headings:my-2 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5;
+    @apply prose-pre:my-2 prose-blockquote:my-2 prose-hr:my-2;
+    /* First/last child margin collapse */
+    @apply [&>*:first-child]:!mt-0 [&>*:last-child]:!mb-0;
+    /* Inherit text color from bubble */
+    @apply prose-headings:text-inherit prose-p:text-inherit prose-li:text-inherit;
+    @apply prose-strong:text-inherit prose-em:text-inherit prose-code:text-inherit;
+    @apply prose-td:text-inherit prose-th:text-inherit;
+    @apply prose-blockquote:text-inherit prose-blockquote:border-theme-border;
+    /* Table styling */
+    @apply prose-table:text-xs prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1;
+    @apply prose-th:border prose-td:border prose-th:border-theme-border prose-td:border-theme-border;
+    /* Code blocks */
+    @apply prose-pre:bg-black/10 dark:prose-pre:bg-white/10 prose-pre:rounded-lg prose-pre:text-inherit;
+    @apply prose-code:bg-black/10 dark:prose-code:bg-white/10 prose-code:rounded prose-code:px-1 prose-code:py-0.5;
+    @apply prose-code:before:content-none prose-code:after:content-none;
+    /* Links */
+    @apply prose-a:text-inherit prose-a:underline;
+  }
+
+  html[data-theme="dark"] .prose.prose-execute-task {
+    --tw-prose-invert-body: var(--color-text);
+    --tw-prose-invert-headings: var(--color-text);
+    --tw-prose-invert-lead: var(--color-text);
+    --tw-prose-invert-links: var(--color-text);
+    --tw-prose-invert-bold: var(--color-text);
+    --tw-prose-invert-counters: var(--color-text);
+    --tw-prose-invert-bullets: var(--color-border);
+    --tw-prose-invert-hr: var(--color-border);
+    --tw-prose-invert-quotes: var(--color-text);
+    --tw-prose-invert-quote-borders: var(--color-border);
+    --tw-prose-invert-captions: var(--color-text);
+    --tw-prose-invert-code: var(--color-text);
+    --tw-prose-invert-pre-code: var(--color-code-text);
+    --tw-prose-invert-pre-bg: var(--color-code-bg);
+    --tw-prose-invert-kbd: var(--color-text);
+    --tw-prose-invert-kbd-shadows: rgba(255, 255, 255, 0.1);
+    --tw-prose-invert-th-borders: var(--color-border);
+    --tw-prose-invert-td-borders: var(--color-border);
+  }
+}
+
+/* Plan sidebar markdown: no spurious blank space at top (feedback wnqybx) */
+[data-testid="plan-markdown-editor"] > div > :first-child,
+[data-testid="plan-markdown-editor"] [contenteditable="true"] > :first-child {
+  margin-top: 0 !important;
+}
+
+/* Execute task description markdown: force high-contrast on descendants (feedback kutduv).
+   Raw CSS ensures override of any prose-neutral/prose-invert defaults. */
+html[data-theme="light"] [data-testid="task-description-markdown"] p,
+html[data-theme="light"] [data-testid="task-description-markdown"] li,
+html[data-theme="light"] [data-testid="task-description-markdown"] h1,
+html[data-theme="light"] [data-testid="task-description-markdown"] h2,
+html[data-theme="light"] [data-testid="task-description-markdown"] h3,
+html[data-theme="light"] [data-testid="task-description-markdown"] h4,
+html[data-theme="light"] [data-testid="task-description-markdown"] td,
+html[data-theme="light"] [data-testid="task-description-markdown"] th,
+html[data-theme="light"] [data-testid="task-description-markdown"] blockquote,
+html[data-theme="light"] [data-testid="task-description-markdown"] em,
+html[data-theme="light"] [data-testid="task-description-markdown"] strong,
+html[data-theme="light"] [data-testid="task-description-markdown"] code:not(pre code),
+html:not([data-theme]) [data-testid="task-description-markdown"] p,
+html:not([data-theme]) [data-testid="task-description-markdown"] li,
+html:not([data-theme]) [data-testid="task-description-markdown"] h1,
+html:not([data-theme]) [data-testid="task-description-markdown"] h2,
+html:not([data-theme]) [data-testid="task-description-markdown"] h3,
+html:not([data-theme]) [data-testid="task-description-markdown"] h4,
+html:not([data-theme]) [data-testid="task-description-markdown"] td,
+html:not([data-theme]) [data-testid="task-description-markdown"] th,
+html:not([data-theme]) [data-testid="task-description-markdown"] blockquote,
+html:not([data-theme]) [data-testid="task-description-markdown"] em,
+html:not([data-theme]) [data-testid="task-description-markdown"] strong,
+html:not([data-theme]) [data-testid="task-description-markdown"] code:not(pre code) {
+  color: #111827 !important;
+}
+html[data-theme="dark"] [data-testid="task-description-markdown"] p,
+html[data-theme="dark"] [data-testid="task-description-markdown"] li,
+html[data-theme="dark"] [data-testid="task-description-markdown"] h1,
+html[data-theme="dark"] [data-testid="task-description-markdown"] h2,
+html[data-theme="dark"] [data-testid="task-description-markdown"] h3,
+html[data-theme="dark"] [data-testid="task-description-markdown"] h4,
+html[data-theme="dark"] [data-testid="task-description-markdown"] td,
+html[data-theme="dark"] [data-testid="task-description-markdown"] th,
+html[data-theme="dark"] [data-testid="task-description-markdown"] blockquote,
+html[data-theme="dark"] [data-testid="task-description-markdown"] em,
+html[data-theme="dark"] [data-testid="task-description-markdown"] strong,
+html[data-theme="dark"] [data-testid="task-description-markdown"] code:not(pre code) {
+  color: #f3f4f6 !important;
+}

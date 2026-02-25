@@ -1,0 +1,551 @@
+import fs from "fs/promises";
+import path from "path";
+import { exec } from "child_process";
+import { promisify } from "util";
+import { v4 as uuid } from "uuid";
+import type { Project, CreateProjectRequest, ProjectSettings } from "@opensprint/shared";
+import {
+  OPENSPRINT_DIR,
+  OPENSPRINT_PATHS,
+  DEFAULT_HIL_CONFIG,
+  DEFAULT_DEPLOYMENT_CONFIG,
+  DEFAULT_REVIEW_MODE,
+  getTestCommandForFramework,
+  parseSettings,
+} from "@opensprint/shared";
+import type { DeploymentConfig, HilConfig } from "@opensprint/shared";
+import { taskStore as taskStoreSingleton } from "./task-store.service.js";
+import { BranchManager } from "./branch-manager.js";
+import { CrashRecoveryService } from "./crash-recovery.service.js";
+import { detectTestFramework } from "./test-framework.service.js";
+import { ensureEasConfig } from "./eas-config.js";
+import { AppError } from "../middleware/error-handler.js";
+import { ErrorCodes } from "../middleware/error-codes.js";
+import * as projectIndex from "./project-index.js";
+import { parseAgentConfig, type AgentConfigInput } from "../schemas/agent-config.js";
+import { writeJsonAtomic } from "../utils/file-utils.js";
+import { getErrorMessage } from "../utils/error-utils.js";
+import { createLogger } from "../utils/logger.js";
+
+const execAsync = promisify(exec);
+const log = createLogger("project");
+
+const VALID_DEPLOYMENT_MODES = ["expo", "custom"] as const;
+
+/** Normalize deployment config: ensure valid mode, merge with defaults (PRD §6.4, §7.5.4) */
+function normalizeDeployment(input: CreateProjectRequest["deployment"]): DeploymentConfig {
+  const mode =
+    input?.mode && VALID_DEPLOYMENT_MODES.includes(input.mode as "expo" | "custom")
+      ? (input.mode as "expo" | "custom")
+      : "custom";
+  return {
+    ...DEFAULT_DEPLOYMENT_CONFIG,
+    ...input,
+    mode,
+    targets: input?.targets,
+    envVars: input?.envVars,
+    expoConfig: mode === "expo" ? { channel: input?.expoConfig?.channel ?? "preview" } : undefined,
+    customCommand: mode === "custom" ? input?.customCommand : undefined,
+    webhookUrl: mode === "custom" ? input?.webhookUrl : undefined,
+  };
+}
+
+/** Normalize HIL config: merge partial input with defaults (PRD §6.5). Only valid keys are used. Test failures are always automated (PRD §6.5.1) — not configurable, so testFailuresAndRetries is never in HilConfig. */
+const HIL_CONFIG_KEYS: (keyof HilConfig)[] = [
+  "scopeChanges",
+  "architectureDecisions",
+  "dependencyModifications",
+];
+
+function normalizeHilConfig(
+  input: CreateProjectRequest["hilConfig"] | Record<string, unknown>
+): HilConfig {
+  if (!input) return DEFAULT_HIL_CONFIG;
+  const defined = Object.fromEntries(
+    HIL_CONFIG_KEYS.filter((k) => (input as Record<string, unknown>)[k] !== undefined).map((k) => [
+      k,
+      (input as Record<string, unknown>)[k],
+    ])
+  );
+  return {
+    ...DEFAULT_HIL_CONFIG,
+    ...defined,
+  };
+}
+
+/** Normalize path for comparison: trim and remove trailing slashes. */
+function normalizeRepoPath(p: string): string {
+  return p.trim().replace(/\/+$/, "") || "";
+}
+
+/** Default agent config used when creating or repairing settings (e.g. adopt path). */
+const DEFAULT_AGENT_CONFIG = {
+  type: "cursor" as const,
+  model: null as string | null,
+  cliCommand: null as string | null,
+};
+
+/** Build default ProjectSettings for a repo (no user input). Used when adopting or repairing. */
+function buildDefaultSettings(): ProjectSettings {
+  return {
+    lowComplexityAgent: { ...DEFAULT_AGENT_CONFIG },
+    highComplexityAgent: { ...DEFAULT_AGENT_CONFIG },
+    deployment: { ...DEFAULT_DEPLOYMENT_CONFIG },
+    hilConfig: { ...DEFAULT_HIL_CONFIG },
+    testFramework: null,
+    testCommand: null,
+    reviewMode: DEFAULT_REVIEW_MODE,
+    gitWorkingMode: "worktree",
+  };
+}
+
+/** Build canonical ProjectSettings for persistence. */
+function toCanonicalSettings(s: ProjectSettings): ProjectSettings {
+  return {
+    lowComplexityAgent: s.lowComplexityAgent,
+    highComplexityAgent: s.highComplexityAgent,
+    deployment: s.deployment,
+    hilConfig: s.hilConfig,
+    testFramework: s.testFramework ?? null,
+    testCommand: s.testCommand ?? null,
+    reviewMode: s.reviewMode ?? DEFAULT_REVIEW_MODE,
+    ...(s.maxConcurrentCoders !== undefined && { maxConcurrentCoders: s.maxConcurrentCoders }),
+    ...(s.unknownScopeStrategy !== undefined && { unknownScopeStrategy: s.unknownScopeStrategy }),
+    gitWorkingMode: s.gitWorkingMode ?? "worktree",
+  };
+}
+
+export class ProjectService {
+  private taskStore = taskStoreSingleton;
+  /** In-memory cache for listProjects() so GET /projects returns instantly when the event loop is busy (e.g. orchestrator). Invalidated on create/update/delete. */
+  private listCache: Project[] | null = null;
+
+  private invalidateListCache(): void {
+    this.listCache = null;
+  }
+
+  /** List all projects (cached; invalidated on create/update/delete). */
+  async listProjects(): Promise<Project[]> {
+    if (this.listCache !== null) {
+      return this.listCache;
+    }
+    const entries = await projectIndex.getProjects();
+    const projects: Project[] = [];
+
+    for (const entry of entries) {
+      try {
+        const settingsPath = path.join(entry.repoPath, OPENSPRINT_PATHS.settings);
+        await fs.stat(settingsPath);
+        projects.push({
+          id: entry.id,
+          name: entry.name,
+          repoPath: entry.repoPath,
+          currentPhase: "sketch",
+          createdAt: entry.createdAt,
+          updatedAt: entry.createdAt,
+        });
+      } catch {
+        // Project directory may no longer exist — skip it
+      }
+    }
+
+    this.listCache = projects;
+    return projects;
+  }
+
+  /** Create a new project */
+  async createProject(input: CreateProjectRequest): Promise<Project> {
+    // Validate required fields
+    const name = (input.name ?? "").trim();
+    const repoPath = (input.repoPath ?? "").trim();
+    if (!name) {
+      throw new AppError(400, ErrorCodes.INVALID_INPUT, "Project name is required");
+    }
+    if (!repoPath) {
+      throw new AppError(400, ErrorCodes.INVALID_INPUT, "Repository path is required");
+    }
+
+    // Validate agent config schema
+    let lowComplexityAgent: AgentConfigInput;
+    let highComplexityAgent: AgentConfigInput;
+    try {
+      lowComplexityAgent = parseAgentConfig(input.lowComplexityAgent, "lowComplexityAgent");
+      highComplexityAgent = parseAgentConfig(input.highComplexityAgent, "highComplexityAgent");
+    } catch (err) {
+      const msg = getErrorMessage(err, "Invalid agent configuration");
+      throw new AppError(400, ErrorCodes.INVALID_AGENT_CONFIG, msg);
+    }
+
+    const id = uuid();
+    const now = new Date().toISOString();
+
+    // If path already has OpenSprint, return the existing project instead of creating
+    const opensprintDir = path.join(repoPath, OPENSPRINT_DIR);
+    try {
+      await fs.access(opensprintDir);
+      const normalized = normalizeRepoPath(repoPath);
+      const entries = await projectIndex.getProjects();
+      const existing = entries.find((e) => normalizeRepoPath(e.repoPath) === normalized);
+      if (existing) {
+        return this.getProject(existing.id);
+      }
+      // Repo has .opensprint but no index entry (e.g. index from another machine or cleared). Adopt it.
+      const adoptId = uuid();
+      const adoptName = name || "Existing project";
+      await projectIndex.addProject({
+        id: adoptId,
+        name: adoptName,
+        repoPath: normalized,
+        createdAt: now,
+      });
+      // Ensure settings.json exists so getSettings() and Sketch/Plan flows work (PRD §6.3).
+      const adoptSettingsPath = path.join(normalized, OPENSPRINT_PATHS.settings);
+      try {
+        await fs.access(adoptSettingsPath);
+      } catch {
+        await writeJsonAtomic(adoptSettingsPath, buildDefaultSettings());
+      }
+      this.invalidateListCache();
+      return this.getProject(adoptId);
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      // Directory doesn't exist — proceed
+    }
+
+    // Ensure repo directory exists
+    await fs.mkdir(repoPath, { recursive: true });
+
+    // Initialize git if not already a repo
+    try {
+      await execAsync("git rev-parse --is-inside-work-tree", { cwd: repoPath });
+    } catch {
+      await execAsync("git init", { cwd: repoPath });
+    }
+
+    // Task store uses global server only. No per-repo data.
+
+    // Ensure AGENTS.md exists and contains bd task-tracking instruction
+    const agentsMdPath = path.join(repoPath, "AGENTS.md");
+    const bdInstruction = "Use 'bd' for task tracking";
+    try {
+      let agentsContent = await fs.readFile(agentsMdPath, "utf-8");
+      if (!agentsContent.includes(bdInstruction)) {
+        agentsContent = agentsContent.trimEnd() + `\n\n${bdInstruction}\n`;
+        await fs.writeFile(agentsMdPath, agentsContent);
+      }
+    } catch {
+      await fs.writeFile(agentsMdPath, `# Agent Instructions\n\n${bdInstruction}\n`);
+    }
+
+    // PRD §5.9: Add orchestrator state and worktrees to .gitignore during setup
+    const gitignorePath = path.join(repoPath, ".gitignore");
+    // Runtime and WIP paths only; feedback, counters, events, agent-stats, deployments are DB-only
+    const gitignoreEntries = [
+      ".opensprint/orchestrator-state.json",
+      ".opensprint/worktrees/",
+      ".opensprint/pending-commits.json",
+      ".opensprint/sessions/",
+      ".opensprint/active/",
+    ];
+    try {
+      let content = await fs.readFile(gitignorePath, "utf-8");
+      for (const entry of gitignoreEntries) {
+        if (!content.includes(entry)) {
+          content += `\n${entry}`;
+        }
+      }
+      await fs.writeFile(gitignorePath, content.trimEnd() + "\n");
+    } catch {
+      // No .gitignore yet — create one
+      await fs.writeFile(gitignorePath, gitignoreEntries.join("\n") + "\n");
+    }
+
+    // Create .opensprint directory structure (sessions live in runtime dir, not repo)
+    await fs.mkdir(path.join(opensprintDir, "plans"), { recursive: true });
+    await fs.mkdir(path.join(opensprintDir, "conversations"), { recursive: true });
+    await fs.mkdir(path.join(opensprintDir, "feedback"), { recursive: true });
+    await fs.mkdir(path.join(opensprintDir, "active"), { recursive: true });
+
+    // Write initial PRD with all sections
+    const prdPath = path.join(repoPath, OPENSPRINT_PATHS.prd);
+    const emptySection = () => ({ content: "", version: 0, updatedAt: now });
+    await writeJsonAtomic(prdPath, {
+      version: 0,
+      sections: {
+        executive_summary: emptySection(),
+        problem_statement: emptySection(),
+        user_personas: emptySection(),
+        goals_and_metrics: emptySection(),
+        feature_list: emptySection(),
+        technical_architecture: emptySection(),
+        data_model: emptySection(),
+        api_contracts: emptySection(),
+        non_functional_requirements: emptySection(),
+        open_questions: emptySection(),
+      },
+      changeLog: [],
+    });
+
+    // Write settings (deployment and HIL normalized per PRD §6.4, §6.5)
+    const deployment = normalizeDeployment(input.deployment);
+    const hilConfig = normalizeHilConfig(input.hilConfig);
+    const detected = await detectTestFramework(repoPath);
+    const testFramework = input.testFramework ?? detected?.framework ?? null;
+    const testCommand =
+      (detected?.testCommand ?? getTestCommandForFramework(testFramework)) || null;
+    const gitWorkingMode = input.gitWorkingMode === "branches" ? "branches" : "worktree";
+    const effectiveMaxConcurrentCoders =
+      gitWorkingMode === "branches" ? 1 : (input.maxConcurrentCoders ?? 1);
+    const settings: ProjectSettings = {
+      lowComplexityAgent,
+      highComplexityAgent,
+      deployment,
+      hilConfig,
+      testFramework,
+      testCommand,
+      reviewMode: DEFAULT_REVIEW_MODE,
+      gitWorkingMode,
+      maxConcurrentCoders: effectiveMaxConcurrentCoders,
+      ...(effectiveMaxConcurrentCoders > 1 &&
+        input.unknownScopeStrategy && {
+          unknownScopeStrategy: input.unknownScopeStrategy,
+        }),
+    };
+    const settingsPath = path.join(repoPath, OPENSPRINT_PATHS.settings);
+    await writeJsonAtomic(settingsPath, settings);
+
+    // Create eas.json for Expo projects (PRD §6.4)
+    if (deployment.mode === "expo") {
+      await ensureEasConfig(repoPath);
+    }
+
+    // Add to global index
+    await projectIndex.addProject({
+      id,
+      name,
+      repoPath,
+      createdAt: now,
+    });
+
+    this.invalidateListCache();
+
+    // Prime global task store schema so first list-tasks works (ensure-dolt.sh fixes schema at dev start; this touches it at create time).
+    try {
+      await this.taskStore.listAll(id);
+    } catch (e) {
+      log.warn("Task store schema not ready after create project", { err: getErrorMessage(e) });
+    }
+
+    return {
+      id,
+      name,
+      repoPath,
+      currentPhase: "sketch",
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  /** Get a single project by ID */
+  async getProject(id: string): Promise<Project> {
+    const entries = await projectIndex.getProjects();
+    const entry = entries.find((p) => p.id === id);
+    if (!entry) {
+      throw new AppError(404, ErrorCodes.PROJECT_NOT_FOUND, `Project ${id} not found`, {
+        projectId: id,
+      });
+    }
+
+    // Guard against corrupt index entries missing repoPath
+    if (!entry.repoPath || typeof entry.repoPath !== "string") {
+      throw new AppError(
+        500,
+        ErrorCodes.INTERNAL_ERROR,
+        `Project ${id} has invalid repoPath in index`,
+        {
+          projectId: id,
+          repoPath: entry.repoPath,
+        }
+      );
+    }
+
+    let updatedAt = new Date().toISOString();
+    try {
+      const stat = await fs.stat(path.join(entry.repoPath, OPENSPRINT_PATHS.settings));
+      updatedAt = stat.mtime.toISOString();
+    } catch {
+      // Settings file might not exist yet
+    }
+
+    return {
+      id: entry.id,
+      name: entry.name,
+      repoPath: entry.repoPath,
+      currentPhase: "sketch",
+      createdAt: entry.createdAt,
+      updatedAt,
+    };
+  }
+
+  /** Get the repo path for a project */
+  async getRepoPath(id: string): Promise<string> {
+    const project = await this.getProject(id);
+    return project.repoPath;
+  }
+
+  /** Get project by repo path (for callers that only have repoPath). */
+  async getProjectByRepoPath(repoPath: string): Promise<Project | null> {
+    const entries = await projectIndex.getProjects();
+    const normalized = normalizeRepoPath(repoPath);
+    const entry = entries.find((e) => normalizeRepoPath(e.repoPath) === normalized);
+    if (!entry) return null;
+    try {
+      return await this.getProject(entry.id);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Update project (name, repoPath, etc.) */
+  async updateProject(
+    id: string,
+    updates: Partial<Project>
+  ): Promise<{ project: Project; repoPathChanged: boolean }> {
+    const project = await this.getProject(id);
+    const repoPathChanged = updates.repoPath !== undefined && updates.repoPath !== project.repoPath;
+    const updated = { ...project, ...updates, updatedAt: new Date().toISOString() };
+
+    // Update global index if name or repoPath changed
+    if (updates.name !== undefined || repoPathChanged) {
+      const indexUpdates: { name?: string; repoPath?: string } = {};
+      if (updates.name !== undefined) indexUpdates.name = updates.name;
+      if (repoPathChanged) indexUpdates.repoPath = updates.repoPath;
+      await projectIndex.updateProject(id, indexUpdates);
+    }
+
+    this.invalidateListCache();
+    return { project: updated, repoPathChanged };
+  }
+
+  /** Read project settings. If the file is missing, write default settings and return them (e.g. adopted repo or corrupted state). */
+  async getSettings(projectId: string): Promise<ProjectSettings> {
+    const repoPath = await this.getRepoPath(projectId);
+    const settingsPath = path.join(repoPath, OPENSPRINT_PATHS.settings);
+    try {
+      const raw = await fs.readFile(settingsPath, "utf-8");
+      const parsed = parseSettings(JSON.parse(raw));
+      const normalized = {
+        ...parsed,
+        hilConfig: normalizeHilConfig(parsed.hilConfig ?? {}),
+      };
+      return toCanonicalSettings(normalized);
+    } catch {
+      // Missing or unreadable settings — ensure .opensprint exists and write defaults so Sketch/Plan work
+      try {
+        await fs.mkdir(path.join(repoPath, OPENSPRINT_DIR), { recursive: true });
+        const defaults = buildDefaultSettings();
+        await writeJsonAtomic(settingsPath, defaults);
+        return defaults;
+      } catch (_writeErr) {
+        throw new AppError(404, ErrorCodes.SETTINGS_NOT_FOUND, "Project settings not found");
+      }
+    }
+  }
+
+  /** Update project settings */
+  async updateSettings(
+    projectId: string,
+    updates: Partial<ProjectSettings>
+  ): Promise<ProjectSettings> {
+    const repoPath = await this.getRepoPath(projectId);
+    const current = await this.getSettings(projectId);
+
+    // Validate agent config if provided
+    let lowComplexityAgent = updates.lowComplexityAgent ?? current.lowComplexityAgent;
+    let highComplexityAgent = updates.highComplexityAgent ?? current.highComplexityAgent;
+    if (updates.lowComplexityAgent !== undefined) {
+      try {
+        lowComplexityAgent = parseAgentConfig(updates.lowComplexityAgent, "lowComplexityAgent");
+      } catch (err) {
+        const msg = getErrorMessage(err, "Invalid low complexity agent configuration");
+        throw new AppError(400, ErrorCodes.INVALID_AGENT_CONFIG, msg);
+      }
+    }
+    if (updates.highComplexityAgent !== undefined) {
+      try {
+        highComplexityAgent = parseAgentConfig(updates.highComplexityAgent, "highComplexityAgent");
+      } catch (err) {
+        const msg = getErrorMessage(err, "Invalid high complexity agent configuration");
+        throw new AppError(400, ErrorCodes.INVALID_AGENT_CONFIG, msg);
+      }
+    }
+
+    const hilConfig = normalizeHilConfig(
+      (updates.hilConfig ?? current.hilConfig) as CreateProjectRequest["hilConfig"]
+    );
+    const gitWorkingMode =
+      updates.gitWorkingMode === "worktree" || updates.gitWorkingMode === "branches"
+        ? updates.gitWorkingMode
+        : (current.gitWorkingMode ?? "worktree");
+    const updated: ProjectSettings = {
+      ...current,
+      ...updates,
+      lowComplexityAgent,
+      highComplexityAgent,
+      hilConfig,
+      gitWorkingMode,
+      // Branches mode forces maxConcurrentCoders=1 regardless of stored value
+      ...(gitWorkingMode === "branches" && { maxConcurrentCoders: 1 }),
+    };
+    const settingsPath = path.join(repoPath, OPENSPRINT_PATHS.settings);
+    await writeJsonAtomic(settingsPath, toCanonicalSettings(updated));
+    return updated;
+  }
+
+  /** Archive a project: remove from index only. Data in project folder remains. */
+  async archiveProject(id: string): Promise<void> {
+    await this.getProject(id); // validate exists, throws 404 if not
+    await projectIndex.removeProject(id);
+    this.invalidateListCache();
+  }
+
+  /** Delete a project: remove from index and delete .opensprint directory. Task data lives in the global store (~/.opensprint/tasks.db) and is not per-repo. */
+  async deleteProject(id: string): Promise<void> {
+    const project = await this.getProject(id);
+    const repoPath = project.repoPath;
+
+    // Remove worktrees for this project so watchdog/orphan recovery never see them again
+    const branchManager = new BranchManager();
+    const crashRecovery = new CrashRecoveryService();
+    const worktreeBase = branchManager.getWorktreeBasePath();
+    try {
+      const assignments = await crashRecovery.findOrphanedAssignmentsFromWorktrees(worktreeBase);
+      for (const { taskId, assignment } of assignments) {
+        if (assignment.projectId !== id) continue;
+        try {
+          await branchManager.removeTaskWorktree(repoPath, taskId);
+        } catch {
+          // Best effort; worktree may already be gone
+        }
+      }
+    } catch {
+      // Worktree base may not exist
+    }
+
+    await this.taskStore.deleteByProjectId(id);
+
+    const opensprintPath = path.join(repoPath, OPENSPRINT_DIR);
+    try {
+      await fs.rm(opensprintPath, { recursive: true, force: true });
+    } catch (err) {
+      const msg = getErrorMessage(err);
+      throw new AppError(500, ErrorCodes.INTERNAL_ERROR, `Failed to delete project data: ${msg}`, {
+        projectId: id,
+        repoPath,
+      });
+    }
+
+    await projectIndex.removeProject(id);
+    this.invalidateListCache();
+  }
+}

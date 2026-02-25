@@ -1,0 +1,16 @@
+<svg viewBox="0 0 52 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g transform="translate(0, -8)">
+  <!-- cup U -->
+  <path d="M 10 22 L 10 42 Q 10 48 16 48 L 36 48 Q 42 48 42 42 L 42 22"
+        fill="none" stroke="#818cf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- rim -->
+  <line x1="10" y1="22" x2="42" y2="22" stroke="#818cf8" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- handle -->
+  <path d="M 42 29 C 51 29 51 41 42 41"
+        fill="none" stroke="#818cf8" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- steam -->
+  <path d="M 18 20 C 15 15 21 11 18 6" fill="none" stroke="#818cf8" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M 26 20 C 23 15 29 11 26 6" fill="none" stroke="#818cf8" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M 34 20 C 31 15 37 11 34 6" fill="none" stroke="#818cf8" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+</svg>

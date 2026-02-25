@@ -1,0 +1,442 @@
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { TaskService } from "../services/task.service.js";
+import { SessionManager } from "../services/session-manager.js";
+import type { StoredTask } from "../services/task-store.service.js";
+
+const { mockTaskStoreState } = vi.hoisted(() => ({
+  mockTaskStoreState: { listAll: [] as StoredTask[], readyCalls: 0 },
+}));
+
+vi.mock("../services/task-store.service.js", () => {
+  const mockDb = {
+    prepare: vi.fn().mockReturnValue({
+      bind: vi.fn(),
+      step: vi.fn().mockReturnValue(false),
+      getAsObject: vi.fn(),
+      free: vi.fn(),
+    }),
+    run: vi.fn(),
+  };
+  return {
+    taskStore: {
+      listAll: vi.fn().mockImplementation(async () => mockTaskStoreState.listAll),
+      show: vi.fn().mockImplementation(async (_p: string, id: string) => {
+        const found = mockTaskStoreState.listAll.find((i) => i.id === id);
+        if (!found) throw new Error(`Issue ${id} not found`);
+        return found;
+      }),
+      ready: vi.fn().mockImplementation(async () => {
+        mockTaskStoreState.readyCalls++;
+        return [];
+      }),
+      getDb: vi.fn().mockResolvedValue(mockDb),
+      update: vi.fn(),
+      close: vi.fn(),
+      create: vi.fn(),
+      createMany: vi.fn(),
+      addDependencies: vi.fn(),
+      removeLabel: vi.fn(),
+      getBlockersFromIssue: vi.fn().mockReturnValue([]),
+      planGet: vi.fn(),
+      planUpdateMetadata: vi.fn(),
+      syncForPush: vi.fn(),
+    },
+    TaskStoreService: vi.fn(),
+    SCHEMA_SQL: "",
+  };
+});
+
+vi.mock("../services/project.service.js", () => ({
+  ProjectService: vi.fn().mockImplementation(() => ({
+    getProject: vi.fn().mockResolvedValue({
+      id: "proj-1",
+      repoPath: "/tmp/test-repo",
+    }),
+    getProjectByRepoPath: vi.fn().mockResolvedValue({ id: "proj-1", repoPath: "/tmp/test-repo" }),
+  })),
+}));
+
+const defaultIssues: StoredTask[] = [
+  {
+    id: "task-1",
+    title: "Test Task",
+    description: "Test description",
+    issue_type: "task",
+    status: "open",
+    priority: 1,
+    assignee: null,
+    labels: [],
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
+    dependencies: [],
+  } as StoredTask,
+];
+
+describe("TaskService", () => {
+  let taskService: TaskService;
+
+  beforeEach(() => {
+    mockTaskStoreState.listAll = [...defaultIssues];
+    mockTaskStoreState.readyCalls = 0;
+    taskService = new TaskService();
+  });
+
+  it("getTask returns task from task store listAll", async () => {
+    const task = await taskService.getTask("proj-1", "task-1");
+    expect(task).toBeDefined();
+    expect(task.id).toBe("task-1");
+    expect(task.title).toBe("Test Task");
+    expect(mockTaskStoreState.readyCalls).toBe(0);
+  });
+
+  it("getTask throws 404 for unknown task ID", async () => {
+    await expect(taskService.getTask("proj-1", "nonexistent")).rejects.toThrow("not found");
+  });
+
+  it("getTask does not call taskStore.ready (avoids N show calls)", async () => {
+    await taskService.getTask("proj-1", "task-1");
+    expect(mockTaskStoreState.readyCalls).toBe(0);
+  });
+
+  it("listTasks returns tasks from task store listAll", async () => {
+    const tasks = await taskService.listTasks("proj-1");
+    expect(tasks).toBeDefined();
+    expect(tasks.length).toBe(1);
+    expect(mockTaskStoreState.readyCalls).toBe(0);
+  });
+
+  it("listTasks does not call taskStore.ready (computes ready from store)", async () => {
+    await taskService.listTasks("proj-1");
+    expect(mockTaskStoreState.readyCalls).toBe(0);
+  });
+
+  it("getReadyTasks does not call taskStore.ready (computes ready from store)", async () => {
+    const tasks = await taskService.getReadyTasks("proj-1");
+    expect(tasks).toBeDefined();
+    expect(mockTaskStoreState.readyCalls).toBe(0);
+  });
+
+  it("listTasks computes ready status: task with no blockers is ready", async () => {
+    mockTaskStoreState.listAll = [
+      {
+        id: "task-a",
+        title: "Task A",
+        status: "open",
+        issue_type: "task",
+        dependencies: [],
+      },
+    ] as StoredTask[];
+
+    const tasks = await taskService.listTasks("proj-1");
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].kanbanColumn).toBe("ready");
+  });
+
+  it("listTasks computes ready status: task with open blocker is backlog", async () => {
+    mockTaskStoreState.listAll = [
+      { id: "blocker-1", status: "open", issue_type: "task", dependencies: [] },
+      {
+        id: "task-a",
+        title: "Task A",
+        status: "open",
+        issue_type: "task",
+        dependencies: [{ type: "blocks", depends_on_id: "blocker-1" }],
+      },
+    ] as StoredTask[];
+
+    const tasks = await taskService.listTasks("proj-1");
+    const taskA = tasks.find((t) => t.id === "task-a");
+    expect(taskA).toBeDefined();
+    expect(taskA!.kanbanColumn).toBe("backlog");
+  });
+
+  it("listTasks computes ready status: task with closed blocker is ready", async () => {
+    mockTaskStoreState.listAll = [
+      { id: "blocker-1", status: "closed", issue_type: "task", dependencies: [] },
+      {
+        id: "task-a",
+        title: "Task A",
+        status: "open",
+        issue_type: "task",
+        dependencies: [{ type: "blocks", depends_on_id: "blocker-1" }],
+      },
+    ] as StoredTask[];
+
+    const tasks = await taskService.listTasks("proj-1");
+    const taskA = tasks.find((t) => t.id === "task-a");
+    expect(taskA).toBeDefined();
+    expect(taskA!.kanbanColumn).toBe("ready");
+  });
+
+  it("listTasks excludes epics from ready (epics are containers, not work items)", async () => {
+    mockTaskStoreState.listAll = [
+      { id: "epic-1", status: "open", issue_type: "epic", dependencies: [] },
+    ] as StoredTask[];
+
+    const tasks = await taskService.listTasks("proj-1");
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].kanbanColumn).not.toBe("ready");
+  });
+
+  it("listTasks excludes chore tasks (feedback source provenance, not work items)", async () => {
+    mockTaskStoreState.listAll = [
+      {
+        id: "chore-1",
+        title: "Feedback: The homepage projects list should be 50% wider",
+        status: "open",
+        issue_type: "chore",
+        dependencies: [],
+      },
+      {
+        id: "task-1",
+        title: "Widen homepage projects list by 50%",
+        status: "open",
+        issue_type: "task",
+        dependencies: [],
+      },
+    ] as StoredTask[];
+
+    const tasks = await taskService.listTasks("proj-1");
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].id).toBe("task-1");
+    expect(tasks[0].title).toBe("Widen homepage projects list by 50%");
+  });
+
+  it("getTask: task in blocked epic shows planning and is not ready", async () => {
+    mockTaskStoreState.listAll = [
+      {
+        id: "os-a3f8",
+        title: "Epic",
+        status: "blocked",
+        issue_type: "epic",
+        dependencies: [],
+      },
+      {
+        id: "os-a3f8.1",
+        title: "Task in blocked epic",
+        status: "open",
+        issue_type: "task",
+        dependencies: [],
+      },
+    ] as StoredTask[];
+
+    const task = await taskService.getTask("proj-1", "os-a3f8.1");
+    expect(task).toBeDefined();
+    expect(task.kanbanColumn).toBe("planning");
+    expect(task.epicId).toBe("os-a3f8");
+
+    const readyTasks = await taskService.getReadyTasks("proj-1");
+    expect(readyTasks.map((t) => t.id)).not.toContain("os-a3f8.1");
+  });
+
+  it("listTasks: task in blocked epic is not ready and shows planning column", async () => {
+    mockTaskStoreState.listAll = [
+      {
+        id: "os-a3f8",
+        title: "Epic",
+        status: "blocked",
+        issue_type: "epic",
+        dependencies: [],
+      },
+      {
+        id: "os-a3f8.1",
+        title: "Task in blocked epic",
+        status: "open",
+        issue_type: "task",
+        dependencies: [],
+      },
+    ] as StoredTask[];
+
+    const tasks = await taskService.listTasks("proj-1");
+    const task = tasks.find((t) => t.id === "os-a3f8.1");
+    expect(task).toBeDefined();
+    expect(task!.kanbanColumn).toBe("planning");
+
+    const readyTasks = await taskService.getReadyTasks("proj-1");
+    expect(readyTasks.map((t) => t.id)).not.toContain("os-a3f8.1");
+  });
+
+  it("listTasks: task in open epic with no blockers is ready", async () => {
+    mockTaskStoreState.listAll = [
+      {
+        id: "os-a3f8",
+        title: "Epic",
+        status: "open",
+        issue_type: "epic",
+        dependencies: [],
+      },
+      {
+        id: "os-a3f8.1",
+        title: "Task in open epic",
+        status: "open",
+        issue_type: "task",
+        dependencies: [],
+      },
+    ] as StoredTask[];
+
+    const tasks = await taskService.listTasks("proj-1");
+    const task = tasks.find((t) => t.id === "os-a3f8.1");
+    expect(task).toBeDefined();
+    expect(task!.kanbanColumn).toBe("ready");
+
+    const readyTasks = await taskService.getReadyTasks("proj-1");
+    expect(readyTasks.map((t) => t.id)).toContain("os-a3f8.1");
+  });
+
+  it("computeKanbanColumn: task with open blocker (task-to-task dep, epic open) shows backlog", async () => {
+    mockTaskStoreState.listAll = [
+      { id: "os-a3f8", status: "open", issue_type: "epic", dependencies: [] },
+      {
+        id: "os-a3f8.1",
+        title: "Task A",
+        status: "open",
+        issue_type: "task",
+        dependencies: [],
+      },
+      {
+        id: "os-a3f8.2",
+        title: "Task B",
+        status: "open",
+        issue_type: "task",
+        dependencies: [{ type: "blocks", depends_on_id: "os-a3f8.1" }],
+      },
+    ] as StoredTask[];
+
+    const tasks = await taskService.listTasks("proj-1");
+    const taskB = tasks.find((t) => t.id === "os-a3f8.2");
+    expect(taskB).toBeDefined();
+    expect(taskB!.kanbanColumn).toBe("backlog");
+  });
+
+  it("getReadyTasks returns only ready tasks (excludes tasks with open blockers)", async () => {
+    mockTaskStoreState.listAll = [
+      { id: "blocker-1", status: "closed", issue_type: "task", dependencies: [] },
+      {
+        id: "task-ready",
+        title: "Ready Task",
+        status: "open",
+        issue_type: "task",
+        dependencies: [{ type: "blocks", depends_on_id: "blocker-1" }],
+      },
+      { id: "blocker-2", status: "open", issue_type: "task", dependencies: [] },
+      {
+        id: "task-not-ready",
+        title: "Not Ready",
+        status: "open",
+        issue_type: "task",
+        dependencies: [{ type: "blocks", depends_on_id: "blocker-2" }],
+      },
+    ] as StoredTask[];
+
+    const tasks = await taskService.getReadyTasks("proj-1");
+    const ids = tasks.map((t) => t.id);
+    expect(ids).toContain("task-ready");
+    expect(ids).toContain("blocker-2");
+    expect(ids).not.toContain("task-not-ready");
+    expect(ids).not.toContain("blocker-1");
+  });
+
+  it("listTasks calls loadSessionsGroupedByTaskId once (batch enrich, not N listSessions)", async () => {
+    mockTaskStoreState.listAll = Array.from({ length: 10 }, (_, i) => ({
+      id: `task-${i}`,
+      title: `Task ${i}`,
+      status: "open" as const,
+      issue_type: "task" as const,
+      dependencies: [],
+    })) as StoredTask[];
+
+    const loadSpy = vi.spyOn(SessionManager.prototype, "loadSessionsGroupedByTaskId");
+    const listSpy = vi.spyOn(SessionManager.prototype, "listSessions");
+
+    await taskService.listTasks("proj-1");
+
+    expect(loadSpy).toHaveBeenCalledTimes(1);
+    expect(listSpy).not.toHaveBeenCalled();
+
+    loadSpy.mockRestore();
+    listSpy.mockRestore();
+  });
+
+  it("listTasks enriches tasks with testResults from latest session", async () => {
+    mockTaskStoreState.listAll = [
+      {
+        id: "task-with-session",
+        title: "Task A",
+        status: "open",
+        issue_type: "task",
+        dependencies: [],
+      },
+      {
+        id: "task-no-session",
+        title: "Task B",
+        status: "open",
+        issue_type: "task",
+        dependencies: [],
+      },
+    ] as StoredTask[];
+
+    const loadSpy = vi
+      .spyOn(SessionManager.prototype, "loadSessionsGroupedByTaskId")
+      .mockResolvedValue(
+        new Map([
+          [
+            "task-with-session",
+            [
+              {
+                taskId: "task-with-session",
+                attempt: 1,
+                agentType: "cursor" as const,
+                agentModel: "gpt-4",
+                startedAt: "2024-01-01T00:00:00Z",
+                completedAt: null,
+                status: "success" as const,
+                outputLog: "",
+                gitBranch: "main",
+                gitDiff: null,
+                testResults: { passed: 5, failed: 0, skipped: 1, total: 6, details: [] },
+                failureReason: null,
+              },
+            ],
+          ],
+        ])
+      );
+
+    const tasks = await taskService.listTasks("proj-1");
+
+    expect(tasks.find((t) => t.id === "task-with-session")?.testResults).toEqual({
+      passed: 5,
+      failed: 0,
+      skipped: 1,
+      total: 6,
+      details: [],
+    });
+    expect(tasks.find((t) => t.id === "task-no-session")?.testResults).toBeUndefined();
+
+    loadSpy.mockRestore();
+  });
+
+  it("markDone closes task via task store", async () => {
+    const { taskStore } = await import("../services/task-store.service.js");
+    vi.mocked(taskStore.close).mockResolvedValue(undefined as never);
+    vi.mocked(taskStore.syncForPush).mockResolvedValue(undefined as never);
+
+    const result = await taskService.markDone("proj-1", "task-1");
+    expect(result.taskClosed).toBe(true);
+  });
+
+  it("unblock updates task status via task store", async () => {
+    const { taskStore } = await import("../services/task-store.service.js");
+    vi.mocked(taskStore.show).mockResolvedValue({
+      id: "task-1",
+      title: "Blocked Task",
+      status: "blocked",
+      issue_type: "task",
+      dependencies: [],
+    } as StoredTask);
+    vi.mocked(taskStore.update).mockResolvedValue(undefined as never);
+    vi.mocked(taskStore.syncForPush).mockResolvedValue(undefined as never);
+
+    const result = await taskService.unblock("proj-1", "task-1");
+    expect(result.taskUnblocked).toBe(true);
+  });
+});

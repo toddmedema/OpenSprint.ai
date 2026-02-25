@@ -1,0 +1,337 @@
+import fs from "fs/promises";
+import path from "path";
+import type { AgentPhase, AgentConfig } from "@opensprint/shared";
+import {
+  AGENT_INACTIVITY_TIMEOUT_MS,
+  HEARTBEAT_INTERVAL_MS,
+  OPENSPRINT_PATHS,
+} from "@opensprint/shared";
+import { agentService } from "./agent.service.js";
+import type { CodingAgentHandle } from "./agent.service.js";
+import { heartbeatService } from "./heartbeat.service.js";
+import { BranchManager } from "./branch-manager.js";
+import { broadcastToProject, sendAgentOutputToProject } from "../websocket/index.js";
+import { TimerRegistry } from "./timer-registry.js";
+import { createLogger } from "../utils/logger.js";
+
+const log = createLogger("agent-lifecycle");
+
+/** Poll interval for tailing agent output file after GUPP recovery (must match agent-client for consistency) */
+const OUTPUT_POLL_MS = 150;
+
+/** Check whether a PID is still running */
+function isPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Max total bytes retained in outputLog before oldest chunks are dropped */
+const MAX_OUTPUT_LOG_BYTES = 5 * 1024 * 1024; // 5 MB
+
+/**
+ * Mutable run state shared between the lifecycle manager and the orchestrator.
+ * The orchestrator owns and reads/writes these fields; the lifecycle manager
+ * updates them during agent execution.
+ */
+export interface AgentRunState {
+  activeProcess: CodingAgentHandle | null;
+  lastOutputTime: number;
+  outputLog: string[];
+  outputLogBytes: number;
+  startedAt: string;
+  exitHandled: boolean;
+  killedDueToTimeout: boolean;
+  /** Stop output file tail (used after GUPP recovery); cleared when tail is stopped */
+  outputTailStop?: () => void;
+}
+
+export interface AgentRunParams {
+  projectId: string;
+  taskId: string;
+  phase: AgentPhase;
+  wtPath: string;
+  branchName: string;
+  promptPath: string;
+  agentConfig: AgentConfig;
+  agentLabel: string;
+  /** "coder" uses invokeCodingAgent; "reviewer" uses invokeReviewAgent */
+  role: "coder" | "reviewer";
+  /** Called when agent exits (normally or via dead-process detection) */
+  onDone: (exitCode: number | null) => Promise<void>;
+}
+
+/**
+ * Manages the common agent execution lifecycle: spawning, output streaming,
+ * heartbeat writing, inactivity monitoring, dead-process detection, and
+ * cleanup. Eliminates duplication between coding and review phases.
+ */
+export class AgentLifecycleManager {
+  private branchManager = new BranchManager();
+
+  /**
+   * Spawn an agent process with full monitoring (heartbeat + inactivity).
+   * The caller's onDone callback is invoked exactly once when the agent
+   * finishes (either normally via onExit, or via dead-process detection).
+   */
+  run(params: AgentRunParams, runState: AgentRunState, timers: TimerRegistry): void {
+    const {
+      projectId,
+      taskId,
+      phase,
+      wtPath,
+      branchName,
+      promptPath,
+      agentConfig,
+      agentLabel: _agentLabel,
+      role,
+      onDone,
+    } = params;
+
+    runState.killedDueToTimeout = false;
+    runState.exitHandled = false;
+    // Preserve startedAt if already set (e.g. by phase-executor before spawn) so getActiveAgents shows correct elapsed time from first frame
+    runState.startedAt = runState.startedAt || new Date().toISOString();
+    runState.outputLog = [];
+    runState.outputLogBytes = 0;
+    runState.lastOutputTime = Date.now();
+
+    const outputLogPath = path.join(
+      wtPath,
+      OPENSPRINT_PATHS.active,
+      taskId,
+      OPENSPRINT_PATHS.agentOutputLog
+    );
+
+    broadcastToProject(projectId, {
+      type: "agent.started",
+      taskId,
+      phase,
+      branchName,
+      startedAt: runState.startedAt,
+    });
+
+    const invoke =
+      role === "coder"
+        ? agentService.invokeCodingAgent.bind(agentService)
+        : agentService.invokeReviewAgent.bind(agentService);
+
+    runState.activeProcess = invoke(promptPath, agentConfig, {
+      cwd: wtPath,
+      agentRole: role === "coder" ? "coder" : "code reviewer",
+      outputLogPath,
+      onOutput: (chunk: string) => {
+        appendOutputLog(runState, chunk);
+        runState.lastOutputTime = Date.now();
+        sendAgentOutputToProject(projectId, taskId, chunk);
+      },
+      onExit: async (code: number | null) => {
+        if (runState.exitHandled) return;
+        runState.exitHandled = true;
+        runState.activeProcess = null;
+        this.cleanupTimers(timers);
+        await heartbeatService.deleteHeartbeat(wtPath, taskId);
+        try {
+          await onDone(code);
+        } catch (err) {
+          log.error("onDone failed", { taskId, exitCode: code, err });
+        }
+      },
+    });
+
+    this.startHeartbeat(runState, wtPath, taskId, timers);
+    this.startInactivityMonitor(runState, wtPath, taskId, branchName, timers, onDone);
+  }
+
+  /**
+   * Re-attach to an existing agent process after backend restart (GUPP recovery).
+   * Sets runState.activeProcess to the handle, starts heartbeat + inactivity monitoring,
+   * and tails the agent output file so live output continues to stream to subscribed clients.
+   * When the process exits (detected via isPidAlive), onDone is invoked and the tail is stopped.
+   */
+  resumeMonitoring(
+    handle: CodingAgentHandle,
+    params: AgentRunParams,
+    runState: AgentRunState,
+    timers: TimerRegistry
+  ): void {
+    const { projectId, wtPath, taskId, branchName, onDone } = params;
+    runState.activeProcess = handle;
+    runState.lastOutputTime = Date.now();
+    runState.exitHandled = false;
+    runState.killedDueToTimeout = false;
+
+    const outputLogPath = path.join(
+      wtPath,
+      OPENSPRINT_PATHS.active,
+      taskId,
+      OPENSPRINT_PATHS.agentOutputLog
+    );
+    const outputTailStop = this.startOutputTail(outputLogPath, runState, projectId, taskId, timers);
+    runState.outputTailStop = outputTailStop;
+
+    const wrappedOnDone = async (code: number | null) => {
+      runState.outputTailStop?.();
+      runState.outputTailStop = undefined;
+      await onDone(code);
+    };
+
+    this.startHeartbeat(runState, wtPath, taskId, timers);
+    this.startInactivityMonitor(runState, wtPath, taskId, branchName, timers, wrappedOnDone);
+  }
+
+  /**
+   * Tail the agent output file and stream new bytes to WebSocket clients and runState.
+   * Used after GUPP recovery when we re-attach to a running process (no spawn, so no pipe).
+   * Returns a stop function that clears the poll and performs one final drain.
+   */
+  private startOutputTail(
+    outputLogPath: string,
+    runState: AgentRunState,
+    projectId: string,
+    taskId: string,
+    timers: TimerRegistry
+  ): () => void {
+    let readOffset = 0;
+    let initialized = false;
+    const TAIL_TIMER_NAME = "outputTail";
+    const MAX_CHUNK = 256 * 1024;
+
+    const drain = async (): Promise<void> => {
+      try {
+        const s = await fs.stat(outputLogPath);
+        if (!initialized) {
+          readOffset = s.size;
+          initialized = true;
+          return;
+        }
+        if (s.size <= readOffset) return;
+        const toRead = Math.min(s.size - readOffset, MAX_CHUNK);
+        const fh = await fs.open(outputLogPath, "r");
+        try {
+          const buf = Buffer.alloc(toRead);
+          const { bytesRead } = await fh.read(buf, 0, toRead, readOffset);
+          if (bytesRead > 0) {
+            readOffset += bytesRead;
+            const chunk = buf.subarray(0, bytesRead).toString();
+            appendOutputLog(runState, chunk);
+            runState.lastOutputTime = Date.now();
+            sendAgentOutputToProject(projectId, taskId, chunk);
+          }
+        } finally {
+          await fh.close();
+        }
+      } catch {
+        // File may not exist yet or transient I/O error
+      }
+    };
+
+    timers.setInterval(
+      TAIL_TIMER_NAME,
+      () => {
+        drain().catch(() => {});
+      },
+      OUTPUT_POLL_MS
+    );
+    setImmediate(() => drain().catch(() => {}));
+
+    return () => {
+      timers.clear(TAIL_TIMER_NAME);
+      drain().catch(() => {});
+    };
+  }
+
+  private startHeartbeat(
+    runState: AgentRunState,
+    wtPath: string,
+    taskId: string,
+    timers: TimerRegistry
+  ): void {
+    timers.setInterval(
+      "heartbeat",
+      () => {
+        if (!runState.activeProcess) return;
+        heartbeatService
+          .writeHeartbeat(wtPath, taskId, {
+            pid: runState.activeProcess.pid ?? 0,
+            lastOutputTimestamp: runState.lastOutputTime,
+            heartbeatTimestamp: Date.now(),
+          })
+          .catch(() => {});
+      },
+      HEARTBEAT_INTERVAL_MS
+    );
+  }
+
+  private startInactivityMonitor(
+    runState: AgentRunState,
+    wtPath: string,
+    taskId: string,
+    branchName: string,
+    timers: TimerRegistry,
+    onDone: (exitCode: number | null) => Promise<void>
+  ): void {
+    timers.setInterval(
+      "inactivity",
+      () => {
+        if (runState.exitHandled) return;
+        const elapsed = Date.now() - runState.lastOutputTime;
+        const proc = runState.activeProcess;
+        const pidDead = proc && proc.pid !== null && !isPidAlive(proc.pid);
+
+        if (pidDead) {
+          if (runState.exitHandled) return;
+          runState.exitHandled = true;
+          log.warn("Agent process dead, recovering immediately", { taskId, pid: proc.pid });
+          runState.activeProcess = null;
+          this.cleanupTimers(timers);
+          heartbeatService.deleteHeartbeat(wtPath, taskId).catch(() => {});
+          this.branchManager
+            .commitWip(wtPath, taskId)
+            .then(() => onDone(null))
+            .catch((err) => {
+              log.error("Post-death handler failed", { taskId, err });
+              return onDone(null);
+            })
+            .catch((err) => {
+              log.error("onDone fallback also failed", { taskId, err });
+            });
+          return;
+        }
+
+        if (elapsed > AGENT_INACTIVITY_TIMEOUT_MS) {
+          log.warn("Agent timeout", { taskId, elapsedMs: elapsed });
+          if (runState.activeProcess) {
+            runState.killedDueToTimeout = true;
+            this.branchManager
+              .commitWip(wtPath, taskId)
+              .then(() => runState.activeProcess?.kill())
+              .catch((err) => {
+                log.error("Inactivity handler failed", { taskId, err });
+                runState.activeProcess?.kill();
+              });
+          }
+        }
+      },
+      30000
+    );
+  }
+
+  private cleanupTimers(timers: TimerRegistry): void {
+    timers.clear("heartbeat");
+    timers.clear("inactivity");
+  }
+}
+
+/** Append a chunk to outputLog, evicting oldest entries when the size cap is exceeded. */
+function appendOutputLog(state: AgentRunState, chunk: string): void {
+  state.outputLog.push(chunk);
+  state.outputLogBytes += chunk.length;
+  while (state.outputLogBytes > MAX_OUTPUT_LOG_BYTES && state.outputLog.length > 1) {
+    const dropped = state.outputLog.shift()!;
+    state.outputLogBytes -= dropped.length;
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "lowComplexityAgent": {
+    "type": "cursor",
+    "model": "composer-1.5",
+    "cliCommand": null
+  },
+  "highComplexityAgent": {
+    "type": "cursor",
+    "model": "composer-1.5",
+    "cliCommand": null
+  },
+  "deployment": {
+    "mode": "custom",
+    "autoDeployOnEpicCompletion": false,
+    "autoDeployOnEvalResolution": false,
+    "autoResolveFeedbackOnTaskCompletion": false
+  },
+  "hilConfig": {
+    "scopeChanges": "automated",
+    "architectureDecisions": "automated",
+    "dependencyModifications": "automated"
+  },
+  "testFramework": "jest",
+  "testCommand": "npm test",
+  "reviewMode": "always",
+  "maxConcurrentCoders": 2,
+  "unknownScopeStrategy": "optimistic"
+}

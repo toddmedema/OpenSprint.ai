@@ -1,0 +1,681 @@
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import fs from "fs/promises";
+import path from "path";
+import os from "os";
+import { ProjectService } from "../services/project.service.js";
+import { DEFAULT_HIL_CONFIG, DEFAULT_REVIEW_MODE } from "@opensprint/shared";
+
+describe("ProjectService", () => {
+  let projectService: ProjectService;
+  let tempDir: string;
+  let originalHome: string | undefined;
+
+  beforeEach(async () => {
+    projectService = new ProjectService();
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-project-test-"));
+    originalHome = process.env.HOME;
+    process.env.HOME = tempDir;
+  });
+
+  afterEach(async () => {
+    process.env.HOME = originalHome;
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("should create a project with full setup flow", async () => {
+    const repoPath = path.join(tempDir, "my-project");
+
+    const project = await projectService.createProject({
+      name: "Test Project",
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
+      highComplexityAgent: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    expect(project.id).toBeDefined();
+    expect(project.name).toBe("Test Project");
+    expect(project.repoPath).toBe(repoPath);
+    expect(project.currentPhase).toBe("sketch");
+
+    // Verify .opensprint directory structure
+    const opensprintDir = path.join(repoPath, ".opensprint");
+    const stat = await fs.stat(opensprintDir);
+    expect(stat.isDirectory()).toBe(true);
+
+    const subdirs = ["plans", "conversations", "feedback", "active"];
+    for (const sub of subdirs) {
+      const subStat = await fs.stat(path.join(opensprintDir, sub));
+      expect(subStat.isDirectory()).toBe(true);
+    }
+
+    // Verify settings.json
+    const settingsPath = path.join(repoPath, ".opensprint", "settings.json");
+    const settingsRaw = await fs.readFile(settingsPath, "utf-8");
+    const settings = JSON.parse(settingsRaw);
+    expect(settings.lowComplexityAgent.type).toBe("claude");
+    expect(settings.highComplexityAgent.type).toBe("claude");
+    expect(settings.hilConfig).toEqual(DEFAULT_HIL_CONFIG);
+    expect(settings.testFramework).toBeNull();
+    expect(settings.reviewMode).toBe(DEFAULT_REVIEW_MODE);
+
+    // Verify prd.json
+    const prdPath = path.join(repoPath, ".opensprint", "prd.json");
+    const prdRaw = await fs.readFile(prdPath, "utf-8");
+    const prd = JSON.parse(prdRaw);
+    expect(prd.sections).toBeDefined();
+    expect(prd.sections.executive_summary).toBeDefined();
+
+    // Verify git repo
+    const gitDir = path.join(repoPath, ".git");
+    const gitStat = await fs.stat(gitDir);
+    expect(gitStat.isDirectory()).toBe(true);
+
+    // Task store: global DB, no per-repo data
+
+    // Verify AGENTS.md created with bd instruction
+    const agentsMd = await fs.readFile(path.join(repoPath, "AGENTS.md"), "utf-8");
+    expect(agentsMd).toContain("Use 'bd' for task tracking");
+
+    // PRD §5.9: Verify .gitignore has orchestrator-state and worktrees
+    const gitignorePath = path.join(repoPath, ".gitignore");
+    const gitignore = await fs.readFile(gitignorePath, "utf-8");
+    expect(gitignore).toContain(".opensprint/orchestrator-state.json");
+    expect(gitignore).toContain(".opensprint/worktrees/");
+
+    // Verify global index
+    const indexPath = path.join(tempDir, ".opensprint", "projects.json");
+    const indexRaw = await fs.readFile(indexPath, "utf-8");
+    const index = JSON.parse(indexRaw);
+    expect(index.projects).toHaveLength(1);
+    expect(index.projects[0].id).toBe(project.id);
+    expect(index.projects[0].name).toBe("Test Project");
+    expect(index.projects[0].repoPath).toBe(repoPath);
+
+    // Verify getProject returns the project
+    const fetched = await projectService.getProject(project.id);
+    expect(fetched.id).toBe(project.id);
+  });
+
+  it("should not include description in created project", async () => {
+    const repoPath = path.join(tempDir, "no-desc-project");
+
+    const project = await projectService.createProject({
+      name: "No Description",
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    expect(project.id).toBeDefined();
+    expect(project.name).toBe("No Description");
+    expect((project as Record<string, unknown>).description).toBeUndefined();
+
+    const fetched = await projectService.getProject(project.id);
+    expect((fetched as Record<string, unknown>).description).toBeUndefined();
+  });
+
+  it("should load project without error when index has stale description", async () => {
+    const repoPath = path.join(tempDir, "stale-desc-project");
+
+    const project = await projectService.createProject({
+      name: "Stale Desc",
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    // Manually inject a stale description into the index file
+    const indexPath = path.join(tempDir, ".opensprint", "projects.json");
+    const indexRaw = await fs.readFile(indexPath, "utf-8");
+    const index = JSON.parse(indexRaw);
+    index.projects[0].description = "stale description from old version";
+    await fs.writeFile(indexPath, JSON.stringify(index));
+
+    // Verify project loads without error and response has no description
+    const fetched = await projectService.getProject(project.id);
+    expect(fetched.id).toBe(project.id);
+    expect(fetched.name).toBe("Stale Desc");
+    expect((fetched as Record<string, unknown>).description).toBeUndefined();
+
+    // Verify listProjects also works
+    const all = await projectService.listProjects();
+    const found = all.find((p) => p.id === project.id);
+    expect(found).toBeDefined();
+    expect((found as Record<string, unknown>).description).toBeUndefined();
+  });
+
+  it("should append bd instruction to existing AGENTS.md that lacks it", async () => {
+    const repoPath = path.join(tempDir, "existing-agents-md");
+    await fs.mkdir(repoPath, { recursive: true });
+    await fs.writeFile(
+      path.join(repoPath, "AGENTS.md"),
+      "# My Project\n\nCustom instructions here.\n"
+    );
+
+    await projectService.createProject({
+      name: "Existing AGENTS.md",
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    const content = await fs.readFile(path.join(repoPath, "AGENTS.md"), "utf-8");
+    expect(content).toContain("# My Project");
+    expect(content).toContain("Custom instructions here.");
+    expect(content).toContain("Use 'bd' for task tracking");
+  });
+
+  it("should not duplicate bd instruction if AGENTS.md already has it", async () => {
+    const repoPath = path.join(tempDir, "agents-md-with-bd");
+    await fs.mkdir(repoPath, { recursive: true });
+    await fs.writeFile(
+      path.join(repoPath, "AGENTS.md"),
+      "# My Project\n\nUse 'bd' for task tracking\n"
+    );
+
+    await projectService.createProject({
+      name: "Already Has BD",
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    const content = await fs.readFile(path.join(repoPath, "AGENTS.md"), "utf-8");
+    const matches = content.match(/Use 'bd' for task tracking/g);
+    expect(matches).toHaveLength(1);
+  });
+
+  it("should reject empty project name", async () => {
+    await expect(
+      projectService.createProject({
+        name: "",
+        repoPath: path.join(tempDir, "proj"),
+        lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+        highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+        deployment: { mode: "custom" },
+        hilConfig: DEFAULT_HIL_CONFIG,
+      })
+    ).rejects.toMatchObject({ code: "INVALID_INPUT", message: "Project name is required" });
+  });
+
+  it("should reject empty repo path", async () => {
+    await expect(
+      projectService.createProject({
+        name: "Test",
+        repoPath: "",
+        lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+        highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+        deployment: { mode: "custom" },
+        hilConfig: DEFAULT_HIL_CONFIG,
+      })
+    ).rejects.toMatchObject({ code: "INVALID_INPUT", message: "Repository path is required" });
+  });
+
+  it("should create eas.json when deployment mode is expo", async () => {
+    const repoPath = path.join(tempDir, "expo-project");
+
+    await projectService.createProject({
+      name: "Expo Project",
+
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "expo", expoConfig: { channel: "preview" } },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    const easPath = path.join(repoPath, "eas.json");
+    const easRaw = await fs.readFile(easPath, "utf-8");
+    const eas = JSON.parse(easRaw);
+    expect(eas.build).toBeDefined();
+    expect(eas.build.preview).toBeDefined();
+    expect(eas.build.preview.channel).toBe("preview");
+    expect(eas.build.production).toBeDefined();
+  });
+
+  it("should save testFramework when provided", async () => {
+    const repoPath = path.join(tempDir, "jest-project");
+
+    await projectService.createProject({
+      name: "Jest Project",
+
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+      testFramework: "jest",
+    });
+
+    const settingsPath = path.join(repoPath, ".opensprint", "settings.json");
+    const settingsRaw = await fs.readFile(settingsPath, "utf-8");
+    const settings = JSON.parse(settingsRaw);
+    expect(settings.testFramework).toBe("jest");
+  });
+
+  it("should persist customCommand and webhookUrl when deployment mode is custom", async () => {
+    const repoPath = path.join(tempDir, "custom-deploy");
+
+    await projectService.createProject({
+      name: "Custom Deploy Project",
+
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: {
+        mode: "custom",
+        customCommand: "./deploy.sh",
+        webhookUrl: "https://api.example.com/deploy",
+      },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    const settingsPath = path.join(repoPath, ".opensprint", "settings.json");
+    const settingsRaw = await fs.readFile(settingsPath, "utf-8");
+    const settings = JSON.parse(settingsRaw);
+    expect(settings.deployment).toBeDefined();
+    expect(settings.deployment.mode).toBe("custom");
+    expect(settings.deployment.customCommand).toBe("./deploy.sh");
+    expect(settings.deployment.webhookUrl).toBe("https://api.example.com/deploy");
+  });
+
+  it("should not persist customCommand/webhookUrl when deployment mode is expo", async () => {
+    const repoPath = path.join(tempDir, "expo-ignores-custom");
+
+    await projectService.createProject({
+      name: "Expo Ignores Custom",
+
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: {
+        mode: "expo",
+        expoConfig: { channel: "preview" },
+        customCommand: "./deploy.sh",
+        webhookUrl: "https://api.example.com/deploy",
+      },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    const settingsPath = path.join(repoPath, ".opensprint", "settings.json");
+    const settingsRaw = await fs.readFile(settingsPath, "utf-8");
+    const settings = JSON.parse(settingsRaw);
+    expect(settings.deployment.mode).toBe("expo");
+    expect(settings.deployment.customCommand).toBeUndefined();
+    expect(settings.deployment.webhookUrl).toBeUndefined();
+  });
+
+  it("should normalize invalid deployment mode to custom", async () => {
+    const repoPath = path.join(tempDir, "invalid-deployment");
+
+    await projectService.createProject({
+      name: "Invalid Deployment",
+
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "invalid" as "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    const settingsPath = path.join(repoPath, ".opensprint", "settings.json");
+    const settingsRaw = await fs.readFile(settingsPath, "utf-8");
+    const settings = JSON.parse(settingsRaw);
+    expect(settings.deployment).toBeDefined();
+    expect(settings.deployment.mode).toBe("custom");
+  });
+
+  it("should merge partial hilConfig with defaults", async () => {
+    const repoPath = path.join(tempDir, "partial-hil");
+
+    await projectService.createProject({
+      name: "Partial HIL",
+
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: { scopeChanges: "automated" } as typeof DEFAULT_HIL_CONFIG,
+    });
+
+    const settingsPath = path.join(repoPath, ".opensprint", "settings.json");
+    const settingsRaw = await fs.readFile(settingsPath, "utf-8");
+    const settings = JSON.parse(settingsRaw);
+    expect(settings.hilConfig.scopeChanges).toBe("automated");
+    expect(settings.hilConfig.architectureDecisions).toBe("automated");
+    expect(settings.hilConfig.dependencyModifications).toBe("automated");
+  });
+
+  it("should adopt path that has .opensprint when project not in index", async () => {
+    const repoPath = path.join(tempDir, "existing");
+    await fs.mkdir(path.join(repoPath, ".opensprint"), { recursive: true });
+
+    const project = await projectService.createProject({
+      name: "Test",
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    expect(project.repoPath).toBe(repoPath);
+    expect(project.name).toBe("Test");
+  });
+
+  it("should return existing project when path has .opensprint and project is in index", async () => {
+    const repoPath = path.join(tempDir, "existing-in-index");
+    const first = await projectService.createProject({
+      name: "First",
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+    const again = await projectService.createProject({
+      name: "Other",
+      repoPath: repoPath + "/",
+      lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+    expect(again.id).toBe(first.id);
+    expect(again.name).toBe(first.name);
+    expect(again.repoPath).toBe(first.repoPath);
+  });
+
+  it("should reject createProject when lowComplexityAgent/highComplexityAgent are missing", async () => {
+    const repoPath = path.join(tempDir, "missing-agents");
+    await expect(
+      projectService.createProject({
+        name: "Test",
+        repoPath,
+        deployment: { mode: "custom" },
+        hilConfig: DEFAULT_HIL_CONFIG,
+      } as Record<string, unknown>)
+    ).rejects.toMatchObject({ code: "INVALID_AGENT_CONFIG" });
+  });
+
+  it("should reject invalid lowComplexityAgent schema", async () => {
+    const repoPath = path.join(tempDir, "invalid-low");
+
+    await expect(
+      projectService.createProject({
+        name: "Test",
+        repoPath,
+        lowComplexityAgent: { type: "invalid" as "claude", model: null, cliCommand: null },
+        highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+        deployment: { mode: "custom" },
+        hilConfig: DEFAULT_HIL_CONFIG,
+      })
+    ).rejects.toMatchObject({ code: "INVALID_AGENT_CONFIG" });
+  });
+
+  it("should reject invalid highComplexityAgent schema", async () => {
+    const repoPath = path.join(tempDir, "invalid-high");
+
+    await expect(
+      projectService.createProject({
+        name: "Test",
+        repoPath,
+        lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+        highComplexityAgent: { type: "cursor", model: 123 as unknown as string, cliCommand: null },
+        deployment: { mode: "custom" },
+        hilConfig: DEFAULT_HIL_CONFIG,
+      })
+    ).rejects.toMatchObject({ code: "INVALID_AGENT_CONFIG" });
+  });
+
+  it("should accept cursor agent with model", async () => {
+    const repoPath = path.join(tempDir, "cursor-project");
+
+    const project = await projectService.createProject({
+      name: "Cursor Project",
+
+      repoPath,
+      lowComplexityAgent: { type: "cursor", model: "composer-1.5", cliCommand: null },
+      highComplexityAgent: { type: "cursor", model: "composer-1.5", cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    expect(project.id).toBeDefined();
+    const settings = await projectService.getSettings(project.id);
+    expect(settings.lowComplexityAgent.type).toBe("cursor");
+    expect(settings.lowComplexityAgent.model).toBe("composer-1.5");
+    expect(settings.highComplexityAgent.type).toBe("cursor");
+  });
+
+  it("should accept custom agent with cliCommand", async () => {
+    const repoPath = path.join(tempDir, "custom-agent");
+
+    const project = await projectService.createProject({
+      name: "Custom Agent",
+
+      repoPath,
+      lowComplexityAgent: { type: "custom", model: null, cliCommand: "/usr/bin/my-agent" },
+      highComplexityAgent: { type: "custom", model: null, cliCommand: "/usr/bin/my-agent" },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    expect(project.id).toBeDefined();
+    const settings = await projectService.getSettings(project.id);
+    expect(settings.lowComplexityAgent.type).toBe("custom");
+    expect(settings.lowComplexityAgent.cliCommand).toBe("/usr/bin/my-agent");
+  });
+
+  it("should accept and persist lowComplexityAgent and highComplexityAgent in updateSettings", async () => {
+    const repoPath = path.join(tempDir, "complexity-overrides");
+    const project = await projectService.createProject({
+      name: "Complexity Project",
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    const updated = await projectService.updateSettings(project.id, {
+      lowComplexityAgent: { type: "cursor", model: "fast-model", cliCommand: null },
+      highComplexityAgent: { type: "claude", model: "claude-opus-5", cliCommand: null },
+    });
+
+    expect(updated.lowComplexityAgent.type).toBe("cursor");
+    expect(updated.lowComplexityAgent.model).toBe("fast-model");
+    expect(updated.highComplexityAgent.model).toBe("claude-opus-5");
+
+    const reloaded = await projectService.getSettings(project.id);
+    expect(reloaded.highComplexityAgent.model).toBe("claude-opus-5");
+  });
+
+  it("should strip testFailuresAndRetries from hilConfig in updateSettings (PRD §6.5.1)", async () => {
+    const repoPath = path.join(tempDir, "hil-strip");
+    const project = await projectService.createProject({
+      name: "HIL Strip",
+
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    const updated = await projectService.updateSettings(project.id, {
+      hilConfig: {
+        ...DEFAULT_HIL_CONFIG,
+        testFailuresAndRetries: "requires_approval",
+      } as typeof DEFAULT_HIL_CONFIG & { testFailuresAndRetries: string },
+    });
+
+    expect(updated.hilConfig).not.toHaveProperty("testFailuresAndRetries");
+    expect(updated.hilConfig.scopeChanges).toBe("automated");
+
+    const reloaded = await projectService.getSettings(project.id);
+    expect(reloaded.hilConfig).not.toHaveProperty("testFailuresAndRetries");
+  });
+
+  it("should strip testFailuresAndRetries from hilConfig when reading settings (PRD §6.5.1)", async () => {
+    const repoPath = path.join(tempDir, "hil-read-strip");
+    const project = await projectService.createProject({
+      name: "HIL Read Strip",
+
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    // Manually write settings with legacy testFailuresAndRetries
+    const settingsPath = path.join(repoPath, ".opensprint", "settings.json");
+    const raw = await fs.readFile(settingsPath, "utf-8");
+    const settings = JSON.parse(raw);
+    settings.hilConfig.testFailuresAndRetries = "requires_approval";
+    await fs.writeFile(settingsPath, JSON.stringify(settings));
+
+    const fetched = await projectService.getSettings(project.id);
+    expect(fetched.hilConfig).not.toHaveProperty("testFailuresAndRetries");
+    expect(fetched.hilConfig.scopeChanges).toBe("automated");
+  });
+
+  it("should return two-tier ProjectSettings when reading settings.json", async () => {
+    const repoPath = path.join(tempDir, "read-settings");
+    const project = await projectService.createProject({
+      name: "Read Settings",
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: "code-model", cliCommand: null },
+      highComplexityAgent: { type: "cursor", model: "plan-model", cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    const fetched = await projectService.getSettings(project.id);
+    expect(fetched.lowComplexityAgent.type).toBe("claude");
+    expect(fetched.lowComplexityAgent.model).toBe("code-model");
+    expect(fetched.highComplexityAgent.type).toBe("cursor");
+    expect(fetched.highComplexityAgent.model).toBe("plan-model");
+  });
+
+  it("should persist two-tier shape on save", async () => {
+    const repoPath = path.join(tempDir, "persist-settings");
+    const project = await projectService.createProject({
+      name: "Persist Settings",
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    await projectService.updateSettings(project.id, { testFramework: "vitest" });
+
+    const settingsPath = path.join(repoPath, ".opensprint", "settings.json");
+    const raw = await fs.readFile(settingsPath, "utf-8");
+    const persisted = JSON.parse(raw);
+    expect(persisted.lowComplexityAgent).toBeDefined();
+    expect(persisted.highComplexityAgent).toBeDefined();
+    expect(persisted.testFramework).toBe("vitest");
+  });
+
+  it("should force maxConcurrentCoders to 1 when gitWorkingMode is branches", async () => {
+    const repoPath = path.join(tempDir, "branches-max-coders");
+    const project = await projectService.createProject({
+      name: "Branches Max Coders",
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    const updated = await projectService.updateSettings(project.id, {
+      gitWorkingMode: "branches",
+      maxConcurrentCoders: 5,
+    });
+
+    expect(updated.gitWorkingMode).toBe("branches");
+    expect(updated.maxConcurrentCoders).toBe(1);
+
+    const reloaded = await projectService.getSettings(project.id);
+    expect(reloaded.maxConcurrentCoders).toBe(1);
+  });
+
+  it("should reject invalid agent config in updateSettings", async () => {
+    const repoPath = path.join(tempDir, "update-settings");
+    const project = await projectService.createProject({
+      name: "Test",
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    await expect(
+      projectService.updateSettings(project.id, {
+        lowComplexityAgent: { type: "invalid" as "claude", model: null, cliCommand: null },
+      })
+    ).rejects.toMatchObject({ code: "INVALID_AGENT_CONFIG" });
+  });
+
+  it("archiveProject removes from index only, leaves .opensprint intact", async () => {
+    const repoPath = path.join(tempDir, "archive-project");
+    const project = await projectService.createProject({
+      name: "Archive Me",
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    await projectService.archiveProject(project.id);
+
+    const projects = await projectService.listProjects();
+    expect(projects).toHaveLength(0);
+
+    const opensprintDir = path.join(repoPath, ".opensprint");
+    const stat = await fs.stat(opensprintDir);
+    expect(stat.isDirectory()).toBe(true);
+  });
+
+  it("archiveProject throws 404 for non-existent project", async () => {
+    await expect(projectService.archiveProject("non-existent")).rejects.toMatchObject({
+      statusCode: 404,
+    });
+  });
+
+  it("deleteProject removes from index and deletes .opensprint directory", async () => {
+    const repoPath = path.join(tempDir, "delete-project");
+    const project = await projectService.createProject({
+      name: "Delete Me",
+      repoPath,
+      lowComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      highComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    await projectService.deleteProject(project.id);
+
+    const projects = await projectService.listProjects();
+    expect(projects).toHaveLength(0);
+
+    await expect(fs.stat(path.join(repoPath, ".opensprint"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+});
