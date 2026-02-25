@@ -221,20 +221,26 @@ describe("Navbar", () => {
     expect(screen.queryByRole("button", { name: "⚠️ Execute" })).not.toBeInTheDocument();
   });
 
-  describe("integration: (?) opens agent reference modal", () => {
-    it("homepage (project=null): click (?) opens modal with Meet the Agent Team", async () => {
+  describe("integration: (?) opens Help modal with tabs", () => {
+    it("homepage (project=null): click (?) opens Help modal with both tabs, Ask a Question default", async () => {
       const user = userEvent.setup();
       renderNavbar(<Navbar project={null} />);
 
-      const helpButton = await screen.findByRole("button", { name: "Meet the Agent Team" });
+      const helpButton = await screen.findByRole("button", { name: "Help" });
       await user.click(helpButton);
 
-      expect(screen.getByRole("dialog", { name: /meet the agent team/i })).toBeInTheDocument();
-      expect(screen.getByText("Meet the Agent Team")).toBeInTheDocument();
-      expect(screen.getByText("Dreamer")).toBeInTheDocument();
+      expect(screen.getByRole("dialog", { name: /help/i })).toBeInTheDocument();
+      expect(screen.getByText("Help")).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Ask a Question" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Meet your Team" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Ask a Question" })).toHaveAttribute(
+        "aria-selected",
+        "true"
+      );
+      expect(screen.getByText(/Ask about your projects/)).toBeInTheDocument();
     });
 
-    it("project view (project set): click (?) opens modal with Meet the Agent Team", async () => {
+    it("project view (project set): click (?) opens Help modal with both tabs", async () => {
       const user = userEvent.setup();
       const mockProject = {
         id: "proj-1",
@@ -246,13 +252,32 @@ describe("Navbar", () => {
       };
       renderNavbar(<Navbar project={mockProject} currentPhase="sketch" onPhaseChange={vi.fn()} />);
 
-      const helpButton = screen.getByRole("button", { name: "Meet the Agent Team" });
+      const helpButton = screen.getByRole("button", { name: "Help" });
       expect(helpButton).toBeInTheDocument();
       await user.click(helpButton);
 
-      expect(screen.getByRole("dialog", { name: /meet the agent team/i })).toBeInTheDocument();
-      expect(screen.getByText("Meet the Agent Team")).toBeInTheDocument();
+      expect(screen.getByRole("dialog", { name: /help/i })).toBeInTheDocument();
+      expect(screen.getByText("Help")).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Ask a Question" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Meet your Team" })).toBeInTheDocument();
+    });
+
+    it("Meet your Team tab shows agent grid with roles and phases", async () => {
+      const user = userEvent.setup();
+      renderNavbar(<Navbar project={null} />);
+
+      const helpButton = await screen.findByRole("button", { name: "Help" });
+      await user.click(helpButton);
+
+      await user.click(screen.getByRole("tab", { name: "Meet your Team" }));
+      expect(screen.getByRole("tab", { name: "Meet your Team" })).toHaveAttribute(
+        "aria-selected",
+        "true"
+      );
       expect(screen.getByText("Dreamer")).toBeInTheDocument();
+      expect(screen.getByText("Planner")).toBeInTheDocument();
+      expect(screen.getByText("Sketch")).toBeInTheDocument();
+      expect(screen.getAllByRole("listitem")).toHaveLength(9);
     });
   });
 

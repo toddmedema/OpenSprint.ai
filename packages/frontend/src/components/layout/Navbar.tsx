@@ -10,7 +10,7 @@ import { ActiveAgentsList } from "../ActiveAgentsList";
 import { GlobalActiveAgentsList } from "../GlobalActiveAgentsList";
 import { ConnectionIndicator } from "../ConnectionIndicator";
 import { ProjectSettingsModal } from "../ProjectSettingsModal";
-import { AgentReferenceModal } from "../AgentReferenceModal";
+import { HelpModal } from "../HelpModal";
 
 interface NavbarProps {
   project?: Project | null;
@@ -42,7 +42,7 @@ export function Navbar({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [internalSettingsOpen, setInternalSettingsOpen] = useState(false);
-  const [agentReferenceOpen, setAgentReferenceOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const settingsOpen = controlledSettingsOpen ?? internalSettingsOpen;
   const setSettingsOpen = onSettingsOpenChange ?? setInternalSettingsOpen;
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -207,10 +207,10 @@ export function Navbar({
               <ConnectionIndicator />
               <button
                 type="button"
-                onClick={() => setAgentReferenceOpen(true)}
+                onClick={() => setHelpOpen(true)}
                 className="p-1.5 rounded-md text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle transition-colors"
-                aria-label="Meet the Agent Team"
-                title="Meet the Agent Team"
+                aria-label="Help"
+                title="Help"
               >
                 <span className="text-lg font-medium leading-none">?</span>
               </button>
@@ -246,10 +246,10 @@ export function Navbar({
               <GlobalActiveAgentsList />
               <button
                 type="button"
-                onClick={() => setAgentReferenceOpen(true)}
+                onClick={() => setHelpOpen(true)}
                 className="p-1.5 rounded-md text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle transition-colors"
-                aria-label="Meet the Agent Team"
-                title="Meet the Agent Team"
+                aria-label="Help"
+                title="Help"
               >
                 <span className="text-lg font-medium leading-none">?</span>
               </button>
@@ -257,10 +257,10 @@ export function Navbar({
           ) : (
             <button
               type="button"
-              onClick={() => setAgentReferenceOpen(true)}
+              onClick={() => setHelpOpen(true)}
               className="p-1.5 rounded-md text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle transition-colors"
-              aria-label="Meet the Agent Team"
-              title="Meet the Agent Team"
+              aria-label="Help"
+              title="Help"
             >
               <span className="text-lg font-medium leading-none">?</span>
             </button>
@@ -268,7 +268,7 @@ export function Navbar({
         </div>
       </div>
 
-      {agentReferenceOpen && <AgentReferenceModal onClose={() => setAgentReferenceOpen(false)} />}
+      {helpOpen && <HelpModal project={project ?? undefined} onClose={() => setHelpOpen(false)} />}
       {settingsOpen && project && (
         <ProjectSettingsModal
           project={project}
