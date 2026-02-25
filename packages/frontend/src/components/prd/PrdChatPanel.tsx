@@ -2,12 +2,11 @@ import { useState, useRef, useLayoutEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AGENT_ROLE_LABELS, type AgentRole } from "@opensprint/shared";
-import { useSubmitShortcut } from "../../hooks/useSubmitShortcut";
+import { ChatInput } from "../ChatInput";
 import {
   ChatIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  SendIcon,
   SparklesIcon,
 } from "../icons/PrdIcons";
 import { CloseButton } from "../CloseButton";
@@ -90,10 +89,6 @@ export function PrdChatPanel({
   const isCollapsed = isInline && collapsed;
   const agentLabel = AGENT_ROLE_LABELS[agentRole];
 
-  const CHAT_INPUT_LINE_HEIGHT = 24;
-  const CHAT_INPUT_MAX_LINES = 5;
-  const CHAT_INPUT_MAX_HEIGHT = CHAT_INPUT_LINE_HEIGHT * CHAT_INPUT_MAX_LINES;
-
   const scrollToBottom = useCallback(() => {
     const scrollEl = scrollContainerRef.current ?? chatMessagesEndRef.current?.parentElement;
     if (scrollEl) {
@@ -118,28 +113,12 @@ export function PrdChatPanel({
     return () => ro.disconnect();
   }, [scrollToBottom, isCollapsed]);
 
-  useLayoutEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    el.style.height = "0";
-    const h = Math.max(CHAT_INPUT_LINE_HEIGHT, Math.min(el.scrollHeight, CHAT_INPUT_MAX_HEIGHT));
-    el.style.height = `${h}px`;
-  }, [chatInput, inputRef, CHAT_INPUT_MAX_HEIGHT]);
-
   const handleSend = () => {
     const text = chatInput.trim();
     if (!text || sending) return;
     setChatInput("");
     onSend(text);
   };
-
-  const onKeyDownChat = useSubmitShortcut(handleSend, {
-    multiline: true,
-    disabled: !chatInput.trim() || sending,
-  });
-
-  const chatInputClassName =
-    "flex-1 rounded-xl border-0 py-2.5 px-3.5 text-sm text-theme-input-text bg-theme-input-bg shadow-sm ring-1 ring-inset ring-theme-ring placeholder:text-theme-input-placeholder focus:ring-2 focus:ring-inset focus:ring-brand-500 resize-none overflow-y-auto min-h-[2.5rem]";
 
   // In inline mode: single container with smooth width transition when opening/closing
   if (isInline) {
@@ -240,29 +219,17 @@ export function PrdChatPanel({
 
             {/* Input */}
             <div className="p-3 border-t border-theme-border shrink-0">
-              <div className="flex gap-2 items-end">
-                <textarea
-                  ref={inputRef}
-                  rows={1}
-                  className={chatInputClassName}
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={onKeyDownChat}
-                  placeholder={
-                    selectionContext ? "Comment on this selection..." : "Ask about your PRD..."
-                  }
-                  aria-label="Discuss message"
-                />
-                <button
-                  type="button"
-                  onClick={handleSend}
-                  disabled={sending || !chatInput.trim()}
-                  aria-label="Send"
-                  className="w-9 min-w-9 h-[2.5rem] rounded-xl bg-brand-600 text-white flex items-center justify-center hover:bg-brand-700 disabled:opacity-40 transition-colors shrink-0"
-                >
-                  <SendIcon className="w-3.5 h-3.5" />
-                </button>
-              </div>
+              <ChatInput
+                value={chatInput}
+                onChange={setChatInput}
+                onSend={handleSend}
+                sendDisabled={sending}
+                placeholder={
+                  selectionContext ? "Comment on this selection..." : "Ask about your PRD..."
+                }
+                inputRef={inputRef}
+                aria-label="Discuss message"
+              />
             </div>
           </>
         )}
@@ -365,29 +332,17 @@ export function PrdChatPanel({
 
       {/* Input */}
       <div className="p-3 border-t border-theme-border shrink-0">
-        <div className="flex gap-2 items-end">
-          <textarea
-            ref={inputRef}
-            rows={1}
-            className={chatInputClassName}
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            onKeyDown={onKeyDownChat}
-            placeholder={
-              selectionContext ? "Comment on this selection..." : "Ask about your PRD..."
-            }
-            aria-label="Chat message"
-          />
-          <button
-            type="button"
-            onClick={handleSend}
-            disabled={sending || !chatInput.trim()}
-            aria-label="Send"
-            className="w-9 min-w-9 h-[2.5rem] rounded-xl bg-brand-600 text-white flex items-center justify-center hover:bg-brand-700 disabled:opacity-40 transition-colors shrink-0"
-          >
-            <SendIcon className="w-3.5 h-3.5" />
-          </button>
-        </div>
+        <ChatInput
+          value={chatInput}
+          onChange={setChatInput}
+          onSend={handleSend}
+          sendDisabled={sending}
+          placeholder={
+            selectionContext ? "Comment on this selection..." : "Ask about your PRD..."
+          }
+          inputRef={inputRef}
+          aria-label="Chat message"
+        />
       </div>
     </div>
   );

@@ -30,6 +30,7 @@ import { DependencyGraph } from "../../components/DependencyGraph";
 import { PlanDetailContent } from "../../components/plan/PlanDetailContent";
 import { EpicCard } from "../../components/EpicCard";
 import { ResizableSidebar } from "../../components/layout/ResizableSidebar";
+import { ChatInput } from "../../components/ChatInput";
 import { fetchTasks, selectTasksForEpic } from "../../store/slices/executeSlice";
 import { useSubmitShortcut } from "../../hooks/useSubmitShortcut";
 import { formatPlanIdAsTitle } from "../../lib/formatting";
@@ -470,11 +471,6 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   const onKeyDownFeatureDescription = useSubmitShortcut(handleGeneratePlan, {
     multiline: true,
     disabled: !featureDescription.trim(),
-  });
-
-  const onKeyDownPlanChat = useSubmitShortcut(handleSendChat, {
-    multiline: false,
-    disabled: !chatInput.trim() || chatSending,
   });
 
   return (
@@ -1027,24 +1023,14 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
 
           {/* Pinned chat input at bottom */}
           <div className="shrink-0 border-t border-theme-border p-4 bg-theme-bg">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                className="input flex-1 text-sm"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={onKeyDownPlanChat}
-                placeholder="Refine this plan..."
-                disabled={chatSending}
-              />
-              <button
-                onClick={handleSendChat}
-                disabled={chatSending || !chatInput.trim()}
-                className="btn-primary text-sm py-2 px-3 disabled:opacity-50"
-              >
-                Send
-              </button>
-            </div>
+            <ChatInput
+              value={chatInput}
+              onChange={setChatInput}
+              onSend={handleSendChat}
+              sendDisabled={chatSending}
+              placeholder="Refine this plan..."
+              aria-label="Refine this plan"
+            />
           </div>
         </ResizableSidebar>
       )}
