@@ -119,6 +119,8 @@ export const api = {
         claudeCli: boolean;
         useCustomCli: boolean;
       }>("/env/keys"),
+    getGlobalStatus: () =>
+      request<{ hasAnyKey: boolean; useCustomCli: boolean }>("/env/global-status"),
     validateKey: (provider: "claude" | "cursor", value: string) =>
       request<{ valid: boolean; error?: string }>("/env/keys/validate", {
         method: "POST",
@@ -128,6 +130,11 @@ export const api = {
       request<{ saved: boolean }>("/env/keys", {
         method: "POST",
         body: JSON.stringify({ key, value }),
+      }),
+    setGlobalSettings: (updates: { useCustomCli?: boolean }) =>
+      request<{ useCustomCli: boolean }>("/env/global-settings", {
+        method: "PUT",
+        body: JSON.stringify(updates),
       }),
   },
   projects: {

@@ -204,6 +204,43 @@ describe("api client", () => {
       );
     });
 
+    it("getGlobalStatus returns hasAnyKey and useCustomCli", async () => {
+      vi.mocked(fetch).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({
+          data: { hasAnyKey: true, useCustomCli: false },
+        }),
+      } as Response);
+
+      const result = await api.env.getGlobalStatus();
+      expect(result).toEqual({ hasAnyKey: true, useCustomCli: false });
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining("/api/v1/env/global-status"),
+        expect.any(Object)
+      );
+    });
+
+    it("setGlobalSettings sends PUT with useCustomCli", async () => {
+      vi.mocked(fetch).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({
+          data: { useCustomCli: true },
+        }),
+      } as Response);
+
+      const result = await api.env.setGlobalSettings({ useCustomCli: true });
+      expect(result).toEqual({ useCustomCli: true });
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining("/api/v1/env/global-settings"),
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({ useCustomCli: true }),
+        })
+      );
+    });
+
     it("validateKey sends POST with provider and value", async () => {
       vi.mocked(fetch).mockResolvedValue({
         ok: true,
