@@ -96,9 +96,12 @@ function computeCriticalPathEdges(
 export function DependencyGraph({ graph, onPlanClick, fillHeight }: DependencyGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-  const [dimensions, setDimensions] = useState<Dimensions | null>(null);
+  const dimensionsRef = useRef<Dimensions | null>(null);
+  const readyRef = useRef(false);
+  const [ready, setReady] = useState(false);
 
-  // Track container size so graph fills full area when layout changes (e.g. sidebar open/close)
+  // Track container size in a ref. Only signal readiness once for the initial D3 render.
+  // Subsequent size changes update SVG attributes directly without rebuilding the graph.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -108,10 +111,24 @@ export function DependencyGraph({ graph, onPlanClick, fillHeight }: DependencyGr
       const height = fillHeight
         ? el.clientHeight || Math.max(280, (graph?.plans.length ?? 3) * 50)
         : Math.max(280, Math.min(400, (graph?.plans.length ?? 3) * 50));
-      setDimensions((prev) => {
-        if (prev && prev.width === width && prev.height === height) return prev;
-        return { width, height };
-      });
+
+      const prev = dimensionsRef.current;
+      if (prev && prev.width === width && prev.height === height) return;
+      dimensionsRef.current = { width, height };
+
+      if (!readyRef.current) {
+        readyRef.current = true;
+        setReady(true);
+        return;
+      }
+
+      const svg = svgRef.current;
+      if (svg && svg.childNodes.length > 0) {
+        d3.select(svg)
+          .attr("width", width)
+          .attr("height", height)
+          .attr("viewBox", [0, 0, width, height]);
+      }
     };
 
     updateDimensions();
@@ -126,16 +143,19 @@ export function DependencyGraph({ graph, onPlanClick, fillHeight }: DependencyGr
       graph.plans.length === 0 ||
       !containerRef.current ||
       !svgRef.current ||
-      !dimensions
+      !ready
     )
       return;
+
+    const dims = dimensionsRef.current;
+    if (!dims) return;
 
     const { plans, edges } = graph;
     const planById = new Map(plans.map((p) => [p.metadata.planId, p]));
     const planIds = plans.map((p) => p.metadata.planId);
     const criticalEdges = computeCriticalPathEdges(planIds, edges);
 
-    const { width, height } = dimensions;
+    const { width, height } = dims;
 
     d3.select(svgRef.current).selectAll("*").remove();
 
@@ -329,7 +349,7 @@ export function DependencyGraph({ graph, onPlanClick, fillHeight }: DependencyGr
     return () => {
       simulation.stop();
     };
-  }, [graph, onPlanClick, dimensions]);
+  }, [graph, onPlanClick, ready]);
 
   if (!graph || graph.plans.length === 0) {
     return (

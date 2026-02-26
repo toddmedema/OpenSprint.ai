@@ -198,6 +198,95 @@ describe("DependencyGraph", () => {
     }
   });
 
+  it("does not rebuild the graph when container size changes", async () => {
+    let resizeCallback: ((entries: unknown[]) => void) | null = null;
+    global.ResizeObserver = vi.fn().mockImplementation((cb: (entries: unknown[]) => void) => ({
+      observe: vi.fn(() => {
+        resizeCallback = cb;
+      }),
+      unobserve: vi.fn(),
+      disconnect: vi.fn(),
+    }));
+
+    const { container } = render(<DependencyGraph graph={mockGraph} />);
+
+    // Trigger initial dimensions via the ResizeObserver callback
+    const wrapper = container.firstElementChild!;
+    Object.defineProperty(wrapper, "clientWidth", { value: 600, configurable: true });
+    Object.defineProperty(wrapper, "clientHeight", { value: 300, configurable: true });
+    resizeCallback?.([]);
+
+    await vi.waitFor(() => {
+      const nodes = document.querySelectorAll("svg g.nodes g");
+      expect(nodes.length).toBe(3);
+    });
+
+    // Capture DOM node references before resize
+    const nodesBefore = Array.from(document.querySelectorAll("svg g.nodes g"));
+    const rectsBefore = Array.from(document.querySelectorAll("svg g.nodes g rect"));
+    expect(nodesBefore.length).toBe(3);
+
+    // Simulate a container resize
+    Object.defineProperty(wrapper, "clientWidth", { value: 800, configurable: true });
+    Object.defineProperty(wrapper, "clientHeight", { value: 500, configurable: true });
+    resizeCallback?.([]);
+
+    // Allow any potential re-renders to flush
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Same DOM nodes must still be present (not recreated)
+    const nodesAfter = Array.from(document.querySelectorAll("svg g.nodes g"));
+    const rectsAfter = Array.from(document.querySelectorAll("svg g.nodes g rect"));
+    expect(nodesAfter.length).toBe(nodesBefore.length);
+    for (let i = 0; i < nodesBefore.length; i++) {
+      expect(nodesAfter[i]).toBe(nodesBefore[i]);
+      expect(rectsAfter[i]).toBe(rectsBefore[i]);
+    }
+
+    // SVG width should be updated to the new container width
+    const svg = document.querySelector("svg")!;
+    expect(svg.getAttribute("width")).toBe("800");
+  });
+
+  it("animates graph only once on initial load, not on subsequent resizes", async () => {
+    const resizeCallbacks: ((entries: unknown[]) => void)[] = [];
+    global.ResizeObserver = vi.fn().mockImplementation((cb: (entries: unknown[]) => void) => ({
+      observe: vi.fn(() => {
+        resizeCallbacks.push(cb);
+      }),
+      unobserve: vi.fn(),
+      disconnect: vi.fn(),
+    }));
+
+    const { container } = render(<DependencyGraph graph={mockGraph} />);
+
+    const wrapper = container.firstElementChild!;
+    Object.defineProperty(wrapper, "clientWidth", { value: 600, configurable: true });
+    Object.defineProperty(wrapper, "clientHeight", { value: 300, configurable: true });
+    resizeCallbacks.forEach((cb) => cb([]));
+
+    await vi.waitFor(() => {
+      const nodes = document.querySelectorAll("svg g.nodes g");
+      expect(nodes.length).toBe(3);
+    });
+
+    // Count child elements in SVG (proxy for graph rebuild)
+    const svg = document.querySelector("svg")!;
+    const childCountAfterInit = svg.childNodes.length;
+
+    // Resize multiple times
+    for (const w of [700, 800, 900]) {
+      Object.defineProperty(wrapper, "clientWidth", { value: w, configurable: true });
+      resizeCallbacks.forEach((cb) => cb([]));
+      await new Promise((r) => setTimeout(r, 20));
+    }
+
+    // Child count should be the same — no teardown+rebuild happened
+    expect(svg.childNodes.length).toBe(childCountAfterInit);
+    // Nodes are still the original 3
+    expect(document.querySelectorAll("svg g.nodes g").length).toBe(3);
+  });
+
   it("uses dark theme tokens when data-theme is dark", async () => {
     const darkTokens = {
       planningFill: "#78350f",
