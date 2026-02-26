@@ -375,33 +375,6 @@ export function TaskDetailSidebar({
           ) : null}
         </div>
 
-        {((): React.ReactNode => {
-          // Support both sourceFeedbackIds (array) and legacy sourceFeedbackId (single)
-          const feedbackIds =
-            task?.sourceFeedbackIds ?? (task?.sourceFeedbackId ? [task.sourceFeedbackId] : []);
-          if (feedbackIds.length === 0) return null;
-          const count = feedbackIds.length;
-          return feedbackIds.map((feedbackId, index) => (
-            <SourceFeedbackSection
-              key={feedbackId}
-              projectId={projectId}
-              feedbackId={feedbackId}
-              expanded={sourceFeedbackExpanded[feedbackId] ?? index === 0}
-              onToggle={() =>
-                setSourceFeedbackExpanded((prev) => ({
-                  ...prev,
-                  [feedbackId]: !(prev[feedbackId] ?? index === 0),
-                }))
-              }
-              title={
-                count > 1
-                  ? `Source feedback (${index + 1} of ${count})`
-                  : "Source Feedback"
-              }
-            />
-          ));
-        })()}
-
         {/* View plan link: above Dependencies subsection */}
         {task?.epicId &&
           (() => {
@@ -504,6 +477,33 @@ export function TaskDetailSidebar({
               </>
             );
           })()}
+
+        {((): React.ReactNode => {
+          // Support both sourceFeedbackIds (array) and legacy sourceFeedbackId (single)
+          const feedbackIds =
+            task?.sourceFeedbackIds ?? (task?.sourceFeedbackId ? [task.sourceFeedbackId] : []);
+          if (feedbackIds.length === 0) return null;
+          const count = feedbackIds.length;
+          return feedbackIds.map((feedbackId, index) => (
+            <SourceFeedbackSection
+              key={feedbackId}
+              projectId={projectId}
+              feedbackId={feedbackId}
+              expanded={sourceFeedbackExpanded[feedbackId] ?? index === 0}
+              onToggle={() =>
+                setSourceFeedbackExpanded((prev) => ({
+                  ...prev,
+                  [feedbackId]: !(prev[feedbackId] ?? index === 0),
+                }))
+              }
+              title={
+                count > 1
+                  ? `Source feedback (${index + 1} of ${count})`
+                  : "Source Feedback"
+              }
+            />
+          ));
+        })()}
 
         <CollapsibleSection
           title={isDoneTask ? "Done Work Artifacts" : "Live agent output"}

@@ -2080,7 +2080,7 @@ describe("ExecutePhase Redux integration", () => {
     expect(cn).toMatch(/prose-execute-task/);
   });
 
-  it("shows collapsible Description header between Source Feedback and description markdown when task has description", async () => {
+  it("shows collapsible Description header and description markdown when task has description", async () => {
     mockGet.mockResolvedValue({
       id: "epic-1.1",
       title: "Task with description",
@@ -2202,7 +2202,7 @@ describe("ExecutePhase Redux integration", () => {
     expect(markdown).toHaveTextContent("Visible by default");
   });
 
-  it("shows Description header between Source Feedback and description when task has both", async () => {
+  it("shows Description header above Source Feedback when task has both", async () => {
     mockGet.mockResolvedValue({
       id: "epic-1.1",
       title: "Feedback task",
@@ -2257,7 +2257,7 @@ describe("ExecutePhase Redux integration", () => {
     const descriptionIdx = Array.from(document.body.querySelectorAll("button")).indexOf(
       descriptionBtn
     );
-    expect(sourceFeedbackIdx).toBeLessThan(descriptionIdx);
+    expect(descriptionIdx).toBeLessThan(sourceFeedbackIdx);
     expect(screen.getByTestId("task-description-markdown")).toHaveTextContent(
       "Implement from feedback"
     );
