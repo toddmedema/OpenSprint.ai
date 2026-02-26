@@ -1,10 +1,11 @@
 import { Router, Request } from "express";
 import path from "path";
+import { randomUUID } from "node:crypto";
 import { readFile, writeFile, access } from "node:fs/promises";
 import { constants } from "node:fs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import type { ApiResponse, ApiKeys } from "@opensprint/shared";
+import type { ApiResponse, ApiKeys, ApiKeyEntry, ApiKeyProvider } from "@opensprint/shared";
 import { AppError } from "../middleware/error-handler.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
 import { getErrorMessage } from "../utils/error-utils.js";
@@ -201,8 +202,8 @@ envRouter.post("/keys/validate", async (req: Request, res, next) => {
   }
 });
 
-// POST /env/keys — Save an API key to .env (creates file if missing).
-// Used as global fallback when no project-level keys are configured. Project keys take precedence.
+// POST /env/keys — Save an API key to global store and .env (backward compat).
+// Writes to ~/.opensprint/global-settings.json (merge with existing apiKeys) and .env.
 envRouter.post("/keys", async (req: Request, res, next) => {
   try {
     const { key, value } = req.body as { key?: string; value?: string };
@@ -221,6 +222,22 @@ envRouter.post("/keys", async (req: Request, res, next) => {
       throw new AppError(400, ErrorCodes.INVALID_INPUT, "value cannot be empty");
     }
 
+    const provider = key as ApiKeyProvider;
+    const newEntry: ApiKeyEntry = {
+      id: randomUUID(),
+      value: trimmed,
+    };
+
+    // Persist to global store (merge with existing apiKeys)
+    const settings = await getGlobalSettings();
+    const existingEntries = settings.apiKeys?.[provider] ?? [];
+    const mergedApiKeys: ApiKeys = {
+      ...settings.apiKeys,
+      [provider]: [...existingEntries, newEntry],
+    };
+    await updateGlobalSettings({ apiKeys: mergedApiKeys });
+
+    // Keep .env write for backward compat
     const envPath = await getEnvPath();
     let content = "";
     try {

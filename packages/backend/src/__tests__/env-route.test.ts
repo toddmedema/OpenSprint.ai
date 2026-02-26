@@ -8,7 +8,10 @@ import { envRouter } from "../routes/env.js";
 import { API_PREFIX } from "@opensprint/shared";
 import { setEnvPathForTesting } from "../routes/env.js";
 import { errorHandler } from "../middleware/error-handler.js";
-import { setGlobalSettings } from "../services/global-settings.service.js";
+import {
+  getGlobalSettings,
+  setGlobalSettings,
+} from "../services/global-settings.service.js";
 
 const mockValidateApiKey = vi.fn();
 
@@ -249,6 +252,59 @@ describe("Env API", () => {
       const content = fs.readFileSync(path.join(tmpDir, ".env"), "utf-8");
       expect(content).toMatch(/EXISTING=ok/);
       expect(content).toMatch(/CURSOR_API_KEY=.*cursor-secret/);
+    });
+
+    it("persists to global store with unique id", async () => {
+      await request(app)
+        .post(`${API_PREFIX}/env/keys`)
+        .send({ key: "ANTHROPIC_API_KEY", value: "sk-ant-global-test" });
+
+      const settings = await getGlobalSettings();
+      const entries = settings.apiKeys?.ANTHROPIC_API_KEY;
+      expect(entries).toBeDefined();
+      expect(entries).toHaveLength(1);
+      expect(entries![0].value).toBe("sk-ant-global-test");
+      expect(entries![0].id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      );
+    });
+
+    it("merges new key with existing global apiKeys", async () => {
+      await setGlobalSettings({
+        apiKeys: {
+          ANTHROPIC_API_KEY: [{ id: "existing-1", value: "sk-ant-old" }],
+        },
+      });
+
+      await request(app)
+        .post(`${API_PREFIX}/env/keys`)
+        .send({ key: "ANTHROPIC_API_KEY", value: "sk-ant-new" });
+
+      const settings = await getGlobalSettings();
+      const entries = settings.apiKeys?.ANTHROPIC_API_KEY;
+      expect(entries).toHaveLength(2);
+      expect(entries![0]).toEqual({ id: "existing-1", value: "sk-ant-old" });
+      expect(entries![1].value).toBe("sk-ant-new");
+      expect(entries![1].id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      );
+    });
+
+    it("adds key to different provider without affecting others", async () => {
+      await setGlobalSettings({
+        apiKeys: {
+          ANTHROPIC_API_KEY: [{ id: "a1", value: "sk-ant-xxx" }],
+        },
+      });
+
+      await request(app)
+        .post(`${API_PREFIX}/env/keys`)
+        .send({ key: "CURSOR_API_KEY", value: "cursor-new" });
+
+      const settings = await getGlobalSettings();
+      expect(settings.apiKeys?.ANTHROPIC_API_KEY).toHaveLength(1);
+      expect(settings.apiKeys?.CURSOR_API_KEY).toHaveLength(1);
+      expect(settings.apiKeys?.CURSOR_API_KEY![0].value).toBe("cursor-new");
     });
   });
 
