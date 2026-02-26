@@ -3,8 +3,13 @@ import { TaskService } from "../services/task.service.js";
 import { SessionManager } from "../services/session-manager.js";
 import type { StoredTask } from "../services/task-store.service.js";
 
-const { mockTaskStoreState } = vi.hoisted(() => ({
+const { mockTaskStoreState, mockBranchManagerInstance } = vi.hoisted(() => ({
   mockTaskStoreState: { listAll: [] as StoredTask[], readyCalls: 0 },
+  mockBranchManagerInstance: {
+    listTaskWorktrees: vi.fn().mockResolvedValue([]),
+    removeTaskWorktree: vi.fn().mockResolvedValue(undefined),
+    revertAndReturnToMain: vi.fn().mockResolvedValue(undefined),
+  },
 }));
 
 vi.mock("../services/task-store.service.js", () => {
@@ -53,8 +58,28 @@ vi.mock("../services/project.service.js", () => ({
       repoPath: "/tmp/test-repo",
     }),
     getProjectByRepoPath: vi.fn().mockResolvedValue({ id: "proj-1", repoPath: "/tmp/test-repo" }),
+    getSettings: vi.fn().mockResolvedValue({ gitWorkingMode: "branches" }),
   })),
 }));
+
+vi.mock("../services/orchestrator.service.js", () => ({
+  orchestratorService: {
+    stopTaskAndFreeSlot: vi.fn().mockResolvedValue(undefined),
+    getStatus: vi.fn().mockResolvedValue({ activeTasks: [], queueDepth: 0 }),
+  },
+}));
+
+vi.mock("../services/branch-manager.js", () => ({
+  BranchManager: vi.fn().mockImplementation(() => mockBranchManagerInstance),
+}));
+
+vi.mock("fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("fs/promises")>();
+  return {
+    ...actual,
+    rm: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 const defaultIssues: StoredTask[] = [
   {
@@ -438,6 +463,70 @@ describe("TaskService", () => {
 
     const result = await taskService.unblock("proj-1", "task-1");
     expect(result.taskUnblocked).toBe(true);
+  });
+
+  it("unblock performs full cleanup: stop agent, revert branch, delete active dir", async () => {
+    const { taskStore } = await import("../services/task-store.service.js");
+    const { orchestratorService } = await import("../services/orchestrator.service.js");
+
+    vi.mocked(taskStore.show).mockResolvedValue({
+      id: "task-1",
+      title: "Blocked Task",
+      status: "blocked",
+      issue_type: "task",
+      dependencies: [],
+    } as StoredTask);
+    vi.mocked(taskStore.update).mockResolvedValue(undefined as never);
+    vi.mocked(taskStore.syncForPush).mockResolvedValue(undefined as never);
+
+    const result = await taskService.unblock("proj-1", "task-1");
+
+    expect(result.taskUnblocked).toBe(true);
+    expect(orchestratorService.stopTaskAndFreeSlot).toHaveBeenCalledWith("proj-1", "task-1");
+    expect(mockBranchManagerInstance.revertAndReturnToMain).toHaveBeenCalledWith(
+      "/tmp/test-repo",
+      "opensprint/task-1"
+    );
+  });
+
+  it("unblock removes worktree when in worktree mode", async () => {
+    const { taskStore } = await import("../services/task-store.service.js");
+    const { ProjectService } = await import("../services/project.service.js");
+
+    vi.mocked(ProjectService).mockImplementationOnce(
+      () =>
+        ({
+          getProject: vi.fn().mockResolvedValue({
+            id: "proj-1",
+            repoPath: "/tmp/test-repo",
+          }),
+          getProjectByRepoPath: vi.fn().mockResolvedValue({ id: "proj-1", repoPath: "/tmp/test-repo" }),
+          getSettings: vi.fn().mockResolvedValue({ gitWorkingMode: "worktree" }),
+        }) as never
+    );
+
+    mockBranchManagerInstance.listTaskWorktrees.mockResolvedValueOnce([
+      { taskId: "task-1", worktreePath: "/tmp/opensprint-worktrees/task-1" },
+    ]);
+
+    vi.mocked(taskStore.show).mockResolvedValue({
+      id: "task-1",
+      title: "Blocked Task",
+      status: "blocked",
+      issue_type: "task",
+      dependencies: [],
+    } as StoredTask);
+    vi.mocked(taskStore.update).mockResolvedValue(undefined as never);
+    vi.mocked(taskStore.syncForPush).mockResolvedValue(undefined as never);
+
+    const svc = new TaskService();
+    await svc.unblock("proj-1", "task-1");
+
+    expect(mockBranchManagerInstance.removeTaskWorktree).toHaveBeenCalledWith(
+      "/tmp/test-repo",
+      "task-1",
+      "/tmp/opensprint-worktrees/task-1"
+    );
   });
 
   describe("sourceFeedbackIds", () => {

@@ -1,3 +1,4 @@
+import fs from "fs/promises";
 import path from "path";
 import type { Task, AgentSession, KanbanColumn, TaskDependency, TaskComplexity } from "@opensprint/shared";
 import { resolveTestCommand } from "@opensprint/shared";
@@ -312,18 +313,70 @@ export class TaskService {
   /**
    * Unblock a task (PRD §7.3.2, §9.1).
    * Sets task status back to open. Optionally resets attempts label.
+   * Performs full cleanup so the next agent starts from a fresh copy of main:
+   * - Stops any running agent and frees slot
+   * - Removes worktree (worktree mode) or branch (branches mode)
+   * - Deletes task branch so agent gets clean main checkout
+   * - Deletes .opensprint/active/<task-id>/ (assignment, prompt, config, etc.)
    */
   async unblock(
     projectId: string,
     taskId: string,
     options?: { resetAttempts?: boolean }
   ): Promise<{ taskUnblocked: boolean }> {
-    await this.projectService.getProject(projectId);
+    const project = await this.projectService.getProject(projectId);
+    const repoPath = project.repoPath;
     const issue = await this.taskStore.show(projectId, taskId);
     const status = (issue.status as string) ?? "open";
 
     if (status !== "blocked") {
       return { taskUnblocked: false };
+    }
+
+    // 1. Stop any running agent and free slot (removes worktree in worktree mode)
+    try {
+      await orchestratorService.stopTaskAndFreeSlot(projectId, taskId);
+    } catch (err) {
+      log.warn("Stop-agent-on-unblock failed, continuing cleanup", {
+        projectId,
+        taskId,
+        err,
+      });
+    }
+
+    // 2. Remove worktree if task was not in slot (e.g. blocked from prior run)
+    const settings = await this.projectService.getSettings(projectId);
+    const gitWorkingMode = settings.gitWorkingMode ?? "worktree";
+    if (gitWorkingMode !== "branches") {
+      const worktrees = await this.branchManager.listTaskWorktrees(repoPath);
+      const found = worktrees.find((w) => w.taskId === taskId);
+      if (found) {
+        try {
+          await this.branchManager.removeTaskWorktree(repoPath, taskId, found.worktreePath);
+        } catch (err) {
+          log.warn("Remove-worktree-on-unblock failed", { taskId, err });
+        }
+      }
+    }
+
+    // 3. Delete task branch so next agent starts from fresh main
+    const branchName = `opensprint/${taskId}`;
+    try {
+      await this.branchManager.revertAndReturnToMain(repoPath, branchName);
+    } catch (err) {
+      log.warn("Revert-branch-on-unblock failed (branch may not exist)", {
+        taskId,
+        branchName,
+        err,
+      });
+    }
+
+    // 4. Delete .opensprint/active/<task-id>/ (assignment, prompt, config, result, etc.)
+    const activeDir = this.sessionManager.getActiveDir(repoPath, taskId);
+    try {
+      await fs.rm(activeDir, { recursive: true, force: true });
+    } catch (err) {
+      log.warn("Delete-active-dir-on-unblock failed", { taskId, activeDir, err });
     }
 
     await this.taskStore.update(projectId, taskId, { status: "open", block_reason: null });
