@@ -226,8 +226,7 @@ interface FeedbackCardProps {
   tasks: Array<{ id: string; kanbanColumn: string }>;
 }
 
-const RESOLVE_COLLAPSE_DURATION_MS = 1000;
-const RESOLVE_COLLAPSE_EASING = "cubic-bezier(0.4, 0, 0.2, 1)";
+const FADE_OUT_DURATION_MS = 500;
 
 const FeedbackCard = memo(
   function FeedbackCard({
@@ -256,7 +255,6 @@ const FeedbackCard = memo(
     const hasChildren = children.length > 0;
 
     const innerRef = useRef<HTMLDivElement>(null);
-    const [collapseHeight, setCollapseHeight] = useState<number | null>(null);
     const [isAnimatingOut, setIsAnimatingOut] = useState(false);
     const prevStatusRef = useRef(item.status);
 
@@ -268,38 +266,24 @@ const FeedbackCard = memo(
       prevStatusRef.current = item.status;
 
       if (!justResolved || isAnimatingOut) return;
-      const el = innerRef.current;
-      if (!el) return;
-
-      const startCollapse = () => {
-        const height = el.offsetHeight;
-        setCollapseHeight(height);
-        setIsAnimatingOut(true);
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            setCollapseHeight(0);
-          });
-        });
-      };
-
-      startCollapse();
+      setIsAnimatingOut(true);
     }, [item.status, isAnimatingOut]);
 
     const removeRef = useRef<(() => void) | undefined>(undefined);
     removeRef.current = () => onRemoveAfterAnimation(item.id);
 
     const handleTransitionEnd = useCallback((e: React.TransitionEvent) => {
-      if (e.propertyName !== "height") return;
+      if (e.propertyName !== "opacity") return;
       removeRef.current?.();
     }, []);
 
     useEffect(() => {
-      if (collapseHeight !== 0 || !isAnimatingOut) return;
+      if (!isAnimatingOut) return;
       const fallback = setTimeout(() => {
         removeRef.current?.();
-      }, RESOLVE_COLLAPSE_DURATION_MS + 100);
+      }, FADE_OUT_DURATION_MS + 100);
       return () => clearTimeout(fallback);
-    }, [collapseHeight, isAnimatingOut]);
+    }, [isAnimatingOut]);
 
     const handleSubmitReply = () => {
       if (!replyText.trim() || submitting) return;
@@ -316,13 +300,12 @@ const FeedbackCard = memo(
     });
 
     const isResolvedAndAnimating =
-      (item.status === "resolved" || item.status === "cancelled") && collapseHeight !== null;
+      (item.status === "resolved" || item.status === "cancelled") && isAnimatingOut;
 
     const innerStyle: React.CSSProperties = isResolvedAndAnimating
       ? {
-          height: collapseHeight,
-          overflow: "hidden",
-          transition: `height ${RESOLVE_COLLAPSE_DURATION_MS}ms ${RESOLVE_COLLAPSE_EASING}`,
+          opacity: 0,
+          transition: `opacity ${FADE_OUT_DURATION_MS}ms ease-out`,
         }
       : {};
 

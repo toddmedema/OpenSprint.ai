@@ -1928,7 +1928,7 @@ describe("EvalPhase feedback form", () => {
       });
     });
 
-    it("preserves top margin during resolve collapse animation (no jump)", async () => {
+    it("preserves top margin during resolve fade-out animation (no jump)", async () => {
       const store = createStore({ evalFeedback: mockFeedbackItems });
       const user = userEvent.setup();
       render(
@@ -1945,11 +1945,11 @@ describe("EvalPhase feedback form", () => {
 
       await user.click(within(bug3Card!).getByRole("button", { name: /^Resolve$/ }));
 
-      // During collapse animation, wrapper has height/overflow/transition but must NOT set margin: 0
+      // During fade-out animation, wrapper has opacity/transition but must NOT set margin: 0
       // (which would remove top margin from space-y-3 and cause the card to jump upward)
       await waitFor(() => {
         const style = (wrapper as HTMLElement).getAttribute("style") ?? "";
-        expect(style).toMatch(/height|overflow|transition/);
+        expect(style).toMatch(/opacity|transition/);
         expect(style).not.toMatch(/margin\s*:\s*0/);
       });
     });
