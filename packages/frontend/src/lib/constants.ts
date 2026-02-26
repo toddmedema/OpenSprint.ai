@@ -17,9 +17,10 @@ export const CONTENT_CONTAINER_CLASS = "max-w-3xl mx-auto px-6" as const;
 
 /**
  * Wider container for homepage (header + project cards).
- * ~50% wider than CONTENT_CONTAINER_CLASS, plus ~20% extra for create button spacing.
+ * ~50% wider than CONTENT_CONTAINER_CLASS, plus ~20% extra for create button spacing,
+ * plus another ~20% for adequate spacing from header text.
  */
-export const HOMEPAGE_CONTAINER_CLASS = "max-w-[86.5rem] mx-auto px-6" as const;
+export const HOMEPAGE_CONTAINER_CLASS = "max-w-[104rem] mx-auto px-6" as const;
 
 /** Canonical order of PRD sections for display. */
 export const PRD_SECTION_ORDER = [
