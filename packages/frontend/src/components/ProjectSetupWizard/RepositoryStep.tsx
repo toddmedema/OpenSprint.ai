@@ -8,7 +8,7 @@ export function RepositoryStep({ value, onChange, onBrowse }: RepositoryStepProp
   return (
     <div className="space-y-4" data-testid="repository-step">
       <div>
-        <label className="block text-sm font-medium text-theme-text mb-1">Repository Path</label>
+        <label className="block text-sm font-medium text-theme-text mb-1">Project folder</label>
         <div className="flex gap-2">
           <input
             type="text"

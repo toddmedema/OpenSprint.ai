@@ -303,7 +303,7 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-theme-text mb-1">
-                      Repository Path
+                      Project folder
                     </label>
                     <div className="flex gap-2">
                       <input

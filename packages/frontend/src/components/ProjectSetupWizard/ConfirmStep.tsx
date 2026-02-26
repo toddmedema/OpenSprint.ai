@@ -80,7 +80,7 @@ export function ConfirmStep({
           <dd className="font-medium">{metadata.name}</dd>
         </div>
         <div className="flex justify-between">
-          <dt className="text-theme-muted">Repository</dt>
+          <dt className="text-theme-muted">Project folder</dt>
           <dd className="font-mono text-xs">{repoPath}</dd>
         </div>
         <div className="flex justify-between">

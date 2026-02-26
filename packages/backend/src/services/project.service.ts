@@ -215,7 +215,7 @@ export class ProjectService {
       throw new AppError(400, ErrorCodes.INVALID_INPUT, "Project name is required");
     }
     if (!repoPath) {
-      throw new AppError(400, ErrorCodes.INVALID_INPUT, "Repository path is required");
+      throw new AppError(400, ErrorCodes.INVALID_INPUT, "Project folder is required");
     }
 
     // Validate agent config schema (accept new or legacy keys)

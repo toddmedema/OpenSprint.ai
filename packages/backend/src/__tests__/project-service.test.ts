@@ -229,7 +229,7 @@ describe("ProjectService", () => {
         deployment: { mode: "custom" },
         hilConfig: DEFAULT_HIL_CONFIG,
       })
-    ).rejects.toMatchObject({ code: "INVALID_INPUT", message: "Repository path is required" });
+    ).rejects.toMatchObject({ code: "INVALID_INPUT", message: "Project folder is required" });
   });
 
   it("should create eas.json when deployment mode is expo", async () => {
