@@ -102,7 +102,7 @@ describe("useExecuteSwimlanes", () => {
     expect(result.current.chipConfig.some((c) => c.filter === "done" && c.count === 1)).toBe(true);
   });
 
-  it("In Line chip is between All and Ready and counts backlog, blocked, planning", () => {
+  it("In Line chip is between All and Ready and counts backlog, planning (excludes blocked)", () => {
     const tasks: Task[] = [
       task({ id: "epic-a.1", kanbanColumn: "backlog" }),
       task({ id: "epic-a.2", kanbanColumn: "blocked" }),
@@ -118,7 +118,7 @@ describe("useExecuteSwimlanes", () => {
     expect(allIdx).toBeLessThan(inLineIdx);
     expect(inLineIdx).toBeLessThan(readyIdx);
     expect(chips[inLineIdx].label).toBe("In Line");
-    expect(chips[inLineIdx].count).toBe(3);
+    expect(chips[inLineIdx].count).toBe(2);
   });
 
   it("filters by search query", () => {

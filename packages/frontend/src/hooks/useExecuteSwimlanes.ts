@@ -86,8 +86,7 @@ export function useExecuteSwimlanes(
 
   const totalTasks = implTasks.length;
   const inLineCount = implTasks.filter(
-    (t) =>
-      t.kanbanColumn === "backlog" || t.kanbanColumn === "blocked" || t.kanbanColumn === "planning"
+    (t) => t.kanbanColumn === "backlog" || t.kanbanColumn === "planning"
   ).length;
   const readyCount = implTasks.filter((t) => t.kanbanColumn === "ready").length;
   const blockedOnHumanCount = implTasks.filter((t) => t.kanbanColumn === "blocked").length;

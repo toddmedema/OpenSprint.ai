@@ -563,7 +563,7 @@ describe("ExecutePhase top bar", () => {
     expect(screen.getByTestId("filter-chip-blocked")).toHaveTextContent("1");
   });
 
-  it("filters to In Line tasks (backlog, blocked, planning) when In Line chip is clicked", async () => {
+  it("filters to In Line tasks (backlog, planning) when In Line chip is clicked; excludes blocked", async () => {
     const user = userEvent.setup();
     const tasks = [
       {
@@ -584,10 +584,18 @@ describe("ExecutePhase top bar", () => {
       },
       {
         id: "epic-1.3",
+        title: "Planning task",
+        epicId: "epic-1",
+        kanbanColumn: "planning",
+        priority: 2,
+        assignee: null,
+      },
+      {
+        id: "epic-1.4",
         title: "Ready task",
         epicId: "epic-1",
         kanbanColumn: "ready",
-        priority: 2,
+        priority: 3,
         assignee: null,
       },
     ];
@@ -604,7 +612,8 @@ describe("ExecutePhase top bar", () => {
     const listItems = epicCard!.querySelectorAll("ul li");
     expect(listItems).toHaveLength(2);
     expect(epicCard!.textContent).toContain("Backlog task");
-    expect(epicCard!.textContent).toContain("Blocked task");
+    expect(epicCard!.textContent).toContain("Planning task");
+    expect(epicCard!.textContent).not.toContain("Blocked task");
     expect(epicCard!.textContent).not.toContain("Ready task");
   });
 

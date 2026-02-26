@@ -47,10 +47,10 @@ describe("executeTaskFilter", () => {
       expect(matchesStatusFilter("backlog", "blocked")).toBe(false);
     });
 
-    it("in_line filter matches backlog, blocked, and planning", () => {
+    it("in_line filter matches backlog and planning (excludes blocked)", () => {
       expect(matchesStatusFilter("backlog", "in_line")).toBe(true);
-      expect(matchesStatusFilter("blocked", "in_line")).toBe(true);
       expect(matchesStatusFilter("planning", "in_line")).toBe(true);
+      expect(matchesStatusFilter("blocked", "in_line")).toBe(false);
       expect(matchesStatusFilter("ready", "in_line")).toBe(false);
       expect(matchesStatusFilter("in_progress", "in_line")).toBe(false);
       expect(matchesStatusFilter("done", "in_line")).toBe(false);
@@ -113,7 +113,7 @@ describe("executeTaskFilter", () => {
       expect(result[0].id).toBe("t1");
     });
 
-    it("in_line filter returns backlog, blocked, and planning tasks", () => {
+    it("in_line filter returns backlog and planning tasks (excludes blocked)", () => {
       const inLineTasks: Task[] = [
         { ...baseTask, id: "t1", kanbanColumn: "backlog" as const },
         { ...baseTask, id: "t2", kanbanColumn: "blocked" as const },
@@ -121,8 +121,8 @@ describe("executeTaskFilter", () => {
         { ...baseTask, id: "t4", kanbanColumn: "ready" as const },
       ];
       const result = filterTasksByStatusAndSearch(inLineTasks, "in_line", "");
-      expect(result).toHaveLength(3);
-      expect(result.map((t) => t.id)).toEqual(["t1", "t2", "t3"]);
+      expect(result).toHaveLength(2);
+      expect(result.map((t) => t.id)).toEqual(["t1", "t3"]);
     });
 
     it("filters by search only when status=all", () => {
