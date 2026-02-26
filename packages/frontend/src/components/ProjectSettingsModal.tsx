@@ -652,15 +652,17 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
                     </div>
                   </div>
                   <hr />
-                  <div>
-                    <h3 className="text-sm font-semibold text-theme-text mb-1">Git working mode</h3>
-                    <p className="text-xs text-theme-muted mb-3">
-                      {gitWorkingMode === "worktree"
-                        ? "Worktree: isolated directories per task, supports parallel agents."
-                        : "Branches: agents work in main repo on task branches, one at a time."}
-                    </p>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-sm font-semibold text-theme-text">Git working mode</h3>
+                      <p className="text-xs text-theme-muted">
+                        {gitWorkingMode === "worktree"
+                          ? "Worktree: isolated directories per task, supports parallel agents."
+                          : "Branches: agents work in main repo on task branches, one at a time."}
+                      </p>
+                    </div>
                     <select
-                      className="input w-full max-w-xs"
+                      className="input w-48 shrink-0"
                       value={gitWorkingMode}
                       onChange={(e) =>
                         setSettings((s) =>

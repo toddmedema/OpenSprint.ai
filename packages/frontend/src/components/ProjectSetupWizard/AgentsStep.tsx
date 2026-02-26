@@ -339,14 +339,16 @@ export function AgentsStep({
         </div>
       </div>
       <hr />
-      <div>
-        <h3 className="text-sm font-semibold text-theme-text mb-1">Git working mode</h3>
-        <p className="text-xs text-theme-muted mb-3">
-          Worktree creates isolated worktrees per task for parallel execution. Branches uses a
-          single branch in the main repo (sequential only).
-        </p>
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold text-theme-text">Git working mode</h3>
+          <p className="text-xs text-theme-muted">
+            Worktree creates isolated worktrees per task for parallel execution. Branches uses a
+            single branch in the main repo (sequential only).
+          </p>
+        </div>
         <select
-          className="input"
+          className="input w-48 shrink-0"
           value={gitWorkingMode}
           onChange={(e) => onGitWorkingModeChange(e.target.value as GitWorkingMode)}
           data-testid="git-working-mode-select"
