@@ -23,7 +23,7 @@ export function CollapsibleSection({
   children: React.ReactNode;
 }) {
   return (
-    <div className="border-b border-theme-border-subtle">
+    <div className="border-b border-theme-border-subtle has-[+_[data-section=depends-on]]:border-b-0">
       <button
         type="button"
         onClick={onToggle}

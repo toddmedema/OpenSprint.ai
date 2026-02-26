@@ -236,7 +236,7 @@ export function TaskDetailSidebar({
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-0">
-        <div className="p-4 border-b border-theme-border">
+        <div className="p-4 border-b border-theme-border has-[+_[data-section=depends-on]]:border-b-0">
           {task && (
             <>
               {/* Row 1: Status and priority on a single row */}
@@ -409,7 +409,7 @@ export function TaskDetailSidebar({
             if (!plan || !onNavigateToPlan) return null;
             const planTitle = getEpicTitleFromPlan(plan);
             return (
-              <div className="p-4 border-b border-theme-border">
+              <div className="p-4 border-b border-theme-border has-[+_[data-section=depends-on]]:border-b-0">
                 <button
                   type="button"
                   onClick={() => onNavigateToPlan(plan.metadata.planId)}
@@ -439,7 +439,7 @@ export function TaskDetailSidebar({
               <>
                 {/* Depends on (above Description) */}
                 {hasDeps && (
-                  <div className="p-4 border-b border-theme-border">
+                  <div className="p-4 border-b border-theme-border" data-section="depends-on">
                     <div className="text-xs">
                       <span className="text-theme-muted">Depends on:</span>
                       <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-1.5">
