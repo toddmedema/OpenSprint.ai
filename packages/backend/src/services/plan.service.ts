@@ -313,6 +313,7 @@ export class PlanService {
     const agentId = `plan-complexity-${projectId}-${Date.now()}`;
 
     const response = await agentService.invokePlanningAgent({
+      projectId,
       config: getAgentForPlanningRole(settings, "planner"),
       messages: [{ role: "user", content: prompt }],
       systemPrompt: COMPLEXITY_EVALUATION_SYSTEM_PROMPT,
@@ -739,6 +740,7 @@ export class PlanService {
     const agentId = `plan-task-gen-${projectId}-${Date.now()}`;
 
     const response = await agentService.invokePlanningAgent({
+      projectId,
       config: getAgentForPlanningRole(settings, "planner", plan.metadata.complexity),
       messages: [{ role: "user", content: prompt }],
       systemPrompt: TASK_GENERATION_SYSTEM_PROMPT,
@@ -1052,6 +1054,7 @@ ${planNew}`;
 
     const settings = await this.projectService.getSettings(projectId);
     const auditorResponse = await agentService.invokePlanningAgent({
+      projectId,
       config: getAgentForPlanningRole(settings, "auditor", plan.metadata.complexity),
       messages: [{ role: "user", content: auditorFullPrompt }],
       systemPrompt:
@@ -1636,6 +1639,7 @@ ${planNew}`;
       const agentId = `plan-auto-review-${projectId}-${Date.now()}`;
 
       const response = await agentService.invokePlanningAgent({
+        projectId,
         config: getAgentForPlanningRole(settings, "planner"),
         messages: [{ role: "user", content: prompt }],
         systemPrompt: AUTO_REVIEW_SYSTEM_PROMPT,
@@ -1741,6 +1745,7 @@ complexity: low, medium, high, or very_high (plan-level). Task-level complexity:
     const agentId = `plan-generate-${projectId}-${Date.now()}`;
 
     const response = await agentService.invokePlanningAgent({
+      projectId,
       config: getAgentForPlanningRole(settings, "planner"),
       messages: [{ role: "user", content: prompt }],
       systemPrompt,
@@ -1810,6 +1815,7 @@ complexity: low, medium, high, or very_high (plan-level). Task-level complexity:
     const agentId = `plan-suggest-${projectId}-${Date.now()}`;
 
     const response = await agentService.invokePlanningAgent({
+      projectId,
       config: getAgentForPlanningRole(settings, "planner"),
       messages: [{ role: "user", content: prompt }],
       systemPrompt: DECOMPOSE_SYSTEM_PROMPT + "\n\n## Current PRD\n\n" + prdContext,
@@ -1889,6 +1895,7 @@ complexity: low, medium, high, or very_high (plan-level). Task-level complexity:
     const agentId = `plan-decompose-${projectId}-${Date.now()}`;
 
     const response = await agentService.invokePlanningAgent({
+      projectId,
       config: getAgentForPlanningRole(settings, "planner"),
       messages: [{ role: "user", content: prompt }],
       systemPrompt: DECOMPOSE_SYSTEM_PROMPT + "\n\n## Current PRD\n\n" + prdContext,

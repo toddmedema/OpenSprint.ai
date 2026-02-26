@@ -305,6 +305,7 @@ export class FeedbackService {
     let updateExistingTasks: Record<string, { title?: string; description?: string }> = {};
     try {
       const response = await agentService.invokePlanningAgent({
+        projectId,
         config: getAgentForPlanningRole(settings, "analyst"),
         messages: [
           {

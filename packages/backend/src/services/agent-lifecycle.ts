@@ -123,6 +123,7 @@ export class AgentLifecycleManager {
       cwd: wtPath,
       agentRole: role === "coder" ? "coder" : "code reviewer",
       outputLogPath,
+      projectId,
       onOutput: (chunk: string) => {
         appendOutputLog(runState, chunk);
         runState.lastOutputTime = Date.now();

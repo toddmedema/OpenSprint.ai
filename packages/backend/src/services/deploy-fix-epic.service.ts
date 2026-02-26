@@ -95,6 +95,7 @@ Output your response as JSON with status and tasks array.`;
       prompt,
       systemPrompt: FIX_EPIC_SYSTEM_PROMPT,
       cwd: repoPath,
+      projectId,
     });
   } catch (err) {
     log.error("Planning agent invocation failed", { err });

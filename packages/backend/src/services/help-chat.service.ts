@@ -262,14 +262,16 @@ export class HelpChatService {
         projectId: projectId ?? "homepage",
         messageLen: message.length,
       });
+      const effectiveProjectId = projectId ?? "help-homepage";
       const response = await agentService.invokePlanningAgent({
+        projectId: effectiveProjectId,
         config: agentConfig,
         messages,
         systemPrompt,
         cwd,
         tracking: {
           id: agentId,
-          projectId: projectId ?? "help-homepage",
+          projectId: effectiveProjectId,
           phase: "help",
           role: "dreamer",
           label: "Help chat",

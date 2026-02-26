@@ -20,6 +20,19 @@ vi.mock("../services/agent-process-registry.js", () => ({
   unregisterAgentProcess: vi.fn(),
 }));
 
+const { mockGetNextKey, mockRecordLimitHit, mockClearLimitHit } = vi.hoisted(() => ({
+  mockGetNextKey: vi.fn(),
+  mockRecordLimitHit: vi.fn(),
+  mockClearLimitHit: vi.fn(),
+}));
+
+vi.mock("../services/api-key-resolver.service.js", () => ({
+  getNextKey: (...args: unknown[]) => mockGetNextKey(...args),
+  recordLimitHit: (...args: unknown[]) => mockRecordLimitHit(...args),
+  clearLimitHit: (...args: unknown[]) => mockClearLimitHit(...args),
+  ENV_FALLBACK_KEY_ID: "__env__",
+}));
+
 vi.mock("util", () => ({
   promisify: (
     _fn: (
@@ -142,6 +155,93 @@ describe("AgentClient", () => {
         expect.objectContaining({ cwd: "/tmp" })
       );
       expect(result.content).toContain("Cursor response");
+    });
+
+    it("should use ApiKeyResolver when projectId provided for cursor", async () => {
+      mockGetNextKey.mockResolvedValue({ key: "cursor-key-from-resolver", keyId: "k1" });
+      const mockChild = {
+        killed: false,
+        kill: vi.fn(),
+        stdout: {
+          on: vi.fn((_ev: string, fn: (d: Buffer) => void) => fn(Buffer.from("Cursor response"))),
+        },
+        stderr: { on: vi.fn() },
+        on: vi.fn((ev: string, fn: (code: number) => void) => {
+          if (ev === "close") setTimeout(() => fn(0), 0);
+          return { on: vi.fn() };
+        }),
+      };
+      mockSpawn.mockReturnValue(mockChild);
+
+      const result = await client.invoke({
+        config: { type: "cursor", model: "gpt-4", cliCommand: null },
+        prompt: "Hello",
+        cwd: "/tmp",
+        projectId: "proj-123",
+      });
+
+      expect(mockGetNextKey).toHaveBeenCalledWith("proj-123", "CURSOR_API_KEY");
+      expect(mockClearLimitHit).toHaveBeenCalledWith("proj-123", "CURSOR_API_KEY", "k1");
+      expect(mockSpawn).toHaveBeenCalledWith(
+        "agent",
+        expect.any(Array),
+        expect.objectContaining({
+          cwd: "/tmp",
+          env: expect.objectContaining({ CURSOR_API_KEY: "cursor-key-from-resolver" }),
+        })
+      );
+      expect(result.content).toContain("Cursor response");
+    });
+
+    it("should recordLimitHit and retry on limit error when projectId provided", async () => {
+      mockGetNextKey
+        .mockResolvedValueOnce({ key: "key1", keyId: "k1" })
+        .mockResolvedValueOnce({ key: "key2", keyId: "k2" });
+      let callCount = 0;
+      mockSpawn.mockImplementation(() => {
+        callCount++;
+        const mockChild = {
+          killed: false,
+          kill: vi.fn(),
+          stdout: { on: vi.fn() },
+          stderr: {
+            on: vi.fn((_ev: string, fn: (d: Buffer) => void) =>
+              fn(Buffer.from("rate limit exceeded"))
+            ),
+          },
+          on: vi.fn((ev: string, fn: (code: number) => void) => {
+            if (ev === "close") setTimeout(() => fn(1), 0);
+            return { on: vi.fn() };
+          }),
+        };
+        if (callCount === 1) {
+          return mockChild;
+        }
+        return {
+          ...mockChild,
+          stdout: {
+            on: vi.fn((_ev: string, fn: (d: Buffer) => void) =>
+              fn(Buffer.from("Success"))
+            ),
+          },
+          on: vi.fn((ev: string, fn: (code: number) => void) => {
+            if (ev === "close") setTimeout(() => fn(0), 0);
+            return { on: vi.fn() };
+          }),
+        };
+      });
+
+      const result = await client.invoke({
+        config: { type: "cursor", model: null, cliCommand: null },
+        prompt: "Hello",
+        cwd: "/tmp",
+        projectId: "proj-123",
+      });
+
+      expect(mockGetNextKey).toHaveBeenCalledTimes(2);
+      expect(mockRecordLimitHit).toHaveBeenCalledWith("proj-123", "CURSOR_API_KEY", "k1");
+      expect(mockClearLimitHit).toHaveBeenCalledWith("proj-123", "CURSOR_API_KEY", "k2");
+      expect(result.content).toContain("Success");
     });
 
     it("should route custom config to Custom CLI", async () => {

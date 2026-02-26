@@ -341,6 +341,7 @@ export class ChatService {
         messagesLen: messages.length,
       });
       const response = await agentService.invokePlanningAgent({
+        projectId,
         config: agentConfig,
         messages,
         systemPrompt,
@@ -484,6 +485,7 @@ export class ChatService {
     const agentId = `harmonizer-build-it-${projectId}-${planId}-${Date.now()}`;
 
     const response = await agentService.invokePlanningAgent({
+      projectId,
       config: agentConfig,
       messages: [{ role: "user", content: prompt }],
       systemPrompt,
@@ -543,6 +545,7 @@ export class ChatService {
     const agentId = `harmonizer-scope-preview-${projectId}-${Date.now()}`;
 
     const response = await agentService.invokePlanningAgent({
+      projectId,
       config: agentConfig,
       messages: [{ role: "user", content: prompt }],
       systemPrompt,
@@ -621,6 +624,7 @@ export class ChatService {
     const agentId = `harmonizer-scope-change-${projectId}-${Date.now()}`;
 
     const response = await agentService.invokePlanningAgent({
+      projectId,
       config: agentConfig,
       messages: [{ role: "user", content: prompt }],
       systemPrompt,

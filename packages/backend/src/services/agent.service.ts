@@ -8,6 +8,12 @@ import { AppError } from "../middleware/error-handler.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
 import { getErrorMessage, isLimitError } from "../utils/error-utils.js";
 import { activeAgentsService } from "./active-agents.service.js";
+import {
+  getNextKey,
+  recordLimitHit,
+  clearLimitHit,
+  ENV_FALLBACK_KEY_ID,
+} from "./api-key-resolver.service.js";
 
 /** Message for planning agent (user or assistant) */
 export interface PlanningMessage {
@@ -34,6 +40,8 @@ export interface AgentTrackingInfo {
 
 /** Options for invokePlanningAgent */
 export interface InvokePlanningAgentOptions {
+  /** Project ID (required for Claude API key resolution and retry) */
+  projectId: string;
   /** Agent configuration (model from config) */
   config: AgentConfig;
   /** Conversation messages in order */
@@ -69,6 +77,8 @@ export interface InvokeCodingAgentOptions {
   tracking?: AgentTrackingInfo;
   /** File path to redirect agent stdout/stderr for crash-resilient output */
   outputLogPath?: string;
+  /** Project ID for Cursor: ApiKeyResolver for CURSOR_API_KEY, retry on limit error, clearLimitHit on success */
+  projectId?: string;
 }
 
 /** Return type for invokeCodingAgent — handle with kill() to terminate */
@@ -98,23 +108,7 @@ export function createPidHandle(pid: number): CodingAgentHandle {
  * invokeCodingAgent spawns the coding agent with a file-based prompt.
  */
 export class AgentService {
-  private anthropic: Anthropic | null = null;
   private agentClient = new AgentClient();
-
-  private getAnthropic(): Anthropic {
-    if (!this.anthropic) {
-      const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (!apiKey?.trim()) {
-        throw new AppError(
-          400,
-          ErrorCodes.ANTHROPIC_API_KEY_MISSING,
-          "ANTHROPIC_API_KEY is not set. Add it to your .env file or Project Settings → Agent Config. Get a key from https://console.anthropic.com/. Alternatively, switch to Claude (CLI) in Agent Config to use the locally-installed claude CLI instead."
-        );
-      }
-      this.anthropic = new Anthropic({ apiKey });
-    }
-    return this.anthropic;
-  }
 
   /**
    * Invoke the planning agent with messages.
@@ -175,6 +169,7 @@ export class AgentService {
         cwd,
         conversationHistory,
         onChunk,
+        projectId: options.projectId,
       });
       const content = response?.content ?? "";
       return { content };
@@ -226,7 +221,8 @@ export class AgentService {
       options.onOutput,
       wrappedOnExit,
       options.agentRole,
-      options.outputLogPath
+      options.outputLogPath,
+      options.projectId
     );
   }
 
@@ -382,15 +378,15 @@ A git merge or rebase has encountered conflicts. The working directory contains 
 
   /**
    * Claude API integration using @anthropic-ai/sdk.
-   * Supports streaming via onChunk and images when options.images is provided.
+   * Uses ApiKeyResolver for key rotation: on limit error, recordLimitHit and retry with next key.
+   * On success, clearLimitHit. Supports streaming via onChunk and images.
    */
   private async invokeClaudePlanningAgent(
     options: InvokePlanningAgentOptions
   ): Promise<PlanningAgentResponse> {
-    const { config, messages, systemPrompt, images, onChunk } = options;
+    const { projectId, config, messages, systemPrompt, images, onChunk } = options;
 
     const model = config.model ?? "claude-sonnet-4-20250514";
-    const client = this.getAnthropic();
 
     // Convert to Anthropic message format. When images exist, last user message gets content as array.
     const anthropicMessages = messages.map((m, i) => {
@@ -409,63 +405,106 @@ A git merge or rebase has encountered conflicts. The working directory contains 
       return { role: m.role as "user" | "assistant", content: m.content };
     });
 
-    try {
-      if (onChunk) {
-        // Streaming path
-        const stream = client.messages.stream({
-          model,
-          max_tokens: 8192,
-          system: systemPrompt ?? undefined,
-          messages: anthropicMessages,
-        });
+    const triedKeyIds = new Set<string>();
+    let lastError: unknown;
 
-        let fullContent = "";
-        stream.on("text", (text) => {
-          fullContent += text;
-          onChunk(text);
-        });
-
-        const finalMessage = await stream.finalMessage();
-        const contentBlocks = finalMessage?.content ?? [];
-        const textBlock = Array.isArray(contentBlocks)
-          ? contentBlocks.find((b: { type?: string }) => b.type === "text")
-          : undefined;
-        const content =
-          textBlock && typeof textBlock === "object" && "text" in textBlock
-            ? String(textBlock.text)
-            : fullContent;
-        return { content };
+    for (;;) {
+      const resolved = await getNextKey(projectId, "ANTHROPIC_API_KEY");
+      if (!resolved) {
+        const msg = lastError ? getErrorMessage(lastError) : "No API key available";
+        throw new AppError(
+          400,
+          ErrorCodes.ANTHROPIC_API_KEY_MISSING,
+          lastError && isLimitError(lastError)
+            ? `All Claude API keys hit rate limits. ${msg} Add more keys in Project Settings → Agent Config → API Keys, or retry after 24h.`
+            : "ANTHROPIC_API_KEY is not set. Add it to your .env file or Project Settings → Agent Config. Get a key from https://console.anthropic.com/. Alternatively, switch to Claude (CLI) in Agent Config to use the locally-installed claude CLI instead.",
+          lastError ? { agentType: "claude", raw: msg, isLimitError: isLimitError(lastError) } : undefined
+        );
       }
 
-      // Non-streaming path
-      const response = await client.messages.create({
-        model,
-        max_tokens: 8192,
-        system: systemPrompt ?? undefined,
-        messages: anthropicMessages,
-      });
+      const { key, keyId } = resolved;
+      if (triedKeyIds.has(keyId)) {
+        // Already tried this key (env fallback with limit - can't mark, would loop)
+        const msg = getErrorMessage(lastError);
+        throw new AppError(
+          502,
+          ErrorCodes.AGENT_INVOKE_FAILED,
+          `Claude API error: ${msg}. Check Project Settings → Agent Config (API key, model).`,
+          { agentType: "claude", raw: msg, isLimitError: true }
+        );
+      }
+      triedKeyIds.add(keyId);
 
-      const contentBlocks = response?.content ?? [];
-      const textBlock = Array.isArray(contentBlocks)
-        ? contentBlocks.find((b: { type?: string }) => b.type === "text")
-        : undefined;
-      const content =
-        textBlock && typeof textBlock === "object" && "text" in textBlock
-          ? String(textBlock.text)
-          : "";
-      return { content };
-    } catch (error: unknown) {
-      const msg = getErrorMessage(error);
-      throw new AppError(
-        502,
-        ErrorCodes.AGENT_INVOKE_FAILED,
-        `Claude API error: ${msg}. Check Project Settings → Agent Config (API key, model).`,
-        {
-          agentType: "claude",
-          raw: msg,
-          isLimitError: isLimitError(error),
+      const client = new Anthropic({ apiKey: key });
+
+      try {
+        let content: string;
+        if (onChunk) {
+          const stream = client.messages.stream({
+            model,
+            max_tokens: 8192,
+            system: systemPrompt ?? undefined,
+            messages: anthropicMessages,
+          });
+
+          let fullContent = "";
+          stream.on("text", (text) => {
+            fullContent += text;
+            onChunk(text);
+          });
+
+          const finalMessage = await stream.finalMessage();
+          const contentBlocks = finalMessage?.content ?? [];
+          const textBlock = Array.isArray(contentBlocks)
+            ? contentBlocks.find((b: { type?: string }) => b.type === "text")
+            : undefined;
+          content =
+            textBlock && typeof textBlock === "object" && "text" in textBlock
+              ? String(textBlock.text)
+              : fullContent;
+        } else {
+          const response = await client.messages.create({
+            model,
+            max_tokens: 8192,
+            system: systemPrompt ?? undefined,
+            messages: anthropicMessages,
+          });
+
+          const contentBlocks = response?.content ?? [];
+          const textBlock = Array.isArray(contentBlocks)
+            ? contentBlocks.find((b: { type?: string }) => b.type === "text")
+            : undefined;
+          content =
+            textBlock && typeof textBlock === "object" && "text" in textBlock
+              ? String(textBlock.text)
+              : "";
         }
-      );
+
+        await clearLimitHit(projectId, "ANTHROPIC_API_KEY", keyId);
+        return { content };
+      } catch (error: unknown) {
+        lastError = error;
+        if (isLimitError(error)) {
+          if (keyId === ENV_FALLBACK_KEY_ID) {
+            const msg = getErrorMessage(error);
+            throw new AppError(
+              502,
+              ErrorCodes.AGENT_INVOKE_FAILED,
+              `Claude API rate limit: ${msg}. Add project-level API keys in Project Settings → Agent Config → API Keys for automatic rotation.`,
+              { agentType: "claude", raw: msg, isLimitError: true }
+            );
+          }
+          await recordLimitHit(projectId, "ANTHROPIC_API_KEY", keyId);
+          continue;
+        }
+        const msg = getErrorMessage(error);
+        throw new AppError(
+          502,
+          ErrorCodes.AGENT_INVOKE_FAILED,
+          `Claude API error: ${msg}. Check Project Settings → Agent Config (API key, model).`,
+          { agentType: "claude", raw: msg, isLimitError: false }
+        );
+      }
     }
   }
 }

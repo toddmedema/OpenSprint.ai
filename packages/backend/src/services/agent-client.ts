@@ -8,6 +8,12 @@ import { OPENSPRINT_PATHS } from "@opensprint/shared";
 import { AppError } from "../middleware/error-handler.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
 import { getErrorMessage, getExecErrorShape, isLimitError } from "../utils/error-utils.js";
+import {
+  getNextKey,
+  recordLimitHit,
+  clearLimitHit,
+  ENV_FALLBACK_KEY_ID,
+} from "./api-key-resolver.service.js";
 import { registerAgentProcess, unregisterAgentProcess } from "./agent-process-registry.js";
 import { createLogger } from "../utils/logger.js";
 
@@ -111,6 +117,8 @@ export interface AgentInvokeOptions {
   cwd?: string;
   /** Callback for streaming output chunks */
   onChunk?: (chunk: string) => void;
+  /** Project ID for API key resolution (Cursor: ApiKeyResolver.getNextKey for CURSOR_API_KEY) */
+  projectId?: string;
 }
 
 export interface AgentResponse {
@@ -155,6 +163,7 @@ export class AgentClient {
    * to deliver output via onOutput.
    * @param agentRole - Human-readable role for logging (e.g. 'coder', 'code reviewer')
    * @param outputLogPath - If set, redirect agent output to this file instead of pipes
+   * @param projectId - For Cursor: use ApiKeyResolver.getNextKey for CURSOR_API_KEY; on limit error retry with next key; on success clearLimitHit
    */
   spawnWithTaskFile(
     config: AgentConfig,
@@ -163,7 +172,131 @@ export class AgentClient {
     onOutput: (chunk: string) => void,
     onExit: (code: number | null) => void | Promise<void>,
     agentRole?: string,
-    outputLogPath?: string
+    outputLogPath?: string,
+    projectId?: string
+  ): { kill: () => void; pid: number | null } {
+    if (config.type === "cursor" && projectId) {
+      return this.spawnCursorWithTaskFileAsync(
+        config,
+        taskFilePath,
+        cwd,
+        onOutput,
+        onExit,
+        agentRole,
+        outputLogPath,
+        projectId
+      );
+    }
+    return this.doSpawnWithTaskFile(
+      config,
+      taskFilePath,
+      cwd,
+      onOutput,
+      onExit,
+      agentRole,
+      outputLogPath,
+      undefined,
+      undefined
+    );
+  }
+
+  /**
+   * Cursor with projectId: async key resolution, retry on limit error, clearLimitHit on success.
+   */
+  private spawnCursorWithTaskFileAsync(
+    config: AgentConfig,
+    taskFilePath: string,
+    cwd: string,
+    onOutput: (chunk: string) => void,
+    onExit: (code: number | null) => void | Promise<void>,
+    agentRole: string | undefined,
+    outputLogPath: string | undefined,
+    projectId: string
+  ): { kill: () => void; pid: number | null } {
+    let innerHandle: { kill: () => void; pid: number | null } | null = null;
+    const handle: { kill: () => void; pid: number | null } = {
+      get pid() {
+        return innerHandle?.pid ?? null;
+      },
+      kill() {
+        innerHandle?.kill();
+      },
+    };
+
+    const trySpawn = async (): Promise<void> => {
+      const resolved = await getNextKey(projectId, "CURSOR_API_KEY");
+      if (!resolved || !resolved.key.trim()) {
+        log.error("No Cursor API key available for spawn");
+        Promise.resolve(onExit(1)).catch((e) => log.error("onExit failed", { err: e }));
+        return;
+      }
+      const { key, keyId } = resolved;
+
+      const stderrCollector = { stderr: "" };
+
+      const wrappedOnExit = async (code: number | null) => {
+        if (code === 0) {
+          if (keyId !== ENV_FALLBACK_KEY_ID) {
+            await clearLimitHit(projectId, "CURSOR_API_KEY", keyId);
+          }
+          return Promise.resolve(onExit(0));
+        }
+        // Read output to check for limit error (file or collected stderr)
+        let output = "";
+        if (outputLogPath) {
+          try {
+            output = await readFile(outputLogPath, "utf-8");
+          } catch {
+            // ignore
+          }
+        } else {
+          output = stderrCollector.stderr;
+        }
+        if (isLimitError({ stderr: output }) && keyId !== ENV_FALLBACK_KEY_ID) {
+          await recordLimitHit(projectId, "CURSOR_API_KEY", keyId);
+          const next = await getNextKey(projectId, "CURSOR_API_KEY");
+          if (next) {
+            return trySpawn();
+          }
+        }
+        return Promise.resolve(onExit(code));
+      };
+
+      innerHandle = this.doSpawnWithTaskFile(
+        config,
+        taskFilePath,
+        cwd,
+        onOutput,
+        wrappedOnExit,
+        agentRole,
+        outputLogPath,
+        { CURSOR_API_KEY: key },
+        stderrCollector
+      );
+    };
+
+    trySpawn().catch((err) => {
+      log.error("spawnCursorWithTaskFileAsync failed", { err });
+      Promise.resolve(onExit(1)).catch(() => {});
+    });
+
+    return handle;
+  }
+
+  /**
+   * Internal spawn implementation. cursorEnvOverrides: for Cursor, { CURSOR_API_KEY: key }.
+   * stderrCollector: when provided (cursor+projectId pipe mode), stderr is appended for limit-error detection.
+   */
+  private doSpawnWithTaskFile(
+    config: AgentConfig,
+    taskFilePath: string,
+    cwd: string,
+    onOutput: (chunk: string) => void,
+    onExit: (code: number | null) => void | Promise<void>,
+    agentRole?: string,
+    outputLogPath?: string,
+    cursorEnvOverrides?: Record<string, string>,
+    stderrCollector?: { stderr: string }
   ): { kill: () => void; pid: number | null } {
     let command: string;
     let args: string[];
@@ -255,10 +388,15 @@ export class AgentClient {
       outputLogPath: outputLogPath ?? "(pipe)",
     });
 
+    const spawnEnv =
+      config.type === "cursor" && cursorEnvOverrides
+        ? { ...process.env, ...cursorEnvOverrides }
+        : { ...process.env };
+
     const child = spawn(command, args, {
       cwd,
       stdio,
-      env: { ...process.env },
+      env: spawnEnv,
       detached: true,
     });
 
@@ -401,7 +539,9 @@ export class AgentClient {
         onOutput(data.toString());
       });
       child.stderr!.on("data", (data: Buffer) => {
-        onOutput(data.toString());
+        const chunk = data.toString();
+        if (stderrCollector) stderrCollector.stderr += chunk;
+        onOutput(chunk);
       });
     }
 
@@ -577,7 +717,7 @@ export class AgentClient {
   }
 
   private async invokeCursorCli(options: AgentInvokeOptions): Promise<AgentResponse> {
-    const { config, prompt, systemPrompt, conversationHistory } = options;
+    const { config, prompt, systemPrompt, conversationHistory, projectId } = options;
     const fullPrompt = buildFullPrompt({ systemPrompt, conversationHistory, prompt });
 
     // Use spawn (not exec) to avoid shell interpretation of PRD content—backticks,
@@ -589,58 +729,97 @@ export class AgentClient {
       args.splice(1, 0, "--model", config.model);
     }
 
-    const hasCursorKey = Boolean(process.env.CURSOR_API_KEY);
-    log.info("Cursor CLI starting", {
-      model: config.model ?? "default",
-      promptLen: fullPrompt.length,
-      cwd,
-      CURSOR_API_KEY: hasCursorKey ? "set" : "NOT SET",
-    });
+    const triedKeyIds = new Set<string>();
+    let lastError: unknown;
 
-    try {
-      const content = await this.runCursorAgentSpawn(args, cwd);
-      log.info("Cursor CLI completed", { outputLen: content.length });
-      if (options.onChunk) {
-        options.onChunk(content);
+    for (;;) {
+      const resolved = projectId
+        ? await getNextKey(projectId, "CURSOR_API_KEY")
+        : { key: process.env.CURSOR_API_KEY || "", keyId: ENV_FALLBACK_KEY_ID };
+
+      if (!resolved || !resolved.key.trim()) {
+        const msg = lastError ? getErrorMessage(lastError) : "No Cursor API key available";
+        throw new AppError(
+          400,
+          ErrorCodes.AGENT_INVOKE_FAILED,
+          lastError && isLimitError(lastError)
+            ? `All Cursor API keys hit rate limits. ${msg} Add more keys in Project Settings → Agent Config → API Keys, or retry after 24h.`
+            : "CURSOR_API_KEY is not set. Add it to your .env file or Project Settings → Agent Config. Get a key from Cursor → Settings → Integrations → User API Keys.",
+          lastError ? { agentType: "cursor", raw: msg, isLimitError: isLimitError(lastError) } : undefined
+        );
       }
-      return { content };
-    } catch (error: unknown) {
-      // Detect timeout: either an AppError from runCursorAgentSpawn with isTimeout in details,
-      // or a raw ChildProcess error with killed+SIGTERM (from spawn 'error' event).
-      const isAppErr = error instanceof AppError;
-      const appDetails = isAppErr
-        ? (error.details as Record<string, unknown> | undefined)
-        : undefined;
-      const execShape = getExecErrorShape(error);
-      const isTimeout = isAppErr
-        ? Boolean(appDetails?.isTimeout)
-        : Boolean(execShape.killed && execShape.signal === "SIGTERM");
 
-      const raw = isTimeout
-        ? `The Cursor agent timed out after 5 minutes. Try a faster model (e.g. sonnet-4.6-thinking) in Project Settings, or use Claude instead.`
-        : isAppErr
-          ? error.message
-          : execShape.stderr ||
-            execShape.message ||
-            (error instanceof Error ? error.message : String(error));
+      const { key, keyId } = resolved;
+      if (triedKeyIds.has(keyId)) {
+        const msg = getErrorMessage(lastError);
+        throw new AppError(
+          502,
+          ErrorCodes.AGENT_INVOKE_FAILED,
+          `Cursor API error: ${msg}. Check Project Settings → Agent Config (API key, model).`,
+          { agentType: "cursor", raw: msg, isLimitError: true }
+        );
+      }
+      triedKeyIds.add(keyId);
 
-      log.error("Cursor CLI failed", { raw, isTimeout });
-      throw new AppError(
-        isTimeout ? 504 : 502,
-        ErrorCodes.AGENT_INVOKE_FAILED,
-        formatAgentError("cursor", raw),
-        {
-          agentType: "cursor",
-          raw,
-          isTimeout,
-          isLimitError: isLimitError(error),
+      log.info("Cursor CLI starting", {
+        model: config.model ?? "default",
+        promptLen: fullPrompt.length,
+        cwd,
+        CURSOR_API_KEY: key ? "set" : "NOT SET",
+      });
+
+      try {
+        const content = await this.runCursorAgentSpawn(args, cwd, key);
+        log.info("Cursor CLI completed", { outputLen: content.length });
+        if (projectId && keyId !== ENV_FALLBACK_KEY_ID) {
+          await clearLimitHit(projectId, "CURSOR_API_KEY", keyId);
         }
-      );
+        if (options.onChunk) {
+          options.onChunk(content);
+        }
+        return { content };
+      } catch (error: unknown) {
+        lastError = error;
+        if (isLimitError(error) && keyId !== ENV_FALLBACK_KEY_ID) {
+          await recordLimitHit(projectId!, "CURSOR_API_KEY", keyId);
+          continue;
+        }
+        // Non-limit error or env fallback with limit: throw
+        const isAppErr = error instanceof AppError;
+        const appDetails = isAppErr
+          ? (error.details as Record<string, unknown> | undefined)
+          : undefined;
+        const execShape = getExecErrorShape(error);
+        const isTimeout = isAppErr
+          ? Boolean(appDetails?.isTimeout)
+          : Boolean(execShape.killed && execShape.signal === "SIGTERM");
+
+        const raw = isTimeout
+          ? `The Cursor agent timed out after 5 minutes. Try a faster model (e.g. sonnet-4.6-thinking) in Project Settings, or use Claude instead.`
+          : isAppErr
+            ? error.message
+            : execShape.stderr ||
+              execShape.message ||
+              (error instanceof Error ? error.message : String(error));
+
+        log.error("Cursor CLI failed", { raw, isTimeout });
+        throw new AppError(
+          isTimeout ? 504 : 502,
+          ErrorCodes.AGENT_INVOKE_FAILED,
+          formatAgentError("cursor", raw),
+          {
+            agentType: "cursor",
+            raw,
+            isTimeout,
+            isLimitError: isLimitError(error),
+          }
+        );
+      }
     }
   }
 
   /** Run Cursor agent via spawn; stream stdout/stderr to terminal and collect output */
-  private runCursorAgentSpawn(args: string[], cwd: string): Promise<string> {
+  private runCursorAgentSpawn(args: string[], cwd: string, cursorApiKey: string): Promise<string> {
     return new Promise((resolve, reject) => {
       const TIMEOUT_MS = 300_000;
       let stdout = "";
@@ -648,7 +827,7 @@ export class AgentClient {
 
       const child = spawn("agent", args, {
         cwd,
-        env: { ...process.env, CURSOR_API_KEY: process.env.CURSOR_API_KEY || "" },
+        env: { ...process.env, CURSOR_API_KEY: cursorApiKey || "" },
         stdio: ["ignore", "pipe", "pipe"],
       });
 

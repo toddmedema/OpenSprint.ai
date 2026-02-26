@@ -71,6 +71,7 @@ Output PRD_UPDATE blocks for each section you can derive.`;
     try {
       log.info("Invoking planning agent for PRD from codebase", { projectId });
       const response = await agentService.invokePlanningAgent({
+        projectId,
         config: agentConfig,
         messages: [{ role: "user", content: userPrompt }],
         systemPrompt: CODEBASE_TO_PRD_SYSTEM_PROMPT,
