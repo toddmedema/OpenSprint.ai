@@ -843,9 +843,16 @@ export class BranchManager {
   /**
    * Remove a task's worktree. Safe to call even if the worktree doesn't exist.
    * Logs errors so stale worktrees can be diagnosed; always attempts cleanup.
+   * @param actualPath - When provided (e.g. from assignment or git worktree list), use this path
+   *   instead of getWorktreePath(taskId). Critical when os.tmpdir() changes between process runs,
+   *   which would otherwise leave orphaned worktrees.
    */
-  async removeTaskWorktree(repoPath: string, taskId: string): Promise<void> {
-    const wtPath = this.getWorktreePath(taskId);
+  async removeTaskWorktree(
+    repoPath: string,
+    taskId: string,
+    actualPath?: string
+  ): Promise<void> {
+    const wtPath = actualPath ?? this.getWorktreePath(taskId);
     try {
       await this.git(repoPath, `worktree remove ${wtPath} --force`);
     } catch (err) {
@@ -868,11 +875,12 @@ export class BranchManager {
   }
 
   /**
-   * List all task worktrees for this repo (paths under getWorktreeBasePath).
-   * Parses `git worktree list --porcelain` and returns { taskId, worktreePath } for each.
+   * List all task worktrees for this repo.
+   * Parses `git worktree list --porcelain` and returns { taskId, worktreePath } for each worktree
+   * under any opensprint-worktrees directory (not just current tmpdir). This ensures we find
+   * orphaned worktrees created when os.tmpdir() differed (e.g. before restart or TMPDIR change).
    */
   async listTaskWorktrees(repoPath: string): Promise<Array<{ taskId: string; worktreePath: string }>> {
-    const base = path.resolve(this.getWorktreeBasePath());
     const result: Array<{ taskId: string; worktreePath: string }> = [];
     try {
       const { stdout } = await shellExec("git worktree list --porcelain", { cwd: repoPath });
@@ -880,7 +888,9 @@ export class BranchManager {
         if (!line.startsWith("worktree ")) continue;
         const worktreePath = line.slice(9).trim();
         const resolved = path.resolve(worktreePath);
-        if (resolved.startsWith(base + path.sep) || resolved === base) {
+        // Match any path under *opensprint-worktrees* (parent dir name), not just current tmpdir
+        const parentDir = path.basename(path.dirname(resolved));
+        if (parentDir === "opensprint-worktrees") {
           const taskId = path.basename(resolved);
           if (taskId) result.push({ taskId, worktreePath });
         }
@@ -914,7 +924,7 @@ export class BranchManager {
       if (status === undefined || status === "closed") {
         log.info("Pruning orphan worktree", { taskId, worktreePath, status: status ?? "no-task" });
         try {
-          await this.removeTaskWorktree(repoPath, taskId);
+          await this.removeTaskWorktree(repoPath, taskId, worktreePath);
           pruned.push(taskId);
         } catch (err) {
           log.warn("Failed to prune orphan worktree", { taskId, err });

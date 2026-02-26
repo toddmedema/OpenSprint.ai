@@ -303,7 +303,7 @@ export class FailureHandlerService {
       return;
     }
     if (slot.worktreePath) {
-      await this.host.branchManager.removeTaskWorktree(repoPath, taskId);
+      await this.host.branchManager.removeTaskWorktree(repoPath, taskId, slot.worktreePath);
       slot.worktreePath = null;
     }
     if (options?.deleteBranch) {

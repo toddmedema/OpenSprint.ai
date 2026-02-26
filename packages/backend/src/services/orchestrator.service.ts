@@ -388,17 +388,22 @@ export class OrchestratorService {
     taskId: string,
     basePath: string | undefined
   ): Promise<void> {
-    const root = basePath ?? repoPath;
-    const assignmentPath = path.join(
-      root,
-      OPENSPRINT_PATHS.active,
-      taskId,
-      OPENSPRINT_PATHS.assignment
-    );
-    try {
-      await fs.unlink(assignmentPath);
-    } catch {
-      // File may not exist
+    const pathsToDelete = [repoPath];
+    if (basePath && path.resolve(basePath) !== path.resolve(repoPath)) {
+      pathsToDelete.push(basePath);
+    }
+    for (const root of pathsToDelete) {
+      const assignmentPath = path.join(
+        root,
+        OPENSPRINT_PATHS.active,
+        taskId,
+        OPENSPRINT_PATHS.assignment
+      );
+      try {
+        await fs.unlink(assignmentPath);
+      } catch {
+        // File may not exist
+      }
     }
   }
 
@@ -479,9 +484,9 @@ export class OrchestratorService {
       });
       const wtPath = slot?.worktreePath ?? repoPath;
       await heartbeatService.deleteHeartbeat(wtPath, taskId).catch(() => {});
-      if (slot?.worktreePath) {
+      if (slot?.worktreePath && slot.worktreePath !== repoPath) {
         try {
-          await this.branchManager.removeTaskWorktree(repoPath, taskId);
+          await this.branchManager.removeTaskWorktree(repoPath, taskId, slot.worktreePath);
         } catch {
           // Best effort; worktree may already be gone
         }
@@ -518,14 +523,14 @@ export class OrchestratorService {
       }
       const wtPath = slot.worktreePath ?? repoPath;
       await heartbeatService.deleteHeartbeat(wtPath, taskId);
-      if (slot.worktreePath) {
+      if (slot.worktreePath && slot.worktreePath !== repoPath) {
         try {
-          await this.branchManager.removeTaskWorktree(repoPath, taskId);
+          await this.branchManager.removeTaskWorktree(repoPath, taskId, slot.worktreePath);
         } catch {
           // Best effort; worktree may already be gone
         }
       }
-      await this.deleteAssignment(repoPath, taskId);
+      await this.deleteAssignmentAt(repoPath, taskId, slot.worktreePath ?? undefined);
       this.removeSlot(state, taskId);
       removed = true;
     }
@@ -561,9 +566,9 @@ export class OrchestratorService {
       const repoPath = await this.projectService.getRepoPath(projectId);
       const wtPath = slot.worktreePath ?? repoPath;
       await heartbeatService.deleteHeartbeat(wtPath, taskId);
-      if (slot.worktreePath) {
+      if (slot.worktreePath && slot.worktreePath !== repoPath) {
         try {
-          await this.branchManager.removeTaskWorktree(repoPath, taskId);
+          await this.branchManager.removeTaskWorktree(repoPath, taskId, slot.worktreePath);
         } catch {
           // Best effort; worktree may already be gone
         }
@@ -724,14 +729,14 @@ export class OrchestratorService {
         }
         const wtPath = slot.worktreePath ?? repoPath;
         await heartbeatService.deleteHeartbeat(wtPath, taskId);
-        if (slot.worktreePath) {
+        if (slot.worktreePath && slot.worktreePath !== repoPath) {
           try {
-            await this.branchManager.removeTaskWorktree(repoPath, taskId);
+            await this.branchManager.removeTaskWorktree(repoPath, taskId, slot.worktreePath);
           } catch {
             // Best effort; worktree may already be gone
           }
         }
-        await this.deleteAssignment(repoPath, taskId);
+        await this.deleteAssignmentAt(repoPath, taskId, slot.worktreePath ?? undefined);
         this.removeSlot(state, taskId);
       },
     };

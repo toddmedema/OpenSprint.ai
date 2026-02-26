@@ -158,6 +158,7 @@ export class RecoveryService {
       const task = idToIssue.get(taskId);
       if (!task) {
         log.warn("Recovery: task not found, cleaning up assignment", { taskId });
+        await this.removeWorktreeIfNeeded(repoPath, taskId, assignment.worktreePath);
         await this.deleteAssignment(repoPath, taskId, assignment.worktreePath);
         continue;
       }
@@ -167,6 +168,7 @@ export class RecoveryService {
           taskId,
           status: task.status,
         });
+        await this.removeWorktreeIfNeeded(repoPath, taskId, assignment.worktreePath);
         await this.deleteAssignment(repoPath, taskId, assignment.worktreePath);
         continue;
       }
@@ -198,6 +200,7 @@ export class RecoveryService {
       } catch (err) {
         log.warn("Recovery: failed to requeue task", { taskId, err });
       }
+      await this.removeWorktreeIfNeeded(repoPath, taskId, assignment.worktreePath);
       await this.deleteAssignment(repoPath, taskId, assignment.worktreePath);
       requeued.push(taskId);
     }
@@ -371,7 +374,13 @@ export class RecoveryService {
     // Clean up worktree only in Worktree mode (Branches mode: no worktree to remove)
     if (gitWorkingMode !== "branches") {
       try {
-        await this.branchManager.removeTaskWorktree(repoPath, task.id);
+        const worktrees = await this.branchManager.listTaskWorktrees(repoPath);
+        const found = worktrees.find((w) => w.taskId === task.id);
+        await this.branchManager.removeTaskWorktree(
+          repoPath,
+          task.id,
+          found?.worktreePath
+        );
       } catch {
         // Worktree may not exist
       }
@@ -381,6 +390,27 @@ export class RecoveryService {
       status: "open",
       assignee: "",
     });
+  }
+
+  /**
+   * Remove worktree when the path is a task worktree (not main repo).
+   * In Branches mode assignment.worktreePath === repoPath; in Worktree mode it's a temp path.
+   * Uses actual path so we clean up correctly when os.tmpdir() changed since creation.
+   */
+  private async removeWorktreeIfNeeded(
+    repoPath: string,
+    taskId: string,
+    worktreePath?: string
+  ): Promise<void> {
+    if (!worktreePath) return;
+    const repoResolved = path.resolve(repoPath);
+    const wtResolved = path.resolve(worktreePath);
+    if (repoResolved === wtResolved) return; // Branches mode: no worktree
+    try {
+      await this.branchManager.removeTaskWorktree(repoPath, taskId, worktreePath);
+    } catch {
+      // Best effort; worktree may already be gone
+    }
   }
 
   private async deleteAssignment(

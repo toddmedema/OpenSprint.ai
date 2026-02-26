@@ -190,7 +190,7 @@ describe("FailureHandlerService", () => {
         "agent_crash"
       );
 
-      expect(mockRemoveTaskWorktree).toHaveBeenCalledWith(repoPath, taskId);
+      expect(mockRemoveTaskWorktree).toHaveBeenCalledWith(repoPath, taskId, "/tmp/worktree");
       expect(mockRevertAndReturnToMain).not.toHaveBeenCalled();
     });
 
@@ -217,7 +217,7 @@ describe("FailureHandlerService", () => {
         "coding_failure"
       );
 
-      expect(mockRemoveTaskWorktree).toHaveBeenCalledWith(repoPath, taskId);
+      expect(mockRemoveTaskWorktree).toHaveBeenCalledWith(repoPath, taskId, "/tmp/worktree");
       expect(mockDeleteBranch).toHaveBeenCalledWith(repoPath, branchName);
       expect(mockRevertAndReturnToMain).not.toHaveBeenCalled();
     });

@@ -22,7 +22,6 @@ import {
   getSettingsWithMetaFromStore,
 } from "./settings-store.service.js";
 import { BranchManager } from "./branch-manager.js";
-import { CrashRecoveryService } from "./crash-recovery.service.js";
 import { detectTestFramework } from "./test-framework.service.js";
 import { ensureEasConfig } from "./eas-config.js";
 import { AppError } from "../middleware/error-handler.js";
@@ -512,22 +511,20 @@ export class ProjectService {
     const project = await this.getProject(id);
     const repoPath = project.repoPath;
 
-    // Remove worktrees for this project so watchdog/orphan recovery never see them again
+    // Remove worktrees for this project so watchdog/orphan recovery never see them again.
+    // Use listTaskWorktrees (from git) to find all worktrees regardless of tmpdir.
     const branchManager = new BranchManager();
-    const crashRecovery = new CrashRecoveryService();
-    const worktreeBase = branchManager.getWorktreeBasePath();
     try {
-      const assignments = await crashRecovery.findOrphanedAssignmentsFromWorktrees(worktreeBase);
-      for (const { taskId, assignment } of assignments) {
-        if (assignment.projectId !== id) continue;
+      const worktrees = await branchManager.listTaskWorktrees(repoPath);
+      for (const { taskId, worktreePath } of worktrees) {
         try {
-          await branchManager.removeTaskWorktree(repoPath, taskId);
+          await branchManager.removeTaskWorktree(repoPath, taskId, worktreePath);
         } catch {
           // Best effort; worktree may already be gone
         }
       }
     } catch {
-      // Worktree base may not exist
+      // Repo may not exist or have no worktrees
     }
 
     await this.taskStore.deleteByProjectId(id);

@@ -125,7 +125,13 @@ export class OrphanRecoveryService {
     // Clean up worktree only in Worktree mode (Branches mode: no worktree to remove)
     if (gitWorkingMode !== "branches") {
       try {
-        await this.branchManager.removeTaskWorktree(repoPath, task.id);
+        const worktrees = await this.branchManager.listTaskWorktrees(repoPath);
+        const found = worktrees.find((w) => w.taskId === task.id);
+        await this.branchManager.removeTaskWorktree(
+          repoPath,
+          task.id,
+          found?.worktreePath
+        );
       } catch {
         // Worktree may not exist
       }
