@@ -28,6 +28,7 @@ import type {
   DeploymentConfig,
   HelpChatRequest,
   HelpChatResponse,
+  HelpChatHistory,
 } from "@opensprint/shared";
 
 const BASE_URL = "/api/v1";
@@ -367,6 +368,10 @@ export const api = {
         method: "POST",
         body: JSON.stringify(body),
       }),
+    history: (projectId: string | null) =>
+      request<HelpChatHistory>(
+        `/help/chat/history${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ""}`
+      ),
   },
 
   // ─── Chat ───

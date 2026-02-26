@@ -1,4 +1,4 @@
-import { useState, useRef, useLayoutEffect, useCallback } from "react";
+import { useState, useRef, useLayoutEffect, useCallback, useEffect } from "react";
 import type { AgentRole } from "@opensprint/shared";
 import {
   AGENT_ROLE_CANONICAL_ORDER,
@@ -155,9 +155,30 @@ function AskQuestionContent({ project }: { project?: { id: string; name: string 
   const [messages, setMessages] = useState<HelpChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoadingHistory(true);
+      try {
+        const { messages: loaded } = await api.help.history(project?.id ?? null);
+        if (!cancelled && Array.isArray(loaded)) {
+          setMessages(loaded);
+        }
+      } catch {
+        if (!cancelled) setMessages([]);
+      } finally {
+        if (!cancelled) setLoadingHistory(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [project?.id]);
 
   const scrollToBottom = useCallback(() => {
     const el = scrollContainerRef.current ?? scrollEndRef.current?.parentElement;
@@ -211,7 +232,12 @@ function AskQuestionContent({ project }: { project?: { id: string; name: string 
         className="flex-1 overflow-y-auto min-h-[200px] max-h-[400px] space-y-3 py-2"
         data-testid="help-chat-messages"
       >
-        {messages.length === 0 && (
+        {loadingHistory && (
+          <div className="text-center py-6 text-theme-muted text-sm" data-testid="help-chat-loading-history">
+            Loading chat history…
+          </div>
+        )}
+        {!loadingHistory && messages.length === 0 && (
           <div className="text-center py-6 text-theme-muted text-sm">
             <p>Type a question below and press Enter.</p>
           </div>

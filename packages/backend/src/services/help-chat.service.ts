@@ -1,5 +1,13 @@
-import type { HelpChatRequest, HelpChatResponse, ActiveAgent } from "@opensprint/shared";
-import { getAgentForPlanningRole, AGENT_ROLE_LABELS } from "@opensprint/shared";
+import type {
+  HelpChatRequest,
+  HelpChatResponse,
+  HelpChatHistory,
+  ActiveAgent,
+} from "@opensprint/shared";
+import { getAgentForPlanningRole, AGENT_ROLE_LABELS, OPENSPRINT_PATHS } from "@opensprint/shared";
+import path from "path";
+import fs from "fs/promises";
+import os from "os";
 import { ProjectService } from "./project.service.js";
 import { PrdService } from "./prd.service.js";
 import { PlanService } from "./plan.service.js";
@@ -10,6 +18,7 @@ import { AppError } from "../middleware/error-handler.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
 import { getErrorMessage } from "../utils/error-utils.js";
 import { createLogger } from "../utils/logger.js";
+import { writeJsonAtomic } from "../utils/file-utils.js";
 
 const log = createLogger("help-chat");
 
@@ -38,10 +47,51 @@ function truncate(s: string, max: number): string {
   return s.slice(0, max) + "\n\n[... truncated for context length]";
 }
 
+const HELP_CHAT_FILENAME = "help.json";
+
 export class HelpChatService {
   private projectService = new ProjectService();
   private prdService = new PrdService();
   private planService = new PlanService();
+
+  /** Path for per-project help chat (in .opensprint/conversations/) */
+  private async getProjectHelpChatPath(projectId: string): Promise<string> {
+    const project = await this.projectService.getProject(projectId);
+    return path.join(project.repoPath, OPENSPRINT_PATHS.conversations, HELP_CHAT_FILENAME);
+  }
+
+  /** Path for homepage help chat (in ~/.opensprint/) */
+  private getHomepageHelpChatPath(): string {
+    const home = process.env.HOME ?? process.env.USERPROFILE ?? os.tmpdir();
+    return path.join(home, ".opensprint", "help-chat.json");
+  }
+
+  /** Load help chat history (per-project or homepage) */
+  async getHistory(projectId: string | null): Promise<HelpChatHistory> {
+    try {
+      const filePath = projectId
+        ? await this.getProjectHelpChatPath(projectId)
+        : this.getHomepageHelpChatPath();
+      const data = await fs.readFile(filePath, "utf-8");
+      const parsed = JSON.parse(data) as HelpChatHistory;
+      if (Array.isArray(parsed?.messages)) {
+        return { messages: parsed.messages };
+      }
+    } catch {
+      // File missing or invalid — return empty
+    }
+    return { messages: [] };
+  }
+
+  /** Save help chat history */
+  private async saveHistory(projectId: string | null, history: HelpChatHistory): Promise<void> {
+    const filePath = projectId
+      ? await this.getProjectHelpChatPath(projectId)
+      : this.getHomepageHelpChatPath();
+    const dir = path.dirname(filePath);
+    await fs.mkdir(dir, { recursive: true });
+    await writeJsonAtomic(filePath, history);
+  }
 
   /** Build project-scoped context: PRD, plans, tasks, active agents */
   private async buildProjectContext(projectId: string): Promise<string> {
@@ -227,16 +277,37 @@ export class HelpChatService {
       });
       const content = response?.content ?? "";
       log.info("Help agent returned", { contentLen: content.length });
+
+      // Persist conversation for page reload / session continuity
+      const history: HelpChatHistory = {
+        messages: [
+          ...priorMessages,
+          { role: "user", content: message },
+          { role: "assistant", content },
+        ],
+      };
+      await this.saveHistory(projectId, history);
+
       return { message: content };
     } catch (error) {
       const msg = getErrorMessage(error);
       log.error("Help agent invocation failed", { error });
-      return {
-        message:
-          "I was unable to connect to the AI assistant.\n\n" +
-          `**Error:** ${msg}\n\n` +
-          "**What to try:** Open Project Settings → Agent Config. Ensure your API key is set and the model is valid.",
+      const errorContent =
+        "I was unable to connect to the AI assistant.\n\n" +
+        `**Error:** ${msg}\n\n` +
+        "**What to try:** Open Project Settings → Agent Config. Ensure your API key is set and the model is valid.";
+      // Persist user message + error so history survives reload
+      const history: HelpChatHistory = {
+        messages: [
+          ...priorMessages,
+          { role: "user", content: message },
+          { role: "assistant", content: errorContent },
+        ],
       };
+      await this.saveHistory(projectId, history).catch((e) =>
+        log.warn("Failed to persist help chat on error", { err: e })
+      );
+      return { message: errorContent };
     }
   }
 }

@@ -53,6 +53,11 @@ export interface HelpChatResponse {
   message: string;
 }
 
+/** Help chat history (persisted messages for Ask a Question) */
+export interface HelpChatHistory {
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+}
+
 /** Feedback submission */
 export interface FeedbackSubmitRequest {
   text: string;

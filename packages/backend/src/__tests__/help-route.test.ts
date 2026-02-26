@@ -168,4 +168,67 @@ describe("Help chat API", () => {
     );
   });
 
+  it("GET /help/chat/history returns empty when no history exists (homepage)", async () => {
+    const res = await request(app).get(`${API_PREFIX}/help/chat/history`);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ messages: [] });
+  });
+
+  it("GET /help/chat/history returns empty when no history exists (project)", async () => {
+    const res = await request(app).get(
+      `${API_PREFIX}/help/chat/history?projectId=${projectId}`
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ messages: [] });
+  });
+
+  it("POST /help/chat persists messages; GET /help/chat/history returns them (project)", async () => {
+    await request(app)
+      .post(`${API_PREFIX}/help/chat`)
+      .send({ message: "What is this project?", projectId });
+
+    const res = await request(app).get(
+      `${API_PREFIX}/help/chat/history?projectId=${projectId}`
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.data.messages).toHaveLength(2);
+    expect(res.body.data.messages[0]).toEqual({
+      role: "user",
+      content: "What is this project?",
+    });
+    expect(res.body.data.messages[1].role).toBe("assistant");
+    expect(res.body.data.messages[1].content).toContain("I'd be happy to help!");
+  });
+
+  it("POST /help/chat persists messages; GET /help/chat/history returns them (homepage)", async () => {
+    await request(app)
+      .post(`${API_PREFIX}/help/chat`)
+      .send({ message: "What projects do I have?" });
+
+    const res = await request(app).get(`${API_PREFIX}/help/chat/history`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.messages).toHaveLength(2);
+    expect(res.body.data.messages[0]).toEqual({
+      role: "user",
+      content: "What projects do I have?",
+    });
+    expect(res.body.data.messages[1].role).toBe("assistant");
+  });
+
+  it("project and homepage help histories are stored separately", async () => {
+    await request(app)
+      .post(`${API_PREFIX}/help/chat`)
+      .send({ message: "Homepage question" });
+    await request(app)
+      .post(`${API_PREFIX}/help/chat`)
+      .send({ message: "Project question", projectId });
+
+    const homepageRes = await request(app).get(`${API_PREFIX}/help/chat/history`);
+    const projectRes = await request(app).get(
+      `${API_PREFIX}/help/chat/history?projectId=${projectId}`
+    );
+
+    expect(homepageRes.body.data.messages[0].content).toBe("Homepage question");
+    expect(projectRes.body.data.messages[0].content).toBe("Project question");
+  });
 });

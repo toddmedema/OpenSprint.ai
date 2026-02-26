@@ -8,6 +8,7 @@ vi.mock("../api/client", () => ({
   api: {
     help: {
       chat: vi.fn(),
+      history: vi.fn(),
     },
   },
 }));
@@ -15,6 +16,7 @@ vi.mock("../api/client", () => ({
 describe("HelpModal", () => {
   beforeEach(() => {
     vi.mocked(api.help.chat).mockReset();
+    vi.mocked(api.help.history).mockResolvedValue({ messages: [] });
   });
   it("renders Help modal with both tabs, Ask a Question default", () => {
     render(<HelpModal onClose={vi.fn()} />);
@@ -145,6 +147,39 @@ describe("HelpModal", () => {
       projectId: "proj-1",
       messages: [],
     });
+  });
+
+  it("Ask a Question tab loads persisted chat history on mount", async () => {
+    vi.mocked(api.help.history).mockResolvedValue({
+      messages: [
+        { role: "user", content: "What is OpenSprint?" },
+        { role: "assistant", content: "OpenSprint is an AI-powered workflow tool." },
+      ],
+    });
+    render(<HelpModal onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("What is OpenSprint?")).toBeInTheDocument();
+    });
+    expect(screen.getByText("OpenSprint is an AI-powered workflow tool.")).toBeInTheDocument();
+    expect(api.help.history).toHaveBeenCalledWith(null);
+  });
+
+  it("Ask a Question tab loads per-project history when project provided", async () => {
+    vi.mocked(api.help.history).mockResolvedValue({
+      messages: [{ role: "user", content: "Project question" }, { role: "assistant", content: "Answer" }],
+    });
+    render(
+      <HelpModal
+        onClose={vi.fn()}
+        project={{ id: "proj-1", name: "My Project" }}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Project question")).toBeInTheDocument();
+    });
+    expect(api.help.history).toHaveBeenCalledWith("proj-1");
   });
 
   it("Ask a Question tab shows loading state during agent response", async () => {
