@@ -80,7 +80,7 @@ describe("GlobalActiveAgentsList", () => {
     });
   });
 
-  it("renders dropdown agent icons at 3.6225rem with 2px left margin", async () => {
+  it("renders dropdown agent icons at 3.01875rem with 2px left margin", async () => {
     mockProjectsList.mockResolvedValue([{ id: "proj-1", name: "Project A" }]);
     mockAgentsActive.mockResolvedValue([
       {
@@ -104,8 +104,8 @@ describe("GlobalActiveAgentsList", () => {
     const icon = listbox.querySelector("img");
     expect(icon).toBeInTheDocument();
     expect(icon).toHaveStyle({
-      width: "3.6225rem",
-      height: "3.6225rem",
+      width: "3.01875rem",
+      height: "3.01875rem",
       marginLeft: "2px",
     });
   });

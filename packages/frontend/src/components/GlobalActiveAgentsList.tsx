@@ -23,8 +23,8 @@ const POLL_INTERVAL_MS = 5000;
 /** z-index for dropdown portal — above Build sidebar (z-50) and Navbar (z-60) */
 const DROPDOWN_Z_INDEX = 9999;
 
-/** Icon size matching two lines of text-sm, increased ~20% (3.01875rem * 1.2) */
-const DROPDOWN_AGENT_ICON_SIZE = "3.6225rem";
+/** Icon size matching two lines of text-sm in dropdown rows */
+const DROPDOWN_AGENT_ICON_SIZE = "3.01875rem";
 
 /** Base URL for public assets (Vite BASE_URL so icons load when app is served from a subpath) */
 const ASSET_BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/*$/, "/");

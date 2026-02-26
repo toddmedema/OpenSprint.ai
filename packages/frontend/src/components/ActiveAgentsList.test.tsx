@@ -428,7 +428,7 @@ describe("ActiveAgentsList", () => {
     });
   });
 
-  it("renders agent icons sized ~20% larger (3.6225rem) with 2px left margin in dropdown", async () => {
+  it("renders agent icons sized to match two lines of text (3.01875rem) with 2px left margin in dropdown", async () => {
     mockAgentsActive.mockResolvedValue([
       {
         id: "task-1",
@@ -451,8 +451,8 @@ describe("ActiveAgentsList", () => {
     const icon = listbox.querySelector("img");
     expect(icon).toBeInTheDocument();
     expect(icon).toHaveStyle({
-      width: "3.6225rem",
-      height: "3.6225rem",
+      width: "3.01875rem",
+      height: "3.01875rem",
       marginLeft: "2px",
     });
   });
