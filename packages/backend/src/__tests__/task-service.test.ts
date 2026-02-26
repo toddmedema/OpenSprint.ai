@@ -308,6 +308,71 @@ describe("TaskService", () => {
     expect(readyTasks.map((t) => t.id)).toContain("os-a3f8.1");
   });
 
+  it("listTasks: mixed epics — blocked epic tasks show planning, open epic tasks show ready", async () => {
+    mockTaskStoreState.listAll = [
+      {
+        id: "os-e1",
+        title: "Blocked Epic",
+        status: "blocked",
+        issue_type: "epic",
+        dependencies: [],
+      },
+      {
+        id: "os-e2",
+        title: "Open Epic",
+        status: "open",
+        issue_type: "epic",
+        dependencies: [],
+      },
+      {
+        id: "os-e1.1",
+        title: "Task in blocked epic",
+        status: "open",
+        issue_type: "task",
+        dependencies: [],
+      },
+      {
+        id: "os-e2.1",
+        title: "Task in open epic",
+        status: "open",
+        issue_type: "task",
+        dependencies: [],
+      },
+    ] as StoredTask[];
+
+    const tasks = await taskService.listTasks("proj-1");
+    const blockedTask = tasks.find((t) => t.id === "os-e1.1");
+    const openTask = tasks.find((t) => t.id === "os-e2.1");
+    expect(blockedTask!.kanbanColumn).toBe("planning");
+    expect(openTask!.kanbanColumn).toBe("ready");
+
+    const readyTasks = await taskService.getReadyTasks("proj-1");
+    expect(readyTasks.map((t) => t.id)).toContain("os-e2.1");
+    expect(readyTasks.map((t) => t.id)).not.toContain("os-e1.1");
+  });
+
+  it("getTask: task epicId is set correctly from parent chain", async () => {
+    mockTaskStoreState.listAll = [
+      {
+        id: "os-ep",
+        title: "The Epic",
+        status: "open",
+        issue_type: "epic",
+        dependencies: [],
+      },
+      {
+        id: "os-ep.1",
+        title: "Child Task",
+        status: "open",
+        issue_type: "task",
+        dependencies: [],
+      },
+    ] as StoredTask[];
+
+    const task = await taskService.getTask("proj-1", "os-ep.1");
+    expect(task.epicId).toBe("os-ep");
+  });
+
   it("computeKanbanColumn: task with open blocker (task-to-task dep, epic open) shows backlog", async () => {
     mockTaskStoreState.listAll = [
       { id: "os-a3f8", status: "open", issue_type: "epic", dependencies: [] },

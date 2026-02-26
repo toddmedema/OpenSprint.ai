@@ -471,6 +471,69 @@ describe("TaskStoreService", () => {
       expect(resultAfterUnblock).toHaveLength(1);
       expect(resultAfterUnblock[0].title).toBe("Task under epic");
     });
+
+    it("readyWithStatusMap excludes tasks in blocked epic and includes after unblock", async () => {
+      const epic = await store.create(TEST_PROJECT_ID, "Epic RWS", { type: "epic" });
+      const t1 = await store.create(TEST_PROJECT_ID, "Task RWS-1", {
+        type: "task",
+        parentId: epic.id,
+      });
+      const t2 = await store.create(TEST_PROJECT_ID, "Task RWS-2", {
+        type: "task",
+        parentId: epic.id,
+      });
+      await store.addDependency(TEST_PROJECT_ID, t2.id, t1.id, "blocks");
+      await store.update(TEST_PROJECT_ID, epic.id, { status: "blocked" });
+
+      const { tasks: blocked, statusMap: blockedMap } = await store.readyWithStatusMap(
+        TEST_PROJECT_ID
+      );
+      expect(blocked.filter((t) => t.id === t1.id || t.id === t2.id)).toHaveLength(0);
+      expect(blockedMap.get(epic.id)).toBe("blocked");
+
+      await store.update(TEST_PROJECT_ID, epic.id, { status: "open" });
+      const { tasks: unblocked } = await store.readyWithStatusMap(TEST_PROJECT_ID);
+      expect(unblocked.map((t) => t.id)).toContain(t1.id);
+      expect(unblocked.map((t) => t.id)).not.toContain(t2.id);
+    });
+
+    it("epic blocked→open→blocked (re-execute cycle) toggles task readiness", async () => {
+      const epic = await store.create(TEST_PROJECT_ID, "Epic Cycle", { type: "epic" });
+      await store.create(TEST_PROJECT_ID, "Task Cycle-1", {
+        type: "task",
+        parentId: epic.id,
+      });
+      await store.update(TEST_PROJECT_ID, epic.id, { status: "blocked" });
+
+      expect(await store.ready(TEST_PROJECT_ID)).toHaveLength(0);
+
+      await store.update(TEST_PROJECT_ID, epic.id, { status: "open" });
+      expect(await store.ready(TEST_PROJECT_ID)).toHaveLength(1);
+
+      await store.update(TEST_PROJECT_ID, epic.id, { status: "blocked" });
+      expect(await store.ready(TEST_PROJECT_ID)).toHaveLength(0);
+
+      await store.update(TEST_PROJECT_ID, epic.id, { status: "open" });
+      expect(await store.ready(TEST_PROJECT_ID)).toHaveLength(1);
+    });
+
+    it("tasks in open epic are ready; tasks in blocked epic are not (mixed epics)", async () => {
+      const epicOpen = await store.create(TEST_PROJECT_ID, "Epic Open", { type: "epic" });
+      const epicBlocked = await store.create(TEST_PROJECT_ID, "Epic Blocked", { type: "epic" });
+      await store.create(TEST_PROJECT_ID, "Task in open epic", {
+        type: "task",
+        parentId: epicOpen.id,
+      });
+      await store.create(TEST_PROJECT_ID, "Task in blocked epic", {
+        type: "task",
+        parentId: epicBlocked.id,
+      });
+      await store.update(TEST_PROJECT_ID, epicBlocked.id, { status: "blocked" });
+
+      const ready = await store.ready(TEST_PROJECT_ID);
+      expect(ready.map((t) => t.title)).toContain("Task in open epic");
+      expect(ready.map((t) => t.title)).not.toContain("Task in blocked epic");
+    });
   });
 
   describe("areAllBlockersClosed", () => {
