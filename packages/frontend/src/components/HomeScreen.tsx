@@ -7,7 +7,7 @@ import { getProjectPhasePath } from "../lib/phaseRouting";
 import { useAppDispatch } from "../store";
 import { addNotification } from "../store/slices/notificationSlice";
 import { CloseButton } from "./CloseButton";
-import { CONTENT_CONTAINER_CLASS } from "../lib/constants";
+import { HOMEPAGE_CONTAINER_CLASS } from "../lib/constants";
 import type { Project } from "@opensprint/shared";
 
 const DROPDOWN_MIN_WIDTH = 140;
@@ -181,11 +181,11 @@ export function HomeScreen() {
 
   return (
     <Layout>
-      <div className={`${CONTENT_CONTAINER_CLASS} py-10`} data-testid="project-list-container">
+      <div className={`${HOMEPAGE_CONTAINER_CLASS} py-10`} data-testid="project-list-container">
         {/* Header */}
-        <div className="flex justify-between items-center mb-10">
-          <h1 className="text-3xl font-bold text-theme-text">Projects</h1>
-          <div className="flex gap-2">
+        <div className="flex justify-between items-center gap-6 mb-10">
+          <h1 className="text-3xl font-bold text-theme-text shrink-0">Projects</h1>
+          <div className="flex gap-4 shrink-0">
             <button
               type="button"
               onClick={() => navigate("/projects/add-existing")}

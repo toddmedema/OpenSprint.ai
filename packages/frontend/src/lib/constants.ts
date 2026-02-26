@@ -7,10 +7,16 @@ export const NAVBAR_HEIGHT = 56;
 
 /**
  * Tailwind classes for content containers that must share the same width.
- * Used by: projects list (homepage), evaluate feedback input.
+ * Used by: evaluate feedback input.
  * Ensures consistent layout across viewport sizes regardless of content.
  */
 export const CONTENT_CONTAINER_CLASS = "max-w-3xl mx-auto px-6" as const;
+
+/**
+ * Wider container for homepage (header + project cards).
+ * ~50% wider than CONTENT_CONTAINER_CLASS to give header buttons adequate spacing.
+ */
+export const HOMEPAGE_CONTAINER_CLASS = "max-w-6xl mx-auto px-6" as const;
 
 /** Canonical order of PRD sections for display. */
 export const PRD_SECTION_ORDER = [

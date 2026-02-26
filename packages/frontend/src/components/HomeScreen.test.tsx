@@ -6,7 +6,7 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import { HomeScreen } from "./HomeScreen";
-import { CONTENT_CONTAINER_CLASS } from "../lib/constants";
+import { HOMEPAGE_CONTAINER_CLASS } from "../lib/constants";
 import notificationReducer from "../store/slices/notificationSlice";
 
 const mockProjectsList = vi.fn();
@@ -357,19 +357,19 @@ describe("HomeScreen", () => {
     expect(store.getState().notification.items[0].severity).toBe("error");
   });
 
-  it("project list container uses same width as evaluate feedback input (CONTENT_CONTAINER_CLASS)", async () => {
+  it("project list container uses wider homepage layout (HOMEPAGE_CONTAINER_CLASS)", async () => {
     mockProjectsList.mockResolvedValue([]);
 
     renderHomeScreen();
 
     await screen.findByTestId("projects-grid");
     const container = screen.getByTestId("project-list-container");
-    for (const cls of CONTENT_CONTAINER_CLASS.split(" ")) {
+    for (const cls of HOMEPAGE_CONTAINER_CLASS.split(" ")) {
       expect(container).toHaveClass(cls);
     }
   });
 
-  it("projects grid uses w-full so width matches evaluate feedback container", async () => {
+  it("projects grid uses w-full to fill container", async () => {
     mockProjectsList.mockResolvedValue([]);
 
     renderHomeScreen();
@@ -407,7 +407,7 @@ describe("HomeScreen", () => {
     const container = screen.getByTestId("project-list-container");
     const grid = screen.getByTestId("projects-grid");
 
-    for (const cls of CONTENT_CONTAINER_CLASS.split(" ")) {
+    for (const cls of HOMEPAGE_CONTAINER_CLASS.split(" ")) {
       expect(container).toHaveClass(cls);
     }
     expect(grid).toHaveClass("w-full");

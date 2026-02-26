@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   CONTENT_CONTAINER_CLASS,
+  HOMEPAGE_CONTAINER_CLASS,
   NAVBAR_HEIGHT,
   PRD_SECTION_ORDER,
   PRD_SOURCE_COLORS,
@@ -16,10 +17,18 @@ describe("constants", () => {
   });
 
   describe("CONTENT_CONTAINER_CLASS", () => {
-    it("includes max-w-3xl mx-auto px-6 for projects table and evaluate feedback alignment", () => {
+    it("includes max-w-3xl mx-auto px-6 for evaluate feedback alignment", () => {
       expect(CONTENT_CONTAINER_CLASS).toContain("max-w-3xl");
       expect(CONTENT_CONTAINER_CLASS).toContain("mx-auto");
       expect(CONTENT_CONTAINER_CLASS).toContain("px-6");
+    });
+  });
+
+  describe("HOMEPAGE_CONTAINER_CLASS", () => {
+    it("includes max-w-6xl mx-auto px-6 for wider homepage header and cards", () => {
+      expect(HOMEPAGE_CONTAINER_CLASS).toContain("max-w-6xl");
+      expect(HOMEPAGE_CONTAINER_CLASS).toContain("mx-auto");
+      expect(HOMEPAGE_CONTAINER_CLASS).toContain("px-6");
     });
   });
 

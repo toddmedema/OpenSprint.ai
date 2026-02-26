@@ -247,7 +247,7 @@ describe("EvalPhase feedback form", () => {
     vi.clearAllMocks();
   });
 
-  it("feedback content uses CONTENT_CONTAINER_CLASS (aligned with projects list)", () => {
+  it("feedback content uses CONTENT_CONTAINER_CLASS", () => {
     const store = createStore();
     render(
       <Provider store={store}>
