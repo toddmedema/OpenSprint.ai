@@ -28,13 +28,15 @@ function extractContentFromEvent(obj: unknown): string | null {
     return (o.delta as Record<string, unknown>).content as string;
   }
 
-  // content_block_delta: {"type":"content_block_delta","delta":{"text":"..."}}
-  if (
-    o.type === "content_block_delta" &&
-    o.delta &&
-    typeof (o.delta as Record<string, unknown>).text === "string"
-  ) {
-    return (o.delta as Record<string, unknown>).text as string;
+  // content_block_delta: {"type":"content_block_delta","delta":{"text":"..."}} or delta.thinking
+  if (o.type === "content_block_delta" && o.delta) {
+    const delta = o.delta as Record<string, unknown>;
+    if (delta.type === "thinking" && typeof delta.thinking === "string") {
+      return delta.thinking;
+    }
+    if (typeof delta.text === "string") {
+      return delta.text;
+    }
   }
 
   // message: {"type":"message","content":[{"type":"text","text":"..."}]}
@@ -61,9 +63,15 @@ function extractContentFromEvent(obj: unknown): string | null {
     }
   }
 
-  // thinking: {"type":"thinking",...} — replace entire blob with "Thinking..." (never show raw JSON)
+  // thinking: {"type":"thinking","content":"..."} or {"type":"thinking","thinking":"..."} — show actual thinking text
   if (o.type === "thinking") {
-    return "Thinking...\n";
+    const content =
+      typeof o.content === "string"
+        ? o.content
+        : typeof o.thinking === "string"
+          ? o.thinking
+          : null;
+    return content ? content + "\n" : null;
   }
 
   // Generic: {"content":"..."} or {"text":"..."}

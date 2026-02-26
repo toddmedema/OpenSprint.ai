@@ -29,8 +29,8 @@ describe("agentOutputFilter", () => {
 
     it("extracts content from message_delta", () => {
       const f = createAgentOutputFilter();
-      const chunk = '{"type":"message_delta","delta":{"content":"Thinking..."}}\n';
-      expect(f.filter(chunk)).toBe("Thinking...");
+      const chunk = '{"type":"message_delta","delta":{"content":"Hello"}}\n';
+      expect(f.filter(chunk)).toBe("Hello");
     });
 
     it("extracts text from content_block_delta", () => {
@@ -51,32 +51,44 @@ describe("agentOutputFilter", () => {
       expect(f.filter(chunk)).toBe("");
     });
 
-    it("replaces type:thinking JSON with Thinking...", () => {
+    it("extracts actual thinking text from type:thinking JSON", () => {
       const f = createAgentOutputFilter();
       const chunk = '{"type":"thinking","content":"internal reasoning..."}\n';
-      expect(f.filter(chunk)).toBe("Thinking...\n");
+      expect(f.filter(chunk)).toBe("internal reasoning...\n");
     });
 
-    it("replaces type:thinking across chunked stream (raw never flashes)", () => {
+    it("extracts thinking across chunked stream (raw never flashes)", () => {
       const f = createAgentOutputFilter();
       const part1 = '{"type":"thinking","content":"';
       const part2 = "long thought";
       const part3 = '"}\n';
       expect(f.filter(part1)).toBe("");
       expect(f.filter(part2)).toBe("");
-      expect(f.filter(part3)).toBe("Thinking...\n");
+      expect(f.filter(part3)).toBe("long thought\n");
     });
 
     it("handles thinking mixed with other output", () => {
       const f = createAgentOutputFilter();
       const chunk =
         '{"type":"text","text":"Before"}\n{"type":"thinking","content":"..."}\n{"type":"text","text":"After"}\n';
-      expect(f.filter(chunk)).toBe("BeforeThinking...\nAfter");
+      expect(f.filter(chunk)).toBe("Before...\nAfter");
     });
 
-    it("thinking with minimal JSON structure", () => {
+    it("hides type:thinking with no content (minimal JSON)", () => {
       const f = createAgentOutputFilter();
-      expect(f.filter('{"type":"thinking"}\n')).toBe("Thinking...\n");
+      expect(f.filter('{"type":"thinking"}\n')).toBe("");
+    });
+
+    it("extracts thinking from content_block_delta with delta.thinking", () => {
+      const f = createAgentOutputFilter();
+      const chunk = '{"type":"content_block_delta","delta":{"type":"thinking","thinking":"streamed thought"}}\n';
+      expect(f.filter(chunk)).toBe("streamed thought");
+    });
+
+    it("extracts thinking from type:thinking with thinking property", () => {
+      const f = createAgentOutputFilter();
+      const chunk = '{"type":"thinking","thinking":"reasoning step"}\n';
+      expect(f.filter(chunk)).toBe("reasoning step\n");
     });
 
     it("handles multiple NDJSON lines in one chunk", () => {
@@ -177,6 +189,12 @@ describe("agentOutputFilter", () => {
       const raw =
         '{"type":"text","text":"Visible"}\n{"type":"tool_use","name":"edit"}\n{"type":"text","text":"Also visible"}\n';
       expect(filterAgentOutput(raw)).toBe("VisibleAlso visible");
+    });
+
+    it("extracts actual thinking text in full NDJSON", () => {
+      const raw =
+        '{"type":"text","text":"Start"}\n{"type":"thinking","content":"analyzing..."}\n{"type":"text","text":"Done"}\n';
+      expect(filterAgentOutput(raw)).toBe("Startanalyzing...\nDone");
     });
 
     it("returns empty string for empty input", () => {

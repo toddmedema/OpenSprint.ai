@@ -189,7 +189,7 @@ describe("executeSlice", () => {
       expect(store.getState().execute.agentOutput["task-1"]).toEqual(["Creating file..."]);
     });
 
-    it("appendAgentOutput replaces type:thinking JSON with Thinking...", () => {
+    it("appendAgentOutput extracts actual thinking text from type:thinking JSON", () => {
       const store = createStore();
       store.dispatch(setSelectedTaskId("task-1"));
       store.dispatch(
@@ -198,7 +198,7 @@ describe("executeSlice", () => {
           chunk: '{"type":"thinking","content":"internal reasoning..."}\n',
         })
       );
-      expect(store.getState().execute.agentOutput["task-1"]).toEqual(["Thinking...\n"]);
+      expect(store.getState().execute.agentOutput["task-1"]).toEqual(["internal reasoning...\n"]);
     });
 
     it("setAgentOutputBackfill filters NDJSON backfill output before storing", () => {
