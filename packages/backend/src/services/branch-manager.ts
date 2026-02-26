@@ -842,20 +842,86 @@ export class BranchManager {
 
   /**
    * Remove a task's worktree. Safe to call even if the worktree doesn't exist.
+   * Logs errors so stale worktrees can be diagnosed; always attempts cleanup.
    */
   async removeTaskWorktree(repoPath: string, taskId: string): Promise<void> {
     const wtPath = this.getWorktreePath(taskId);
     try {
       await this.git(repoPath, `worktree remove ${wtPath} --force`);
-    } catch {
-      // Worktree may not exist — also try manual cleanup
+    } catch (err) {
+      log.warn("worktree remove failed, attempting manual cleanup", {
+        taskId,
+        wtPath,
+        err: err instanceof Error ? err.message : String(err),
+      });
       try {
         await fs.rm(wtPath, { recursive: true, force: true });
         await this.git(repoPath, "worktree prune");
-      } catch {
-        // Nothing to clean up
+      } catch (cleanupErr) {
+        log.warn("Manual worktree cleanup failed", {
+          taskId,
+          wtPath,
+          err: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr),
+        });
       }
     }
+  }
+
+  /**
+   * List all task worktrees for this repo (paths under getWorktreeBasePath).
+   * Parses `git worktree list --porcelain` and returns { taskId, worktreePath } for each.
+   */
+  async listTaskWorktrees(repoPath: string): Promise<Array<{ taskId: string; worktreePath: string }>> {
+    const base = path.resolve(this.getWorktreeBasePath());
+    const result: Array<{ taskId: string; worktreePath: string }> = [];
+    try {
+      const { stdout } = await shellExec("git worktree list --porcelain", { cwd: repoPath });
+      for (const line of stdout.split("\n")) {
+        if (!line.startsWith("worktree ")) continue;
+        const worktreePath = line.slice(9).trim();
+        const resolved = path.resolve(worktreePath);
+        if (resolved.startsWith(base + path.sep) || resolved === base) {
+          const taskId = path.basename(resolved);
+          if (taskId) result.push({ taskId, worktreePath });
+        }
+      }
+    } catch {
+      // Repo may not exist or have no worktrees
+    }
+    return result;
+  }
+
+  /**
+   * Prune orphan worktrees: remove worktrees whose tasks are closed or don't exist.
+   * Called periodically by recovery to prevent accumulation of stale worktrees.
+   * @param excludeTaskIds - Task IDs to never remove (e.g. slotted, in_progress)
+   */
+  async pruneOrphanWorktrees(
+    repoPath: string,
+    projectId: string,
+    excludeTaskIds: Set<string>,
+    taskStore: { listAll: (projectId: string) => Promise<Array<{ id: string; status?: string }>> }
+  ): Promise<string[]> {
+    const worktrees = await this.listTaskWorktrees(repoPath);
+    const allIssues = await taskStore.listAll(projectId);
+    const idToStatus = new Map(allIssues.map((i) => [i.id, (i.status as string) ?? ""]));
+    const pruned: string[] = [];
+
+    for (const { taskId, worktreePath } of worktrees) {
+      if (excludeTaskIds.has(taskId)) continue;
+      const status = idToStatus.get(taskId);
+      // Remove if task doesn't exist or is closed
+      if (status === undefined || status === "closed") {
+        log.info("Pruning orphan worktree", { taskId, worktreePath, status: status ?? "no-task" });
+        try {
+          await this.removeTaskWorktree(repoPath, taskId);
+          pruned.push(taskId);
+        } catch (err) {
+          log.warn("Failed to prune orphan worktree", { taskId, err });
+        }
+      }
+    }
+    return pruned;
   }
 
   /**

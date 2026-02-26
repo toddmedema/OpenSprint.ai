@@ -119,6 +119,13 @@ export class RecoveryService {
       result.cleaned.push(...reconciled);
     }
 
+    // 6. Prune orphan worktrees (closed tasks, missing tasks) — prevents accumulation
+    const pruned = await this.pruneOrphanWorktrees(projectId, repoPath, excludeIds);
+    if (pruned.length > 0) {
+      result.cleaned.push(...pruned.map((id) => `worktree:${id}`));
+      log.info("Pruned orphan worktrees", { projectId, pruned });
+    }
+
     return result;
   }
 
@@ -326,6 +333,23 @@ export class RecoveryService {
     }
 
     return stale;
+  }
+
+  // ─── Orphan worktree pruning ───
+
+  private async pruneOrphanWorktrees(
+    projectId: string,
+    repoPath: string,
+    excludeIds: Set<string>
+  ): Promise<string[]> {
+    const settings = await this.projectService.getSettings(projectId);
+    if (settings.gitWorkingMode === "branches") return [];
+    return this.branchManager.pruneOrphanWorktrees(
+      repoPath,
+      projectId,
+      excludeIds,
+      this.taskStore
+    );
   }
 
   // ─── Shared helpers ───

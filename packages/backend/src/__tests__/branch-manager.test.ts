@@ -276,6 +276,86 @@ describe("BranchManager", () => {
       await branchManager.removeTaskWorktree(repoPath, "nonexistent-task");
     });
 
+    it("listTaskWorktrees returns worktrees under base path", async () => {
+      await execAsync("git init", { cwd: repoPath });
+      await execAsync("git branch -M main", { cwd: repoPath });
+      await execAsync('git config user.email "test@test.com"', { cwd: repoPath });
+      await execAsync('git config user.name "Test"', { cwd: repoPath });
+      await fs.writeFile(path.join(repoPath, "README"), "initial");
+      await execAsync('git add README && git commit -m "initial"', { cwd: repoPath });
+
+      const taskId = `wt-list-${Date.now()}`;
+      const wtPath = await branchManager.createTaskWorktree(repoPath, taskId);
+      worktreePaths.push(wtPath);
+
+      const list = await branchManager.listTaskWorktrees(repoPath);
+      expect(list.some((w) => w.taskId === taskId)).toBe(true);
+      expect(list.find((w) => w.taskId === taskId)?.worktreePath).toBe(wtPath);
+
+      await branchManager.removeTaskWorktree(repoPath, taskId);
+      const listAfter = await branchManager.listTaskWorktrees(repoPath);
+      expect(listAfter.some((w) => w.taskId === taskId)).toBe(false);
+    });
+
+    it("pruneOrphanWorktrees removes worktrees for closed tasks", async () => {
+      await execAsync("git init", { cwd: repoPath });
+      await execAsync("git branch -M main", { cwd: repoPath });
+      await execAsync('git config user.email "test@test.com"', { cwd: repoPath });
+      await execAsync('git config user.name "Test"', { cwd: repoPath });
+      await fs.writeFile(path.join(repoPath, "README"), "initial");
+      await execAsync('git add README && git commit -m "initial"', { cwd: repoPath });
+
+      const closedTaskId = `wt-prune-closed-${Date.now()}`;
+      const wtPath = await branchManager.createTaskWorktree(repoPath, closedTaskId);
+      worktreePaths.push(wtPath);
+
+      const taskStore = {
+        listAll: vi.fn().mockResolvedValue([
+          { id: closedTaskId, status: "closed" },
+          { id: "other-open", status: "open" },
+        ]),
+      };
+
+      const pruned = await branchManager.pruneOrphanWorktrees(
+        repoPath,
+        "test-project",
+        new Set(["other-open"]),
+        taskStore
+      );
+
+      expect(pruned).toContain(closedTaskId);
+      const listAfter = await branchManager.listTaskWorktrees(repoPath);
+      expect(listAfter.some((w) => w.taskId === closedTaskId)).toBe(false);
+    });
+
+    it("pruneOrphanWorktrees skips excluded and in-progress tasks", async () => {
+      await execAsync("git init", { cwd: repoPath });
+      await execAsync("git branch -M main", { cwd: repoPath });
+      await execAsync('git config user.email "test@test.com"', { cwd: repoPath });
+      await execAsync('git config user.name "Test"', { cwd: repoPath });
+      await fs.writeFile(path.join(repoPath, "README"), "initial");
+      await execAsync('git add README && git commit -m "initial"', { cwd: repoPath });
+
+      const activeTaskId = `wt-prune-active-${Date.now()}`;
+      const wtPath = await branchManager.createTaskWorktree(repoPath, activeTaskId);
+      worktreePaths.push(wtPath);
+
+      const taskStore = {
+        listAll: vi.fn().mockResolvedValue([{ id: activeTaskId, status: "in_progress" }]),
+      };
+
+      const pruned = await branchManager.pruneOrphanWorktrees(
+        repoPath,
+        "test-project",
+        new Set([activeTaskId]),
+        taskStore
+      );
+
+      expect(pruned).not.toContain(activeTaskId);
+      const listAfter = await branchManager.listTaskWorktrees(repoPath);
+      expect(listAfter.some((w) => w.taskId === activeTaskId)).toBe(true);
+    });
+
     it("should replace a stale worktree when creating", async () => {
       await execAsync("git init", { cwd: repoPath });
       await execAsync("git branch -M main", { cwd: repoPath });

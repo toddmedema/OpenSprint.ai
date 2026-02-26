@@ -255,8 +255,12 @@ export class MergeCoordinatorService {
         await this.host.branchManager.removeTaskWorktree(repoPath, task.id);
       }
       await this.host.branchManager.deleteBranch(repoPath, branchName);
-    } catch {
-      // best-effort cleanup
+    } catch (err) {
+      log.warn("Worktree/branch cleanup failed (will be pruned by recovery)", {
+        taskId: task.id,
+        branchName,
+        err: err instanceof Error ? err.message : String(err),
+      });
     }
 
     // 6. Async push + post-completion
