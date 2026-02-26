@@ -38,6 +38,8 @@ coverage/
 packages/frontend/.vite/
 
 # OpenSprint runtime data (local only); feedback/counters/events/stats/deployments are in DB
+# Settings live in global store (~/.opensprint/settings.json), not per-repo
+.opensprint/settings.json
 .opensprint/active/
 .opensprint/conversations/
 .opensprint/agent-images/

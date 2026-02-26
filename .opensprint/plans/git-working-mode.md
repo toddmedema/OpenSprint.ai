@@ -10,7 +10,7 @@ Add a new "Git working mode" setting to Agent Config that allows users to choose
 - [ ] When Branches is selected, maxConcurrentCoders is forced to 1 and the Parallelism section is HIDDEN
 - [ ] In Worktree mode, behavior is unchanged (worktrees at `/tmp/opensprint-worktrees/<task-id>`, parallel coders allowed)
 - [ ] In Branches mode: pre-agent creates/checks out branch in main repo; agent runs in repo root; post-agent merges to main and deletes branch; no worktree created or removed
-- [ ] Settings persist to `.opensprint/settings.json` and survive project reload
+- [ ] Settings persist to global store (~/.opensprint/settings.json) and survive project reload
 - [ ] Recovery (GUPP) works in both modes; assignment.json references repoPath when in Branches mode
 
 ## Technical Approach

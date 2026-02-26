@@ -1,7 +1,7 @@
 /** OpenSprint directory within project repos */
 export const OPENSPRINT_DIR = ".opensprint";
 
-/** Paths within the .opensprint directory (repo and runtime). Feedback, inbox, agent stats, event log, orchestrator counters, and deployments are now DB-only; no file paths. */
+/** Paths within the .opensprint directory (repo and runtime). Settings live in global store (~/.opensprint/settings.json). Feedback, inbox, agent stats, event log, orchestrator counters, and deployments are now DB-only; no file paths. */
 export const OPENSPRINT_PATHS = {
   prd: `${OPENSPRINT_DIR}/prd.json`,
   plans: `${OPENSPRINT_DIR}/plans`,
@@ -10,7 +10,6 @@ export const OPENSPRINT_PATHS = {
   /** Session log/diff files under runtime dir; session metadata is in DB (agent_sessions). */
   sessions: `${OPENSPRINT_DIR}/sessions`,
   active: `${OPENSPRINT_DIR}/active`,
-  settings: `${OPENSPRINT_DIR}/settings.json`,
   pendingCommits: `${OPENSPRINT_DIR}/pending-commits.json`,
   heartbeat: "heartbeat.json",
   agentOutputLog: "agent-output.log",
