@@ -57,8 +57,8 @@ export async function getPlanComplexityForTask(
 }
 
 /**
- * Resolve complexity for agent selection: task's own complexity (mapped to PlanComplexity)
- * takes precedence; otherwise infer from epic's plan.
+ * Resolve complexity for agent selection: use the higher of task.complexity and epic.complexity.
+ * E.g. task=low, epic=high → use high.
  */
 export async function getComplexityForAgent(
   projectId: string,
@@ -67,8 +67,28 @@ export async function getComplexityForAgent(
   taskStore?: TaskStoreService
 ): Promise<PlanComplexity | undefined> {
   const own = (task as { complexity?: string }).complexity;
-  if (own === "low") return "low";
-  if (own === "high") return "high";
+  const taskComplexity: TaskComplexity | undefined =
+    own === "low" || own === "high" ? (own as TaskComplexity) : undefined;
 
-  return getPlanComplexityForTask(projectId, repoPath, task, taskStore);
+  const planComplexity = await getPlanComplexityForTask(
+    projectId,
+    repoPath,
+    task,
+    taskStore
+  );
+  const epicComplexity: TaskComplexity | undefined = planComplexity
+    ? planComplexityToTask(planComplexity)
+    : undefined;
+
+  const taskLevel = taskComplexity === "high" ? 1 : taskComplexity === "low" ? 0 : -1;
+  const epicLevel = epicComplexity === "high" ? 1 : epicComplexity === "low" ? 0 : -1;
+  const maxLevel = Math.max(taskLevel, epicLevel);
+
+  if (maxLevel === 1) {
+    return planComplexity && (planComplexity === "high" || planComplexity === "very_high")
+      ? planComplexity
+      : "high";
+  }
+  if (maxLevel === 0) return "low";
+  return undefined;
 }
