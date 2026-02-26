@@ -409,7 +409,7 @@ export function TaskDetailSidebar({
             if (!plan || !onNavigateToPlan) return null;
             const planTitle = getEpicTitleFromPlan(plan);
             return (
-              <div className="p-4 border-b border-theme-border has-[+_[data-section=depends-on]]:border-b-0">
+              <div className="p-4 border-b border-theme-border has-[+_[data-section=depends-on]]:border-b-0 has-[+_[data-section=depends-on]]:pb-2">
                 <button
                   type="button"
                   onClick={() => onNavigateToPlan(plan.metadata.planId)}
@@ -440,11 +440,19 @@ export function TaskDetailSidebar({
             const hasDeps = nonEpicDeps.length > 0;
             if (!displayDesc && !hasDeps) return null;
 
+            const viewPlanRenders =
+              task?.epicId &&
+              plans.find((p) => p.metadata.epicId === task.epicId) &&
+              onNavigateToPlan;
+
             return (
               <>
                 {/* Depends on (above Description) — hidden when epic is the only dependency */}
                 {hasDeps && (
-                  <div className="p-4 border-b border-theme-border" data-section="depends-on">
+                  <div
+                    className={`p-4 border-b border-theme-border ${viewPlanRenders ? "pt-2" : ""}`}
+                    data-section="depends-on"
+                  >
                     <div className="text-xs">
                       <span className="text-theme-muted">Depends on:</span>
                       <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-1.5">
