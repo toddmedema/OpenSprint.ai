@@ -137,6 +137,8 @@ vi.mock("../services/task-store.service.js", async (importOriginal) => {
     update: vi.fn().mockResolvedValue({}),
     close: vi.fn().mockResolvedValue({}),
     closeMany: vi.fn().mockResolvedValue([]),
+    delete: vi.fn().mockResolvedValue(undefined),
+    deleteMany: vi.fn().mockResolvedValue(undefined),
     syncForPush: vi.fn().mockResolvedValue(undefined),
     planGetByEpicId: vi.fn().mockResolvedValue(null),
   };
@@ -1655,7 +1657,7 @@ describe("FeedbackService", () => {
   });
 
   describe("cancelFeedback", () => {
-    it("should set status to cancelled and close associated tasks", async () => {
+    it("should set status to cancelled and delete associated tasks", async () => {
       await feedbackStore.insertFeedback(
         projectId,
         {
@@ -1679,10 +1681,7 @@ describe("FeedbackService", () => {
       const stored = await feedbackService.getFeedback(projectId, "fb-cancel-1");
       expect(stored.status).toBe("cancelled");
 
-      expect(taskStore.closeMany).toHaveBeenCalledWith(projectId, [
-        { id: "task-a", reason: "Feedback cancelled" },
-        { id: "task-b", reason: "Feedback cancelled" },
-      ]);
+      expect(taskStore.deleteMany).toHaveBeenCalledWith(projectId, ["task-a", "task-b"]);
 
       expect(broadcastToProject).toHaveBeenCalledWith(
         projectId,
@@ -1716,10 +1715,10 @@ describe("FeedbackService", () => {
       const result = await feedbackService.cancelFeedback(projectId, "fb-cancel-2");
 
       expect(result.status).toBe("resolved");
-      expect(taskStore.closeMany).not.toHaveBeenCalled();
+      expect(taskStore.deleteMany).not.toHaveBeenCalled();
     });
 
-    it("should not call closeMany when feedback has no linked tasks", async () => {
+    it("should not call deleteMany when feedback has no linked tasks", async () => {
       await feedbackStore.insertFeedback(
         projectId,
         {
@@ -1738,7 +1737,33 @@ describe("FeedbackService", () => {
       const result = await feedbackService.cancelFeedback(projectId, "fb-cancel-3");
 
       expect(result.status).toBe("cancelled");
-      expect(taskStore.closeMany).not.toHaveBeenCalled();
+      expect(taskStore.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("should delete feedbackSourceTaskId when present", async () => {
+      await feedbackStore.insertFeedback(
+        projectId,
+        {
+          id: "fb-cancel-4",
+          text: "Cancel with source task",
+          category: "bug",
+          mappedPlanId: null,
+          createdTaskIds: ["task-x"],
+          feedbackSourceTaskId: "chore-feedback-source",
+          status: "pending",
+          createdAt: new Date().toISOString(),
+        },
+        null
+      );
+
+      const { taskStore } = await import("../services/task-store.service.js");
+      const result = await feedbackService.cancelFeedback(projectId, "fb-cancel-4");
+
+      expect(result.status).toBe("cancelled");
+      expect(taskStore.deleteMany).toHaveBeenCalledWith(projectId, [
+        "task-x",
+        "chore-feedback-source",
+      ]);
     });
   });
 

@@ -77,7 +77,7 @@ feedbackRouter.post("/:feedbackId/resolve", async (req: Request<FeedbackParams>,
   }
 });
 
-// POST /projects/:projectId/feedback/:feedbackId/cancel — Mark feedback as cancelled, close associated tasks
+// POST /projects/:projectId/feedback/:feedbackId/cancel — Mark feedback as cancelled, delete associated tasks
 feedbackRouter.post("/:feedbackId/cancel", async (req: Request<FeedbackParams>, res, next) => {
   try {
     const item = await feedbackService.cancelFeedback(req.params.projectId, req.params.feedbackId);

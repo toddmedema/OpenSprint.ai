@@ -1055,6 +1055,28 @@ export class TaskStoreService {
     });
   }
 
+  /** Delete multiple tasks by ID. Skips tasks that don't exist (e.g. already deleted). */
+  async deleteMany(projectId: string, ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    return this.withWriteLock(async () => {
+      await this.ensureInitialized();
+      const db = this.ensureDb();
+      const uniqueIds = [...new Set(ids)];
+      db.run("BEGIN TRANSACTION");
+      try {
+        for (const id of uniqueIds) {
+          db.run("DELETE FROM task_dependencies WHERE task_id = ? OR depends_on_id = ?", [id, id]);
+          db.run("DELETE FROM tasks WHERE id = ? AND project_id = ?", [id, projectId]);
+        }
+        db.run("COMMIT");
+      } catch (err) {
+        db.run("ROLLBACK");
+        throw err;
+      }
+      await this.saveToDisk();
+    });
+  }
+
   /** Delete all tasks for a project (e.g. when project is deleted). */
   async deleteByProjectId(projectId: string): Promise<void> {
     return this.withWriteLock(async () => {

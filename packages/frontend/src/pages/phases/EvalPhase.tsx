@@ -410,7 +410,7 @@ const FeedbackCard = memo(
                         onCancel(item.id);
                       }}
                       className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs text-theme-muted hover:bg-theme-border-subtle transition-colors"
-                      title="Cancel feedback and close associated tasks"
+                      title="Cancel feedback and delete associated tasks"
                       aria-label="Cancel"
                       data-testid="feedback-cancel-button"
                     >

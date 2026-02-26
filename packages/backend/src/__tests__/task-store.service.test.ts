@@ -418,6 +418,29 @@ describe("TaskStoreService", () => {
     });
   });
 
+  describe("deleteMany", () => {
+    it("should remove multiple tasks", async () => {
+      const t1 = await store.create(TEST_PROJECT_ID, "Task 1");
+      const t2 = await store.create(TEST_PROJECT_ID, "Task 2");
+      const t3 = await store.create(TEST_PROJECT_ID, "Task 3");
+      await store.deleteMany(TEST_PROJECT_ID, [t1.id, t3.id]);
+
+      expect(() => store.show(TEST_PROJECT_ID, t1.id)).toThrow(/not found/);
+      expect(() => store.show(TEST_PROJECT_ID, t3.id)).toThrow(/not found/);
+      expect(store.show(TEST_PROJECT_ID, t2.id)).toBeDefined();
+    });
+
+    it("should not throw when given empty array", async () => {
+      await expect(store.deleteMany(TEST_PROJECT_ID, [])).resolves.not.toThrow();
+    });
+
+    it("should deduplicate ids", async () => {
+      const t1 = await store.create(TEST_PROJECT_ID, "Task 1");
+      await store.deleteMany(TEST_PROJECT_ID, [t1.id, t1.id]);
+      expect(() => store.show(TEST_PROJECT_ID, t1.id)).toThrow(/not found/);
+    });
+  });
+
   describe("addDependency", () => {
     it("should add a dependency to a task", async () => {
       const t1 = await store.create(TEST_PROJECT_ID, "Blocker");

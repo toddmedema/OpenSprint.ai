@@ -1091,7 +1091,7 @@ export class FeedbackService {
 
   /**
    * Cancel a feedback item (status -> cancelled).
-   * Closes all associated tasks (createdTaskIds). Does not cascade to child feedback.
+   * Deletes all linked tasks (createdTaskIds and feedbackSourceTaskId). Does not cascade to child feedback.
    * Intended for feedback where no linked tasks are in progress, in review, or done.
    */
   async cancelFeedback(projectId: string, feedbackId: string): Promise<FeedbackItem> {
@@ -1108,10 +1108,12 @@ export class FeedbackService {
       item,
     });
 
-    const taskIds = item.createdTaskIds ?? [];
-    if (taskIds.length > 0) {
-      const closeItems = taskIds.map((id) => ({ id, reason: "Feedback cancelled" }));
-      await this.taskStore.closeMany(projectId, closeItems);
+    const taskIdsToDelete: string[] = [...(item.createdTaskIds ?? [])];
+    if (item.feedbackSourceTaskId) {
+      taskIdsToDelete.push(item.feedbackSourceTaskId);
+    }
+    if (taskIdsToDelete.length > 0) {
+      await this.taskStore.deleteMany(projectId, taskIdsToDelete);
     }
 
     return item;
