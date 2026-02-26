@@ -220,7 +220,12 @@ function AskQuestionContent({ project }: { project?: { id: string; name: string 
           <HelpChatBubble key={i} msg={msg} />
         ))}
         {sending && (
-          <div className="flex justify-start">
+          <div
+            className="flex justify-start"
+            role="status"
+            aria-label="Agent is thinking"
+            data-testid="help-chat-loading"
+          >
             <div className="bg-theme-border-subtle rounded-2xl px-3.5 py-2.5 text-sm text-theme-muted">
               <span className="flex gap-1">
                 <span className="w-1.5 h-1.5 bg-theme-muted rounded-full animate-bounce [animation-delay:0ms]" />

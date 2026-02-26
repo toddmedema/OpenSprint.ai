@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HelpModal } from "./HelpModal";
 import { api } from "../api/client";
@@ -145,5 +145,29 @@ describe("HelpModal", () => {
       projectId: "proj-1",
       messages: [],
     });
+  });
+
+  it("Ask a Question tab shows loading state during agent response", async () => {
+    let resolvePromise: (value: { message: string }) => void;
+    const chatPromise = new Promise<{ message: string }>((resolve) => {
+      resolvePromise = resolve;
+    });
+    vi.mocked(api.help.chat).mockReturnValue(chatPromise);
+
+    const user = userEvent.setup();
+    render(<HelpModal onClose={vi.fn()} />);
+
+    await user.type(screen.getByPlaceholderText("Ask a question..."), "Hello");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(screen.getByTestId("help-chat-loading")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+
+    resolvePromise!({ message: "Hi there!" });
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("help-chat-loading")).not.toBeInTheDocument();
+    });
+    expect(await screen.findByText("Hi there!")).toBeInTheDocument();
   });
 });
