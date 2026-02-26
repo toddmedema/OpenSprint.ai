@@ -180,6 +180,18 @@ describe("sketchSlice", () => {
       expect(store.getState().sketch.prdContent).toEqual({ overview: "Overview", goals: "Goals" });
       expect(api.prd.get).toHaveBeenCalledWith("proj-1");
     });
+
+    it("sets prdContent to {} when PRD not found (404)", async () => {
+      const err = new Error("PRD not found for this project") as Error & { code: string };
+      err.code = "PRD_NOT_FOUND";
+      vi.mocked(api.prd.get).mockRejectedValue(err);
+      const store = createStore();
+      store.dispatch(setPrdContent({ overview: "stale" }));
+
+      await store.dispatch(fetchPrd("proj-1"));
+
+      expect(store.getState().sketch.prdContent).toEqual({});
+    });
   });
 
   describe("fetchPrdHistory thunk", () => {

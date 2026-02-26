@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useCallback } from "react";
 import { markdownToHtml, htmlToMarkdown } from "../../lib/markdownUtils";
+import { registerPrdFlush } from "../../lib/prdFlushRegistry";
 
 const DEBOUNCE_MS = 800;
 
@@ -89,6 +90,11 @@ export function PrdSectionEditor({
     scheduleSave(html);
   }, [disabled, scheduleSave]);
 
+  // Register flush for beforeunload so pending edits persist on refresh/close
+  useEffect(() => {
+    return registerPrdFlush(flushDebounce);
+  }, [flushDebounce]);
+
   // Sync markdown from props (initial + external updates e.g. after API save).
   // Skip sync when this section has focus — avoids WebSocket prd.updated overwriting in-progress edits.
   // Skip sync when we have pending unsaved changes — avoids overwriting user edits with stale content.
@@ -110,6 +116,18 @@ export function PrdSectionEditor({
     });
     return flushDebounce;
   }, [sectionKey, markdown, flushDebounce]);
+
+  // Flush pending save when page is about to hide (refresh, navigate away, close tab).
+  // Gives a chance to persist edits before unload; request may be aborted but often completes.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        flushDebounce();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [flushDebounce]);
 
   return (
     <div

@@ -194,6 +194,13 @@ export function createPrdChatSlice(sliceName: string): PrdChatSliceResult {
         .addCase(fetchPrd.fulfilled, (state, action) => {
           state.prdContent = action.payload;
         })
+        .addCase(fetchPrd.rejected, (state, action) => {
+          // PRD not found (e.g. adopted repo) — treat as empty so UI shows initial prompt
+          const code = (action.error as { code?: string })?.code;
+          if (code === "PRD_NOT_FOUND") {
+            state.prdContent = {};
+          }
+        })
         .addCase(fetchPrdHistory.fulfilled, (state, action) => {
           state.prdHistory = action.payload;
         })
