@@ -424,7 +424,7 @@ export class ProjectService {
       );
     }
 
-    const repoPath = path.resolve(parentPath, name);
+    const repoPath = path.resolve(parentPath);
 
     if (template === "web-app-expo-react") {
       await fs.mkdir(repoPath, { recursive: true });

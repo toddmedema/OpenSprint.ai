@@ -74,9 +74,9 @@ describe("ProjectService.scaffoldProject", () => {
     expect(result.project).toBeDefined();
     expect(result.project.id).toBeDefined();
     expect(result.project.name).toBe("my-app");
-    expect(result.project.repoPath).toBe(path.resolve(tempDir, "my-app"));
+    expect(result.project.repoPath).toBe(path.resolve(tempDir));
     expect(result.runCommand).toContain("npm run web");
-    expect(result.runCommand).toContain(path.resolve(tempDir, "my-app"));
+    expect(result.runCommand).toContain(path.resolve(tempDir));
 
     if (process.platform === "win32") {
       expect(result.runCommand).toContain("cd /d");
@@ -84,7 +84,7 @@ describe("ProjectService.scaffoldProject", () => {
       expect(result.runCommand).toMatch(/^cd .+ && npm run web$/);
     }
 
-    const repoPath = path.resolve(tempDir, "my-app");
+    const repoPath = path.resolve(tempDir);
     const pkgPath = path.join(repoPath, "package.json");
     const pkg = JSON.parse(await fs.readFile(pkgPath, "utf-8"));
     expect(pkg.scripts.web).toBe("expo start --web");

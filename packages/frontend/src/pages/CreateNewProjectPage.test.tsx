@@ -91,6 +91,13 @@ describe("CreateNewProjectPage", () => {
     expect(screen.getByTestId("template-select")).toBeInTheDocument();
   });
 
+  it("shows 'Project files will be created in this folder' label under directory picker", () => {
+    renderCreateNewProjectPage();
+    expect(
+      screen.getByText("Project files will be created in this folder")
+    ).toBeInTheDocument();
+  });
+
   it("template dropdown has Web App (Expo/React) option", () => {
     renderCreateNewProjectPage();
     const select = screen.getByTestId("template-select");

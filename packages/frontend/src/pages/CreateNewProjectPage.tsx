@@ -309,6 +309,7 @@ export function CreateNewProjectPage() {
                   value={parentPath}
                   onChange={setParentPath}
                   onBrowse={() => setShowFolderBrowser(true)}
+                  createNewMode
                 />
                 <div>
                   <label
