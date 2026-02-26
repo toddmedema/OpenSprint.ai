@@ -172,11 +172,11 @@ export function Navbar({
                     type="button"
                     onClick={() => {
                       setDropdownOpen(false);
-                      navigate("/projects/new");
+                      navigate("/projects/add-existing");
                     }}
                     className="w-full text-left px-4 py-2 text-sm text-brand-600 hover:bg-theme-info-bg font-medium"
                   >
-                    + Create New Project
+                    + Add Existing Project
                   </button>
                 </div>
               </div>

@@ -96,7 +96,7 @@ describe("ProjectSetup - Progress indicator", () => {
     expect(progressbar).toHaveAttribute("aria-valuemax", "6");
 
     expect(screen.getByText("Step 1 of 6")).toBeInTheDocument();
-    expect(screen.getByText(/Create New Project/)).toBeInTheDocument();
+    expect(screen.getByText(/Add Existing Project/)).toBeInTheDocument();
     expect(screen.getByText(/— Project Info/)).toBeInTheDocument();
   });
 

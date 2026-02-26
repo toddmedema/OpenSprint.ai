@@ -315,11 +315,11 @@ export function HomeScreen() {
                 <tr
                   role="button"
                   tabIndex={0}
-                  onClick={() => navigate("/projects/new")}
+                  onClick={() => navigate("/projects/add-existing")}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      navigate("/projects/new");
+                      navigate("/projects/add-existing");
                     }
                   }}
                   className="hover:bg-theme-bg cursor-pointer transition-colors"

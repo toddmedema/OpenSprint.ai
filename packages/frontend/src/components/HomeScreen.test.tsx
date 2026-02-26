@@ -85,7 +85,7 @@ describe("HomeScreen", () => {
     expect(screen.getByText("/path/to/repo")).toBeInTheDocument();
   });
 
-  it("Create project row navigates to /projects/new", async () => {
+  it("Create project row navigates to /projects/add-existing", async () => {
     mockProjectsList.mockResolvedValue([]);
     const user = userEvent.setup();
 
@@ -107,7 +107,7 @@ describe("HomeScreen", () => {
     const createRow = screen.getByRole("button", { name: /\+ Create project/i });
     await user.click(createRow);
 
-    expect(screen.getByTestId("location")).toHaveTextContent("/projects/new");
+    expect(screen.getByTestId("location")).toHaveTextContent("/projects/add-existing");
   });
 
   it("clicking project row navigates to project sketch", async () => {
