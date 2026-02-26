@@ -257,7 +257,7 @@ describe("DeliverPhase", () => {
     expect(rightSection).toContainElement(deliverBtn);
   });
 
-  it("shows Deploy to Beta (secondary) left of Deploy to Prod (primary) when Expo mode", async () => {
+  it("shows Deploy to Staging (secondary) left of Deploy to Production (primary) when Expo mode", async () => {
     mockGetSettings.mockResolvedValueOnce({
       deployment: { mode: "expo" },
     });
@@ -267,10 +267,10 @@ describe("DeliverPhase", () => {
     const betaBtn = screen.getByTestId("deploy-beta-button");
     const prodBtn = screen.getByTestId("deploy-prod-button");
     expect(betaBtn).toBeInTheDocument();
-    expect(betaBtn).toHaveTextContent("Deploy to Beta");
+    expect(betaBtn).toHaveTextContent("Deploy to Staging");
     expect(betaBtn).toHaveClass("btn-secondary");
     expect(prodBtn).toBeInTheDocument();
-    expect(prodBtn).toHaveTextContent("Deploy to Prod");
+    expect(prodBtn).toHaveTextContent("Deploy to Production");
     expect(prodBtn).toHaveClass("btn-primary");
     const container = betaBtn.parentElement!;
     const buttons = Array.from(container.querySelectorAll("button"));
@@ -279,7 +279,7 @@ describe("DeliverPhase", () => {
     expect(betaIdx).toBeLessThan(prodIdx);
   });
 
-  it("hides Deploy to Prod when custom mode (shows Deliver! instead)", async () => {
+  it("hides Deploy to Production when custom mode (shows Deliver! instead)", async () => {
     mockGetSettings.mockResolvedValueOnce({
       deployment: { mode: "custom", customCommand: "echo deploy" },
     });
@@ -290,7 +290,7 @@ describe("DeliverPhase", () => {
     expect(screen.getByTestId("deliver-button")).toHaveTextContent("Deliver!");
   });
 
-  it("Deploy to Beta calls expoDeploy with variant beta", async () => {
+  it("Deploy to Staging calls expoDeploy with variant beta", async () => {
     mockGetSettings.mockResolvedValueOnce({ deployment: { mode: "expo" } });
     const store = createStore();
     renderWithRouter(store);
@@ -299,7 +299,7 @@ describe("DeliverPhase", () => {
     await waitFor(() => expect(mockExpoDeploy).toHaveBeenCalledWith("proj-1", "beta"));
   });
 
-  it("Deploy to Prod calls expoDeploy with variant prod", async () => {
+  it("Deploy to Production calls expoDeploy with variant prod", async () => {
     mockGetSettings.mockResolvedValueOnce({ deployment: { mode: "expo" } });
     const store = createStore();
     renderWithRouter(store);

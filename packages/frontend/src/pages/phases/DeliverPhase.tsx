@@ -284,7 +284,7 @@ export function DeliverPhase({ projectId, onOpenSettings }: DeliverPhaseProps) {
                       className="btn-secondary"
                       data-testid="deploy-beta-button"
                     >
-                      Deploy to Beta
+                      Deploy to Staging
                     </button>
                     <button
                       type="button"
@@ -292,7 +292,7 @@ export function DeliverPhase({ projectId, onOpenSettings }: DeliverPhaseProps) {
                       className="btn-primary"
                       data-testid="deploy-prod-button"
                     >
-                      Deploy to Prod
+                      Deploy to Production
                     </button>
                   </>
                 )
