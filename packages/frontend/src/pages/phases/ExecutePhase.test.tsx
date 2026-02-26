@@ -1721,9 +1721,7 @@ describe("ExecutePhase Redux integration", () => {
       expect(mockGet).toHaveBeenCalledWith("proj-1", "epic-1.1");
     });
 
-    expect(
-      screen.getByRole("separator", { name: "Resize sidebar", hidden: true })
-    ).toBeInTheDocument();
+    expect(screen.getByRole("separator", { name: "Resize sidebar" })).toBeInTheDocument();
   });
 
   it("persists task detail sidebar width to localStorage when resized (matches Plan/Sketch)", async () => {
@@ -1750,7 +1748,7 @@ describe("ExecutePhase Redux integration", () => {
       expect(mockGet).toHaveBeenCalledWith("proj-1", "epic-1.1");
     });
 
-    const handle = screen.getByRole("separator", { name: "Resize sidebar", hidden: true });
+    const handle = screen.getByRole("separator", { name: "Resize sidebar" });
     handle.dispatchEvent(new MouseEvent("mousedown", { clientX: 100, bubbles: true }));
     document.dispatchEvent(new MouseEvent("mousemove", { clientX: 80, bubbles: true }));
     document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
