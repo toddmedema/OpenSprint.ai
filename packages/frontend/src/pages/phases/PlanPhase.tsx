@@ -34,7 +34,9 @@ import { ResizableSidebar } from "../../components/layout/ResizableSidebar";
 import { ChatInput } from "../../components/ChatInput";
 import { fetchTasks, selectTasksForEpic } from "../../store/slices/executeSlice";
 import { useSubmitShortcut } from "../../hooks/useSubmitShortcut";
+import { usePlanFilter } from "../../hooks/usePlanFilter";
 import { formatPlanIdAsTitle } from "../../lib/formatting";
+import { matchesPlanSearchQuery } from "../../lib/planSearchFilter";
 
 /** Display text for plan chat: show "Plan updated" when agent response contains [PLAN_UPDATE] */
 export function getPlanChatMessageDisplay(content: string): string {
@@ -118,6 +120,18 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   const [planAllInProgress, setPlanAllInProgress] = useState(false);
   const [executeAllInProgress, setExecuteAllInProgress] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const {
+    searchExpanded,
+    searchInputValue,
+    setSearchInputValue,
+    searchQuery,
+    searchInputRef,
+    isSearchActive,
+    handleSearchExpand,
+    handleSearchClose,
+    handleSearchKeyDown,
+  } = usePlanFilter();
   const sidebarScrollRef = useRef<HTMLDivElement>(null);
   const prevChatMessageCountRef = useRef(0);
 
@@ -127,10 +141,13 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   const processingGenerateRef = useRef(false);
 
   const filteredAndSortedPlans = useMemo(() => {
-    const filtered =
+    let filtered =
       statusFilter === "all" ? plans : plans.filter((p) => p.status === statusFilter);
+    if (searchQuery.trim()) {
+      filtered = filtered.filter((p) => matchesPlanSearchQuery(p, searchQuery));
+    }
     return sortPlansByStatus(filtered);
-  }, [plans, statusFilter]);
+  }, [plans, statusFilter, searchQuery]);
 
   /** Process the generate-plan queue sequentially (one at a time). */
   const processGenerateQueue = useCallback(async () => {
@@ -170,10 +187,13 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
 
   const filteredDependencyGraph = useMemo(() => {
     if (!dependencyGraph) return null;
-    const filteredPlans =
+    let filteredPlans =
       statusFilter === "all"
         ? dependencyGraph.plans
         : dependencyGraph.plans.filter((p) => p.status === statusFilter);
+    if (searchQuery.trim()) {
+      filteredPlans = filteredPlans.filter((p) => matchesPlanSearchQuery(p, searchQuery));
+    }
     const filteredPlanIds = new Set(filteredPlans.map((p) => p.metadata.planId));
     const filteredEdges = dependencyGraph.edges.filter(
       (e) => filteredPlanIds.has(e.from) && filteredPlanIds.has(e.to)
@@ -182,7 +202,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
       plans: sortPlansByStatus(filteredPlans),
       edges: filteredEdges,
     };
-  }, [dependencyGraph, statusFilter]);
+  }, [dependencyGraph, statusFilter, searchQuery]);
 
   /** Plans that show "Plan Tasks" (planning status, zero tasks). Used for "Plan All Tasks" button. */
   const plansWithNoTasks = useMemo(() => {
@@ -502,6 +522,13 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
           planTasksPlanIds={planTasksPlanIds ?? []}
           onPlanAllTasks={handlePlanAllTasks}
           onExecuteAll={handleExecuteAll}
+          searchExpanded={searchExpanded}
+          searchInputValue={searchInputValue}
+          setSearchInputValue={setSearchInputValue}
+          searchInputRef={searchInputRef}
+          handleSearchExpand={handleSearchExpand}
+          handleSearchClose={handleSearchClose}
+          handleSearchKeyDown={handleSearchKeyDown}
         />
 
         <div className="flex-1 min-h-0 overflow-auto p-6">
@@ -536,11 +563,19 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
           {viewMode === "graph" ? (
             /* Graph Mode: dependency graph full screen */
             <div className="h-full min-h-[400px]" data-testid="plan-graph-view">
-              <DependencyGraph
-                graph={filteredDependencyGraph}
-                onPlanClick={handleSelectPlan}
-                fillHeight
-              />
+              {filteredDependencyGraph && filteredDependencyGraph.plans.length === 0 ? (
+                <div className="text-center py-10 text-theme-muted">
+                  {isSearchActive
+                    ? "No plans match your search."
+                    : `No plans match the "${statusFilter === "all" ? "All" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}" filter.`}
+                </div>
+              ) : (
+                <DependencyGraph
+                  graph={filteredDependencyGraph}
+                  onPlanClick={handleSelectPlan}
+                  fillHeight
+                />
+              )}
             </div>
           ) : (
             /* Card Mode: Generate Plan + Feature Plans */
@@ -592,11 +627,9 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
         ) : filteredAndSortedPlans.length === 0 && optimisticPlans.length === 0 ? (
           <div className="text-center py-10">
             <p className="text-theme-muted">
-              No plans match the &ldquo;
-              {statusFilter === "all"
-                ? "All"
-                : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
-              &rdquo; filter.
+              {isSearchActive
+                ? "No plans match your search."
+                : `No plans match the "${statusFilter === "all" ? "All" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}" filter.`}
             </p>
           </div>
         ) : (

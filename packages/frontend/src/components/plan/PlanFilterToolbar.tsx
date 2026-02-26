@@ -59,6 +59,14 @@ interface PlanFilterToolbarProps {
   planTasksPlanIds: string[];
   onPlanAllTasks: () => void;
   onExecuteAll: () => void;
+  /** Search (mirrors ExecuteFilterToolbar) */
+  searchExpanded?: boolean;
+  searchInputValue?: string;
+  setSearchInputValue?: (v: string) => void;
+  searchInputRef?: React.RefObject<HTMLInputElement | null>;
+  handleSearchExpand?: () => void;
+  handleSearchClose?: () => void;
+  handleSearchKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 }
 
 export function PlanFilterToolbar({
@@ -75,6 +83,13 @@ export function PlanFilterToolbar({
   planTasksPlanIds,
   onPlanAllTasks,
   onExecuteAll,
+  searchExpanded,
+  searchInputValue = "",
+  setSearchInputValue,
+  searchInputRef,
+  handleSearchExpand,
+  handleSearchClose,
+  handleSearchKeyDown,
 }: PlanFilterToolbarProps) {
   const chipConfig = [
     { label: "All", filter: "all" as const, count: planCountByStatus.all },
@@ -136,14 +151,73 @@ export function PlanFilterToolbar({
           )}
         </div>
         <div className="flex items-center shrink-0">
-          <ViewToggle
-            options={[
-              { value: "card", icon: <CardIcon className="w-4 h-4" />, label: "Card view" },
-              { value: "graph", icon: <GraphIcon className="w-4 h-4" />, label: "Graph view" },
-            ]}
-            value={viewMode}
-            onChange={onViewModeChange}
-          />
+          {handleSearchExpand && handleSearchClose && handleSearchKeyDown && setSearchInputValue && searchInputRef ? (
+            searchExpanded ? (
+              <div
+                className="flex items-center gap-1 animate-fade-in"
+                data-testid="plan-search-expanded"
+              >
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchInputValue}
+                  onChange={(e) => setSearchInputValue(e.target.value)}
+                  onKeyDown={handleSearchKeyDown}
+                  placeholder="Search plans…"
+                  className="w-48 sm:w-56 px-3 py-1.5 text-sm bg-theme-surface-muted rounded-md text-theme-text placeholder:text-theme-muted border border-theme-border focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all"
+                  aria-label="Search plans"
+                />
+                <button
+                  type="button"
+                  onClick={handleSearchClose}
+                  className="p-1.5 rounded-md text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle transition-colors"
+                  aria-label="Close search"
+                  data-testid="plan-search-close"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSearchExpand}
+                className="p-1.5 rounded-md text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle transition-colors"
+                aria-label="Expand search"
+                data-testid="plan-search-expand"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.35-4.35" />
+                </svg>
+              </button>
+            )
+          ) : null}
+          <div className={handleSearchExpand ? "ml-2" : ""}>
+            <ViewToggle
+              options={[
+                { value: "card", icon: <CardIcon className="w-4 h-4" />, label: "Card view" },
+                { value: "graph", icon: <GraphIcon className="w-4 h-4" />, label: "Graph view" },
+              ]}
+              value={viewMode}
+              onChange={onViewModeChange}
+            />
+          </div>
         </div>
       </div>
     </div>

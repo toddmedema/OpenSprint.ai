@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from "vitest";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
@@ -404,6 +404,58 @@ describe("PlanPhase Redux integration", () => {
     expect(within(sidebarTasksSection!).getByText("Epic A Task 1")).toBeInTheDocument();
     expect(within(sidebarTasksSection!).getByText("Epic A Task 2")).toBeInTheDocument();
     expect(within(sidebarTasksSection!).queryByText("Epic B Task")).not.toBeInTheDocument();
+  });
+
+  it("search filters plan cards by title and content", () => {
+    vi.useFakeTimers();
+    const store = createStore();
+    render(
+      <Provider store={store}>
+        <PlanPhase projectId="proj-1" />
+      </Provider>
+    );
+
+    expect(screen.getByText("Archive Test Feature")).toBeInTheDocument();
+    const searchExpand = screen.getByTestId("plan-search-expand");
+    fireEvent.click(searchExpand);
+    expect(screen.getByTestId("plan-search-expanded")).toBeInTheDocument();
+    const searchInput = screen.getByPlaceholderText("Search plans…");
+    fireEvent.change(searchInput, { target: { value: "nonexistent" } });
+    act(() => {
+      vi.advanceTimersByTime(150);
+    });
+    expect(screen.getByText("No plans match your search.")).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it("filter chips filter by plan status", async () => {
+    const planPlanning = {
+      ...basePlan,
+      metadata: { ...basePlan.metadata, planId: "plan-planning", epicId: "epic-p" },
+      status: "planning" as const,
+      content: "# Planning Feature\n\nContent.",
+    };
+    const planBuilding = {
+      ...basePlan,
+      metadata: { ...basePlan.metadata, planId: "plan-building", epicId: "epic-b" },
+      status: "building" as const,
+      content: "# Building Feature\n\nContent.",
+    };
+    const store = createStore([planPlanning, planBuilding]);
+    const user = userEvent.setup();
+    render(
+      <Provider store={store}>
+        <PlanPhase projectId="proj-1" />
+      </Provider>
+    );
+
+    // EpicCard uses formatPlanIdAsTitle(planId): plan-planning -> "Plan Planning", plan-building -> "Plan Building"
+    expect(screen.getByText("Plan Planning")).toBeInTheDocument();
+    expect(screen.getByText("Plan Building")).toBeInTheDocument();
+    const planningChip = screen.getByTestId("plan-filter-chip-planning");
+    await user.click(planningChip);
+    expect(screen.getByText("Plan Planning")).toBeInTheDocument();
+    expect(screen.queryByText("Plan Building")).not.toBeInTheDocument();
   });
 });
 
