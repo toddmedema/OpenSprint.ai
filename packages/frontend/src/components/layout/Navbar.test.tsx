@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { Provider } from "react-redux";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { configureStore } from "@reduxjs/toolkit";
 import type { Task } from "@opensprint/shared";
 import { ThemeProvider } from "../../contexts/ThemeContext";
@@ -69,12 +70,16 @@ beforeEach(() => {
   Object.keys(storage).forEach((k) => delete storage[k]);
 });
 
+const queryClient = new QueryClient();
+
 function renderNavbar(ui: ReactElement, store = createStore()) {
   return render(
     <ThemeProvider>
       <DisplayPreferencesProvider>
         <Provider store={store}>
-          <MemoryRouter>{ui}</MemoryRouter>
+          <QueryClientProvider client={queryClient}>
+            <MemoryRouter>{ui}</MemoryRouter>
+          </QueryClientProvider>
         </Provider>
       </DisplayPreferencesProvider>
     </ThemeProvider>
@@ -267,7 +272,7 @@ describe("Navbar", () => {
   });
 
   describe("integration: (?) opens Help modal with tabs", () => {
-    it("homepage (project=null): click (?) opens Help modal with both tabs, Ask a Question default", async () => {
+    it("homepage (project=null): click (?) opens Help modal with three tabs, Ask a Question default", async () => {
       const user = userEvent.setup();
       renderNavbar(<Navbar project={null} />);
 
@@ -278,6 +283,7 @@ describe("Navbar", () => {
       expect(screen.getByText("Help")).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Ask a Question" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Meet your Team" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Debug" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Ask a Question" })).toHaveAttribute(
         "aria-selected",
         "true"
@@ -285,7 +291,7 @@ describe("Navbar", () => {
       expect(screen.getByText(/Ask about your projects/)).toBeInTheDocument();
     });
 
-    it("project view (project set): click (?) opens Help modal with both tabs", async () => {
+    it("project view (project set): click (?) opens Help modal with three tabs", async () => {
       const user = userEvent.setup();
       const mockProject = {
         id: "proj-1",
@@ -305,6 +311,7 @@ describe("Navbar", () => {
       expect(screen.getByText("Help")).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Ask a Question" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Meet your Team" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Debug" })).toBeInTheDocument();
     });
 
     it("Meet your Team tab shows agent grid with roles and phases", async () => {
