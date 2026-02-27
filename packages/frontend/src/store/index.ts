@@ -13,7 +13,6 @@ import notificationReducer from "./slices/notificationSlice";
 import { websocketMiddleware } from "./middleware/websocketMiddleware";
 import { agentOutputFilterMiddleware } from "./middleware/agentOutputFilterMiddleware";
 import { notificationListener } from "./listeners/notificationListener";
-import { hydrationListener } from "./listeners/hydrationListener";
 
 export const store = configureStore({
   reducer: {
@@ -35,7 +34,7 @@ export const store = configureStore({
       },
     })
       .concat(websocketMiddleware, agentOutputFilterMiddleware)
-      .prepend(notificationListener.middleware, hydrationListener.middleware),
+      .prepend(notificationListener.middleware),
 });
 
 export type RootState = ReturnType<typeof store.getState>;

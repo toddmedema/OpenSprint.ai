@@ -5,7 +5,6 @@ import {
   fetchArchivedSessions,
   fetchLiveOutputBackfill,
   fetchActiveAgents,
-  fetchMoreTasks,
   markTaskDone,
   unblockTask,
   setSelectedTaskId,
@@ -109,7 +108,6 @@ export function ExecutePhase({
   const markDoneLoading = useAppSelector((s) => s.execute?.async?.markDone?.loading ?? false);
   const unblockLoading = useAppSelector((s) => s.execute?.async?.unblock?.loading ?? false);
   const loading = useAppSelector((s) => s.execute?.async?.tasks?.loading ?? false);
-  const hasMoreTasks = useAppSelector((s) => s.execute?.hasMoreTasks ?? false);
   const taskIdToStartedAt = useAppSelector((s) => s.execute?.taskIdToStartedAt ?? {});
   const selectedTaskData = effectiveSelectedTask
     ? (tasks.find((t) => t.id === effectiveSelectedTask) ?? null)
@@ -276,18 +274,6 @@ export function ExecutePhase({
                     />
                   ))}
                 </div>
-                {hasMoreTasks && !isSearchActive && (
-                  <div className="mt-6 flex justify-center">
-                    <button
-                      type="button"
-                      onClick={() => dispatch(fetchMoreTasks(projectId))}
-                      disabled={loading}
-                      className="rounded-lg border border-theme-border bg-theme-surface px-4 py-2 text-sm font-medium text-theme-text hover:bg-theme-border-subtle disabled:opacity-50"
-                    >
-                      {loading ? "Loading…" : "Load more tasks"}
-                    </button>
-                  </div>
-                )}
               </>
             )
           ) : filteredTasks.length === 0 ? (
@@ -308,18 +294,6 @@ export function ExecutePhase({
                 taskIdToStartedAt={taskIdToStartedAt}
                 statusFilter={statusFilter}
               />
-              {hasMoreTasks && !isSearchActive && (
-                <div className="mt-6 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={() => dispatch(fetchMoreTasks(projectId))}
-                    disabled={loading}
-                    className="rounded-lg border border-theme-border bg-theme-surface px-4 py-2 text-sm font-medium text-theme-text hover:bg-theme-border-subtle disabled:opacity-50"
-                  >
-                    {loading ? "Loading…" : "Load more tasks"}
-                  </button>
-                </div>
-              )}
             </>
           )}
         </div>

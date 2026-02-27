@@ -3,7 +3,6 @@ import { configureStore } from "@reduxjs/toolkit";
 import { agentOutputFilterMiddleware } from "../middleware/agentOutputFilterMiddleware";
 import executeReducer, {
   fetchTasks,
-  fetchMoreTasks,
   fetchTasksByIds,
   fetchExecutePlans,
   fetchExecuteStatus,
@@ -371,66 +370,11 @@ describe("executeSlice", () => {
       expect(api.tasks.list).toHaveBeenCalledWith("proj-1");
     });
 
-    it("stores paginated tasks and sets hasMoreTasks when limit/offset provided", async () => {
-      vi.mocked(api.tasks.list).mockResolvedValue({
-        items: [mockTask],
-        total: 150,
-      } as never);
-      const store = createStore();
-      await store.dispatch(fetchTasks({ projectId: "proj-1", limit: 100, offset: 0 }));
-      const state = store.getState().execute;
-      expect(selectTasks(store.getState())).toEqual([mockTask]);
-      expect(state.tasksTotalCount).toBe(150);
-      expect(state.hasMoreTasks).toBe(true);
-      expect(api.tasks.list).toHaveBeenCalledWith("proj-1", { limit: 100, offset: 0 });
-    });
-
     it("sets error on rejected", async () => {
       vi.mocked(api.tasks.list).mockRejectedValue(new Error("Network error"));
       const store = createStore();
       await store.dispatch(fetchTasks("proj-1"));
       expect(store.getState().execute.error).toBe("Network error");
-    });
-  });
-
-  describe("fetchMoreTasks thunk", () => {
-    it("deduplicates when paginated pages overlap (same task ID in multiple pages)", async () => {
-      const task2 = { ...mockTask, id: "task-2", title: "Task 2" };
-      const task3 = { ...mockTask, id: "task-3", title: "Task 3" };
-      vi.mocked(api.tasks.list)
-        .mockResolvedValueOnce({ items: [mockTask, task2], total: 4 } as never)
-        .mockResolvedValueOnce({ items: [task2, task3], total: 4 } as never);
-      const store = createStore();
-      await store.dispatch(fetchTasks({ projectId: "proj-1", limit: 100, offset: 0 }));
-      expect(selectTasks(store.getState())).toHaveLength(2);
-      await store.dispatch(fetchMoreTasks("proj-1"));
-      const tasks = selectTasks(store.getState());
-      expect(tasks).toHaveLength(3);
-      const ids = tasks.map((t) => t.id);
-      expect(ids).toEqual(["task-1", "task-2", "task-3"]);
-      expect(new Set(ids).size).toBe(3);
-    });
-
-    it("appends next page and updates hasMoreTasks", async () => {
-      const task2 = { ...mockTask, id: "task-2", title: "Task 2" };
-      vi.mocked(api.tasks.list)
-        .mockResolvedValueOnce({ items: [mockTask], total: 150 } as never)
-        .mockResolvedValueOnce({ items: [task2], total: 150 } as never);
-      const store = createStore();
-      await store.dispatch(fetchTasks({ projectId: "proj-1", limit: 100, offset: 0 }));
-      expect(selectTasks(store.getState())).toHaveLength(1);
-      await store.dispatch(fetchMoreTasks("proj-1"));
-      const tasks = selectTasks(store.getState());
-      const state = store.getState().execute;
-      expect(tasks).toHaveLength(2);
-      expect(tasks).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ id: "task-1" }),
-          expect.objectContaining({ id: "task-2" }),
-        ])
-      );
-      expect(state.hasMoreTasks).toBe(true);
-      expect(api.tasks.list).toHaveBeenLastCalledWith("proj-1", { limit: 100, offset: 1 });
     });
   });
 

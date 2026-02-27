@@ -55,19 +55,11 @@ vi.mock("../api/client", () => ({
     prd: { get: vi.fn().mockResolvedValue({}), getHistory: vi.fn().mockResolvedValue([]) },
     plans: { list: vi.fn().mockResolvedValue({ plans: [], edges: [] }) },
     tasks: {
-      list: vi.fn().mockImplementation((_projectId: string, options?: { limit?: number; offset?: number }) =>
-        options?.limit != null && options?.offset != null
-          ? Promise.resolve({ items: [], total: 0 })
-          : Promise.resolve([])
-      ),
+      list: vi.fn().mockResolvedValue([]),
     },
     execute: { status: vi.fn().mockResolvedValue({}) },
     feedback: {
-      list: vi.fn().mockImplementation((_projectId: string, options?: { limit?: number; offset?: number }) =>
-        options?.limit != null && options?.offset != null
-          ? Promise.resolve({ items: [], total: 0 })
-          : Promise.resolve([])
-      ),
+      list: vi.fn().mockResolvedValue([]),
     },
     chat: { history: vi.fn().mockResolvedValue({ messages: [] }) },
     deliver: {
@@ -317,11 +309,7 @@ const TASK_FOR_DEEP_LINK = {
 describe("ProjectView URL deep linking for Plan and Build detail panes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(api.tasks.list).mockImplementation((_projectId: string, options?: { limit?: number; offset?: number }) =>
-      options?.limit != null && options?.offset != null
-        ? Promise.resolve({ items: [TASK_FOR_DEEP_LINK], total: 1 })
-        : Promise.resolve([TASK_FOR_DEEP_LINK])
-    );
+    vi.mocked(api.tasks.list).mockResolvedValue([TASK_FOR_DEEP_LINK]);
   });
 
   it("dispatches setSelectedPlanId when loading plan phase with plan param", async () => {

@@ -48,9 +48,9 @@ const EXECUTE_ASYNC_KEYS = [
 type ExecuteAsyncKey = (typeof EXECUTE_ASYNC_KEYS)[number];
 
 export interface ExecuteState {
-  /** Tasks keyed by ID — duplicates impossible; pagination merges by overwriting. */
+  /** Tasks keyed by ID — duplicates impossible. */
   tasksById: Record<string, Task>;
-  /** Ordered task IDs for display (reflects pagination order). */
+  /** Ordered task IDs for display. */
   taskIdsOrder: string[];
   [TASKS_IN_FLIGHT_KEY]: number;
   orchestratorRunning: boolean;
@@ -78,10 +78,6 @@ export interface ExecuteState {
   async: AsyncStates<ExecuteAsyncKey>;
   /** Last error from any async operation (for backward compat / display) */
   error: string | null;
-  /** When using pagination: total task count from last fetch */
-  tasksTotalCount: number | null;
-  /** When using pagination: true if more tasks available to load */
-  hasMoreTasks: boolean;
 }
 
 export const initialExecuteState: ExecuteState = {
@@ -103,57 +99,21 @@ export const initialExecuteState: ExecuteState = {
   archivedSessions: [],
   async: createInitialAsyncStates(EXECUTE_ASYNC_KEYS),
   error: null,
-  tasksTotalCount: null,
-  hasMoreTasks: false,
 };
 
-const TASKS_PAGE_SIZE = 100;
+export type FetchTasksArg = string;
 
-export type FetchTasksArg =
-  | string
-  | { projectId: string; limit?: number; offset?: number };
-
-function normalizeFetchTasksArg(arg: FetchTasksArg): {
-  projectId: string;
-  limit?: number;
-  offset?: number;
-} {
-  if (typeof arg === "string") return { projectId: arg };
-  return arg;
-}
-
-export const fetchTasks = createAsyncThunk<
-  Task[] | { items: Task[]; total: number },
-  FetchTasksArg
->(
+export const fetchTasks = createAsyncThunk<Task[], FetchTasksArg>(
   "execute/fetchTasks",
-  async (arg, { getState, rejectWithValue }) => {
-    const { projectId, limit, offset } = normalizeFetchTasksArg(arg);
+  async (projectId, { getState, rejectWithValue }) => {
     const root = getState() as { execute: ExecuteState };
     const inFlight = root.execute[TASKS_IN_FLIGHT_KEY] ?? 0;
     if (inFlight > 1) {
       return rejectWithValue(DEDUP_SKIP);
     }
-    const options =
-      limit != null && offset != null ? { limit, offset } : undefined;
-    return options
-      ? (api.tasks.list(projectId, options) as Promise<Task[] | { items: Task[]; total: number }>)
-      : (api.tasks.list(projectId) as Promise<Task[] | { items: Task[]; total: number }>);
+    return api.tasks.list(projectId);
   }
 );
-
-/** Fetch next page of tasks and append. Uses current task count as offset. */
-export const fetchMoreTasks = createAsyncThunk<
-  { items: Task[]; total: number },
-  string
->("execute/fetchMoreTasks", async (projectId: string, { getState }) => {
-  const root = getState() as { execute: ExecuteState };
-  const offset = root.execute.taskIdsOrder.length;
-  return api.tasks.list(projectId, {
-    limit: TASKS_PAGE_SIZE,
-    offset,
-  }) as Promise<{ items: Task[]; total: number }>;
-});
 
 /** Fetch only specific tasks and merge into state. Used when Analyst creates tickets so only the affected feedback card updates. */
 export const fetchTasksByIds = createAsyncThunk<Task[], { projectId: string; taskIds: string[] }>(
@@ -449,19 +409,7 @@ const executeSlice = createSlice({
       .addCase(fetchTasks.fulfilled, (state, action) => {
         ensureAsync(state);
         ensureTasksState(state);
-        const payload = action.payload;
-        const isPaginated =
-          payload != null &&
-          typeof payload === "object" &&
-          "items" in payload &&
-          "total" in payload;
-        const incoming: Task[] = isPaginated
-          ? (payload as { items: Task[]; total: number }).items
-          : (payload ?? []) as Task[];
-        const total = isPaginated
-          ? (payload as { items: Task[]; total: number }).total
-          : incoming.length;
-        const offset = isPaginated ? (action.meta.arg as { offset?: number })?.offset ?? 0 : 0;
+        const incoming: Task[] = (action.payload ?? []) as Task[];
 
         const existingById = state.tasksById;
         const doneIds = new Set(
@@ -479,8 +427,6 @@ const executeSlice = createSlice({
         const { tasksById, taskIdsOrder } = toTasksByIdAndOrder(merged);
         state.tasksById = tasksById;
         state.taskIdsOrder = taskIdsOrder;
-        state.tasksTotalCount = isPaginated ? total : null;
-        state.hasMoreTasks = isPaginated ? offset + merged.length < total : false;
         state.async.tasks.loading = false;
         state[TASKS_IN_FLIGHT_KEY] = Math.max(0, (state[TASKS_IN_FLIGHT_KEY] ?? 1) - 1);
         const taskIds = new Set(taskIdsOrder);
@@ -496,46 +442,6 @@ const executeSlice = createSlice({
         state.async.tasks.loading = false;
         state.async.tasks.error = action.error.message ?? "Failed to load tasks";
         state.error = action.error.message ?? "Failed to load tasks";
-      });
-
-    // fetchMoreTasks — append next page
-    builder
-      .addCase(fetchMoreTasks.pending, (state) => {
-        ensureAsync(state);
-        state.async.tasks.loading = true;
-      })
-      .addCase(fetchMoreTasks.fulfilled, (state, action) => {
-        ensureAsync(state);
-        ensureTasksState(state);
-        const { items, total } = action.payload;
-        const tasksById = state.tasksById;
-        const taskIdsOrder = state.taskIdsOrder;
-        const doneIds = new Set(
-          Object.values(tasksById)
-            .filter((t) => t.kanbanColumn === "done")
-            .map((t) => t.id)
-        );
-        const merged = items.map((t) => {
-          if (doneIds.has(t.id) && t.kanbanColumn !== "done") {
-            return { ...t, kanbanColumn: "done" as const, status: "closed" as const };
-          }
-          return t;
-        });
-        const existingIds = new Set(taskIdsOrder);
-        for (const t of merged) {
-          state.tasksById[t.id] = t;
-          if (!existingIds.has(t.id)) {
-            existingIds.add(t.id);
-            state.taskIdsOrder.push(t.id);
-          }
-        }
-        state.tasksTotalCount = total;
-        state.hasMoreTasks = state.taskIdsOrder.length < total;
-        state.async.tasks.loading = false;
-      })
-      .addCase(fetchMoreTasks.rejected, (state) => {
-        ensureAsync(state);
-        state.async.tasks.loading = false;
       });
 
     // fetchTasksByIds — merge only fetched tasks (no loading state, minimal re-renders)

@@ -12,7 +12,6 @@ import {
   resolveFeedback,
   cancelFeedback,
   removeFeedbackItem,
-  fetchMoreFeedback,
   recategorizeFeedback,
 } from "../../store/slices/evalSlice";
 import {
@@ -696,7 +695,6 @@ export function EvalPhase({
   );
   const tasksCount = tasks.length;
   const loading = useAppSelector((s) => s.eval?.async?.feedback?.loading ?? false);
-  const hasMoreFeedback = useAppSelector((s) => s.eval?.hasMoreFeedback ?? false);
   const submitting = useAppSelector((s) => s.eval?.async?.submit?.loading ?? false);
 
   /* Load tasks when entering Eval so FeedbackTaskChip can show live status */
@@ -1201,18 +1199,6 @@ export function EvalPhase({
                   />
                 ))}
               </div>
-              {hasMoreFeedback && (
-                <div className="mt-6 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={() => dispatch(fetchMoreFeedback(projectId))}
-                    disabled={loading}
-                    className="rounded-lg border border-theme-border bg-theme-surface px-4 py-2 text-sm font-medium text-theme-text hover:bg-theme-border-subtle disabled:opacity-50"
-                  >
-                    {loading ? "Loading…" : "Load more feedback"}
-                  </button>
-                </div>
-              )}
             </>
           )}
         </div>
