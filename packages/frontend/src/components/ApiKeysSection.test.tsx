@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { ApiKeysSection } from "./ApiKeysSection";
 import type { ProjectSettings } from "@opensprint/shared";
 
@@ -76,6 +77,19 @@ describe("ApiKeysSection", () => {
   it("adds a new key when Add key is clicked", async () => {
     const user = userEvent.setup();
     render(<ApiKeysSection settings={mockSettingsClaude} onApiKeysChange={onApiKeysChange} />);
+    const addBtn = screen.getByTestId("api-key-add-ANTHROPIC_API_KEY");
+    await user.click(addBtn);
+    const inputs = screen.getAllByTestId(/api-key-input-ANTHROPIC_API_KEY-/);
+    expect(inputs.length).toBe(1);
+  });
+
+  it("shows exactly one input on first Add key click under StrictMode (no double-add)", async () => {
+    const user = userEvent.setup();
+    render(
+      <StrictMode>
+        <ApiKeysSection settings={mockSettingsClaude} onApiKeysChange={onApiKeysChange} />
+      </StrictMode>
+    );
     const addBtn = screen.getByTestId("api-key-add-ANTHROPIC_API_KEY");
     await user.click(addBtn);
     const inputs = screen.getAllByTestId(/api-key-input-ANTHROPIC_API_KEY-/);

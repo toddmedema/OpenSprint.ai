@@ -130,10 +130,15 @@ export function ApiKeysSection({ settings, onApiKeysChange }: ApiKeysSectionProp
   const addKey = useCallback(
     (provider: ApiKeyProvider) => {
       const id = crypto.randomUUID();
-      setNewKeys((prev) => ({
-        ...prev,
-        [provider]: [...(prev[provider] ?? []), { id, value: "" }],
-      }));
+      setNewKeys((prev) => {
+        const existing = prev[provider] ?? [];
+        // Idempotent: avoid duplicate add when React Strict Mode double-invokes the updater
+        if (existing.some((e) => e.id === id)) return prev;
+        return {
+          ...prev,
+          [provider]: [...existing, { id, value: "" }],
+        };
+      });
     },
     []
   );
