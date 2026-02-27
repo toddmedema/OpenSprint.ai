@@ -130,12 +130,16 @@ export function EpicCard({
         }
       }}
     >
-      {/* Full-card loading overlay for optimistic plans */}
-      {isOptimistic && (
+      {/* Full-card loading overlay: optimistic plans (Generate Plan) or plan tasks in progress */}
+      {(isOptimistic ||
+        (plan.status === "planning" &&
+          plan.taskCount === 0 &&
+          planTasksPlanIds.includes(plan.metadata.planId))) && (
         <div
           className="absolute inset-0 z-10 flex items-center justify-center bg-theme-surface/80 backdrop-blur-[1px]"
           aria-busy="true"
-          aria-label="Generating plan"
+          aria-label={isOptimistic ? "Generating plan" : "Planning tasks"}
+          data-testid="plan-tasks-loading"
         >
           <svg
             className="h-8 w-8 animate-spin text-brand-600"
@@ -243,35 +247,7 @@ export function EpicCard({
                   No tasks yet. Generate tasks from this plan, or use the AI chat to refine it
                   first.
                 </p>
-                {planTasksPlanIds.includes(plan.metadata.planId) || isOptimistic ? (
-                  <div
-                    className="flex items-center justify-center py-2 text-theme-muted"
-                    aria-busy="true"
-                    aria-label={isOptimistic ? "Generating plan" : "Planning tasks"}
-                    data-testid="plan-tasks-loading"
-                  >
-                    <svg
-                      className="animate-spin h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      />
-                    </svg>
-                  </div>
-                ) : (
+                {planTasksPlanIds.includes(plan.metadata.planId) || isOptimistic ? null : (
                   <button
                     type="button"
                     onClick={(e) => {
