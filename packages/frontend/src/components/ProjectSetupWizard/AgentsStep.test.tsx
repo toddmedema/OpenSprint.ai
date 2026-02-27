@@ -20,23 +20,6 @@ vi.mock("../../api/client", () => ({
   },
 }));
 
-vi.mock("../ApiKeysSection", () => ({
-  ApiKeysSection: ({
-    settings,
-    onApiKeysChange,
-  }: {
-    settings: { simpleComplexityAgent: { type: string }; complexComplexityAgent: { type: string } };
-    onApiKeysChange: (keys: unknown) => void;
-  }) => (
-    <div data-testid="api-keys-section">
-      <span>ApiKeysSection: {settings.simpleComplexityAgent.type},{settings.complexComplexityAgent.type}</span>
-      <button type="button" onClick={() => onApiKeysChange({ ANTHROPIC_API_KEY: [{ id: "1", value: "sk-test" }] })}>
-        Add key
-      </button>
-    </div>
-  ),
-}));
-
 const defaultLowComplexityAgent = {
   type: "cursor" as const,
   model: "",
@@ -56,10 +39,6 @@ function renderAgentsStep(overrides: Partial<Parameters<typeof AgentsStep>[0]> =
       onSimpleComplexityAgentChange={() => {}}
       onComplexComplexityAgentChange={() => {}}
       envKeys={null}
-      keyInput={{ anthropic: "", cursor: "" }}
-      onKeyInputChange={() => {}}
-      savingKey={null}
-      onSaveKey={() => {}}
       modelRefreshTrigger={0}
       maxConcurrentCoders={1}
       onMaxConcurrentCodersChange={() => {}}
@@ -89,67 +68,58 @@ describe("AgentsStep", () => {
     });
 
     expect(screen.queryByText(/API key required/)).not.toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("sk-ant-...")).not.toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("key_...")).not.toBeInTheDocument();
   });
 
-  it("shows cursor key input when cursor is selected and key is missing", () => {
+  it("shows configure-in-settings message when cursor is selected and key is missing", () => {
     renderAgentsStep({
       envKeys: { anthropic: true, cursor: false, claudeCli: true },
     });
 
     expect(screen.getByText(/API key required/)).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("sk-ant-...")).not.toBeInTheDocument();
-    expect(screen.getByPlaceholderText("key_...")).toBeInTheDocument();
+    expect(screen.getByText(/Configure API keys in Settings/)).toBeInTheDocument();
   });
 
-  it("does not show anthropic key input when no agent uses claude provider", () => {
+  it("does not show API key banner when no agent uses claude provider", () => {
     renderAgentsStep({
       envKeys: { anthropic: false, cursor: true, claudeCli: true },
     });
 
     expect(screen.queryByText(/API key required/)).not.toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("sk-ant-...")).not.toBeInTheDocument();
   });
 
-  it("shows anthropic key input when an agent uses claude provider and key is missing", () => {
+  it("shows configure-in-settings message when claude is selected and key is missing", () => {
     renderAgentsStep({
       simpleComplexityAgent: { type: "claude", model: "", cliCommand: "" },
       envKeys: { anthropic: false, cursor: true, claudeCli: true },
     });
 
     expect(screen.getByText(/API key required/)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("sk-ant-...")).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("key_...")).not.toBeInTheDocument();
+    expect(screen.getByText(/Configure API keys in Settings/)).toBeInTheDocument();
   });
 
-  it("shows both key inputs when both providers are selected and both keys missing", () => {
+  it("shows configure-in-settings message when both providers selected and both keys missing", () => {
     renderAgentsStep({
       simpleComplexityAgent: { type: "claude", model: "", cliCommand: "" },
       envKeys: { anthropic: false, cursor: false, claudeCli: true },
     });
 
     expect(screen.getByText(/API key required/)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("sk-ant-...")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("key_...")).toBeInTheDocument();
+    expect(screen.getByText(/Configure API keys in Settings/)).toBeInTheDocument();
   });
 
-  it("only shows cursor key when both agents use cursor and both keys missing", () => {
+  it("shows configure-in-settings message when both agents use cursor and both keys missing", () => {
     renderAgentsStep({
       envKeys: { anthropic: false, cursor: false, claudeCli: true },
     });
 
     expect(screen.getByText(/API key required/)).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("sk-ant-...")).not.toBeInTheDocument();
-    expect(screen.getByPlaceholderText("key_...")).toBeInTheDocument();
+    expect(screen.getByText(/Configure API keys in Settings/)).toBeInTheDocument();
   });
 
   it("does not show API key section when envKeys is null", () => {
     renderAgentsStep({ envKeys: null });
 
     expect(screen.queryByText(/API key required/)).not.toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("sk-ant-...")).not.toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("key_...")).not.toBeInTheDocument();
   });
 
   it("does not require API key when claude-cli is selected", () => {
@@ -309,41 +279,4 @@ describe("AgentsStep", () => {
     });
   });
 
-  describe("ApiKeysSection", () => {
-    it("shows ApiKeysSection when claude is selected and onApiKeysChange provided", () => {
-      renderAgentsStep({
-        simpleComplexityAgent: { type: "claude", model: "", cliCommand: "" },
-        onApiKeysChange: () => {},
-      });
-
-      expect(screen.getByTestId("api-keys-section")).toBeInTheDocument();
-    });
-
-    it("shows ApiKeysSection when cursor is selected and onApiKeysChange provided", () => {
-      renderAgentsStep({
-        simpleComplexityAgent: { type: "cursor", model: "", cliCommand: "" },
-        onApiKeysChange: () => {},
-      });
-
-      expect(screen.getByTestId("api-keys-section")).toBeInTheDocument();
-    });
-
-    it("does not show ApiKeysSection when onApiKeysChange not provided", () => {
-      renderAgentsStep({
-        simpleComplexityAgent: { type: "claude", model: "", cliCommand: "" },
-      });
-
-      expect(screen.queryByTestId("api-keys-section")).not.toBeInTheDocument();
-    });
-
-    it("does not show ApiKeysSection when only claude-cli and custom are selected", () => {
-      renderAgentsStep({
-        simpleComplexityAgent: { type: "claude-cli", model: "", cliCommand: "" },
-        complexComplexityAgent: { type: "custom", model: "", cliCommand: "my-agent" },
-        onApiKeysChange: () => {},
-      });
-
-      expect(screen.queryByTestId("api-keys-section")).not.toBeInTheDocument();
-    });
-  });
 });

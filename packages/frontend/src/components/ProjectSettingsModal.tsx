@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { FolderBrowser } from "./FolderBrowser";
 import { CloseButton } from "./CloseButton";
 import { ModelSelect } from "./ModelSelect";
-import { ApiKeysSection } from "./ApiKeysSection";
 import { DisplaySettingsContent } from "./DisplaySettingsContent";
 import { api } from "../api/client";
 import type {
@@ -49,17 +48,12 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
   // Settings
   const [settings, setSettings] = useState<ProjectSettings | null>(null);
 
-  // API key status (for agents tab)
+  // API key status (for agents tab - to show "configure in Settings" when keys missing)
   const [envKeys, setEnvKeys] = useState<{
     anthropic: boolean;
     cursor: boolean;
     claudeCli: boolean;
   } | null>(null);
-  const [savingKey, setSavingKey] = useState<"ANTHROPIC_API_KEY" | "CURSOR_API_KEY" | null>(null);
-  const [keyInput, setKeyInput] = useState<{ anthropic: string; cursor: string }>({
-    anthropic: "",
-    cursor: "",
-  });
   const [modelRefreshTrigger, setModelRefreshTrigger] = useState(0);
 
   useEffect(() => {
@@ -152,7 +146,6 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
             gitWorkingMode === "branches" ? 1 : (settings?.maxConcurrentCoders ?? 1),
           unknownScopeStrategy: settings?.unknownScopeStrategy ?? "optimistic",
           gitWorkingMode,
-          apiKeys: settings?.apiKeys,
         }),
       ]);
       onSaved?.();
@@ -200,27 +193,6 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
 
   const updateHilConfig = (key: keyof typeof hilConfig, value: HilNotificationMode) => {
     setSettings((s) => (s ? { ...s, hilConfig: { ...s.hilConfig, [key]: value } } : null));
-  };
-
-  const handleSaveKey = async (envKey: "ANTHROPIC_API_KEY" | "CURSOR_API_KEY") => {
-    const value = envKey === "ANTHROPIC_API_KEY" ? keyInput.anthropic : keyInput.cursor;
-    if (!value.trim()) return;
-    setSavingKey(envKey);
-    try {
-      await api.env.saveKey(envKey, value.trim());
-      setEnvKeys((prev) =>
-        prev ? { ...prev, [envKey === "ANTHROPIC_API_KEY" ? "anthropic" : "cursor"]: true } : null
-      );
-      setKeyInput((prev) => ({
-        ...prev,
-        [envKey === "ANTHROPIC_API_KEY" ? "anthropic" : "cursor"]: "",
-      }));
-      setModelRefreshTrigger((n) => n + 1);
-    } catch {
-      // Error handled by api client
-    } finally {
-      setSavingKey(null);
-    }
   };
 
   return (
@@ -376,107 +348,12 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
                     return (
                       <>
                         {(needsAnthropic || needsCursor) && (
-                          <>
-                            <div className="p-3 rounded-lg bg-theme-warning-bg border border-theme-warning-border">
-                              <p className="text-sm text-theme-warning-text">
-                                <strong>API key required:</strong>{" "}
-                                {needsAnthropic && needsCursor ? (
-                                  <>
-                                    Add your{" "}
-                                    <code className="font-mono text-xs">ANTHROPIC_API_KEY</code> and{" "}
-                                    <code className="font-mono text-xs">CURSOR_API_KEY</code> to
-                                    continue.
-                                  </>
-                                ) : needsAnthropic ? (
-                                  <>
-                                    Add your{" "}
-                                    <code className="font-mono text-xs">ANTHROPIC_API_KEY</code> to
-                                    use Claude (API). Get one from{" "}
-                                    <a
-                                      href="https://console.anthropic.com/"
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="underline hover:opacity-80"
-                                    >
-                                      Anthropic Console
-                                    </a>
-                                    .
-                                  </>
-                                ) : (
-                                  <>
-                                    Add your{" "}
-                                    <code className="font-mono text-xs">CURSOR_API_KEY</code> to use
-                                    Cursor. Get one from{" "}
-                                    <a
-                                      href="https://cursor.com/settings"
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="underline hover:opacity-80"
-                                    >
-                                      Cursor → Integrations → User API Keys
-                                    </a>
-                                    .
-                                  </>
-                                )}
-                              </p>
-                            </div>
-                            <div className="space-y-3">
-                              {needsAnthropic && (
-                                <div className="flex gap-2 items-end">
-                                  <div className="flex-1">
-                                    <label className="block text-xs font-medium text-theme-muted mb-1">
-                                      ANTHROPIC_API_KEY (Claude API)
-                                    </label>
-                                    <input
-                                      type="password"
-                                      className="input font-mono text-sm"
-                                      placeholder="sk-ant-..."
-                                      value={keyInput.anthropic}
-                                      onChange={(e) =>
-                                        setKeyInput((p) => ({ ...p, anthropic: e.target.value }))
-                                      }
-                                      autoComplete="off"
-                                    />
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSaveKey("ANTHROPIC_API_KEY")}
-                                    disabled={!keyInput.anthropic.trim() || savingKey !== null}
-                                    className="btn-primary text-sm disabled:opacity-50"
-                                  >
-                                    {savingKey === "ANTHROPIC_API_KEY" ? "Saving…" : "Save"}
-                                  </button>
-                                </div>
-                              )}
-                              {needsCursor && (
-                                <div className="flex gap-2 items-end">
-                                  <div className="flex-1">
-                                    <label className="block text-xs font-medium text-theme-muted mb-1">
-                                      CURSOR_API_KEY
-                                    </label>
-                                    <input
-                                      type="password"
-                                      className="input font-mono text-sm"
-                                      placeholder="key_..."
-                                      value={keyInput.cursor}
-                                      onChange={(e) =>
-                                        setKeyInput((p) => ({ ...p, cursor: e.target.value }))
-                                      }
-                                      autoComplete="off"
-                                    />
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSaveKey("CURSOR_API_KEY")}
-                                    disabled={!keyInput.cursor.trim() || savingKey !== null}
-                                    className="btn-primary text-sm disabled:opacity-50"
-                                  >
-                                    {savingKey === "CURSOR_API_KEY" ? "Saving…" : "Save"}
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </>
+                          <div className="p-3 rounded-lg bg-theme-warning-bg border border-theme-warning-border">
+                            <p className="text-sm text-theme-warning-text">
+                              <strong>API key required:</strong> Configure API keys in Settings (gear
+                              icon on the homepage).
+                            </p>
+                          </div>
                         )}
                         {claudeCliMissing && (
                           <div className="p-3 rounded-lg bg-theme-warning-bg border border-theme-warning-border">
@@ -754,14 +631,6 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
                       </div>
                     </div>
                   )}
-                  <ApiKeysSection
-                    settings={settings}
-                    onApiKeysChange={(apiKeys) =>
-                      setSettings((s) =>
-                        s ? { ...s, apiKeys: { ...s.apiKeys, ...apiKeys } } : null
-                      )
-                    }
-                  />
                 </div>
               )}
 

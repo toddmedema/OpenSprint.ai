@@ -1,0 +1,105 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, userEvent } from "@testing-library/react";
+import { DisplaySettingsContent } from "./DisplaySettingsContent";
+
+vi.mock("../contexts/ThemeContext", () => ({
+  useTheme: () => ({
+    preference: "light",
+    setTheme: vi.fn(),
+  }),
+}));
+
+vi.mock("../contexts/DisplayPreferencesContext", () => ({
+  useDisplayPreferences: () => ({
+    runningAgentsDisplayMode: "count",
+    setRunningAgentsDisplayMode: vi.fn(),
+  }),
+}));
+
+const mockGetKeys = vi.fn();
+const mockValidateKey = vi.fn();
+const mockSaveKey = vi.fn();
+
+vi.mock("../api/client", () => ({
+  api: {
+    env: {
+      getKeys: () => mockGetKeys(),
+      validateKey: (...args: unknown[]) => mockValidateKey(...args),
+      saveKey: (...args: unknown[]) => mockSaveKey(...args),
+    },
+  },
+  isConnectionError: () => false,
+}));
+
+describe("DisplaySettingsContent", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetKeys.mockResolvedValue({
+      anthropic: false,
+      cursor: false,
+      claudeCli: false,
+      useCustomCli: false,
+    });
+  });
+
+  it("renders Agent API Keys section with add inputs when keys not configured", async () => {
+    render(<DisplaySettingsContent />);
+
+    expect(screen.getByText("Agent API Keys")).toBeInTheDocument();
+    expect(screen.getByText(/Configure API keys for Claude and Cursor/)).toBeInTheDocument();
+    expect(await screen.findByTestId("global-api-key-anthropic-input")).toBeInTheDocument();
+    expect(screen.getByTestId("global-api-key-cursor-input")).toBeInTheDocument();
+    expect(screen.getByTestId("global-api-key-anthropic-save")).toBeInTheDocument();
+    expect(screen.getByTestId("global-api-key-cursor-save")).toBeInTheDocument();
+  });
+
+  it("shows configured status when keys exist", async () => {
+    mockGetKeys.mockResolvedValue({
+      anthropic: true,
+      cursor: true,
+      claudeCli: false,
+      useCustomCli: false,
+    });
+
+    render(<DisplaySettingsContent />);
+
+    await screen.findByText("Agent API Keys");
+    expect(screen.getByText("Claude: configured")).toBeInTheDocument();
+    expect(screen.getByText("Cursor: configured")).toBeInTheDocument();
+    expect(screen.queryByTestId("global-api-key-anthropic-input")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("global-api-key-cursor-input")).not.toBeInTheDocument();
+  });
+
+  it("shows Claude input only when anthropic not configured", async () => {
+    mockGetKeys.mockResolvedValue({
+      anthropic: false,
+      cursor: true,
+      claudeCli: false,
+      useCustomCli: false,
+    });
+
+    render(<DisplaySettingsContent />);
+
+    await screen.findByText("Agent API Keys");
+    expect(screen.getByTestId("global-api-key-anthropic-input")).toBeInTheDocument();
+    expect(screen.queryByTestId("global-api-key-cursor-input")).not.toBeInTheDocument();
+    expect(screen.getByText("Cursor: configured")).toBeInTheDocument();
+  });
+
+  it("renders Theme section", async () => {
+    render(<DisplaySettingsContent />);
+
+    await screen.findByText("Theme");
+    expect(screen.getByText(/Choose how Open Sprint looks/)).toBeInTheDocument();
+    expect(screen.getByTestId("theme-option-light")).toBeInTheDocument();
+    expect(screen.getByTestId("theme-option-dark")).toBeInTheDocument();
+    expect(screen.getByTestId("theme-option-system")).toBeInTheDocument();
+  });
+
+  it("renders Running agents display mode section", async () => {
+    render(<DisplaySettingsContent />);
+
+    await screen.findByText("Running agents display mode");
+    expect(screen.getByTestId("running-agents-display-mode")).toBeInTheDocument();
+  });
+});

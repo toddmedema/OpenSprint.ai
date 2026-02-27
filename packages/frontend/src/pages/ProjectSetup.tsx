@@ -15,7 +15,6 @@ import {
 import type { ProjectMetadataState } from "../components/ProjectSetupWizard";
 import type {
   AgentType,
-  ApiKeys,
   GitWorkingMode,
   HilConfig,
   UnknownScopeStrategy,
@@ -70,15 +69,9 @@ export function ProjectSetup() {
     cursor: boolean;
     claudeCli: boolean;
   } | null>(null);
-  const [savingKey, setSavingKey] = useState<"ANTHROPIC_API_KEY" | "CURSOR_API_KEY" | null>(null);
-  const [keyInput, setKeyInput] = useState<{ anthropic: string; cursor: string }>({
-    anthropic: "",
-    cursor: "",
-  });
   const [modelRefreshTrigger, setModelRefreshTrigger] = useState(0);
   const [createError, setCreateError] = useState<string | null>(null);
   const [checkingExisting, setCheckingExisting] = useState(false);
-  const [apiKeys, setApiKeys] = useState<ApiKeys | undefined>(undefined);
 
   const steps = ADD_EXISTING_STEPS;
   const currentStepIndex = steps.findIndex((s) => s.key === step);
@@ -137,27 +130,6 @@ export function ProjectSetup() {
       .finally(() => setDetectingFramework(false));
   }, [step, repoPath]);
 
-  const handleSaveKey = async (envKey: "ANTHROPIC_API_KEY" | "CURSOR_API_KEY") => {
-    const value = envKey === "ANTHROPIC_API_KEY" ? keyInput.anthropic : keyInput.cursor;
-    if (!value.trim()) return;
-    setSavingKey(envKey);
-    try {
-      await api.env.saveKey(envKey, value.trim());
-      setEnvKeys((prev) =>
-        prev ? { ...prev, [envKey === "ANTHROPIC_API_KEY" ? "anthropic" : "cursor"]: true } : null
-      );
-      setKeyInput((prev) => ({
-        ...prev,
-        [envKey === "ANTHROPIC_API_KEY" ? "anthropic" : "cursor"]: "",
-      }));
-      setModelRefreshTrigger((n) => n + 1);
-    } catch {
-      // Error handled by api client
-    } finally {
-      setSavingKey(null);
-    }
-  };
-
   const handleCreate = async () => {
     setCreating(true);
     setCreateError(null);
@@ -187,7 +159,6 @@ export function ProjectSetup() {
         maxConcurrentCoders: gitWorkingMode === "branches" ? 1 : maxConcurrentCoders,
         unknownScopeStrategy,
         gitWorkingMode,
-        ...(apiKeys && Object.keys(apiKeys).length > 0 && { apiKeys }),
       });
       navigate(getProjectPhasePath((project as { id: string }).id, "sketch"));
     } catch (err) {
@@ -280,10 +251,6 @@ export function ProjectSetup() {
                 onSimpleComplexityAgentChange={setSimpleComplexityAgent}
                 onComplexComplexityAgentChange={setComplexComplexityAgent}
                 envKeys={envKeys}
-                keyInput={keyInput}
-                onKeyInputChange={(key, value) => setKeyInput((p) => ({ ...p, [key]: value }))}
-                savingKey={savingKey}
-                onSaveKey={handleSaveKey}
                 modelRefreshTrigger={modelRefreshTrigger}
                 maxConcurrentCoders={maxConcurrentCoders}
                 onMaxConcurrentCodersChange={setMaxConcurrentCoders}
@@ -294,10 +261,6 @@ export function ProjectSetup() {
                   setGitWorkingMode(v);
                   if (v === "branches") setMaxConcurrentCoders(1);
                 }}
-                apiKeys={apiKeys}
-                onApiKeysChange={(keys) =>
-                  setApiKeys((prev) => ({ ...prev, ...keys } as ApiKeys))
-                }
               />
             )}
 

@@ -178,7 +178,7 @@ describe("ProjectSettingsModal", () => {
     expect(screen.queryByPlaceholderText("key_...")).not.toBeInTheDocument();
   });
 
-  it("shows anthropic key input when claude is selected and key is missing", async () => {
+  it("shows configure-in-settings message when claude is selected and key is missing", async () => {
     mockGetKeys.mockResolvedValue({
       anthropic: false,
       cursor: true,
@@ -193,7 +193,8 @@ describe("ProjectSettingsModal", () => {
     await userEvent.click(agentConfigTab);
 
     await screen.findByText(/API key required/);
-    expect(screen.getByPlaceholderText("sk-ant-...")).toBeInTheDocument();
+    expect(screen.getByText(/Configure API keys in Settings/)).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("sk-ant-...")).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText("key_...")).not.toBeInTheDocument();
   });
 
@@ -372,7 +373,7 @@ describe("ProjectSettingsModal", () => {
     expect(screen.queryByText(/Planning Agent Slot|Coding Agent Slot/i)).not.toBeInTheDocument();
   });
 
-  it("Agent Config tab shows API Keys section when claude or cursor is selected", async () => {
+  it("Agent Config tab does not show API Keys section (keys configured in homepage Settings)", async () => {
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
     await screen.findByText("Settings");
 
@@ -380,9 +381,8 @@ describe("ProjectSettingsModal", () => {
     await userEvent.click(agentConfigTab);
 
     await screen.findByText("Task Complexity");
-    expect(screen.getByTestId("api-keys-section")).toBeInTheDocument();
-    expect(screen.getByText("API Keys")).toBeInTheDocument();
-    expect(screen.getByText("ANTHROPIC_API_KEY (Claude API)")).toBeInTheDocument();
+    expect(screen.queryByTestId("api-keys-section")).not.toBeInTheDocument();
+    expect(screen.queryByText("API Keys")).not.toBeInTheDocument();
   });
 
   it("saves simpleComplexityAgent and complexComplexityAgent when Save is clicked", async () => {

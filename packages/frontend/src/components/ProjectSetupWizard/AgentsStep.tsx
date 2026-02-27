@@ -1,13 +1,10 @@
 import { useState } from "react";
 import { ModelSelect } from "../ModelSelect";
 import { AgentReferenceModal } from "../AgentReferenceModal";
-import { ApiKeysSection } from "../ApiKeysSection";
 import type {
   AgentType,
   GitWorkingMode,
   UnknownScopeStrategy,
-  ApiKeys,
-  ProjectSettings,
 } from "@opensprint/shared";
 import {
   AGENT_ROLE_CANONICAL_ORDER,
@@ -38,10 +35,6 @@ export interface AgentsStepProps {
   onSimpleComplexityAgentChange: (config: AgentConfig) => void;
   onComplexComplexityAgentChange: (config: AgentConfig) => void;
   envKeys: EnvKeys | null;
-  keyInput: { anthropic: string; cursor: string };
-  onKeyInputChange: (key: "anthropic" | "cursor", value: string) => void;
-  savingKey: "ANTHROPIC_API_KEY" | "CURSOR_API_KEY" | null;
-  onSaveKey: (key: "ANTHROPIC_API_KEY" | "CURSOR_API_KEY") => void;
   modelRefreshTrigger: number;
   maxConcurrentCoders: number;
   onMaxConcurrentCodersChange: (value: number) => void;
@@ -49,9 +42,6 @@ export interface AgentsStepProps {
   onUnknownScopeStrategyChange: (value: UnknownScopeStrategy) => void;
   gitWorkingMode: GitWorkingMode;
   onGitWorkingModeChange: (value: GitWorkingMode) => void;
-  /** Optional: project-level API keys (Setup Wizard). When provided, ApiKeysSection is shown when keys are needed. */
-  apiKeys?: ApiKeys;
-  onApiKeysChange?: (apiKeys: Partial<Record<"ANTHROPIC_API_KEY" | "CURSOR_API_KEY", Array<{ id: string; value?: string; limitHitAt?: string }>>>) => void;
 }
 
 export function AgentsStep({
@@ -60,10 +50,6 @@ export function AgentsStep({
   onSimpleComplexityAgentChange,
   onComplexComplexityAgentChange,
   envKeys,
-  keyInput,
-  onKeyInputChange,
-  savingKey,
-  onSaveKey,
   modelRefreshTrigger,
   maxConcurrentCoders,
   onMaxConcurrentCodersChange,
@@ -71,8 +57,6 @@ export function AgentsStep({
   onUnknownScopeStrategyChange,
   gitWorkingMode,
   onGitWorkingModeChange,
-  apiKeys,
-  onApiKeysChange,
 }: AgentsStepProps) {
   const [agentReferenceOpen, setAgentReferenceOpen] = useState(false);
 
@@ -116,99 +100,12 @@ export function AgentsStep({
       {agentReferenceOpen && <AgentReferenceModal onClose={() => setAgentReferenceOpen(false)} />}
 
       {(needsAnthropic || needsCursor) && (
-        <>
-          <div className="p-3 rounded-lg bg-theme-warning-bg border border-theme-warning-border">
-            <p className="text-sm text-theme-warning-text">
-              <strong>API key required:</strong>{" "}
-              {needsAnthropic && needsCursor ? (
-                <>
-                  Add your <code className="font-mono text-xs">ANTHROPIC_API_KEY</code> and{" "}
-                  <code className="font-mono text-xs">CURSOR_API_KEY</code> to continue.
-                </>
-              ) : needsAnthropic ? (
-                <>
-                  Add your <code className="font-mono text-xs">ANTHROPIC_API_KEY</code> to use
-                  Claude (API). Get one from{" "}
-                  <a
-                    href="https://console.anthropic.com/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline hover:opacity-80"
-                  >
-                    Anthropic Console
-                  </a>
-                  .
-                </>
-              ) : (
-                <>
-                  Add your <code className="font-mono text-xs">CURSOR_API_KEY</code> to use Cursor.
-                  Get one from{" "}
-                  <a
-                    href="https://cursor.com/settings"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline hover:opacity-80"
-                  >
-                    Cursor → Integrations → User API Keys
-                  </a>
-                  .
-                </>
-              )}
-            </p>
-          </div>
-          <div className="space-y-3">
-            {needsAnthropic && (
-              <div className="flex gap-2 items-end">
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-theme-muted mb-1">
-                    ANTHROPIC_API_KEY (Claude API)
-                  </label>
-                  <input
-                    type="password"
-                    className="input font-mono text-sm"
-                    placeholder="sk-ant-..."
-                    value={keyInput.anthropic}
-                    onChange={(e) => onKeyInputChange("anthropic", e.target.value)}
-                    autoComplete="off"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onSaveKey("ANTHROPIC_API_KEY")}
-                  disabled={!keyInput.anthropic.trim() || savingKey !== null}
-                  className="btn-primary text-sm disabled:opacity-50"
-                >
-                  {savingKey === "ANTHROPIC_API_KEY" ? "Saving…" : "Save"}
-                </button>
-              </div>
-            )}
-            {needsCursor && (
-              <div className="flex gap-2 items-end">
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-theme-muted mb-1">
-                    CURSOR_API_KEY
-                  </label>
-                  <input
-                    type="password"
-                    className="input font-mono text-sm"
-                    placeholder="key_..."
-                    value={keyInput.cursor}
-                    onChange={(e) => onKeyInputChange("cursor", e.target.value)}
-                    autoComplete="off"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onSaveKey("CURSOR_API_KEY")}
-                  disabled={!keyInput.cursor.trim() || savingKey !== null}
-                  className="btn-primary text-sm disabled:opacity-50"
-                >
-                  {savingKey === "CURSOR_API_KEY" ? "Saving…" : "Save"}
-                </button>
-              </div>
-            )}
-          </div>
-        </>
+        <div className="p-3 rounded-lg bg-theme-warning-bg border border-theme-warning-border">
+          <p className="text-sm text-theme-warning-text">
+            <strong>API key required:</strong> Configure API keys in Settings (gear icon on the
+            homepage).
+          </p>
+        </div>
       )}
       {claudeCliMissing && (
         <div className="p-3 rounded-lg bg-theme-warning-bg border border-theme-warning-border">
@@ -344,21 +241,6 @@ export function AgentsStep({
           </div>
         </div>
       </div>
-      {onApiKeysChange && (simpleComplexityAgent.type === "claude" || complexComplexityAgent.type === "cursor") && (
-        <ApiKeysSection
-          settings={
-            {
-              simpleComplexityAgent,
-              complexComplexityAgent,
-              deployment: { mode: "custom" },
-              hilConfig: { scopeChanges: "automated", architectureDecisions: "automated", dependencyModifications: "automated" },
-              testFramework: null,
-              apiKeys,
-            } as ProjectSettings
-          }
-          onApiKeysChange={onApiKeysChange}
-        />
-      )}
       <hr />
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
