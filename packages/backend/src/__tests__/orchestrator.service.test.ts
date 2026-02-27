@@ -683,6 +683,24 @@ describe("OrchestratorService (slot-based model)", () => {
     });
   });
 
+  describe("refreshMaxSlotsAndNudge", () => {
+    it("refreshes maxSlots from settings and calls nudge so new agents spawn when maxConcurrentCoders increases", async () => {
+      mockGetSettings.mockResolvedValue({
+        ...defaultSettings,
+        maxConcurrentCoders: 4,
+        gitWorkingMode: "worktree",
+      });
+      mockTaskStoreReady.mockResolvedValue([]);
+      const nudgeSpy = vi.spyOn(orchestrator, "nudge").mockImplementation(() => {});
+
+      await orchestrator.refreshMaxSlotsAndNudge(projectId);
+
+      expect(mockGetSettings).toHaveBeenCalledWith(projectId);
+      expect(nudgeSpy).toHaveBeenCalledWith(projectId);
+      nudgeSpy.mockRestore();
+    });
+  });
+
   describe("stuck-loop guard", () => {
     const LOOP_STUCK_GUARD_MS = 5 * 60 * 1000;
 

@@ -3,8 +3,9 @@
  * Verifies settings read/write round-trip with two-tier format (simpleComplexityAgent/complexComplexityAgent).
  * Settings are stored in global DB at ~/.opensprint/settings.json keyed by project_id.
  */
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import request from "supertest";
+import { orchestratorService } from "../services/orchestrator.service.js";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
@@ -220,6 +221,19 @@ describe("Settings API lifecycle", () => {
     expect(res.body.data.simpleComplexityAgent.model).toBe("composer-1.5");
     expect(res.body.data.complexComplexityAgent.type).toBe("claude");
     expect(res.body.data.complexComplexityAgent.model).toBe("claude-opus-4");
+  });
+
+  it("PUT /api/v1/projects/:id/settings triggers orchestrator nudge so changes take effect immediately", async () => {
+    const refreshSpy = vi
+      .spyOn(orchestratorService, "refreshMaxSlotsAndNudge")
+      .mockResolvedValue(undefined);
+
+    await request(app)
+      .put(`${API_PREFIX}/projects/${projectId}/settings`)
+      .send({ maxConcurrentCoders: 3 });
+
+    expect(refreshSpy).toHaveBeenCalledWith(projectId);
+    refreshSpy.mockRestore();
   });
 
   it("PUT /api/v1/projects/:id/settings accepts and persists gitWorkingMode", async () => {

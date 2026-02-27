@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import request from "supertest";
+import { orchestratorService } from "../services/orchestrator.service.js";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
@@ -10,7 +11,6 @@ import { ProjectService } from "../services/project.service.js";
 import { API_PREFIX, DEFAULT_HIL_CONFIG } from "@opensprint/shared";
 
 // Mock TaskStoreService so tests don't require bd CLI or shell
-import { vi } from "vitest";
 vi.mock("../services/task-store.service.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/task-store.service.js")>();
   const initSqlJs = (await import("sql.js")).default;
@@ -161,6 +161,19 @@ describe("Deliver API (phase routes for deployment records)", () => {
         mode: "custom",
         customCommand: "npm run deploy",
       });
+    });
+
+    it("should trigger orchestrator refreshMaxSlotsAndNudge so changes take effect immediately", async () => {
+      const refreshSpy = vi
+        .spyOn(orchestratorService, "refreshMaxSlotsAndNudge")
+        .mockResolvedValue(undefined);
+
+      await request(app)
+        .put(`${API_PREFIX}/projects/${projectId}/deliver/settings`)
+        .send({ mode: "custom", customCommand: "npm run deploy" });
+
+      expect(refreshSpy).toHaveBeenCalledWith(projectId);
+      refreshSpy.mockRestore();
     });
 
     it("should accept and persist autoDeployOnEpicCompletion, autoDeployOnEvalResolution, and autoResolveFeedbackOnTaskCompletion (PRD §7.5.3, §10.2)", async () => {

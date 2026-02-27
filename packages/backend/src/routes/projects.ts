@@ -163,8 +163,9 @@ projectsRouter.get("/:id/settings", async (req, res, next) => {
 // PUT /projects/:id/settings — Update project settings (apiKeys masked in response)
 projectsRouter.put("/:id/settings", async (req, res, next) => {
   try {
-    const settings = await projectService.updateSettings(req.params.id, req.body);
-    orchestratorService.invalidateMaxSlotsCache(req.params.id);
+    const projectId = req.params.id;
+    const settings = await projectService.updateSettings(projectId, req.body);
+    await orchestratorService.refreshMaxSlotsAndNudge(projectId);
     const masked = {
       ...settings,
       apiKeys: maskApiKeysForResponse(settings.apiKeys),

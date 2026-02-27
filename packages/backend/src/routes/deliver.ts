@@ -16,6 +16,7 @@ import {
 import { deploymentService } from "../services/deployment-service.js";
 import { deployStorageService } from "../services/deploy-storage.service.js";
 import { ProjectService } from "../services/project.service.js";
+import { orchestratorService } from "../services/orchestrator.service.js";
 import { broadcastToProject } from "../websocket/index.js";
 import { ensureEasConfig } from "../services/eas-config.js";
 import { testRunner } from "../services/test-runner.js";
@@ -174,6 +175,7 @@ deliverRouter.put("/settings", async (req: Request<ProjectParams>, res, next) =>
     };
 
     await projectService.updateSettings(projectId, updatedSettings);
+    await orchestratorService.refreshMaxSlotsAndNudge(projectId);
     const updated = await projectService.getSettings(projectId);
 
     const body: ApiResponse<ProjectSettings> = { data: updated };

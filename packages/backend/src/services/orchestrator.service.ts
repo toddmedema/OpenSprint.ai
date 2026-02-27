@@ -882,6 +882,22 @@ export class OrchestratorService {
     this.maxSlotsCache.delete(projectId);
   }
 
+  /**
+   * Refresh maxSlots from settings and nudge. Use when settings are saved so nudge sees the new
+   * maxConcurrentCoders immediately (e.g. increasing max agents spawns new agents right away).
+   */
+  async refreshMaxSlotsAndNudge(projectId: string): Promise<void> {
+    try {
+      const settings = await this.projectService.getSettings(projectId);
+      const maxSlots =
+        settings.gitWorkingMode === "branches" ? 1 : (settings.maxConcurrentCoders ?? 1);
+      this.maxSlotsCache.set(projectId, maxSlots);
+    } catch {
+      this.maxSlotsCache.set(projectId, 1);
+    }
+    this.nudge(projectId);
+  }
+
   async getLiveOutput(projectId: string, taskId: string): Promise<string> {
     await this.projectService.getProject(projectId);
     const state = this.getState(projectId);
