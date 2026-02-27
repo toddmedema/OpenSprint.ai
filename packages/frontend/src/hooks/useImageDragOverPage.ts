@@ -49,18 +49,27 @@ export function useImageDragOverPage(): boolean {
     setIsDragging(false);
   }, []);
 
+  /** Fallback: when dragging from external source (e.g. file system), dragend does not fire on document.
+   * mouseup fires when the user releases the mouse, ending the drag. */
+  const handleMouseUp = useCallback(() => {
+    dragCounterRef.current = 0;
+    setIsDragging(false);
+  }, []);
+
   useEffect(() => {
     document.addEventListener("dragenter", handleDragEnter);
     document.addEventListener("dragleave", handleDragLeave);
     document.addEventListener("dragend", handleDragEnd);
     document.addEventListener("drop", handleDrop);
+    document.addEventListener("mouseup", handleMouseUp);
     return () => {
       document.removeEventListener("dragenter", handleDragEnter);
       document.removeEventListener("dragleave", handleDragLeave);
       document.removeEventListener("dragend", handleDragEnd);
       document.removeEventListener("drop", handleDrop);
+      document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [handleDragEnter, handleDragLeave, handleDragEnd, handleDrop]);
+  }, [handleDragEnter, handleDragLeave, handleDragEnd, handleDrop, handleMouseUp]);
 
   return isDragging;
 }
