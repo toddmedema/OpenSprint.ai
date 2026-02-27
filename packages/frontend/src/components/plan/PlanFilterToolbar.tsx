@@ -145,7 +145,7 @@ export function PlanFilterToolbar({
           <button
             type="button"
             onClick={onAddPlan}
-            className="btn-secondary text-sm py-1.5 px-2.5"
+            className="btn-primary text-sm py-1.5 px-2.5 hover:bg-brand-800"
             data-testid="add-plan-button"
           >
             Add Plan

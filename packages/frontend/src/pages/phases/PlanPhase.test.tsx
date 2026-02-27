@@ -290,8 +290,11 @@ describe("PlanPhase Redux integration", () => {
       </Provider>
     );
 
-    expect(screen.getByTestId("add-plan-button")).toBeInTheDocument();
-    expect(screen.getByTestId("add-plan-button")).toHaveTextContent("Add Plan");
+    const addPlanBtn = screen.getByTestId("add-plan-button");
+    expect(addPlanBtn).toBeInTheDocument();
+    expect(addPlanBtn).toHaveTextContent("Add Plan");
+    expect(addPlanBtn).toHaveClass("btn-primary");
+    expect(addPlanBtn).toHaveClass("hover:bg-brand-800");
     expect(screen.queryByTestId("add-plan-modal")).not.toBeInTheDocument();
 
     await user.click(screen.getByTestId("add-plan-button"));
