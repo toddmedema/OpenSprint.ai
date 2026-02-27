@@ -687,4 +687,49 @@ describe("ProjectService", () => {
       code: "ENOENT",
     });
   });
+
+  it("deleteProject removes settings from global store", async () => {
+    const repoPath = path.join(tempDir, "delete-settings-test");
+    const project = await projectService.createProject({
+      name: "Delete Settings",
+      repoPath,
+      simpleComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      complexComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    const settingsBefore = await readSettingsFromGlobalStore(tempDir, project.id);
+    expect(settingsBefore.simpleComplexityAgent).toBeDefined();
+
+    await projectService.deleteProject(project.id);
+
+    const storePath = path.join(tempDir, ".opensprint", "settings.json");
+    const raw = await fs.readFile(storePath, "utf-8");
+    const store = JSON.parse(raw) as Record<string, unknown>;
+    expect(store[project.id]).toBeUndefined();
+  });
+
+  it("deleteProject removes project from projects.json index", async () => {
+    const repoPath = path.join(tempDir, "delete-index-test");
+    const project = await projectService.createProject({
+      name: "Delete Index",
+      repoPath,
+      simpleComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      complexComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    const indexPath = path.join(tempDir, ".opensprint", "projects.json");
+    const beforeRaw = await fs.readFile(indexPath, "utf-8");
+    const before = JSON.parse(beforeRaw) as { projects: Array<{ id: string }> };
+    expect(before.projects.some((p) => p.id === project.id)).toBe(true);
+
+    await projectService.deleteProject(project.id);
+
+    const afterRaw = await fs.readFile(indexPath, "utf-8");
+    const after = JSON.parse(afterRaw) as { projects: Array<{ id: string }> };
+    expect(after.projects.some((p) => p.id === project.id)).toBe(false);
+  });
 });

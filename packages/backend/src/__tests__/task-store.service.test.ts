@@ -933,6 +933,104 @@ describe("TaskStoreService", () => {
     });
   });
 
+  describe("deleteByProjectId", () => {
+    it("should remove tasks, dependencies, feedback, sessions, stats, events, counters, deployments, and plans for a project", async () => {
+      const pid = "proj-delete-test";
+      const otherPid = "proj-keep";
+      const now = new Date().toISOString();
+
+      const task = await store.create(pid, "Task A", { type: "task" });
+      const task2 = await store.create(pid, "Task B", { type: "task" });
+      await store.addDependency(pid, task2.id, task.id, "blocks");
+
+      const keepTask = await store.create(otherPid, "Keep Me", { type: "task" });
+
+      const db = await store.getDb();
+      db.run(
+        `INSERT INTO feedback (id, project_id, text, category, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        ["fb-1", pid, "Fix bug", "bug", "open", now]
+      );
+      db.run(
+        `INSERT INTO feedback (id, project_id, text, category, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        ["fb-2", otherPid, "Other bug", "bug", "open", now]
+      );
+      db.run(
+        `INSERT INTO feedback_inbox (project_id, feedback_id, enqueued_at) VALUES (?, ?, ?)`,
+        [pid, "fb-1", now]
+      );
+      db.run(
+        `INSERT INTO agent_sessions (project_id, task_id, attempt, agent_type, agent_model, started_at, status, git_branch) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [pid, task.id, 1, "coder", "claude", now, "completed", "opensprint/test"]
+      );
+      db.run(
+        `INSERT INTO agent_stats (project_id, task_id, agent_id, model, attempt, started_at, completed_at, outcome, duration_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [pid, task.id, "agent-1", "claude", 1, now, now, "success", 1000]
+      );
+      db.run(
+        `INSERT INTO orchestrator_events (project_id, task_id, timestamp, event) VALUES (?, ?, ?, ?)`,
+        [pid, task.id, now, "assigned"]
+      );
+      db.run(
+        `INSERT INTO orchestrator_counters (project_id, total_done, total_failed, queue_depth, updated_at) VALUES (?, ?, ?, ?, ?)`,
+        [pid, 5, 1, 3, now]
+      );
+      db.run(
+        `INSERT INTO deployments (id, project_id, status, started_at) VALUES (?, ?, ?, ?)`,
+        ["dep-1", pid, "completed", now]
+      );
+      await store.planInsert(pid, "plan-1", {
+        epic_id: "ep-1",
+        content: "# Plan",
+        metadata: JSON.stringify({ planId: "plan-1" }),
+      });
+
+      await store.deleteByProjectId(pid);
+
+      const tasks = await store.listAll(pid);
+      expect(tasks).toHaveLength(0);
+
+      const kept = await store.listAll(otherPid);
+      expect(kept).toHaveLength(1);
+      expect(kept[0].id).toBe(keepTask.id);
+
+      const countRow = (table: string, projId: string): number => {
+        const stmt = db.prepare(`SELECT COUNT(*) as cnt FROM ${table} WHERE project_id = ?`);
+        stmt.bind([projId]);
+        stmt.step();
+        const cnt = stmt.getAsObject().cnt as number;
+        stmt.free();
+        return cnt;
+      };
+
+      expect(countRow("feedback", pid)).toBe(0);
+      expect(countRow("feedback", otherPid)).toBe(1);
+      expect(countRow("feedback_inbox", pid)).toBe(0);
+      expect(countRow("agent_sessions", pid)).toBe(0);
+      expect(countRow("agent_stats", pid)).toBe(0);
+      expect(countRow("orchestrator_events", pid)).toBe(0);
+      expect(countRow("orchestrator_counters", pid)).toBe(0);
+      expect(countRow("deployments", pid)).toBe(0);
+      expect(countRow("plans", pid)).toBe(0);
+
+      const depStmt = db.prepare(
+        "SELECT COUNT(*) as cnt FROM task_dependencies WHERE task_id = ? OR depends_on_id = ?"
+      );
+      depStmt.bind([task.id, task.id]);
+      depStmt.step();
+      expect(depStmt.getAsObject().cnt).toBe(0);
+      depStmt.free();
+    });
+
+    it("should be idempotent — second call on same project does not error", async () => {
+      const pid = "proj-idempotent";
+      await store.create(pid, "Task", { type: "task" });
+      await store.deleteByProjectId(pid);
+      await store.deleteByProjectId(pid);
+      const tasks = await store.listAll(pid);
+      expect(tasks).toHaveLength(0);
+    });
+  });
+
   describe("migration: plans with gate tasks to epic-blocked", () => {
     let tempDir: string;
     let originalHome: string | undefined;

@@ -1156,7 +1156,7 @@ export class TaskStoreService {
     });
   }
 
-  /** Delete all tasks for a project (e.g. when project is deleted). */
+  /** Delete all data for a project from every project-scoped table. */
   async deleteByProjectId(projectId: string): Promise<void> {
     return this.withWriteLock(async () => {
       await this.ensureInitialized();
@@ -1172,6 +1172,14 @@ export class TaskStoreService {
         db.run("DELETE FROM task_dependencies WHERE task_id = ? OR depends_on_id = ?", [id, id]);
       }
       db.run("DELETE FROM tasks WHERE project_id = ?", [projectId]);
+      db.run("DELETE FROM feedback WHERE project_id = ?", [projectId]);
+      db.run("DELETE FROM feedback_inbox WHERE project_id = ?", [projectId]);
+      db.run("DELETE FROM agent_sessions WHERE project_id = ?", [projectId]);
+      db.run("DELETE FROM agent_stats WHERE project_id = ?", [projectId]);
+      db.run("DELETE FROM orchestrator_events WHERE project_id = ?", [projectId]);
+      db.run("DELETE FROM orchestrator_counters WHERE project_id = ?", [projectId]);
+      db.run("DELETE FROM deployments WHERE project_id = ?", [projectId]);
+      db.run("DELETE FROM plans WHERE project_id = ?", [projectId]);
       await this.saveToDisk();
     });
   }
