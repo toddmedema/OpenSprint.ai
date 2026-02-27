@@ -69,6 +69,17 @@ export interface ScaffoldProjectRequest {
 export interface ScaffoldProjectResponse {
   project: Project;
   runCommand: string;
+  /** Present when an init error was detected and recovery was attempted */
+  recovery?: ScaffoldRecoveryInfo;
+}
+
+/** Details about an agent-driven recovery attempt during scaffolding */
+export interface ScaffoldRecoveryInfo {
+  attempted: boolean;
+  success: boolean;
+  errorCategory: string;
+  errorSummary: string;
+  agentOutput?: string;
 }
 
 // Forward references for agent/deployment config — defined in settings.ts

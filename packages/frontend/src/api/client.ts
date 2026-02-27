@@ -35,11 +35,12 @@ import type {
 
 const BASE_URL = "/api/v1";
 
-/** Error thrown by request() when response is not ok; carries backend code and message. */
+/** Error thrown by request() when response is not ok; carries backend code, message, and optional details. */
 export class ApiError extends Error {
   constructor(
     message: string,
-    public readonly code: string
+    public readonly code: string,
+    public readonly details?: unknown,
   ) {
     super(message);
     this.name = "ApiError";
@@ -84,7 +85,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     const body = await response.json().catch(() => null);
     const code = body?.error?.code ?? "UNKNOWN";
     const message = body?.error?.message || response.statusText || "Request failed";
-    throw new ApiError(message, code);
+    const details = body?.error?.details;
+    throw new ApiError(message, code, details);
   }
 
   if (response.status === 204) {

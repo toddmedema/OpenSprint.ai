@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { CreateNewProjectPage } from "./CreateNewProjectPage";
+import { ApiError } from "../api/client";
 
 function LocationDisplay() {
   return <div data-testid="location">{useLocation().pathname}</div>;
@@ -12,17 +13,21 @@ function LocationDisplay() {
 const mockScaffold = vi.fn();
 const mockGetKeys = vi.fn();
 
-vi.mock("../api/client", () => ({
-  api: {
-    projects: {
-      scaffold: (...args: unknown[]) => mockScaffold(...args),
+vi.mock("../api/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/client")>();
+  return {
+    ...actual,
+    api: {
+      projects: {
+        scaffold: (...args: unknown[]) => mockScaffold(...args),
+      },
+      env: {
+        getKeys: (...args: unknown[]) => mockGetKeys(...args),
+        saveKey: vi.fn().mockResolvedValue({ saved: true }),
+      },
     },
-    env: {
-      getKeys: (...args: unknown[]) => mockGetKeys(...args),
-      saveKey: vi.fn().mockResolvedValue({ saved: true }),
-    },
-  },
-}));
+  };
+});
 
 vi.mock("../components/layout/Layout", () => ({
   Layout: ({ children }: { children: React.ReactNode }) => (
@@ -438,5 +443,128 @@ describe("CreateNewProjectPage", () => {
         complexComplexityAgent: expect.objectContaining({ type: "cursor" }),
       })
     );
+  });
+
+  it("shows recovery info when scaffold fails with agent recovery details", async () => {
+    const apiErr = new ApiError("Node.js is not installed", "SCAFFOLD_INIT_FAILED", {
+      recovery: {
+        attempted: true,
+        success: false,
+        errorCategory: "missing_node",
+        errorSummary: "Node.js is not installed or not in PATH",
+      },
+    });
+    mockScaffold.mockRejectedValue(apiErr);
+    const user = userEvent.setup();
+    renderCreateNewProjectPage();
+    await user.type(screen.getByLabelText(/project name/i), "My App");
+    await user.type(screen.getByPlaceholderText("/Users/you/projects/my-app"), "/path/to/parent");
+    await user.click(screen.getByTestId("next-button"));
+    await user.click(screen.getByTestId("next-button"));
+
+    await screen.findByTestId("scaffold-error-details");
+    expect(screen.getByTestId("scaffold-recovery-info")).toBeInTheDocument();
+    expect(screen.getByText(/Agent recovery attempted/)).toBeInTheDocument();
+    expect(screen.getByText(/Node\.js is not installed or not in PATH/)).toBeInTheDocument();
+    expect(screen.getByText(/could not resolve/i)).toBeInTheDocument();
+  });
+
+  it("shows non-recoverable error info when recovery was not attempted", async () => {
+    const apiErr = new ApiError("Network error", "SCAFFOLD_INIT_FAILED", {
+      recovery: {
+        attempted: false,
+        success: false,
+        errorCategory: "network_error",
+        errorSummary: "Network error — check your internet connection",
+      },
+    });
+    mockScaffold.mockRejectedValue(apiErr);
+    const user = userEvent.setup();
+    renderCreateNewProjectPage();
+    await user.type(screen.getByLabelText(/project name/i), "My App");
+    await user.type(screen.getByPlaceholderText("/Users/you/projects/my-app"), "/path/to/parent");
+    await user.click(screen.getByTestId("next-button"));
+    await user.click(screen.getByTestId("next-button"));
+
+    await screen.findByTestId("scaffold-error-details");
+    expect(screen.getByTestId("scaffold-recovery-info")).toBeInTheDocument();
+    expect(screen.getByText(/Recovery not attempted/)).toBeInTheDocument();
+    expect(screen.getByText(/manual intervention/i)).toBeInTheDocument();
+  });
+
+  it("shows recovery success banner when scaffold succeeds after recovery", async () => {
+    mockScaffold.mockResolvedValue({
+      ...defaultScaffoldResponse,
+      recovery: {
+        attempted: true,
+        success: true,
+        errorCategory: "missing_npm",
+        errorSummary: "npm is not installed or not in PATH",
+      },
+    });
+    const user = userEvent.setup();
+    renderCreateNewProjectPage();
+    await user.type(screen.getByLabelText(/project name/i), "My App");
+    await user.type(screen.getByPlaceholderText("/Users/you/projects/my-app"), "/path/to/parent");
+    await user.click(screen.getByTestId("next-button"));
+    await user.click(screen.getByTestId("next-button"));
+
+    await screen.findByText(/your project is ready/i);
+    expect(screen.getByTestId("scaffold-recovery-success")).toBeInTheDocument();
+    expect(screen.getByText(/automatically resolved/i)).toBeInTheDocument();
+    expect(screen.getByText(/npm is not installed/i)).toBeInTheDocument();
+  });
+
+  it("clears recovery info on retry", async () => {
+    const apiErr = new ApiError("npm not found", "SCAFFOLD_INIT_FAILED", {
+      recovery: {
+        attempted: true,
+        success: false,
+        errorCategory: "missing_npm",
+        errorSummary: "npm is not installed",
+      },
+    });
+    mockScaffold.mockRejectedValueOnce(apiErr).mockResolvedValueOnce(defaultScaffoldResponse);
+    const user = userEvent.setup();
+    renderCreateNewProjectPage();
+    await user.type(screen.getByLabelText(/project name/i), "My App");
+    await user.type(screen.getByPlaceholderText("/Users/you/projects/my-app"), "/path/to/parent");
+    await user.click(screen.getByTestId("next-button"));
+    await user.click(screen.getByTestId("next-button"));
+
+    await screen.findByTestId("scaffold-recovery-info");
+    await user.click(screen.getByTestId("scaffold-retry-button"));
+
+    await screen.findByText(/your project is ready/i);
+    expect(screen.queryByTestId("scaffold-recovery-info")).not.toBeInTheDocument();
+  });
+
+  it("shows detailed error message with Initialization failed header", async () => {
+    const apiErr = new ApiError(
+      "Recovery agent ran but the command still failed: npx not found",
+      "SCAFFOLD_INIT_FAILED",
+      {
+        recovery: {
+          attempted: true,
+          success: false,
+          errorCategory: "missing_npx",
+          errorSummary: "npx is not installed or not in PATH",
+          agentOutput: "Tried to install node...",
+        },
+      }
+    );
+    mockScaffold.mockRejectedValue(apiErr);
+    const user = userEvent.setup();
+    renderCreateNewProjectPage();
+    await user.type(screen.getByLabelText(/project name/i), "My App");
+    await user.type(screen.getByPlaceholderText("/Users/you/projects/my-app"), "/path/to/parent");
+    await user.click(screen.getByTestId("next-button"));
+    await user.click(screen.getByTestId("next-button"));
+
+    const errorDetails = await screen.findByTestId("scaffold-error-details");
+    expect(screen.getByText("Initialization failed")).toBeInTheDocument();
+    const errorTextElements = screen.getAllByText(/Recovery agent ran but the command still failed/i);
+    expect(errorTextElements.length).toBeGreaterThanOrEqual(1);
+    expect(errorDetails).toBeInTheDocument();
   });
 });

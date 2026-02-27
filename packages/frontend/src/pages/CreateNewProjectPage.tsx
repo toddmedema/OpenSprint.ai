@@ -10,8 +10,8 @@ import {
   SimplifiedAgentsStep,
 } from "../components/ProjectSetupWizard";
 import type { ProjectMetadataState } from "../components/ProjectSetupWizard";
-import type { AgentType } from "@opensprint/shared";
-import { api } from "../api/client";
+import type { AgentType, ScaffoldRecoveryInfo } from "@opensprint/shared";
+import { api, ApiError } from "../api/client";
 
 type Step = "basics" | "agents" | "scaffold";
 
@@ -58,6 +58,7 @@ export function CreateNewProjectPage() {
 
   const [scaffolding, setScaffolding] = useState(false);
   const [scaffoldError, setScaffoldError] = useState<string | null>(null);
+  const [scaffoldRecovery, setScaffoldRecovery] = useState<ScaffoldRecoveryInfo | null>(null);
   const [runCommand, setRunCommand] = useState<string | null>(null);
   const [scaffoldedProject, setScaffoldedProject] = useState<{ id: string } | null>(null);
 
@@ -104,6 +105,7 @@ export function CreateNewProjectPage() {
 
   const handleAgentsNext = () => {
     setScaffoldError(null);
+    setScaffoldRecovery(null);
     setRunCommand(null);
     setScaffoldedProject(null);
     setScaffolding(true);
@@ -146,10 +148,19 @@ export function CreateNewProjectPage() {
         if (scaffoldStepMountedRef.current) {
           setRunCommand(result.runCommand);
           setScaffoldedProject(result.project);
+          if (result.recovery) {
+            setScaffoldRecovery(result.recovery);
+          }
         }
       } catch (err) {
         if (scaffoldStepMountedRef.current) {
           setScaffoldError(err instanceof Error ? err.message : "Failed to scaffold project");
+          if (err instanceof ApiError && err.details) {
+            const details = err.details as { recovery?: ScaffoldRecoveryInfo };
+            if (details.recovery) {
+              setScaffoldRecovery(details.recovery);
+            }
+          }
         }
       } finally {
         if (scaffoldStepMountedRef.current) {
@@ -174,6 +185,7 @@ export function CreateNewProjectPage() {
 
   const handleScaffoldRetry = () => {
     setScaffoldError(null);
+    setScaffoldRecovery(null);
     setScaffolding(true);
     api.projects
       .scaffold({
@@ -201,11 +213,20 @@ export function CreateNewProjectPage() {
         if (scaffoldStepMountedRef.current) {
           setRunCommand(result.runCommand);
           setScaffoldedProject(result.project);
+          if (result.recovery) {
+            setScaffoldRecovery(result.recovery);
+          }
         }
       })
       .catch((err) => {
         if (scaffoldStepMountedRef.current) {
           setScaffoldError(err instanceof Error ? err.message : "Failed to scaffold project");
+          if (err instanceof ApiError && err.details) {
+            const details = err.details as { recovery?: ScaffoldRecoveryInfo };
+            if (details.recovery) {
+              setScaffoldRecovery(details.recovery);
+            }
+          }
         }
       })
       .finally(() => {
@@ -217,6 +238,7 @@ export function CreateNewProjectPage() {
 
   const handleScaffoldBack = () => {
     setScaffoldError(null);
+    setScaffoldRecovery(null);
     setRunCommand(null);
     setScaffoldedProject(null);
     setScaffolding(false);
@@ -360,18 +382,59 @@ export function CreateNewProjectPage() {
                     />
                     <p className="text-theme-text font-medium">Building your project...</p>
                     <p className="text-sm text-theme-muted mt-1">
-                      Creating scaffolding and installing dependencies
+                      Creating scaffolding and installing dependencies.
+                      If an error is detected, an agent will attempt to fix it automatically.
                     </p>
                   </div>
                 )}
                 {scaffoldError && !scaffolding && (
-                  <div className="p-3 bg-theme-error-bg border border-theme-error-border rounded-lg text-sm text-theme-error-text">
-                    {scaffoldError}
+                  <div data-testid="scaffold-error-details" className="space-y-3">
+                    <div className="p-3 bg-theme-error-bg border border-theme-error-border rounded-lg text-sm text-theme-error-text">
+                      <p className="font-medium mb-1">Initialization failed</p>
+                      <p>{scaffoldError}</p>
+                    </div>
+                    {scaffoldRecovery && (
+                      <div
+                        className="p-3 bg-theme-surface-muted border border-theme-border rounded-lg text-sm"
+                        data-testid="scaffold-recovery-info"
+                      >
+                        <p className="font-medium text-theme-text mb-1">
+                          {scaffoldRecovery.attempted
+                            ? "Agent recovery attempted"
+                            : "Recovery not attempted"}
+                        </p>
+                        <p className="text-theme-muted">
+                          <span className="font-medium">Error type:</span>{" "}
+                          {scaffoldRecovery.errorSummary}
+                        </p>
+                        {scaffoldRecovery.attempted && (
+                          <p className="text-theme-muted mt-1">
+                            <span className="font-medium">Result:</span>{" "}
+                            {scaffoldRecovery.success
+                              ? "Agent fixed the issue but the command still failed on retry"
+                              : "Agent could not resolve the issue"}
+                          </p>
+                        )}
+                        {!scaffoldRecovery.attempted && (
+                          <p className="text-theme-muted mt-1">
+                            This error type requires manual intervention.
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
                 {runCommand && !scaffolding && (
                   <div className="space-y-4">
                     <p className="text-theme-text font-medium">Your project is ready!</p>
+                    {scaffoldRecovery?.attempted && scaffoldRecovery.success && (
+                      <div
+                        className="p-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-sm text-green-800 dark:text-green-300"
+                        data-testid="scaffold-recovery-success"
+                      >
+                        An initialization issue was automatically resolved: {scaffoldRecovery.errorSummary}
+                      </div>
+                    )}
                     <p className="text-sm text-theme-muted">Run your app:</p>
                     <pre className="p-3 bg-theme-surface-muted rounded-lg font-mono text-sm overflow-x-auto">
                       {runCommand}
@@ -387,7 +450,10 @@ export function CreateNewProjectPage() {
               <span>{scaffoldError}</span>
               <button
                 type="button"
-                onClick={() => setScaffoldError(null)}
+                onClick={() => {
+                  setScaffoldError(null);
+                  setScaffoldRecovery(null);
+                }}
                 className="text-theme-error-text hover:opacity-80 underline"
               >
                 Dismiss

@@ -9,6 +9,7 @@ import type {
   ProjectSettings,
   ScaffoldProjectRequest,
   ScaffoldProjectResponse,
+  ScaffoldRecoveryInfo,
 } from "@opensprint/shared";
 import type { ApiKeyEntry, ApiKeys } from "@opensprint/shared";
 import {
@@ -41,6 +42,7 @@ import { parseAgentConfig, type AgentConfigInput } from "../schemas/agent-config
 import { writeJsonAtomic } from "../utils/file-utils.js";
 import { getErrorMessage } from "../utils/error-utils.js";
 import { createLogger } from "../utils/logger.js";
+import { classifyInitError, attemptRecovery } from "./scaffold-recovery.service.js";
 
 const execAsync = promisify(exec);
 const log = createLogger("project");
@@ -425,22 +427,48 @@ export class ProjectService {
     }
 
     const repoPath = path.resolve(parentPath);
+    const agentConfig = (input.simpleComplexityAgent ?? DEFAULT_AGENT_CONFIG) as AgentConfigInput & { type: "cursor" | "claude" | "claude-cli" | "custom" };
+    let recovery: ScaffoldRecoveryInfo | undefined;
 
     if (template === "web-app-expo-react") {
       await fs.mkdir(repoPath, { recursive: true });
-      try {
-        await execAsync("npx create-expo-app@latest . --template blank --yes", {
-          cwd: repoPath,
-        });
-      } catch (err) {
-        const msg = getErrorMessage(err, "Failed to scaffold Expo app");
-        throw new AppError(500, ErrorCodes.INTERNAL_ERROR, msg, { repoPath });
+
+      // Step 1: scaffold Expo app
+      const scaffoldResult = await this.runWithRecovery(
+        "npx create-expo-app@latest . --template blank --yes",
+        repoPath,
+        agentConfig,
+        "Failed to scaffold Expo app",
+      );
+      if (scaffoldResult.recovery) {
+        recovery = scaffoldResult.recovery;
       }
-      try {
-        await execAsync("npm install", { cwd: repoPath });
-      } catch (err) {
-        const msg = getErrorMessage(err, "Failed to run npm install");
-        throw new AppError(500, ErrorCodes.INTERNAL_ERROR, msg, { repoPath });
+      if (!scaffoldResult.success) {
+        throw new AppError(
+          500,
+          ErrorCodes.SCAFFOLD_INIT_FAILED,
+          scaffoldResult.errorMessage!,
+          { repoPath, recovery },
+        );
+      }
+
+      // Step 2: npm install
+      const installResult = await this.runWithRecovery(
+        "npm install",
+        repoPath,
+        agentConfig,
+        "Failed to run npm install",
+      );
+      if (!recovery && installResult.recovery) {
+        recovery = installResult.recovery;
+      }
+      if (!installResult.success) {
+        throw new AppError(
+          500,
+          ErrorCodes.SCAFFOLD_INIT_FAILED,
+          installResult.errorMessage!,
+          { repoPath, recovery: installResult.recovery ?? recovery },
+        );
       }
     }
 
@@ -466,7 +494,94 @@ export class ProjectService {
         ? `cd /d ${absPath} && npm run web`
         : `cd ${absPath} && npm run web`;
 
-    return { project, runCommand };
+    return { project, runCommand, ...(recovery && { recovery }) };
+  }
+
+  /**
+   * Run a shell command with agent-driven error recovery.
+   * On failure: classifies the error, invokes an agent to fix it, retries once.
+   */
+  private async runWithRecovery(
+    command: string,
+    cwd: string,
+    agentConfig: AgentConfigInput & { type: string },
+    fallbackMessage: string,
+  ): Promise<{ success: boolean; errorMessage?: string; recovery?: ScaffoldRecoveryInfo }> {
+    try {
+      await execAsync(command, { cwd });
+      return { success: true };
+    } catch (firstErr) {
+      const rawError = getErrorMessage(firstErr, fallbackMessage);
+      const classification = classifyInitError(rawError);
+
+      log.info("Scaffold command failed, attempting recovery", {
+        command,
+        category: classification.category,
+        recoverable: classification.recoverable,
+      });
+
+      if (!classification.recoverable) {
+        return {
+          success: false,
+          errorMessage: `${classification.summary}: ${rawError}`,
+          recovery: {
+            attempted: false,
+            success: false,
+            errorCategory: classification.category,
+            errorSummary: classification.summary,
+          },
+        };
+      }
+
+      const recoveryResult = await attemptRecovery(
+        classification,
+        cwd,
+        agentConfig as AgentConfigInput & { type: "cursor" | "claude" | "claude-cli" | "custom" },
+      );
+
+      if (!recoveryResult.success) {
+        return {
+          success: false,
+          errorMessage: recoveryResult.errorMessage ?? `${classification.summary}: ${rawError}`,
+          recovery: {
+            attempted: true,
+            success: false,
+            errorCategory: classification.category,
+            errorSummary: classification.summary,
+            agentOutput: recoveryResult.agentOutput,
+          },
+        };
+      }
+
+      // Agent claims success — retry the original command
+      log.info("Recovery agent succeeded, retrying command", { command });
+      try {
+        await execAsync(command, { cwd });
+        return {
+          success: true,
+          recovery: {
+            attempted: true,
+            success: true,
+            errorCategory: classification.category,
+            errorSummary: classification.summary,
+            agentOutput: recoveryResult.agentOutput,
+          },
+        };
+      } catch (retryErr) {
+        const retryMsg = getErrorMessage(retryErr, fallbackMessage);
+        return {
+          success: false,
+          errorMessage: `Recovery agent ran but the command still failed: ${retryMsg}`,
+          recovery: {
+            attempted: true,
+            success: false,
+            errorCategory: classification.category,
+            errorSummary: classification.summary,
+            agentOutput: recoveryResult.agentOutput,
+          },
+        };
+      }
+    }
   }
 
   /** Get a single project by ID */
