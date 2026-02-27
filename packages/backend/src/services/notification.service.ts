@@ -1,5 +1,6 @@
 /**
- * NotificationService — manages open questions (agent clarification requests).
+ * NotificationService — manages open questions (agent clarification requests)
+ * and API-blocked human notifications (rate limit, auth, out of credit).
  * Persisted in ~/.opensprint/tasks.db (open_questions table).
  */
 
@@ -8,6 +9,7 @@ import { taskStore } from "./task-store.service.js";
 import { AppError } from "../middleware/error-handler.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
 import { createLogger } from "../utils/logger.js";
+import type { ApiBlockedErrorCode } from "@opensprint/shared";
 
 const log = createLogger("notification");
 
@@ -28,6 +30,8 @@ export interface Notification {
   status: "open" | "resolved";
   createdAt: string;
   resolvedAt: string | null;
+  kind?: "open_question" | "api_blocked";
+  errorCode?: ApiBlockedErrorCode;
 }
 
 export interface CreateNotificationInput {
@@ -37,12 +41,22 @@ export interface CreateNotificationInput {
   questions: Array<{ id: string; text: string; createdAt?: string }>;
 }
 
+export interface CreateApiBlockedInput {
+  projectId: string;
+  source: NotificationSource;
+  sourceId: string;
+  message: string;
+  errorCode: ApiBlockedErrorCode;
+}
+
 function generateId(): string {
   return "oq-" + crypto.randomBytes(4).toString("hex");
 }
 
 function rowToNotification(row: Record<string, unknown>): Notification {
   const questions: OpenQuestionItem[] = JSON.parse((row.questions as string) || "[]");
+  const kind = (row.kind as "open_question" | "api_blocked") || "open_question";
+  const errorCode = row.error_code as ApiBlockedErrorCode | undefined;
   return {
     id: row.id as string,
     projectId: row.project_id as string,
@@ -52,6 +66,8 @@ function rowToNotification(row: Record<string, unknown>): Notification {
     status: (row.status as "open" | "resolved") || "open",
     createdAt: row.created_at as string,
     resolvedAt: (row.resolved_at as string) ?? null,
+    kind,
+    errorCode,
   };
 }
 
@@ -70,8 +86,8 @@ export class NotificationService {
 
     await taskStore.runWrite(async (db) => {
       db.run(
-        `INSERT INTO open_questions (id, project_id, source, source_id, questions, status, created_at)
-         VALUES (?, ?, ?, ?, ?, 'open', ?)`,
+        `INSERT INTO open_questions (id, project_id, source, source_id, questions, status, created_at, kind)
+         VALUES (?, ?, ?, ?, ?, 'open', ?, 'open_question')`,
         [
           id,
           input.projectId,
@@ -100,6 +116,60 @@ export class NotificationService {
       status: "open",
       createdAt,
       resolvedAt: null,
+      kind: "open_question",
+    };
+  }
+
+  /**
+   * Create an API-blocked notification (human-blocked: rate limit, auth, out of credit).
+   * Displayed in the notification bell with distinct styling.
+   */
+  async createApiBlocked(input: CreateApiBlockedInput): Promise<Notification> {
+    const id = "ab-" + crypto.randomBytes(4).toString("hex");
+    const createdAt = new Date().toISOString();
+    const questions: OpenQuestionItem[] = [
+      {
+        id: `q-${id}`,
+        text: input.message,
+        createdAt,
+      },
+    ];
+
+    await taskStore.runWrite(async (db) => {
+      db.run(
+        `INSERT INTO open_questions (id, project_id, source, source_id, questions, status, created_at, kind, error_code)
+         VALUES (?, ?, ?, ?, ?, 'open', ?, 'api_blocked', ?)`,
+        [
+          id,
+          input.projectId,
+          input.source,
+          input.sourceId,
+          JSON.stringify(questions),
+          createdAt,
+          input.errorCode,
+        ]
+      );
+    });
+
+    log.info("Created API-blocked notification", {
+      id,
+      projectId: input.projectId,
+      source: input.source,
+      sourceId: input.sourceId,
+      errorCode: input.errorCode,
+    });
+
+    return {
+      id,
+      projectId: input.projectId,
+      source: input.source,
+      sourceId: input.sourceId,
+      questions,
+      status: "open",
+      createdAt,
+      resolvedAt: null,
+      kind: "api_blocked",
+      errorCode: input.errorCode,
     };
   }
 

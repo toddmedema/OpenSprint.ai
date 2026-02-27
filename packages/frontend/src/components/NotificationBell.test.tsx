@@ -74,7 +74,7 @@ describe("NotificationBell", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /1 notification/ })).toBeInTheDocument();
     });
-    expect(screen.getByTitle("Open questions")).toBeInTheDocument();
+    expect(screen.getByTitle("Notifications (open questions & API issues)")).toBeInTheDocument();
   });
 
   it("opens dropdown on click and shows notification preview", async () => {
@@ -95,8 +95,33 @@ describe("NotificationBell", () => {
       expect(screen.getByRole("button", { name: /1 notification/ })).toBeInTheDocument();
     });
     const user = userEvent.setup();
-    await user.click(screen.getByTitle("Open questions"));
+    await user.click(screen.getByTitle("Notifications (open questions & API issues)"));
     expect(screen.getByText("Plan")).toBeInTheDocument();
     expect(screen.getByText(/What is the scope of this feature/)).toBeInTheDocument();
+  });
+
+  it("shows API-blocked badge for api_blocked notifications", async () => {
+    const notifications = [
+      {
+        id: "ab-1",
+        projectId: "proj-1",
+        source: "execute" as const,
+        sourceId: "task-1",
+        questions: [{ id: "q1", text: "Rate limit exceeded", createdAt: "2025-01-01T00:00:00Z" }],
+        status: "open" as const,
+        createdAt: "2025-01-01T00:00:00Z",
+        resolvedAt: null,
+        kind: "api_blocked" as const,
+        errorCode: "rate_limit" as const,
+      },
+    ];
+    renderNotificationBell(notifications);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /1 notification/ })).toBeInTheDocument();
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByTitle("Notifications (open questions & API issues)"));
+    expect(screen.getByText("Rate limit")).toBeInTheDocument();
+    expect(screen.getByText(/Rate limit exceeded/)).toBeInTheDocument();
   });
 });

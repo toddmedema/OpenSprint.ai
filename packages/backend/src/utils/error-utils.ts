@@ -84,3 +84,73 @@ export function isLimitError(err: unknown): boolean {
   const lower = toCheck.toLowerCase();
   return LIMIT_ERROR_PATTERNS.some((re) => re.test(lower));
 }
+
+/** Auth-error patterns (401, invalid token, unauthorized, authentication). */
+const AUTH_ERROR_PATTERNS = [
+  /401/,
+  /api\s*key.*invalid|invalid.*api\s*key/i,
+  /unauthorized/i,
+  /authentication\s*required/i,
+  /invalid\s*token/i,
+  /authentication\s*failed/i,
+];
+
+/**
+ * Detect auth-related API errors (401, invalid token, unauthorized).
+ * Used to surface human-blocked notifications for API key / token issues.
+ */
+export function isAuthError(err: unknown): boolean {
+  if (err == null) return false;
+
+  if (typeof err === "object") {
+    const o = err as Record<string, unknown>;
+    const status = o.status ?? o.statusCode;
+    if (status === 401 || status === "401") return true;
+  }
+
+  const toCheck = getErrorStrings(err).join(" ");
+  if (!toCheck) return false;
+
+  const lower = toCheck.toLowerCase();
+  return AUTH_ERROR_PATTERNS.some((re) => re.test(lower));
+}
+
+/** Out-of-credit / quota patterns (distinct from rate limit — requires user to add credits). */
+const OUT_OF_CREDIT_PATTERNS = [
+  /out\s*of\s*credit/i,
+  /insufficient\s*(quota|credit|balance)/i,
+  /payment\s*required/i,
+  /billing/i,
+  /credit\s*balance/i,
+  /add\s+more\s+tokens/i,
+];
+
+/**
+ * Detect out-of-credit / billing-related API errors.
+ * Used to surface human-blocked notifications when user needs to add credits.
+ */
+export function isOutOfCreditError(err: unknown): boolean {
+  if (err == null) return false;
+
+  const toCheck = getErrorStrings(err).join(" ");
+  if (!toCheck) return false;
+
+  const lower = toCheck.toLowerCase();
+  return OUT_OF_CREDIT_PATTERNS.some((re) => re.test(lower));
+}
+
+/** Classification for agent API failures — used for human-blocked notifications. */
+export type AgentApiErrorKind = "rate_limit" | "auth" | "out_of_credit";
+
+/**
+ * Classify an error as an agent API failure type.
+ * Returns the kind for human-blocked notifications, or null if not API-related.
+ * Order: auth first (invalid token), then out_of_credit, then rate_limit.
+ */
+export function classifyAgentApiError(err: unknown): AgentApiErrorKind | null {
+  if (err == null) return null;
+  if (isAuthError(err)) return "auth";
+  if (isOutOfCreditError(err)) return "out_of_credit";
+  if (isLimitError(err)) return "rate_limit";
+  return null;
+}

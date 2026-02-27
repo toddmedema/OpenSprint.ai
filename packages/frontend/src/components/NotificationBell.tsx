@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import type { Notification, NotificationSource } from "@opensprint/shared";
+import type { Notification, NotificationSource, ApiBlockedErrorCode } from "@opensprint/shared";
 import { getProjectPhasePath } from "../lib/phaseRouting";
 import { setSelectedPlanId } from "../store/slices/planSlice";
 import { setSelectedTaskId } from "../store/slices/executeSlice";
@@ -18,6 +18,13 @@ const SOURCE_LABELS: Record<NotificationSource, string> = {
   prd: "PRD/Sketch",
   execute: "Execute",
   eval: "Evaluate",
+};
+
+/** Human-readable labels for API-blocked error types — user can distinguish failure types */
+const API_BLOCKED_LABELS: Record<ApiBlockedErrorCode, string> = {
+  rate_limit: "Rate limit",
+  auth: "Invalid API key",
+  out_of_credit: "Out of credit",
 };
 
 function truncatePreview(text: string, maxLen = 60): string {
@@ -129,6 +136,10 @@ export function NotificationBell({ projectId }: NotificationBellProps) {
   const preview = (n: Notification) =>
     n.questions.length > 0 ? truncatePreview(n.questions[0].text) : "Open question";
 
+  const isApiBlocked = (n: Notification) => n.kind === "api_blocked";
+  const getApiBlockedLabel = (n: Notification) =>
+    n.errorCode ? API_BLOCKED_LABELS[n.errorCode] : "API blocked";
+
   const dropdownContent =
     open && dropdownRect ? (
       <div
@@ -146,10 +157,22 @@ export function NotificationBell({ projectId }: NotificationBellProps) {
             <li key={n.id} role="option">
               <button
                 type="button"
-                className="w-full text-left px-4 py-2.5 text-sm hover:bg-theme-border-subtle transition-colors"
+                className={`w-full text-left px-4 py-2.5 text-sm hover:bg-theme-border-subtle transition-colors ${
+                  isApiBlocked(n) ? "border-l-2 border-l-amber-500" : ""
+                }`}
                 onClick={() => handleNotificationClick(n)}
               >
-                <div className="font-medium text-theme-text">{SOURCE_LABELS[n.source]}</div>
+                <div className="font-medium text-theme-text flex items-center gap-2">
+                  {SOURCE_LABELS[n.source]}
+                  {isApiBlocked(n) && (
+                    <span
+                      className="text-xs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                      title="Requires your action (API key, rate limit, or credits)"
+                    >
+                      {getApiBlockedLabel(n)}
+                    </span>
+                  )}
+                </div>
                 <div className="text-theme-muted mt-0.5">{truncatePreview(preview(n), 80)}</div>
                 <div className="text-theme-muted text-xs mt-1">{formatTimestamp(n.createdAt)}</div>
               </button>
@@ -169,7 +192,7 @@ export function NotificationBell({ projectId }: NotificationBellProps) {
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-label={`${notifications.length} notification${notifications.length === 1 ? "" : "s"}`}
-        title="Open questions"
+        title="Notifications (open questions & API issues)"
       >
         <svg
           className="w-5 h-5"

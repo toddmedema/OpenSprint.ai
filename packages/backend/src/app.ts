@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { errorHandler } from "./middleware/error-handler.js";
+import { apiErrorNotificationMiddleware } from "./middleware/api-error-notification.js";
 import { projectsRouter } from "./routes/projects.js";
 import { prdRouter } from "./routes/prd.js";
 import { plansRouter } from "./routes/plans.js";
@@ -48,7 +49,8 @@ export function createApp() {
   app.use(`${API_PREFIX}/notifications`, globalNotificationsRouter);
   app.use(`${API_PREFIX}/fs`, fsRouter);
 
-  // Error handling
+  // Error handling: API-error notification middleware runs first (creates human-blocked notifications)
+  app.use(apiErrorNotificationMiddleware);
   app.use(errorHandler);
 
   return app;

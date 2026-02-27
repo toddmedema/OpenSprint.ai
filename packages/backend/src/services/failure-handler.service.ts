@@ -18,6 +18,8 @@ import { agentIdentityService, type AttemptOutcome } from "./agent-identity.serv
 import { eventLogService } from "./event-log.service.js";
 import { broadcastToProject } from "../websocket/index.js";
 import { createLogger } from "../utils/logger.js";
+import { classifyAgentApiError } from "../utils/error-utils.js";
+import { notificationService } from "./notification.service.js";
 
 const log = createLogger("failure-handler");
 
@@ -122,6 +124,41 @@ export class FailureHandlerService {
     log.error(`Task ${task.id} failed [${failureType}] (attempt ${cumulativeAttempts})`, {
       reason,
     });
+
+    // Surface API-related failures (rate limit, auth, out of credit) as human-blocked notifications
+    const apiErrorKind = classifyAgentApiError(new Error(reason));
+    if (apiErrorKind) {
+      try {
+        const notification = await notificationService.createApiBlocked({
+          projectId,
+          source: "execute",
+          sourceId: task.id,
+          message: reason.slice(0, 500),
+          errorCode: apiErrorKind,
+        });
+        broadcastToProject(projectId, {
+          type: "notification.added",
+          notification: {
+            id: notification.id,
+            projectId: notification.projectId,
+            source: notification.source,
+            sourceId: notification.sourceId,
+            questions: notification.questions.map((q) => ({
+              id: q.id,
+              text: q.text,
+              createdAt: q.createdAt,
+            })),
+            status: "open",
+            createdAt: notification.createdAt,
+            resolvedAt: null,
+            kind: "api_blocked",
+            errorCode: notification.errorCode,
+          },
+        });
+      } catch (notifErr) {
+        log.warn("Failed to create API-blocked notification", { err: notifErr });
+      }
+    }
 
     eventLogService
       .append(repoPath, {

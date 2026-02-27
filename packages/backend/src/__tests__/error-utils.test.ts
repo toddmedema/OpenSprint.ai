@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { getErrorMessage, isLimitError } from "../utils/error-utils.js";
+import {
+  getErrorMessage,
+  isLimitError,
+  isAuthError,
+  isOutOfCreditError,
+  classifyAgentApiError,
+} from "../utils/error-utils.js";
 
 describe("getErrorMessage", () => {
   it("returns message from Error instance", () => {
@@ -124,5 +130,76 @@ describe("isLimitError", () => {
   it("returns true for error string with limit pattern", () => {
     expect(isLimitError("quota exceeded")).toBe(true);
     expect(isLimitError("Service overloaded")).toBe(true);
+  });
+});
+
+describe("isAuthError", () => {
+  it("returns true for HTTP 401 status", () => {
+    expect(isAuthError({ status: 401 })).toBe(true);
+    expect(isAuthError({ statusCode: 401 })).toBe(true);
+    expect(isAuthError({ status: "401" })).toBe(true);
+  });
+
+  it("returns true for invalid API key", () => {
+    expect(isAuthError(new Error("Invalid API key"))).toBe(true);
+    expect(isAuthError(new Error("API key is invalid"))).toBe(true);
+  });
+
+  it("returns true for unauthorized", () => {
+    expect(isAuthError(new Error("Unauthorized"))).toBe(true);
+    expect(isAuthError(new Error("401 Unauthorized"))).toBe(true);
+  });
+
+  it("returns true for authentication required", () => {
+    expect(isAuthError(new Error("Authentication required"))).toBe(true);
+  });
+
+  it("returns false for non-auth errors", () => {
+    expect(isAuthError(new Error("Rate limit exceeded"))).toBe(false);
+    expect(isAuthError(new Error("Connection timeout"))).toBe(false);
+    expect(isAuthError({ status: 429 })).toBe(false);
+  });
+});
+
+describe("isOutOfCreditError", () => {
+  it("returns true for out of credit", () => {
+    expect(isOutOfCreditError(new Error("Out of credit"))).toBe(true);
+    expect(isOutOfCreditError(new Error("You are out of credit"))).toBe(true);
+  });
+
+  it("returns true for insufficient quota/balance", () => {
+    expect(isOutOfCreditError(new Error("Insufficient quota"))).toBe(true);
+    expect(isOutOfCreditError(new Error("Insufficient credit balance"))).toBe(true);
+  });
+
+  it("returns true for add more tokens", () => {
+    expect(isOutOfCreditError(new Error("Please add more tokens to continue"))).toBe(true);
+  });
+
+  it("returns false for rate limit without credit context", () => {
+    expect(isOutOfCreditError(new Error("Rate limit exceeded"))).toBe(false);
+  });
+});
+
+describe("classifyAgentApiError", () => {
+  it("returns auth for invalid token errors", () => {
+    expect(classifyAgentApiError(new Error("Invalid API key"))).toBe("auth");
+    expect(classifyAgentApiError({ status: 401 })).toBe("auth");
+  });
+
+  it("returns out_of_credit for credit/quota errors", () => {
+    expect(classifyAgentApiError(new Error("Out of credit"))).toBe("out_of_credit");
+    expect(classifyAgentApiError(new Error("Add more tokens"))).toBe("out_of_credit");
+  });
+
+  it("returns rate_limit for rate limit errors", () => {
+    expect(classifyAgentApiError(new Error("Rate limit exceeded"))).toBe("rate_limit");
+    expect(classifyAgentApiError({ status: 429 })).toBe("rate_limit");
+  });
+
+  it("returns null for non-API errors", () => {
+    expect(classifyAgentApiError(new Error("Connection timeout"))).toBe(null);
+    expect(classifyAgentApiError(new Error("Something went wrong"))).toBe(null);
+    expect(classifyAgentApiError(null)).toBe(null);
   });
 });

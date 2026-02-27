@@ -119,7 +119,7 @@ export interface FeedbackResolvedEvent {
   item: FeedbackItem;
 }
 
-/** Emitted when an agent emits open questions (e.g. Analyst fail-early for vague feedback) */
+/** Emitted when an agent emits open questions or API-blocked notification */
 export interface NotificationAddedEvent {
   type: "notification.added";
   notification: {
@@ -131,6 +131,8 @@ export interface NotificationAddedEvent {
     status: "open";
     createdAt: string;
     resolvedAt: string | null;
+    kind?: "open_question" | "api_blocked";
+    errorCode?: "rate_limit" | "auth" | "out_of_credit";
   };
 }
 

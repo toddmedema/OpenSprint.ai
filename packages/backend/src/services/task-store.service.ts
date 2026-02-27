@@ -176,7 +176,7 @@ CREATE TABLE IF NOT EXISTS plans (
 CREATE INDEX IF NOT EXISTS idx_plans_project_id ON plans(project_id);
 CREATE INDEX IF NOT EXISTS idx_plans_project_epic ON plans(project_id, epic_id);
 
--- Open questions / notifications (agent clarification requests)
+-- Open questions / notifications (agent clarification requests + API-blocked human notifications)
 CREATE TABLE IF NOT EXISTS open_questions (
     id           TEXT PRIMARY KEY,
     project_id   TEXT NOT NULL,
@@ -185,7 +185,9 @@ CREATE TABLE IF NOT EXISTS open_questions (
     questions    TEXT NOT NULL DEFAULT '[]',
     status       TEXT NOT NULL DEFAULT 'open',
     created_at   TEXT NOT NULL,
-    resolved_at  TEXT
+    resolved_at  TEXT,
+    kind         TEXT NOT NULL DEFAULT 'open_question',
+    error_code   TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_open_questions_project_id ON open_questions(project_id);
 CREATE INDEX IF NOT EXISTS idx_open_questions_status ON open_questions(status);
@@ -368,6 +370,7 @@ export class TaskStoreService {
 
     this.db.run(SCHEMA_SQL);
     this.migrateTaskDurationColumns();
+    this.migrateOpenQuestionsKind();
     await this.migratePlansWithGateTasks();
     await this.withWriteLock(async () => {
       await this.saveToDisk(); // initial save immediately, not debounced
@@ -413,6 +416,36 @@ export class TaskStoreService {
     if (!hasCompletedAt) {
       db.run("ALTER TABLE tasks ADD COLUMN completed_at TEXT");
       log.info("Added completed_at column to tasks");
+    }
+  }
+
+  /**
+   * Migration: Add kind column to open_questions for API-blocked human notifications.
+   */
+  private migrateOpenQuestionsKind(): void {
+    const db = this.ensureDb();
+    const stmt = db.prepare(
+      "SELECT COUNT(*) as cnt FROM pragma_table_info('open_questions') WHERE name = ?"
+    );
+    stmt.bind(["kind"]);
+    const hasKind = stmt.step() && (stmt.getAsObject().cnt as number) > 0;
+    stmt.free();
+
+    if (!hasKind) {
+      db.run("ALTER TABLE open_questions ADD COLUMN kind TEXT NOT NULL DEFAULT 'open_question'");
+      log.info("Added kind column to open_questions");
+    }
+
+    const stmt2 = db.prepare(
+      "SELECT COUNT(*) as cnt FROM pragma_table_info('open_questions') WHERE name = ?"
+    );
+    stmt2.bind(["error_code"]);
+    const hasErrorCode = stmt2.step() && (stmt2.getAsObject().cnt as number) > 0;
+    stmt2.free();
+
+    if (!hasErrorCode) {
+      db.run("ALTER TABLE open_questions ADD COLUMN error_code TEXT");
+      log.info("Added error_code column to open_questions");
     }
   }
 

@@ -83,6 +83,43 @@ describe("NotificationService", () => {
     });
   });
 
+  describe("createApiBlocked", () => {
+    it("creates API-blocked notification with error code", async () => {
+      const result = await service.createApiBlocked({
+        projectId: "proj-1",
+        source: "execute",
+        sourceId: "task-1",
+        message: "Rate limit exceeded. Add more API keys.",
+        errorCode: "rate_limit",
+      });
+
+      expect(result.id).toMatch(/^ab-[0-9a-f]{8}$/);
+      expect(result.projectId).toBe("proj-1");
+      expect(result.source).toBe("execute");
+      expect(result.sourceId).toBe("task-1");
+      expect(result.kind).toBe("api_blocked");
+      expect(result.errorCode).toBe("rate_limit");
+      expect(result.questions).toHaveLength(1);
+      expect(result.questions[0]!.text).toBe("Rate limit exceeded. Add more API keys.");
+      expect(result.status).toBe("open");
+    });
+
+    it("api-blocked notifications appear in listByProject", async () => {
+      await service.createApiBlocked({
+        projectId: "proj-x",
+        source: "execute",
+        sourceId: "task-1",
+        message: "Invalid API key",
+        errorCode: "auth",
+      });
+
+      const list = await service.listByProject("proj-x");
+      expect(list).toHaveLength(1);
+      expect(list[0]!.kind).toBe("api_blocked");
+      expect(list[0]!.errorCode).toBe("auth");
+    });
+  });
+
   describe("listByProject", () => {
     it("returns only open notifications for the project", async () => {
       await service.create({

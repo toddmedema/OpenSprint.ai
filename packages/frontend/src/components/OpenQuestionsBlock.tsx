@@ -1,9 +1,15 @@
 import { useState, useCallback } from "react";
-import type { Notification } from "@opensprint/shared";
+import type { Notification, ApiBlockedErrorCode } from "@opensprint/shared";
 import { api } from "../api/client";
 
+const API_BLOCKED_LABELS: Record<ApiBlockedErrorCode, string> = {
+  rate_limit: "Rate limit",
+  auth: "Invalid API key",
+  out_of_credit: "Out of credit",
+};
+
 export interface OpenQuestionsBlockProps {
-  /** Open question notification (agent clarification request) */
+  /** Open question notification (agent clarification or API-blocked) */
   notification: Notification;
   projectId: string;
   /** Source determines Answer behavior: plan uses chat, execute uses task chat */
@@ -60,17 +66,28 @@ export function OpenQuestionsBlock({
   const questions = notification.questions ?? [];
   if (questions.length === 0) return null;
 
+  const isApiBlocked = notification.kind === "api_blocked";
+  const apiBlockedLabel = notification.errorCode
+    ? API_BLOCKED_LABELS[notification.errorCode]
+    : "API blocked";
+
   return (
     <div
-      className="p-4 border-b border-theme-border bg-theme-warning-bg/30 border-l-4 border-l-theme-warning-solid"
+      className={`p-4 border-b border-theme-border border-l-4 ${
+        isApiBlocked
+          ? "bg-amber-500/10 border-l-amber-500"
+          : "bg-theme-warning-bg/30 border-l-theme-warning-solid"
+      }`}
       data-question-id={notification.id}
       data-testid="open-questions-block"
     >
       <h4 className="text-xs font-medium text-theme-muted uppercase tracking-wide mb-2">
-        Open questions
+        {isApiBlocked ? "API blocked" : "Open questions"}
       </h4>
       <p className="text-xs text-theme-muted mb-2">
-        The {source === "plan" ? "planner" : "coder"} needs clarification before proceeding.
+        {isApiBlocked
+          ? `${apiBlockedLabel}: Fix in Project Settings → Agent Config (API keys or credits), then Dismiss.`
+          : `The ${source === "plan" ? "planner" : "coder"} needs clarification before proceeding.`}
       </p>
       <ul className="space-y-2 mb-3">
         {questions.map((q) => (
@@ -83,7 +100,7 @@ export function OpenQuestionsBlock({
         ))}
       </ul>
       <div className="flex flex-col gap-2">
-        {onAnswerSent && (
+        {!isApiBlocked && onAnswerSent && (
           <div className="flex gap-2">
             <input
               type="text"

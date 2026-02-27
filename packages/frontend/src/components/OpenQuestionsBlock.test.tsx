@@ -153,6 +153,33 @@ describe("OpenQuestionsBlock", () => {
     expect(screen.getByTestId("open-questions-dismiss-btn")).toBeInTheDocument();
   });
 
+  it("renders API-blocked variant with Dismiss only (no Answer input)", () => {
+    const apiBlockedNotification: Notification = {
+      ...mockNotification,
+      id: "ab-1",
+      questions: [{ id: "q1", text: "Rate limit exceeded. Add more API keys.", createdAt: "2025-01-01T00:00:00Z" }],
+      kind: "api_blocked",
+      errorCode: "rate_limit",
+    };
+
+    render(
+      <OpenQuestionsBlock
+        notification={apiBlockedNotification}
+        projectId="proj-1"
+        source="execute"
+        sourceId="task-1"
+        onResolved={onResolved}
+        onAnswerSent={onAnswerSent}
+      />
+    );
+
+    expect(screen.getByText("API blocked")).toBeInTheDocument();
+    expect(screen.getByText(/Rate limit: Fix in Project Settings/)).toBeInTheDocument();
+    expect(screen.getByText(/Rate limit exceeded/)).toBeInTheDocument();
+    expect(screen.queryByTestId("open-questions-answer-input")).not.toBeInTheDocument();
+    expect(screen.getByTestId("open-questions-dismiss-btn")).toBeInTheDocument();
+  });
+
   it("returns null when notification has no questions", () => {
     const emptyNotification: Notification = {
       ...mockNotification,
