@@ -322,6 +322,74 @@ describe("ProjectSettingsModal", () => {
     );
   });
 
+  it("Custom mode with targets shows per-target auto-deploy dropdowns", async () => {
+    mockGetSettings.mockResolvedValueOnce({
+      ...mockSettings,
+      deployment: {
+        mode: "custom" as const,
+        targets: [
+          { name: "staging", autoDeployTrigger: "each_task" as const },
+          { name: "production", autoDeployTrigger: "nightly" as const },
+        ],
+      },
+    });
+    renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
+    await screen.findByText("Settings");
+
+    const deploymentTab = screen.getByRole("button", { name: "Deliver" });
+    await userEvent.click(deploymentTab);
+
+    expect(screen.getByText("Auto-deploy per environment")).toBeInTheDocument();
+    expect(screen.getByTestId("auto-deploy-trigger-staging")).toBeInTheDocument();
+    expect(screen.getByTestId("auto-deploy-trigger-production")).toBeInTheDocument();
+    expect(screen.getByTestId("auto-deploy-trigger-staging")).toHaveValue("each_task");
+    expect(screen.getByTestId("auto-deploy-trigger-production")).toHaveValue("nightly");
+  });
+
+  it("saves auto-deploy triggers for Custom mode targets", async () => {
+    mockGetSettings.mockResolvedValueOnce({
+      ...mockSettings,
+      deployment: {
+        mode: "custom" as const,
+        targets: [
+          { name: "staging", command: "./deploy-staging.sh" },
+          { name: "production", command: "./deploy-prod.sh" },
+        ],
+      },
+    });
+    renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} onSaved={onSaved} />);
+    await screen.findByText("Settings");
+
+    const deploymentTab = screen.getByRole("button", { name: "Deliver" });
+    await userEvent.click(deploymentTab);
+
+    const stagingSelect = screen.getByTestId("auto-deploy-trigger-staging");
+    await userEvent.selectOptions(stagingSelect, "eval_resolution");
+
+    const saveButton = screen.getByRole("button", { name: "Save Changes" });
+    await userEvent.click(saveButton);
+
+    expect(mockUpdateSettings).toHaveBeenCalledWith(
+      "proj-1",
+      expect.objectContaining({
+        deployment: expect.objectContaining({
+          targets: expect.arrayContaining([
+            expect.objectContaining({
+              name: "staging",
+              command: "./deploy-staging.sh",
+              autoDeployTrigger: "eval_resolution",
+            }),
+            expect.objectContaining({
+              name: "production",
+              command: "./deploy-prod.sh",
+              autoDeployTrigger: "none",
+            }),
+          ]),
+        }),
+      })
+    );
+  });
+
   it("Display mode shows theme picker and running agents display mode", async () => {
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
     await screen.findByText("Settings");
