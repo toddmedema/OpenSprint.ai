@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { Provider } from "react-redux";
@@ -13,6 +13,8 @@ const mockProjectsList = vi.fn();
 const mockArchive = vi.fn();
 const mockDelete = vi.fn();
 const mockGetGlobalStatus = vi.fn();
+const mockValidateKey = vi.fn();
+const mockSaveKey = vi.fn();
 
 vi.mock("../api/client", () => ({
   api: {
@@ -23,6 +25,8 @@ vi.mock("../api/client", () => ({
     },
     env: {
       getGlobalStatus: (...args: unknown[]) => mockGetGlobalStatus(...args),
+      validateKey: (...args: unknown[]) => mockValidateKey(...args),
+      saveKey: (...args: unknown[]) => mockSaveKey(...args),
     },
   },
 }));
@@ -61,6 +65,8 @@ describe("HomeScreen", () => {
     mockArchive.mockReset();
     mockDelete.mockReset();
     mockGetGlobalStatus.mockReset();
+    mockValidateKey.mockReset();
+    mockSaveKey.mockReset();
     mockGetGlobalStatus.mockResolvedValue({ hasAnyKey: true, useCustomCli: false });
   });
 
@@ -193,6 +199,47 @@ describe("HomeScreen", () => {
     await user.click(screen.getByTestId("add-existing-button"));
 
     expect(screen.getByTestId("api-key-setup-modal")).toBeInTheDocument();
+  });
+
+  it("E2E: Create New with no keys → modal → add key → redirect to Create New", async () => {
+    mockProjectsList.mockResolvedValue([]);
+    mockGetGlobalStatus.mockResolvedValue({ hasAnyKey: false, useCustomCli: false });
+    mockValidateKey.mockResolvedValue({ valid: true });
+    mockSaveKey.mockResolvedValue({ saved: true });
+    const user = userEvent.setup();
+
+    function LocationDisplay() {
+      return <div data-testid="location">{useLocation().pathname}</div>;
+    }
+
+    const store = configureStore({ reducer: { notification: notificationReducer } });
+    render(
+      <Provider store={store}>
+        <MemoryRouter>
+          <HomeScreen />
+          <LocationDisplay />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    await screen.findByTestId("create-new-button");
+    await user.click(screen.getByTestId("create-new-button"));
+
+    expect(screen.getByTestId("api-key-setup-modal")).toBeInTheDocument();
+    expect(screen.getByText("Enter agent API key")).toBeInTheDocument();
+
+    await user.type(screen.getByTestId("api-key-input"), "sk-ant-test-key");
+    await user.click(screen.getByTestId("api-key-save-button"));
+
+    await waitFor(() => {
+      expect(mockValidateKey).toHaveBeenCalledWith("claude", "sk-ant-test-key");
+      expect(mockSaveKey).toHaveBeenCalledWith("ANTHROPIC_API_KEY", "sk-ant-test-key");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/projects/create-new");
+      expect(screen.queryByTestId("api-key-setup-modal")).not.toBeInTheDocument();
+    });
   });
 
   it("clicking project card navigates to project sketch", async () => {
