@@ -891,6 +891,8 @@ describe("PlanPhase dynamic plan button label", () => {
     expect(screen.queryByTestId("plan-tasks-button-sidebar")).not.toBeInTheDocument();
     expect(screen.getByTestId("plan-tasks-loading")).toBeInTheDocument();
     expect(screen.getByTestId("plan-tasks-loading-sidebar")).toBeInTheDocument();
+    // Only one loading spinner (large blue on card); sidebar shows text, not a duplicate spinner
+    expect(screen.getByTestId("plan-tasks-loading-sidebar").querySelector(".animate-spin")).toBeNull();
   });
 
   it("button updates reactively: Plan Tasks when tasks empty, Execute when tasks added", async () => {
