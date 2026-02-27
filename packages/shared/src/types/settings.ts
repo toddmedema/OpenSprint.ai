@@ -62,6 +62,8 @@ export interface DeploymentConfig {
   webhookUrl?: string;
   /** Shell command for rollback (custom mode) */
   rollbackCommand?: string;
+  /** Time for nightly deploys in local timezone (HH:mm, e.g. "02:00"). Default: "02:00". */
+  nightlyDeployTime?: string;
 }
 
 export type DeploymentConfigInput = DeploymentConfig;

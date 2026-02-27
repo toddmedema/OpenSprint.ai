@@ -249,6 +249,79 @@ describe("Deliver API (phase routes for deployment records)", () => {
         API_URL: "https://api.example.com",
       });
     });
+
+    it("should accept and persist nightlyDeployTime", async () => {
+      const res = await request(app)
+        .put(`${API_PREFIX}/projects/${projectId}/deliver/settings`)
+        .send({
+          mode: "custom",
+          targets: [
+            { name: "staging", autoDeployTrigger: "nightly", isDefault: true },
+          ],
+          nightlyDeployTime: "03:30",
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.deployment.nightlyDeployTime).toBe("03:30");
+      expect(res.body.data.deployment.targets[0]).toMatchObject({
+        name: "staging",
+        autoDeployTrigger: "nightly",
+      });
+
+      const getRes = await request(app).get(`${API_PREFIX}/projects/${projectId}/settings`);
+      expect(getRes.body.data.deployment.nightlyDeployTime).toBe("03:30");
+      expect(getRes.body.data.deployment.targets[0].autoDeployTrigger).toBe("nightly");
+    });
+
+    it("should migrate legacy autoDeployOnEpicCompletion to per-target autoDeployTrigger", async () => {
+      const res = await request(app)
+        .put(`${API_PREFIX}/projects/${projectId}/deliver/settings`)
+        .send({
+          mode: "custom",
+          targets: [{ name: "staging", isDefault: true }],
+          autoDeployOnEpicCompletion: true,
+        });
+
+      expect(res.status).toBe(200);
+      // Response should have migrated format: per-target autoDeployTrigger, no legacy flag
+      expect(res.body.data.deployment.autoDeployOnEpicCompletion).toBeUndefined();
+      expect(res.body.data.deployment.targets).toBeDefined();
+      const stagingTarget = res.body.data.deployment.targets?.find(
+        (t: { name: string }) => t.name === "staging"
+      );
+      expect(stagingTarget?.autoDeployTrigger).toBe("each_epic");
+
+      const getRes = await request(app).get(`${API_PREFIX}/projects/${projectId}/settings`);
+      expect(getRes.body.data.deployment.autoDeployOnEpicCompletion).toBeUndefined();
+      expect(
+        getRes.body.data.deployment.targets?.find((t: { name: string }) => t.name === "staging")
+          ?.autoDeployTrigger
+      ).toBe("each_epic");
+    });
+
+    it("should migrate legacy autoDeployOnEvalResolution to per-target autoDeployTrigger", async () => {
+      const res = await request(app)
+        .put(`${API_PREFIX}/projects/${projectId}/deliver/settings`)
+        .send({
+          mode: "custom",
+          targets: [{ name: "production", isDefault: true }],
+          autoDeployOnEvalResolution: true,
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.deployment.autoDeployOnEvalResolution).toBeUndefined();
+      const prodTarget = res.body.data.deployment.targets?.find(
+        (t: { name: string }) => t.name === "production"
+      );
+      expect(prodTarget?.autoDeployTrigger).toBe("eval_resolution");
+
+      const getRes = await request(app).get(`${API_PREFIX}/projects/${projectId}/settings`);
+      expect(getRes.body.data.deployment.autoDeployOnEvalResolution).toBeUndefined();
+      expect(
+        getRes.body.data.deployment.targets?.find((t: { name: string }) => t.name === "production")
+          ?.autoDeployTrigger
+      ).toBe("eval_resolution");
+    });
   });
 
   describe("POST /projects/:projectId/deliver - record fields", () => {
