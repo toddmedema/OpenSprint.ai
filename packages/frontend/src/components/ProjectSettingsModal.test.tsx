@@ -103,7 +103,7 @@ describe("ProjectSettingsModal", () => {
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
 
     await screen.findByText("Settings");
-    expect(screen.getByTestId("display-mode-button")).toHaveTextContent("Display");
+    expect(screen.getByTestId("display-mode-button")).toHaveTextContent("Global");
     expect(screen.getByText("Project")).toBeInTheDocument();
     expect(screen.getByText("Project Info")).toBeInTheDocument();
     expect(screen.getByText("Agent Config")).toBeInTheDocument();

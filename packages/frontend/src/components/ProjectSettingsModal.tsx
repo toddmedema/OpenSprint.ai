@@ -242,7 +242,7 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
           <CloseButton onClick={onClose} ariaLabel="Close settings modal" />
         </div>
 
-        {/* Mode switcher: Project (per-project) vs Display (global) */}
+        {/* Mode switcher: Project (per-project) vs Global */}
         <div
           className="flex-shrink-0 flex flex-nowrap gap-1 px-5 pt-3 pb-2 border-b border-theme-border"
           data-testid="settings-mode-switcher"
@@ -268,7 +268,7 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
             }`}
             data-testid="display-mode-button"
           >
-            Display
+            Global
           </button>
         </div>
 
