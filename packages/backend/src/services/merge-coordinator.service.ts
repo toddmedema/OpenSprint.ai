@@ -16,8 +16,7 @@ import { RebaseConflictError } from "./branch-manager.js";
 import { gitCommitQueue } from "./git-commit-queue.service.js";
 import { agentIdentityService } from "./agent-identity.service.js";
 import { eventLogService } from "./event-log.service.js";
-import { getTargetsForDeployEvent } from "@opensprint/shared";
-import { triggerDeploy } from "./deploy-trigger.service.js";
+import { triggerDeployForEvent } from "./deploy-trigger.service.js";
 import { broadcastToProject } from "../websocket/index.js";
 import type { TimerRegistry } from "./timer-registry.js";
 import { createLogger } from "../utils/logger.js";
@@ -424,6 +423,11 @@ export class MergeCoordinatorService {
       log.warn("Auto-resolve feedback on task done failed", { taskId, err });
     });
 
+    // PRD §7.5.3: Auto-deploy on each task (merge to main)
+    triggerDeployForEvent(projectId, "each_task").catch((err) => {
+      log.warn("Auto-deploy on task completion failed", { projectId, err });
+    });
+
     const epicId = extractEpicId(taskId);
     if (epicId) {
       const allIssues = await this.host.taskStore.listAll(projectId);
@@ -436,13 +440,9 @@ export class MergeCoordinatorService {
       const allClosed =
         implTasks.length > 0 && implTasks.every((i) => (i.status as string) === "closed");
       if (allClosed) {
-        const settings = await this.host.projectService.getSettings(projectId);
-        const epicTargets = getTargetsForDeployEvent(settings.deployment, "each_epic");
-        if (epicTargets.length > 0) {
-          triggerDeploy(projectId).catch((err) => {
-            log.warn("Auto-deploy on epic completion failed", { projectId, err });
-          });
-        }
+        triggerDeployForEvent(projectId, "each_epic").catch((err) => {
+          log.warn("Auto-deploy on epic completion failed", { projectId, err });
+        });
       }
     }
   }

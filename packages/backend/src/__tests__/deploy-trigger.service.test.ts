@@ -39,7 +39,9 @@ vi.mock("child_process", () => ({
   execSync: (...args: unknown[]) => mockExecSync(...args),
 }));
 
-const { triggerDeploy } = await import("../services/deploy-trigger.service.js");
+const { triggerDeploy, triggerDeployForEvent } = await import(
+  "../services/deploy-trigger.service.js"
+);
 
 describe("deploy-trigger.service", () => {
   let repoPath: string;
@@ -117,11 +119,18 @@ describe("deploy-trigger.service", () => {
     });
 
     it("returns null when deployment already in progress for project", async () => {
+      let resolveDeploy!: () => void;
+      const deployPromise = new Promise<void>((r) => {
+        resolveDeploy = r;
+      });
+      mockRunDeployAsync.mockImplementation(() => deployPromise);
       await triggerDeploy("proj-1");
       const secondResult = await triggerDeploy("proj-1");
 
       expect(secondResult).toBeNull();
       expect(mockCreateRecord).toHaveBeenCalledTimes(1);
+      resolveDeploy();
+      await new Promise((r) => setImmediate(r));
     });
 
     it("returns null and does not throw when getProject fails", async () => {
@@ -155,6 +164,124 @@ describe("deploy-trigger.service", () => {
           commitHash: null,
         })
       );
+    });
+
+    it("passes targetName to runDeployAsync when provided", async () => {
+      mockGetSettings.mockResolvedValue({
+        deployment: {
+          mode: "custom",
+          targets: [
+            { name: "staging", autoDeployTrigger: "none" },
+            { name: "production", autoDeployTrigger: "none" },
+          ],
+        },
+      });
+
+      await triggerDeploy("proj-1", "staging");
+
+      expect(mockCreateRecord).toHaveBeenCalledWith(
+        "proj-1",
+        null,
+        expect.objectContaining({
+          target: "staging",
+        })
+      );
+      expect(mockRunDeployAsync).toHaveBeenCalledWith(
+        "proj-1",
+        "deploy-123",
+        repoPath,
+        expect.any(Object),
+        "staging"
+      );
+    });
+  });
+
+  describe("triggerDeployForEvent", () => {
+    it("deploys to each target with matching autoDeployTrigger sequentially", async () => {
+      const deployIds: string[] = [];
+      mockGetSettings.mockResolvedValue({
+        deployment: {
+          mode: "custom",
+          targets: [
+            { name: "staging", autoDeployTrigger: "each_task" },
+            { name: "production", autoDeployTrigger: "each_task" },
+          ],
+        },
+      });
+      mockCreateRecord
+        .mockResolvedValueOnce({
+          id: "deploy-1",
+          projectId: "proj-1",
+          status: "pending",
+          startedAt: new Date().toISOString(),
+          completedAt: null,
+          log: [],
+          previousDeployId: null,
+          commitHash: null,
+          target: "staging",
+          mode: "custom",
+        })
+        .mockResolvedValueOnce({
+          id: "deploy-2",
+          projectId: "proj-1",
+          status: "pending",
+          startedAt: new Date().toISOString(),
+          completedAt: null,
+          log: [],
+          previousDeployId: null,
+          commitHash: null,
+          target: "production",
+          mode: "custom",
+        });
+
+      const ids = await triggerDeployForEvent("proj-1", "each_task");
+
+      expect(ids).toEqual(["deploy-1", "deploy-2"]);
+      expect(mockRunDeployAsync).toHaveBeenCalledTimes(2);
+      expect(mockRunDeployAsync).toHaveBeenNthCalledWith(
+        1,
+        "proj-1",
+        "deploy-1",
+        repoPath,
+        expect.any(Object),
+        "staging"
+      );
+      expect(mockRunDeployAsync).toHaveBeenNthCalledWith(
+        2,
+        "proj-1",
+        "deploy-2",
+        repoPath,
+        expect.any(Object),
+        "production"
+      );
+    });
+
+    it("returns empty array when no targets match event", async () => {
+      mockGetSettings.mockResolvedValue({
+        deployment: {
+          mode: "custom",
+          targets: [
+            { name: "staging", autoDeployTrigger: "each_epic" },
+            { name: "production", autoDeployTrigger: "none" },
+          ],
+        },
+      });
+
+      const ids = await triggerDeployForEvent("proj-1", "each_task");
+
+      expect(ids).toEqual([]);
+      expect(mockRunDeployAsync).not.toHaveBeenCalled();
+    });
+
+    it("returns empty array when targets array is empty", async () => {
+      mockGetSettings.mockResolvedValue({
+        deployment: { mode: "custom", targets: [] },
+      });
+
+      const ids = await triggerDeployForEvent("proj-1", "each_task");
+
+      expect(ids).toEqual([]);
+      expect(mockRunDeployAsync).not.toHaveBeenCalled();
     });
   });
 });

@@ -31,6 +31,7 @@ vi.mock("../websocket/index.js", () => ({
 
 vi.mock("../services/deploy-trigger.service.js", () => ({
   triggerDeploy: vi.fn().mockResolvedValue("deploy-123"),
+  triggerDeployForEvent: vi.fn().mockResolvedValue([]),
 }));
 
 describe("Feedback REST API", () => {

@@ -5,7 +5,7 @@ import type {
   FeedbackCategory,
   ProposedTask,
 } from "@opensprint/shared";
-import { getAgentForPlanningRole, getTargetsForDeployEvent } from "@opensprint/shared";
+import { getAgentForPlanningRole } from "@opensprint/shared";
 import { AppError } from "../middleware/error-handler.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
 import { ProjectService } from "./project.service.js";
@@ -23,7 +23,7 @@ import { notificationService } from "./notification.service.js";
 import { broadcastToProject } from "../websocket/index.js";
 import { extractJsonFromAgentResponse } from "../utils/json-extract.js";
 import { JSON_OUTPUT_PREAMBLE } from "../utils/agent-prompts.js";
-import { triggerDeploy } from "./deploy-trigger.service.js";
+import { triggerDeployForEvent } from "./deploy-trigger.service.js";
 import { createLogger } from "../utils/logger.js";
 
 const log = createLogger("feedback");
@@ -1219,13 +1219,9 @@ export class FeedbackService {
       criticalItems.length > 0 && criticalItems.every((i) => i.status === "resolved");
 
     if (allCriticalResolved) {
-      const settings = await this.projectService.getSettings(projectId);
-      const evalTargets = getTargetsForDeployEvent(settings.deployment, "eval_resolution");
-      if (evalTargets.length > 0) {
-        triggerDeploy(projectId).catch((err) => {
-          log.warn("Auto-deploy on Evaluate resolution failed", { projectId, err });
-        });
-      }
+      triggerDeployForEvent(projectId, "eval_resolution").catch((err) => {
+        log.warn("Auto-deploy on Evaluate resolution failed", { projectId, err });
+      });
     }
 
     return item;

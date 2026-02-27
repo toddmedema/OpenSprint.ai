@@ -462,52 +462,17 @@ export async function runDeployAsync(
 
     if (config.mode === "expo") {
       await ensureEasConfig(repoPath);
-      const channel = config.expoConfig?.channel ?? "preview";
-      const message = `OpenSprint preview ${new Date().toISOString().slice(0, 19)}`;
-      let output = "";
-      const captureEmit = (chunk: string) => {
-        output += chunk;
-        return emit(chunk);
-      };
-      try {
-        await runCommandStreaming(
-          "npx",
-          [
-            "eas-cli",
-            "update",
-            "--channel",
-            channel,
-            "--message",
-            message,
-            "--non-interactive",
-            "--json",
-          ],
-          repoPath,
-          captureEmit,
-          envVars
-        );
-        let url: string | undefined;
-        try {
-          const parsed = JSON.parse(output.trim().split("\n").pop() ?? "{}");
-          url = parsed.url ?? parsed.link ?? parsed.permalink;
-        } catch {
-          // ignore parse errors
-        }
-        await deployStorageService.updateRecord(projectId, deployId, {
-          status: "success",
-          completedAt: new Date().toISOString(),
-          url,
-        });
-        broadcastToProject(projectId, { type: "deliver.completed", deployId, success: true });
-      } catch (err) {
-        const msg = getErrorMessage(err);
-        await deployStorageService.updateRecord(projectId, deployId, {
-          status: "failed",
-          completedAt: new Date().toISOString(),
-          error: msg,
-        });
-        broadcastToProject(projectId, { type: "deliver.completed", deployId, success: false });
-      }
+      // Expo mode: staging maps to beta variant, production to prod (PRD §7.5.3)
+      const variant: "beta" | "prod" =
+        effectiveTarget === "staging" ? "beta" : "prod";
+      await runExpoDeployAsync(
+        projectId,
+        deployId,
+        repoPath,
+        variant,
+        emit,
+        envVars
+      );
     } else if (config.mode === "custom") {
       const customCommand = targetConfig?.command ?? config.customCommand;
       const webhookUrl = targetConfig?.webhookUrl ?? config.webhookUrl;

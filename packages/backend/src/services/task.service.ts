@@ -9,8 +9,7 @@ import { ErrorCodes } from "../middleware/error-codes.js";
 import { SessionManager } from "./session-manager.js";
 import { orchestratorService } from "./orchestrator.service.js";
 import { broadcastToProject } from "../websocket/index.js";
-import { getTargetsForDeployEvent } from "@opensprint/shared";
-import { triggerDeploy } from "./deploy-trigger.service.js";
+import { triggerDeployForEvent } from "./deploy-trigger.service.js";
 import { ContextAssembler } from "./context-assembler.js";
 import { BranchManager } from "./branch-manager.js";
 import { FeedbackService } from "./feedback.service.js";
@@ -522,16 +521,17 @@ export class TaskService {
           epicClosed = true;
 
           // PRD §7.5.3: Auto-deploy on epic completion when user manually marks last task done
-          const settings = await this.projectService.getSettings(projectId);
-          const epicTargets = getTargetsForDeployEvent(settings.deployment, "each_epic");
-          if (epicTargets.length > 0) {
-            triggerDeploy(projectId).catch((err) => {
-              log.warn("Auto-deploy on epic completion failed", { projectId, err });
-            });
-          }
+          triggerDeployForEvent(projectId, "each_epic").catch((err) => {
+            log.warn("Auto-deploy on epic completion failed", { projectId, err });
+          });
         }
       }
     }
+
+    // PRD §7.5.3: Auto-deploy on each task when user manually marks task done
+    triggerDeployForEvent(projectId, "each_task").catch((err) => {
+      log.warn("Auto-deploy on task completion failed", { projectId, err });
+    });
 
     return { taskClosed: true, epicClosed };
   }
