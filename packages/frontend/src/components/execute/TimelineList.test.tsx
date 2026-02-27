@@ -160,6 +160,77 @@ describe("TimelineList", () => {
     expect(onUnblock).toHaveBeenCalledWith("blocked-1");
   });
 
+  it("shows Blocked section at top when statusFilter is all and blocked tasks exist", () => {
+    const tasks = [
+      createMockTask({ id: "blocked-1", title: "Blocked task", kanbanColumn: "blocked" }),
+      createMockTask({ id: "ready-1", title: "Ready task", kanbanColumn: "ready" }),
+    ];
+    const plans = [createMockPlan("epic-1", "Auth")];
+
+    render(
+      <TimelineList
+        tasks={tasks}
+        plans={plans}
+        onTaskSelect={vi.fn()}
+        statusFilter="all"
+      />
+    );
+
+    expect(screen.getByTestId("timeline-section-blocked")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Blocked" })).toBeInTheDocument();
+    expect(screen.getByText("Blocked task")).toBeInTheDocument();
+    const sections = screen.getAllByRole("heading", { level: 3 });
+    expect(sections[0]).toHaveTextContent("Blocked");
+  });
+
+  it("hides Blocked section when no blocked tasks", () => {
+    const tasks = [
+      createMockTask({ id: "ready-1", title: "Ready task", kanbanColumn: "ready" }),
+      createMockTask({ id: "done-1", title: "Done task", kanbanColumn: "done" }),
+    ];
+    const plans = [createMockPlan("epic-1", "Auth")];
+
+    render(
+      <TimelineList
+        tasks={tasks}
+        plans={plans}
+        onTaskSelect={vi.fn()}
+        statusFilter="all"
+      />
+    );
+
+    expect(screen.queryByTestId("timeline-section-blocked")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Blocked" })).not.toBeInTheDocument();
+  });
+
+  it("blocked tasks appear only in Blocked section, not duplicated in In Line", () => {
+    const tasks = [
+      createMockTask({ id: "blocked-1", title: "Blocked task", kanbanColumn: "blocked" }),
+      createMockTask({ id: "ready-1", title: "Ready task", kanbanColumn: "ready" }),
+    ];
+    const plans = [createMockPlan("epic-1", "Auth")];
+
+    render(
+      <TimelineList
+        tasks={tasks}
+        plans={plans}
+        onTaskSelect={vi.fn()}
+        statusFilter="all"
+      />
+    );
+
+    expect(screen.getByTestId("timeline-section-blocked")).toBeInTheDocument();
+    expect(screen.getByTestId("timeline-section-queue")).toBeInTheDocument();
+    expect(screen.getByText("Blocked task")).toBeInTheDocument();
+    expect(screen.getByText("Ready task")).toBeInTheDocument();
+
+    const blockedSection = screen.getByTestId("timeline-section-blocked");
+    const queueSection = screen.getByTestId("timeline-section-queue");
+    expect(blockedSection).toContainElement(screen.getByTestId("timeline-row-blocked-1"));
+    expect(queueSection).not.toContainElement(screen.getByTestId("timeline-row-blocked-1"));
+    expect(queueSection).toContainElement(screen.getByTestId("timeline-row-ready-1"));
+  });
+
   it("empty tasks array renders nothing", () => {
     const plans = [createMockPlan("epic-1", "Auth")];
 

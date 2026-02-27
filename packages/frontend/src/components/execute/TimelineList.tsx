@@ -10,6 +10,7 @@ import { formatUptime, formatTimestamp } from "../../lib/formatting";
 import { TaskStatusBadge, COLUMN_LABELS } from "../kanban";
 import { PriorityIcon } from "../PriorityIcon";
 import { ComplexityIcon } from "../ComplexityIcon";
+import type { StatusFilter } from "../../lib/executeTaskFilter";
 
 export interface TimelineListProps {
   tasks: Task[];
@@ -17,12 +18,15 @@ export interface TimelineListProps {
   onTaskSelect: (taskId: string) => void;
   onUnblock?: (taskId: string) => void;
   taskIdToStartedAt?: Record<string, string>;
+  /** When "all", a Blocked section is shown at top when blocked tasks exist. */
+  statusFilter?: StatusFilter;
 }
 
 const SECTION_LABELS: Record<string, string> = {
   [TIMELINE_SECTION.active]: "In Progress",
   [TIMELINE_SECTION.queue]: "In Line",
   [TIMELINE_SECTION.completed]: "Completed",
+  blocked: "Blocked",
 };
 
 function TimelineRow({
@@ -88,6 +92,7 @@ export function TimelineList({
   onTaskSelect,
   onUnblock,
   taskIdToStartedAt = {},
+  statusFilter = "all",
 }: TimelineListProps) {
   if (tasks.length === 0) {
     return null;
@@ -99,19 +104,31 @@ export function TimelineList({
   });
 
   const sorted = sortTasksForTimeline(tasks);
+  const blockedTasks =
+    statusFilter === "all"
+      ? sorted.filter((t) => t.kanbanColumn === "blocked")
+      : [];
+  const showBlockedSection = blockedTasks.length > 0;
+
+  const queueFilter = (t: Task) => {
+    const inQueue = getTimelineSection(t.kanbanColumn) === TIMELINE_SECTION.queue;
+    if (showBlockedSection && t.kanbanColumn === "blocked") return false;
+    return inQueue;
+  };
+
   const bySection = {
     [TIMELINE_SECTION.active]: sorted.filter(
       (t) => getTimelineSection(t.kanbanColumn) === TIMELINE_SECTION.active
     ),
-    [TIMELINE_SECTION.queue]: sorted.filter(
-      (t) => getTimelineSection(t.kanbanColumn) === TIMELINE_SECTION.queue
-    ),
+    [TIMELINE_SECTION.queue]: sorted.filter(queueFilter),
     [TIMELINE_SECTION.completed]: sorted.filter(
       (t) => getTimelineSection(t.kanbanColumn) === TIMELINE_SECTION.completed
     ),
+    blocked: blockedTasks,
   };
 
   const sections = [
+    ...(showBlockedSection ? [{ key: "blocked" as const, tasks: bySection.blocked }] : []),
     { key: TIMELINE_SECTION.active, tasks: bySection[TIMELINE_SECTION.active] },
     { key: TIMELINE_SECTION.queue, tasks: bySection[TIMELINE_SECTION.queue] },
     { key: TIMELINE_SECTION.completed, tasks: bySection[TIMELINE_SECTION.completed] },

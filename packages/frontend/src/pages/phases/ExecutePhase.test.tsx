@@ -1400,6 +1400,70 @@ describe("ExecutePhase view toggle", () => {
     expect(screen.queryByTestId("timeline-row-epic-1.2")).not.toBeInTheDocument();
   });
 
+  it("Queue view with All filter shows Blocked section when blocked tasks exist", async () => {
+    const user = userEvent.setup();
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Blocked task",
+        epicId: "epic-1",
+        kanbanColumn: "blocked",
+        priority: 0,
+        assignee: null,
+      },
+      {
+        id: "epic-1.2",
+        title: "Ready task",
+        epicId: "epic-1",
+        kanbanColumn: "ready",
+        priority: 1,
+        assignee: null,
+      },
+    ];
+    const store = createStore(tasks);
+    render(
+      <Provider store={store}>
+        <ExecutePhase projectId="proj-1" />
+      </Provider>
+    );
+
+    await user.click(screen.getByTestId("view-toggle-timeline"));
+    await user.click(screen.getByTestId("filter-chip-all"));
+
+    expect(screen.getByTestId("timeline-section-blocked")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Blocked" })).toBeInTheDocument();
+    expect(screen.getByText("Blocked task")).toBeInTheDocument();
+    expect(screen.getByText("Ready task")).toBeInTheDocument();
+    const blockedSection = screen.getByTestId("timeline-section-blocked");
+    expect(blockedSection).toContainElement(screen.getByTestId("timeline-row-epic-1.1"));
+    expect(screen.getByTestId("timeline-section-queue")).not.toContainElement(
+      screen.getByTestId("timeline-row-epic-1.1")
+    );
+  });
+
+  it("Queue view with All filter hides Blocked section when no blocked tasks", async () => {
+    const user = userEvent.setup();
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Ready task",
+        epicId: "epic-1",
+        kanbanColumn: "ready",
+        priority: 0,
+        assignee: null,
+      },
+    ];
+    const store = createStore(tasks);
+    render(
+      <Provider store={store}>
+        <ExecutePhase projectId="proj-1" />
+      </Provider>
+    );
+
+    await user.click(screen.getByTestId("view-toggle-timeline"));
+    expect(screen.queryByTestId("timeline-section-blocked")).not.toBeInTheDocument();
+  });
+
   it("sidebar opens from Timeline row click", async () => {
     const user = userEvent.setup();
     mockGet.mockResolvedValue({ id: "epic-1.1", title: "Task A", kanbanColumn: "in_progress" });

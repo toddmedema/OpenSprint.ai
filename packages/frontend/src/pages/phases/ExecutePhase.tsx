@@ -264,6 +264,7 @@ export function ExecutePhase({
                 onTaskSelect={(taskId) => dispatch(setSelectedTaskId(taskId))}
                 onUnblock={(taskId) => dispatch(unblockTask({ projectId, taskId }))}
                 taskIdToStartedAt={taskIdToStartedAt}
+                statusFilter={statusFilter}
               />
               {hasMoreTasks && !isSearchActive && (
                 <div className="mt-6 flex justify-center">
