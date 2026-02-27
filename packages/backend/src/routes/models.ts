@@ -161,12 +161,8 @@ async function resolveApiKey(
   projectId: string | undefined,
   provider: "ANTHROPIC_API_KEY" | "CURSOR_API_KEY"
 ): Promise<string | null> {
-  if (projectId) {
-    const resolved = await getNextKey(projectId, provider);
-    return resolved?.key?.trim() ?? null;
-  }
-  const key = process.env[provider];
-  return key?.trim() ?? null;
+  const resolved = await getNextKey(projectId ?? "", provider);
+  return resolved?.key?.trim() ?? null;
 }
 
 // GET /models?provider=claude|claude-cli|cursor&projectId=... — List available models for the given provider

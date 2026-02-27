@@ -32,6 +32,7 @@ import {
   deleteSettingsFromStore,
   getSettingsWithMetaFromStore,
 } from "./settings-store.service.js";
+import { getGlobalSettings, updateGlobalSettings } from "./global-settings.service.js";
 import { deleteFeedbackAssetsForProject } from "./feedback-store.service.js";
 import { BranchManager } from "./branch-manager.js";
 import { detectTestFramework } from "./test-framework.service.js";
@@ -673,13 +674,32 @@ export class ProjectService {
         testCommand: detected?.testCommand ?? (getTestCommandForFramework(null) || null),
       };
       await setSettingsInStore(projectId, enriched);
-      return toCanonicalSettings(enriched);
+      const withApiKeys = await this.mergeApiKeysForResponse(enriched);
+      return toCanonicalSettings(withApiKeys);
     }
     const normalized = {
       ...stored,
       hilConfig: normalizeHilConfig(stored.hilConfig ?? {}),
     };
-    return toCanonicalSettings(parseSettings(normalized));
+    const parsed = toCanonicalSettings(parseSettings(normalized));
+    const withApiKeys = await this.mergeApiKeysForResponse(parsed);
+    return withApiKeys;
+  }
+
+  /** Merge global apiKeys with project apiKeys for response (global first, project for backward compat). */
+  private async mergeApiKeysForResponse(settings: ProjectSettings): Promise<ProjectSettings> {
+    const global = await getGlobalSettings();
+    if (!global.apiKeys && !settings.apiKeys) return settings;
+    const merged: ApiKeys = { ...settings.apiKeys };
+    for (const provider of API_KEY_PROVIDERS) {
+      const globalEntries = global.apiKeys?.[provider];
+      if (globalEntries && globalEntries.length > 0) {
+        merged[provider] = globalEntries;
+      } else if (settings.apiKeys?.[provider]) {
+        merged[provider] = settings.apiKeys[provider];
+      }
+    }
+    return { ...settings, apiKeys: Object.keys(merged).length > 0 ? merged : undefined };
   }
 
   /** Update project settings (persisted in global store). */
@@ -752,7 +772,14 @@ export class ProjectService {
       // Branches mode forces maxConcurrentCoders=1 regardless of stored value
       ...(gitWorkingMode === "branches" && { maxConcurrentCoders: 1 }),
     };
-    await setSettingsInStore(projectId, toCanonicalSettings(updated));
+    const toPersist = toCanonicalSettings(updated);
+    if (updates.apiKeys !== undefined) {
+      await updateGlobalSettings({ apiKeys: updated.apiKeys });
+      const { apiKeys: _omit, ...forProjectStore } = toPersist;
+      await setSettingsInStore(projectId, forProjectStore as ProjectSettings);
+    } else {
+      await setSettingsInStore(projectId, toPersist);
+    }
     return updated;
   }
 

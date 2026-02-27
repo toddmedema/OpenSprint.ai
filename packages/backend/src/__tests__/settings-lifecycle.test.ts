@@ -13,17 +13,22 @@ import { ProjectService } from "../services/project.service.js";
 import { getNextKey } from "../services/api-key-resolver.service.js";
 import { API_PREFIX, DEFAULT_HIL_CONFIG, DEFAULT_REVIEW_MODE } from "@opensprint/shared";
 
-/** Path to global settings store (when HOME is tempDir in tests). */
-function getGlobalSettingsPath(tempDir: string): string {
+/** Path to project settings store (settings.json keyed by project_id). */
+function getProjectSettingsPath(tempDir: string): string {
   return path.join(tempDir, ".opensprint", "settings.json");
 }
 
-/** Read project settings from global store. */
+/** Path to global settings store (global-settings.json for apiKeys). */
+function getGlobalSettingsJsonPath(tempDir: string): string {
+  return path.join(tempDir, ".opensprint", "global-settings.json");
+}
+
+/** Read project settings from project store. */
 async function readProjectFromGlobalStore(
   tempDir: string,
   projectId: string
 ): Promise<Record<string, unknown>> {
-  const storePath = getGlobalSettingsPath(tempDir);
+  const storePath = getProjectSettingsPath(tempDir);
   const raw = await fs.readFile(storePath, "utf-8");
   const store = JSON.parse(raw) as Record<string, { settings?: Record<string, unknown> }>;
   const entry = store[projectId];
@@ -118,8 +123,13 @@ describe("Settings lifecycle — service-level", () => {
     const fetched = await projectService.getSettings(project.id);
     expect(fetched.apiKeys).toEqual(apiKeys);
 
-    const persisted = await readProjectFromGlobalStore(tempDir, project.id);
-    expect(persisted.apiKeys).toEqual(apiKeys);
+    const globalPath = getGlobalSettingsJsonPath(tempDir);
+    const globalRaw = await fs.readFile(globalPath, "utf-8");
+    const global = JSON.parse(globalRaw) as { apiKeys?: typeof apiKeys };
+    expect(global.apiKeys).toEqual(apiKeys);
+
+    const projectPersisted = await readProjectFromGlobalStore(tempDir, project.id);
+    expect(projectPersisted.apiKeys).toBeUndefined();
   });
 
   it("round-trip: save new shape → read → save again → output is identical (idempotent)", async () => {
@@ -307,8 +317,13 @@ describe("Settings API lifecycle", () => {
       CURSOR_API_KEY: [{ id: "c1", masked: "••••••••" }],
     });
 
-    const settings = await readProjectFromGlobalStore(tempDir, projectId);
-    expect(settings.apiKeys).toEqual(apiKeys);
+    const globalPath = getGlobalSettingsJsonPath(tempDir);
+    const globalRaw = await fs.readFile(globalPath, "utf-8");
+    const global = JSON.parse(globalRaw) as { apiKeys?: typeof apiKeys };
+    expect(global.apiKeys).toEqual(apiKeys);
+
+    const projectSettings = await readProjectFromGlobalStore(tempDir, projectId);
+    expect(projectSettings.apiKeys).toBeUndefined();
   });
 
   it("GET /api/v1/projects/:id/settings returns masked apiKeys with limitHitAt", async () => {
@@ -351,7 +366,7 @@ describe("Settings API lifecycle", () => {
       .send({ apiKeys });
 
     const resolved = await getNextKey(projectId, "ANTHROPIC_API_KEY");
-    expect(resolved).toEqual({ key: "sk-ant-from-api", keyId: "a1", source: "project" });
+    expect(resolved).toEqual({ key: "sk-ant-from-api", keyId: "a1", source: "global" });
   });
 
   it("PUT /api/v1/projects/:id/settings rejects empty apiKeys when provider in use", async () => {
@@ -393,14 +408,16 @@ describe("Settings API lifecycle", () => {
       });
 
     expect(res.status).toBe(200);
-    const settings = await readProjectFromGlobalStore(tempDir, projectId);
-    expect(settings.apiKeys?.ANTHROPIC_API_KEY).toHaveLength(2);
-    expect(settings.apiKeys?.ANTHROPIC_API_KEY?.[0]).toEqual({
+    const globalPath = getGlobalSettingsJsonPath(tempDir);
+    const globalRaw = await fs.readFile(globalPath, "utf-8");
+    const global = JSON.parse(globalRaw) as { apiKeys?: { ANTHROPIC_API_KEY?: Array<{ id: string; value?: string; limitHitAt?: string }> } };
+    expect(global.apiKeys?.ANTHROPIC_API_KEY).toHaveLength(2);
+    expect(global.apiKeys?.ANTHROPIC_API_KEY?.[0]).toEqual({
       id: "k1",
       value: "sk-ant-original",
       limitHitAt: "2025-02-25T14:00:00Z",
     });
-    expect(settings.apiKeys?.ANTHROPIC_API_KEY?.[1]).toEqual({
+    expect(global.apiKeys?.ANTHROPIC_API_KEY?.[1]).toEqual({
       id: "k2",
       value: "sk-ant-second",
     });
