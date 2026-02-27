@@ -393,7 +393,7 @@ describe("Navbar", () => {
     expect(screen.getByTestId("api-key-setup-modal")).toBeInTheDocument();
   });
 
-  it("theme is configurable from project settings Display section", async () => {
+  it("theme is configurable from project settings Display mode (global)", async () => {
     const user = userEvent.setup();
     const mockProject = {
       id: "proj-1",
@@ -423,9 +423,8 @@ describe("Navbar", () => {
       />
     );
 
-    await screen.findByText("Project Settings");
-    const displayTab = screen.getByRole("button", { name: "Display" });
-    await user.click(displayTab);
+    await screen.findByText("Settings");
+    await user.click(screen.getByTestId("display-mode-button"));
 
     await user.click(screen.getByTestId("theme-option-dark"));
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");

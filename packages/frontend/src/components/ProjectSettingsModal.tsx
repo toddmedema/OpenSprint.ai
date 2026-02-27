@@ -3,9 +3,7 @@ import { FolderBrowser } from "./FolderBrowser";
 import { CloseButton } from "./CloseButton";
 import { ModelSelect } from "./ModelSelect";
 import { ApiKeysSection } from "./ApiKeysSection";
-import { useTheme } from "../contexts/ThemeContext";
-import { useDisplayPreferences } from "../contexts/DisplayPreferencesContext";
-import type { RunningAgentsDisplayMode } from "../lib/displayPrefs";
+import { DisplaySettingsContent } from "./DisplaySettingsContent";
 import { api } from "../api/client";
 import type {
   Project,
@@ -25,31 +23,19 @@ interface ProjectSettingsModalProps {
   onSaved?: () => void;
 }
 
-type Tab = "basics" | "agents" | "deployment" | "hil" | "display";
+type Tab = "basics" | "agents" | "deployment" | "hil";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "basics", label: "Project Info" },
   { key: "agents", label: "Agent Config" },
   { key: "deployment", label: "Deliver" },
   { key: "hil", label: "Autonomy" },
-  { key: "display", label: "Display" },
 ];
 
-const THEME_OPTIONS: { value: "light" | "dark" | "system"; label: string }[] = [
-  { value: "light", label: "Light" },
-  { value: "dark", label: "Dark" },
-  { value: "system", label: "System" },
-];
-
-const RUNNING_AGENTS_DISPLAY_OPTIONS: { value: RunningAgentsDisplayMode; label: string }[] = [
-  { value: "count", label: "Count" },
-  { value: "icons", label: "Icons" },
-  { value: "both", label: "Both" },
-];
+type SettingsMode = "project" | "display";
 
 export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSettingsModalProps) {
-  const { preference: themePreference, setTheme } = useTheme();
-  const { runningAgentsDisplayMode, setRunningAgentsDisplayMode } = useDisplayPreferences();
+  const [mode, setMode] = useState<SettingsMode>("project");
   const [activeTab, setActiveTab] = useState<Tab>("basics");
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -252,36 +238,70 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
           className="flex-shrink-0 flex items-center justify-between px-5 py-4 border-b border-theme-border"
           data-testid="settings-modal-header"
         >
-          <h2 className="text-lg font-semibold text-theme-text">Project Settings</h2>
+          <h2 className="text-lg font-semibold text-theme-text">Settings</h2>
           <CloseButton onClick={onClose} ariaLabel="Close settings modal" />
         </div>
 
-        {/* Tabs */}
+        {/* Mode switcher: Project (per-project) vs Display (global) */}
         <div
-          className="flex-shrink-0 flex flex-nowrap gap-1 px-5 pt-3 pb-2 border-b border-theme-border overflow-x-auto overflow-y-hidden"
-          data-testid="settings-modal-tabs"
+          className="flex-shrink-0 flex flex-nowrap gap-1 px-5 pt-3 pb-2 border-b border-theme-border"
+          data-testid="settings-mode-switcher"
         >
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`px-3 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
-                activeTab === tab.key
-                  ? "bg-brand-600 text-white"
-                  : "text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          <button
+            type="button"
+            onClick={() => setMode("project")}
+            className={`px-3 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
+              mode === "project"
+                ? "bg-brand-600 text-white"
+                : "text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle"
+            }`}
+          >
+            Project
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("display")}
+            className={`px-3 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
+              mode === "display"
+                ? "bg-brand-600 text-white"
+                : "text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle"
+            }`}
+            data-testid="display-mode-button"
+          >
+            Display
+          </button>
         </div>
+
+        {/* Project tabs (only when mode is project) */}
+        {mode === "project" && (
+          <div
+            className="flex-shrink-0 flex flex-nowrap gap-1 px-5 pt-3 pb-2 border-b border-theme-border overflow-x-auto overflow-y-hidden"
+            data-testid="settings-modal-tabs"
+          >
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`px-3 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
+                  activeTab === tab.key
+                    ? "bg-brand-600 text-white"
+                    : "text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Content */}
         <div
           className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden px-5 py-4 overscroll-contain"
           data-testid="settings-modal-content"
         >
-          {loading ? (
+          {mode === "display" ? (
+            <DisplaySettingsContent />
+          ) : loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="w-6 h-6 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
             </div>
@@ -1066,59 +1086,12 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
                 </div>
               )}
 
-              {activeTab === "display" && (
-                <div className="space-y-4" data-testid="display-section">
-                  <h3 className="text-sm font-semibold text-theme-text">Theme</h3>
-                  <p className="text-xs text-theme-muted mb-3">
-                    Choose how Open Sprint looks. System follows your operating system preference.
-                  </p>
-                  <div className="flex gap-2 flex-wrap">
-                    {THEME_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => setTheme(opt.value)}
-                        data-testid={`theme-option-${opt.value}`}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          themePreference === opt.value
-                            ? "bg-brand-600 text-white"
-                            : "bg-theme-border-subtle text-theme-text hover:bg-theme-bg-elevated"
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <h3 className="text-sm font-semibold text-theme-text mt-6">
-                    Running agents display mode
-                  </h3>
-                  <p className="text-xs text-theme-muted mb-3">
-                    How to show running agents in the navbar and execute view: count only, icons
-                    only, or both.
-                  </p>
-                  <select
-                    value={runningAgentsDisplayMode}
-                    onChange={(e) =>
-                      setRunningAgentsDisplayMode(e.target.value as RunningAgentsDisplayMode)
-                    }
-                    data-testid="running-agents-display-mode"
-                    className="rounded-lg border border-theme-border bg-theme-bg pl-3 pr-10 py-2 text-sm text-theme-text focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                  >
-                    {RUNNING_AGENTS_DISPLAY_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
             </>
           )}
         </div>
 
-        {/* Error */}
-        {error && (
+        {/* Error (project mode only) */}
+        {mode === "project" && error && (
           <div className="mx-5 mb-3 p-3 bg-theme-error-bg border border-theme-error-border rounded-lg">
             <p className="text-sm text-theme-error-text">{error}</p>
           </div>
@@ -1126,23 +1099,31 @@ export function ProjectSettingsModal({ project, onClose, onSaved }: ProjectSetti
 
         {/* Footer */}
         <div className="flex-shrink-0 flex justify-end gap-2 px-5 py-4 border-t border-theme-border bg-theme-bg rounded-b-xl">
-          <button onClick={onClose} className="btn-secondary">
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={
-              saving ||
-              loading ||
-              (simpleComplexityAgent.type === "custom" &&
-                !(simpleComplexityAgent.cliCommand ?? "").trim()) ||
-              (complexComplexityAgent.type === "custom" &&
-                !(complexComplexityAgent.cliCommand ?? "").trim())
-            }
-            className="btn-primary disabled:opacity-50"
-          >
-            {saving ? "Saving..." : "Save Changes"}
-          </button>
+          {mode === "display" ? (
+            <button onClick={onClose} className="btn-primary">
+              Close
+            </button>
+          ) : (
+            <>
+              <button onClick={onClose} className="btn-secondary">
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={
+                  saving ||
+                  loading ||
+                  (simpleComplexityAgent.type === "custom" &&
+                    !(simpleComplexityAgent.cliCommand ?? "").trim()) ||
+                  (complexComplexityAgent.type === "custom" &&
+                    !(complexComplexityAgent.cliCommand ?? "").trim())
+                }
+                className="btn-primary disabled:opacity-50"
+              >
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+            </>
+          )}
         </div>
       </div>
 

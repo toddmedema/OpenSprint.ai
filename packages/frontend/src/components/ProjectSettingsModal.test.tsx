@@ -99,21 +99,22 @@ describe("ProjectSettingsModal", () => {
     );
   }
 
-  it("renders modal with header, tabs, and content", async () => {
+  it("renders modal with header, mode switcher, and project tabs", async () => {
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
 
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
+    expect(screen.getByTestId("display-mode-button")).toHaveTextContent("Display");
+    expect(screen.getByText("Project")).toBeInTheDocument();
     expect(screen.getByText("Project Info")).toBeInTheDocument();
     expect(screen.getByText("Agent Config")).toBeInTheDocument();
     expect(screen.getByText("Deliver")).toBeInTheDocument();
     expect(screen.getByText("Autonomy")).toBeInTheDocument();
-    expect(screen.getByText("Display")).toBeInTheDocument();
   });
 
   it("content area has min-h-0 and overflow-y-auto for proper scroll behavior on Agent Config", async () => {
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
 
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
     const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
     await userEvent.click(agentConfigTab);
@@ -129,7 +130,7 @@ describe("ProjectSettingsModal", () => {
   it("modal has overflow-hidden and tabs have flex-nowrap to prevent navigation bar layout issues on Agent Config", async () => {
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
 
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
     const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
     await userEvent.click(agentConfigTab);
@@ -147,7 +148,7 @@ describe("ProjectSettingsModal", () => {
   it("header and tabs have flex-shrink-0 to stay visible when content overflows", async () => {
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
 
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
     const header = screen.getByTestId("settings-modal-header");
     expect(header).toHaveClass("flex-shrink-0");
@@ -165,7 +166,7 @@ describe("ProjectSettingsModal", () => {
     });
 
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
     const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
     await userEvent.click(agentConfigTab);
@@ -186,7 +187,7 @@ describe("ProjectSettingsModal", () => {
     });
 
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
     const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
     await userEvent.click(agentConfigTab);
@@ -198,7 +199,7 @@ describe("ProjectSettingsModal", () => {
 
   it("shows Code Review section with updated helptext and default review mode", async () => {
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
     const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
     await userEvent.click(agentConfigTab);
@@ -219,7 +220,7 @@ describe("ProjectSettingsModal", () => {
     mockGetSettings.mockResolvedValue({ ...mockSettings, reviewMode: undefined });
 
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
     const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
     await userEvent.click(agentConfigTab);
@@ -233,7 +234,7 @@ describe("ProjectSettingsModal", () => {
     mockGetSettings.mockResolvedValue({ ...mockSettings, reviewMode: "always" });
 
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} onSaved={onSaved} />);
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
     const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
     await userEvent.click(agentConfigTab);
@@ -255,7 +256,7 @@ describe("ProjectSettingsModal", () => {
 
   it("Autonomy tab shows only configurable HIL categories (no testFailuresAndRetries)", async () => {
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
     const autonomyTab = screen.getByRole("button", { name: "Autonomy" });
     await userEvent.click(autonomyTab);
@@ -268,7 +269,7 @@ describe("ProjectSettingsModal", () => {
 
   it("Deliver tab shows auto-deploy toggles", async () => {
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
     const deploymentTab = screen.getByRole("button", { name: "Deliver" });
     await userEvent.click(deploymentTab);
@@ -283,7 +284,7 @@ describe("ProjectSettingsModal", () => {
 
   it("saves auto-deploy toggles when changed and Save is clicked", async () => {
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} onSaved={onSaved} />);
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
     const deploymentTab = screen.getByRole("button", { name: "Deliver" });
     await userEvent.click(deploymentTab);
@@ -305,18 +306,13 @@ describe("ProjectSettingsModal", () => {
     );
   });
 
-  it("Display tab is last in settings list and shows theme picker", async () => {
+  it("Display mode shows theme picker and running agents display mode", async () => {
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
-    const displayTab = screen.getByRole("button", { name: "Display" });
-    expect(displayTab).toBeInTheDocument();
-
-    const tabs = screen.getByTestId("settings-modal-tabs");
-    const tabButtons = tabs.querySelectorAll("button");
-    expect(tabButtons[tabButtons.length - 1]).toHaveTextContent("Display");
-
-    await userEvent.click(displayTab);
+    const displayButton = screen.getByTestId("display-mode-button");
+    expect(displayButton).toBeInTheDocument();
+    await userEvent.click(displayButton);
 
     const displaySection = screen.getByTestId("display-section");
     expect(displaySection).toBeInTheDocument();
@@ -336,10 +332,9 @@ describe("ProjectSettingsModal", () => {
   it("Display theme picker persists to localStorage and applies immediately", async () => {
     const user = userEvent.setup();
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
-    const displayTab = screen.getByRole("button", { name: "Display" });
-    await user.click(displayTab);
+    await user.click(screen.getByTestId("display-mode-button"));
 
     await user.click(screen.getByTestId("theme-option-dark"));
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
@@ -352,17 +347,16 @@ describe("ProjectSettingsModal", () => {
 
   it("Display theme picker defaults to System for new users", async () => {
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
-    const displayTab = screen.getByRole("button", { name: "Display" });
-    await userEvent.click(displayTab);
+    await userEvent.click(screen.getByTestId("display-mode-button"));
 
     expect(screen.getByTestId("theme-option-system")).toHaveClass("bg-brand-600");
   });
 
   it("Agent Config tab shows single Task Complexity section with Simple and Complex rows", async () => {
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
     const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
     await userEvent.click(agentConfigTab);
@@ -380,7 +374,7 @@ describe("ProjectSettingsModal", () => {
 
   it("Agent Config tab shows API Keys section when claude or cursor is selected", async () => {
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
     const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
     await userEvent.click(agentConfigTab);
@@ -393,7 +387,7 @@ describe("ProjectSettingsModal", () => {
 
   it("saves simpleComplexityAgent and complexComplexityAgent when Save is clicked", async () => {
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} onSaved={onSaved} />);
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
     const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
     await userEvent.click(agentConfigTab);
@@ -416,7 +410,7 @@ describe("ProjectSettingsModal", () => {
 
   it("Agent Config tab shows parallelism slider defaulting to 1", async () => {
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
     const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
     await userEvent.click(agentConfigTab);
@@ -436,7 +430,7 @@ describe("ProjectSettingsModal", () => {
     });
 
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} onSaved={onSaved} />);
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
     const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
     await userEvent.click(agentConfigTab);
@@ -457,7 +451,7 @@ describe("ProjectSettingsModal", () => {
 
   it("Agent Config tab shows Git working mode directly above Parallelism in Worktree mode", async () => {
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
     const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
     await userEvent.click(agentConfigTab);
@@ -471,7 +465,7 @@ describe("ProjectSettingsModal", () => {
 
   it("Agent Config tab shows Git working mode dropdown defaulting to Worktree", async () => {
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
     const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
     await userEvent.click(agentConfigTab);
@@ -486,7 +480,7 @@ describe("ProjectSettingsModal", () => {
 
   it("when Branches selected, hides Parallelism section and shows explanatory text", async () => {
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
     const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
     await userEvent.click(agentConfigTab);
@@ -501,7 +495,7 @@ describe("ProjectSettingsModal", () => {
 
   it("saves gitWorkingMode when changed", async () => {
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} onSaved={onSaved} />);
-    await screen.findByText("Project Settings");
+    await screen.findByText("Settings");
 
     const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
     await userEvent.click(agentConfigTab);
