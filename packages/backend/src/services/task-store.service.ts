@@ -525,6 +525,22 @@ export class TaskStoreService {
     if (this.injectedDb) return;
     const db = this.ensureDb();
     const data = db.export();
+    // Safeguard: never overwrite an existing non-empty DB with an empty in-memory state
+    const taskCount = db.exec("SELECT COUNT(*) as c FROM tasks")[0]?.values[0]?.[0] ?? 0;
+    if (taskCount === 0 && data.byteLength < 2048) {
+      try {
+        const st = await fs.promises.stat(this.dbPath);
+        if (st.size > 2048) {
+          log.error("Refusing to overwrite non-empty task DB with empty in-memory state", {
+            path: this.dbPath,
+            existingSize: st.size,
+          });
+          return;
+        }
+      } catch {
+        // File doesn't exist, safe to write
+      }
+    }
     const tmp = this.dbPath + ".tmp";
     const dir = path.dirname(this.dbPath);
     const maxAttempts = 3; // initial + 2 retries
