@@ -302,6 +302,99 @@ describe("SessionManager", () => {
     });
   });
 
+  describe("archiveSession", () => {
+    it("truncates output_log and git_diff to 95th percentile threshold when archiving", async () => {
+      const projectId = repoPathToProjectId(repoPath);
+      const { taskStore } = await import("../services/task-store.service.js");
+      const db = await taskStore.getDb();
+
+      // Seed agent_sessions with sizes to establish 95th percentile of 500
+      await insertSession(db, projectId, {
+        taskId: "seed-1",
+        attempt: 1,
+        agentType: "cursor",
+        agentModel: "gpt-4",
+        startedAt: "2024-01-01T00:00:00Z",
+        completedAt: "2024-01-01T00:05:00Z",
+        status: "success",
+        outputLog: "x".repeat(500),
+        gitBranch: "main",
+        gitDiff: null,
+        testResults: null,
+        failureReason: null,
+      });
+      await insertSession(db, projectId, {
+        taskId: "seed-2",
+        attempt: 1,
+        agentType: "cursor",
+        agentModel: "gpt-4",
+        startedAt: "2024-01-01T00:00:00Z",
+        completedAt: "2024-01-01T00:05:00Z",
+        status: "success",
+        outputLog: "x".repeat(100),
+        gitBranch: "main",
+        gitDiff: "y".repeat(500),
+        testResults: null,
+        failureReason: null,
+      });
+
+      const activeDir = path.join(repoPath, OPENSPRINT_PATHS.active, "task-trunc");
+      await fs.mkdir(activeDir, { recursive: true });
+
+      const largeOutputLog = "log".repeat(1000);
+      const largeGitDiff = "diff".repeat(1000);
+      await manager.archiveSession(repoPath, "task-trunc", 1, {
+        taskId: "task-trunc",
+        attempt: 1,
+        agentType: "cursor",
+        agentModel: "gpt-4",
+        startedAt: "2024-01-01T00:00:00Z",
+        completedAt: "2024-01-01T00:05:00Z",
+        status: "success",
+        outputLog: largeOutputLog,
+        gitBranch: "main",
+        gitDiff: largeGitDiff,
+        testResults: null,
+        failureReason: null,
+      });
+
+      const sessions = await manager.loadSessionsGroupedByTaskId(repoPath);
+      const archived = sessions.get("task-trunc");
+      expect(archived).toHaveLength(1);
+      expect(archived![0].outputLog.length).toBeLessThan(largeOutputLog.length);
+      expect(archived![0].outputLog.endsWith("\n\n... [truncated]")).toBe(true);
+      expect(archived![0].gitDiff!.length).toBeLessThan(largeGitDiff.length);
+      expect(archived![0].gitDiff!.endsWith("\n\n... [truncated]")).toBe(true);
+    });
+
+    it("uses default threshold when no existing sessions", async () => {
+      const activeDir = path.join(repoPath, OPENSPRINT_PATHS.active, "task-default");
+      await fs.mkdir(activeDir, { recursive: true });
+
+      const hugeLog = "x".repeat(150_000);
+      await manager.archiveSession(repoPath, "task-default", 1, {
+        taskId: "task-default",
+        attempt: 1,
+        agentType: "cursor",
+        agentModel: "gpt-4",
+        startedAt: "2024-01-01T00:00:00Z",
+        completedAt: "2024-01-01T00:05:00Z",
+        status: "success",
+        outputLog: hugeLog,
+        gitBranch: "main",
+        gitDiff: null,
+        testResults: null,
+        failureReason: null,
+      });
+
+      const sessions = await manager.loadSessionsGroupedByTaskId(repoPath);
+      const archived = sessions.get("task-default");
+      expect(archived).toHaveLength(1);
+      expect(archived![0].outputLog.length).toBeLessThan(hugeLog.length);
+      expect(archived![0].outputLog.endsWith("\n\n... [truncated]")).toBe(true);
+    });
+  });
+
   describe("listSessions", () => {
     it("returns sessions for a task in attempt order", async () => {
       const projectId = repoPathToProjectId(repoPath);

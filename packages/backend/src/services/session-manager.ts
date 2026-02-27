@@ -7,6 +7,10 @@ import type { AgentSession, AgentSessionStatus, TestResults, AgentType } from "@
 import { ensureRuntimeDir, getRuntimePath } from "../utils/runtime-dir.js";
 import { taskStore } from "./task-store.service.js";
 import { ProjectService } from "./project.service.js";
+import {
+  computeLogDiff95thPercentile,
+  truncateToThreshold,
+} from "../utils/log-diff-truncation.js";
 
 const projectService = new ProjectService();
 
@@ -111,6 +115,10 @@ export class SessionManager {
   ): Promise<void> {
     const projectId = await repoPathToProjectId(repoPath);
     await taskStore.runWrite(async (db) => {
+      const threshold = computeLogDiff95thPercentile(db);
+      const truncatedOutputLog = truncateToThreshold(session.outputLog, threshold);
+      const truncatedGitDiff = truncateToThreshold(session.gitDiff, threshold);
+
       db.run(
         `INSERT INTO agent_sessions (project_id, task_id, attempt, agent_type, agent_model, started_at, completed_at, status, output_log, git_branch, git_diff, test_results, failure_reason, summary)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -123,9 +131,9 @@ export class SessionManager {
           session.startedAt,
           session.completedAt ?? null,
           session.status,
-          session.outputLog ?? null,
+          truncatedOutputLog ?? null,
           session.gitBranch,
-          session.gitDiff ?? null,
+          truncatedGitDiff ?? null,
           session.testResults ? JSON.stringify(session.testResults) : null,
           session.failureReason ?? null,
           session.summary ?? null,
