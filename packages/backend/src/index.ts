@@ -108,6 +108,11 @@ setupWebSocket(server, {
   getLiveOutput: (projectId, taskId) => orchestratorService.getLiveOutput(projectId, taskId),
 });
 
+// Warm task store so first request (e.g. task list) doesn't pay init cost
+taskStore.init().catch((err) => {
+  logStartup.warn("Task store warm init failed", { err: (err as Error).message });
+});
+
 async function initAlwaysOnOrchestrator(): Promise<void> {
   const projectService = new ProjectService();
   await taskStore.init();

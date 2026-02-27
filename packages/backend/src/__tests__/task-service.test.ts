@@ -426,7 +426,7 @@ describe("TaskService", () => {
     expect(ids).not.toContain("blocker-1");
   });
 
-  it("listTasks calls loadSessionsGroupedByTaskId once (batch enrich, not N listSessions)", async () => {
+  it("listTasks calls loadSessionsTestResultsOnlyGroupedByTaskId once (light session load, not full)", async () => {
     mockTaskStoreState.listAll = Array.from({ length: 10 }, (_, i) => ({
       id: `task-${i}`,
       title: `Task ${i}`,
@@ -435,7 +435,10 @@ describe("TaskService", () => {
       dependencies: [],
     })) as StoredTask[];
 
-    const loadSpy = vi.spyOn(SessionManager.prototype, "loadSessionsGroupedByTaskId");
+    const loadSpy = vi.spyOn(
+      SessionManager.prototype,
+      "loadSessionsTestResultsOnlyGroupedByTaskId"
+    );
     const listSpy = vi.spyOn(SessionManager.prototype, "listSessions");
 
     await taskService.listTasks("proj-1");
@@ -466,26 +469,14 @@ describe("TaskService", () => {
     ] as StoredTask[];
 
     const loadSpy = vi
-      .spyOn(SessionManager.prototype, "loadSessionsGroupedByTaskId")
+      .spyOn(SessionManager.prototype, "loadSessionsTestResultsOnlyGroupedByTaskId")
       .mockResolvedValue(
         new Map([
           [
             "task-with-session",
             [
-              {
-                taskId: "task-with-session",
-                attempt: 1,
-                agentType: "cursor" as const,
-                agentModel: "gpt-4",
-                startedAt: "2024-01-01T00:00:00Z",
-                completedAt: null,
-                status: "success" as const,
-                outputLog: "",
-                gitBranch: "main",
-                gitDiff: null,
-                testResults: { passed: 5, failed: 0, skipped: 1, total: 6, details: [] },
-                failureReason: null,
-              },
+              { testResults: null },
+              { testResults: { passed: 5, failed: 0, skipped: 1, total: 6, details: [] } },
             ],
           ],
         ])

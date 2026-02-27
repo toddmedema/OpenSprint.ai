@@ -12,9 +12,10 @@ export const sendSketchMessage = thunks.sendMessage;
 export const savePrdSection = thunks.savePrdSection;
 export const uploadPrdFile = thunks.uploadPrdFile;
 
-const { addUserMessage, setError, setPrdContent, setPrdHistory, reset } = slice.actions;
+const { addUserMessage, setError, setPrdContent, setPrdHistory, setMessages, reset } =
+  slice.actions;
 
-export { addUserMessage, setPrdContent, setPrdHistory };
+export { addUserMessage, setPrdContent, setPrdHistory, setMessages };
 export const setSketchError = setError;
 export const resetSketch = reset;
 

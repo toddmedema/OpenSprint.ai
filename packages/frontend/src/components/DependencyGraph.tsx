@@ -180,7 +180,7 @@ export function DependencyGraph({ graph, onPlanClick, fillHeight }: DependencyGr
 
         // Keep view center stable: pan by half the delta so the focal point stays centered
         const zoom = zoomRef.current;
-        if (zoom) {
+        if (zoom && prev) {
           try {
             const t = d3.zoomTransform(svg);
             const next = adjustTransformForResize(t, prev.width, prev.height, width, height);

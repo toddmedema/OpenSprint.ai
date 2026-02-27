@@ -182,6 +182,10 @@ export function createPrdChatSlice(sliceName: string): PrdChatSliceResult {
       setPrdHistory(state, action: PayloadAction<PrdChangeLogEntry[]>) {
         state.prdHistory = action.payload;
       },
+      /** Sync from TanStack Query (e.g. useSketchChat). */
+      setMessages(state, action: PayloadAction<PrdChatMessage[]>) {
+        state.messages = action.payload;
+      },
       reset() {
         return initialState;
       },

@@ -500,14 +500,21 @@ export class OrchestratorService {
   /**
    * Remove slots whose task no longer exists in task store (e.g. archived).
    * Called before building active tasks so getStatus/getActiveAgents never report phantom agents.
+   * When validTaskIds is provided (e.g. from listTasks), avoids a second listAll call.
    */
-  private async reconcileStaleSlots(projectId: string): Promise<void> {
+  private async reconcileStaleSlots(
+    projectId: string,
+    validTaskIds?: Set<string>
+  ): Promise<void> {
     const state = this.getState(projectId);
     if (state.slots.size === 0) return;
 
+    const validIds =
+      validTaskIds ??
+      new Set(
+        (await this.taskStore.listAll(projectId)).map((i) => i.id).filter(Boolean) as string[]
+      );
     const repoPath = await this.projectService.getRepoPath(projectId);
-    const allIssues = await this.taskStore.listAll(projectId);
-    const validIds = new Set(allIssues.map((i) => i.id).filter(Boolean) as string[]);
     let removed = false;
 
     for (const [taskId, slot] of [...state.slots]) {
@@ -849,9 +856,12 @@ export class OrchestratorService {
     this.runLoop(projectId);
   }
 
-  async getStatus(projectId: string): Promise<OrchestratorStatus> {
+  async getStatus(
+    projectId: string,
+    options?: { validTaskIds?: Set<string> }
+  ): Promise<OrchestratorStatus> {
     await this.projectService.getProject(projectId);
-    await this.reconcileStaleSlots(projectId);
+    await this.reconcileStaleSlots(projectId, options?.validTaskIds);
     const state = this.getState(projectId);
     const pendingIds = await this.feedbackService.listPendingFeedbackIds(projectId);
     const pendingFeedbackCategorizations: PendingFeedbackCategorization[] = pendingIds.map(

@@ -259,6 +259,40 @@ export class SessionManager {
     stmt.free();
     return result;
   }
+
+  /**
+   * Load only latest attempt's test_results per task for list enrichment.
+   * One row per task (no output_log/git_diff). Keeps Map shape for enrichTasksWithTestResultsFromMap.
+   */
+  async loadSessionsTestResultsOnlyGroupedByTaskId(
+    repoPath: string
+  ): Promise<Map<string, Array<{ testResults: TestResults | null }>>> {
+    const projectId = await repoPathToProjectId(repoPath);
+    const db = await taskStore.getDb();
+    const stmt = db.prepare(
+      `SELECT a.task_id, a.attempt, a.test_results
+       FROM agent_sessions a
+       INNER JOIN (
+         SELECT project_id, task_id, MAX(attempt) AS max_attempt
+         FROM agent_sessions
+         WHERE project_id = ?
+         GROUP BY project_id, task_id
+       ) b ON a.project_id = b.project_id AND a.task_id = b.task_id AND a.attempt = b.max_attempt
+       WHERE a.project_id = ?`
+    );
+    stmt.bind([projectId, projectId]);
+    const result = new Map<string, Array<{ testResults: TestResults | null }>>();
+    while (stmt.step()) {
+      const row = stmt.getAsObject();
+      const taskId = row.task_id as string;
+      const testResults = row.test_results
+        ? (JSON.parse(row.test_results as string) as TestResults)
+        : null;
+      result.set(taskId, [{ testResults }]);
+    }
+    stmt.free();
+    return result;
+  }
 }
 
 function rowToSession(row: Record<string, unknown>): AgentSession {

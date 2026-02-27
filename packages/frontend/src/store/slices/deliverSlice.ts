@@ -155,6 +155,21 @@ const deliverSlice = createSlice({
         if (rec) rec.fixEpicId = action.payload.fixEpicId;
       }
     },
+    /** Sync from TanStack Query useDeliverStatus. */
+    setDeliverStatusPayload(
+      state,
+      action: PayloadAction<{
+        activeDeployId: string | null;
+        currentDeploy: DeploymentRecord | null;
+      }>
+    ) {
+      state.currentDeploy = action.payload.currentDeploy;
+      state.activeDeployId = action.payload.activeDeployId;
+    },
+    /** Sync from TanStack Query useDeliverHistory. */
+    setDeliverHistoryPayload(state, action: PayloadAction<DeploymentRecord[]>) {
+      state.history = action.payload;
+    },
     resetDeliver() {
       return initialState;
     },
@@ -258,6 +273,8 @@ export const {
   appendDeliverOutput,
   deliverStarted,
   deliverCompleted,
+  setDeliverStatusPayload,
+  setDeliverHistoryPayload,
   resetDeliver,
 } = deliverSlice.actions;
 export default deliverSlice.reducer;

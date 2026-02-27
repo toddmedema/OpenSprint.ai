@@ -3,18 +3,28 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { Provider } from "react-redux";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { store } from "./store";
+import { setQueryClient } from "./queryClient";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { DisplayPreferencesProvider } from "./contexts/DisplayPreferencesContext";
 import { App } from "./App";
 import "./styles/index.css";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000, // 1 min — avoid refetch storms
+      refetchOnWindowFocus: false, // prevent refetch when switching tabs (was causing UI flash)
+    },
+  },
+});
+setQueryClient(queryClient);
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <Provider store={store}>
-      <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={queryClient}>
+      <Provider store={store}>
         <ThemeProvider>
           <DisplayPreferencesProvider>
             <BrowserRouter>
@@ -22,7 +32,8 @@ createRoot(document.getElementById("root")!).render(
             </BrowserRouter>
           </DisplayPreferencesProvider>
         </ThemeProvider>
-      </QueryClientProvider>
-    </Provider>
+      </Provider>
+      <ReactQueryDevtools initialIsOpen={false} />
+    </QueryClientProvider>
   </StrictMode>
 );

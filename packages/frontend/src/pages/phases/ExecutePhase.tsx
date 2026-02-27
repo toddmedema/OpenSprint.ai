@@ -317,7 +317,11 @@ export function ExecutePhase({
               projectId={projectId}
               selectedTask={effectiveSelectedTask}
               selectedTaskData={selectedTaskData ?? null}
-              openQuestionNotification={taskNotification}
+              openQuestionNotification={
+                taskNotification && typeof taskNotification === "object"
+                  ? taskNotification
+                  : undefined
+              }
               onOpenQuestionResolved={refetchNotifications}
               taskDetailLoading={taskDetailLoading}
               taskDetailError={taskDetailError}

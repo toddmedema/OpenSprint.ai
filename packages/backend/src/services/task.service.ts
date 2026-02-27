@@ -34,13 +34,17 @@ export class TaskService {
     projectId: string,
     options?: { limit?: number; offset?: number }
   ): Promise<Task[] | { items: Task[]; total: number }> {
+    const startTotal = performance.now();
     const project = await this.projectService.getProject(projectId);
 
-    const [allIssues, sessionsByTask, buildStatus] = await Promise.all([
-      this.taskStore.listAll(projectId),
-      this.sessionManager.loadSessionsGroupedByTaskId(project.repoPath),
-      orchestratorService.getStatus(projectId),
-    ]);
+    const t0 = performance.now();
+    const allIssues = await this.taskStore.listAll(projectId);
+    const listAllMs = Math.round(performance.now() - t0);
+
+    const t1 = performance.now();
+    const sessionsByTask =
+      await this.sessionManager.loadSessionsTestResultsOnlyGroupedByTaskId(project.repoPath);
+    const sessionsMs = Math.round(performance.now() - t1);
 
     const readyIds = this.computeReadyIdsFromListAll(allIssues);
     const idToIssue = new Map(allIssues.map((i) => [i.id, i]));
@@ -50,14 +54,16 @@ export class TaskService {
       .filter((t) => t.type !== "chore");
     this.enrichTasksWithTestResultsFromMap(tasks, sessionsByTask);
 
-    // Override kanban column for active review tasks (PRD §7.3.2)
-    for (const active of buildStatus.activeTasks) {
-      if (active.phase === "review") {
-        const reviewTask = tasks.find((t) => t.id === active.taskId);
-        if (reviewTask && reviewTask.kanbanColumn === "in_progress") {
-          reviewTask.kanbanColumn = "in_review";
-        }
-      }
+    // in_review override is applied on the frontend from execute status (activeTasks) so we skip getStatus here for faster list load
+
+    const totalMs = Math.round(performance.now() - startTotal);
+    if (totalMs > 1000) {
+      log.warn("listTasks slow", {
+        listAllMs,
+        sessionsMs,
+        totalMs,
+        taskCount: tasks.length,
+      });
     }
 
     if (options?.limit != null && options?.offset != null) {
@@ -308,7 +314,7 @@ export class TaskService {
 
   private enrichTasksWithTestResultsFromMap(
     tasks: Task[],
-    sessionsByTask: Map<string, AgentSession[]>
+    sessionsByTask: Map<string, Array<{ testResults?: AgentSession["testResults"] | null }>>
   ): void {
     for (const task of tasks) {
       const sessions = sessionsByTask.get(task.id);

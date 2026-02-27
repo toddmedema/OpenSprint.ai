@@ -392,6 +392,26 @@ const executeSlice = createSlice({
     setActiveTasks(state, action: PayloadAction<ActiveTaskInfo[]>) {
       state.activeTasks = action.payload;
     },
+    /** Sync from TanStack Query useExecuteStatus (replaces fetchExecuteStatus.fulfilled). */
+    setExecuteStatusPayload(
+      state,
+      action: PayloadAction<{
+        activeTasks?: ActiveTaskInfo[];
+        queueDepth?: number;
+        awaitingApproval?: boolean;
+        totalDone?: number;
+        totalFailed?: number;
+      }>
+    ) {
+      const p = action.payload;
+      const activeTasks = p.activeTasks ?? [];
+      state.activeTasks = activeTasks;
+      state.orchestratorRunning = activeTasks.length > 0 || (p.queueDepth ?? 0) > 0;
+      state.awaitingApproval = p.awaitingApproval ?? false;
+      state.totalDone = p.totalDone ?? 0;
+      state.totalFailed = p.totalFailed ?? 0;
+      state.queueDepth = p.queueDepth ?? 0;
+    },
     resetExecute() {
       return initialExecuteState;
     },
@@ -642,22 +662,33 @@ export const {
   taskUpdated,
   setTasks,
   setExecuteError,
+  setExecuteStatusPayload,
   resetExecute,
 } = executeSlice.actions;
 
 /** State shape for selectors (execute may be missing in tests). */
 export type ExecuteRootState = { execute?: ExecuteState };
 
-/** Ordered tasks derived from tasksById + taskIdsOrder (no duplicates). */
+/** Ordered tasks derived from tasksById + taskIdsOrder (no duplicates). Applies in_review from activeTasks so list API can skip getStatus. */
 export const selectTasks = createSelector(
   [
     (state: ExecuteRootState) => state.execute?.tasksById ?? {},
     (state: ExecuteRootState) => state.execute?.taskIdsOrder ?? [],
+    (state: ExecuteRootState) => state.execute?.activeTasks ?? [],
   ],
-  (tasksById, taskIdsOrder): Task[] =>
-    taskIdsOrder
+  (tasksById, taskIdsOrder, activeTasks): Task[] => {
+    const reviewTaskIds = new Set(
+      activeTasks.filter((a) => a.phase === "review").map((a) => a.taskId)
+    );
+    return taskIdsOrder
       .map((id) => tasksById[id])
       .filter((t): t is Task => t != null)
+      .map((t) =>
+        t.kanbanColumn === "in_progress" && reviewTaskIds.has(t.id)
+          ? { ...t, kanbanColumn: "in_review" as const }
+          : t
+      );
+  }
 );
 
 /** Task summaries derived from execute.tasks (single source of truth for current project). Memoized to avoid unnecessary rerenders. */
@@ -672,9 +703,16 @@ export const selectTaskSummaries = createSelector(
     )
 );
 
-/** Task by id. Use for granular subscription so only components using this task re-render on update. */
+/** Task by id. Use for granular subscription so only components using this task re-render on update. Applies in_review from activeTasks. */
 export function selectTaskById(state: ExecuteRootState, taskId: string): Task | undefined {
-  return state.execute?.tasksById?.[taskId];
+  const task = state.execute?.tasksById?.[taskId];
+  if (!task) return undefined;
+  const activeTasks = state.execute?.activeTasks ?? [];
+  const inReview = activeTasks.some((a) => a.taskId === taskId && a.phase === "review");
+  if (task.kanbanColumn === "in_progress" && inReview) {
+    return { ...task, kanbanColumn: "in_review" };
+  }
+  return task;
 }
 
 /** Task title by id from execute.tasks. */

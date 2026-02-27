@@ -8,40 +8,58 @@ import {
   parseDetailParams,
   VALID_PHASES,
 } from "../lib/phaseRouting";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAppDispatch, useAppSelector } from "../store";
-import { fetchProject, resetProject } from "../store/slices/projectSlice";
+import { resetProject } from "../store/slices/projectSlice";
 import {
   resetWebsocket,
   clearHilRequest,
   clearHilNotification,
   clearDeliverToast,
 } from "../store/slices/websocketSlice";
+import { resetSketch } from "../store/slices/sketchSlice";
 import {
-  fetchSketchChat,
-  fetchPrd,
-  fetchPrdHistory,
-  resetSketch,
-} from "../store/slices/sketchSlice";
-import {
-  fetchPlanChat,
   resetPlan,
   setSelectedPlanId,
   clearPlanBackgroundError,
 } from "../store/slices/planSlice";
 import {
-  fetchExecuteStatus,
   resetExecute,
   setSelectedTaskId,
   setAwaitingApproval,
 } from "../store/slices/executeSlice";
 import { resetEval } from "../store/slices/evalSlice";
-import { fetchTasksFeedbackPlans } from "../store/slices/projectSlice";
 import {
-  fetchDeliverStatus,
-  fetchDeliverHistory,
   resetDeliver,
+  setDeliverStatusPayload,
+  setDeliverHistoryPayload,
 } from "../store/slices/deliverSlice";
+import {
+  setTasks,
+  setExecuteStatusPayload,
+} from "../store/slices/executeSlice";
+import { setPlansAndGraph, setPlanStatusPayload } from "../store/slices/planSlice";
+import { setFeedback } from "../store/slices/evalSlice";
+import {
+  setPrdContent,
+  setPrdHistory,
+  setMessages as setSketchMessages,
+} from "../store/slices/sketchSlice";
 import { wsConnect, wsDisconnect, wsSend } from "../store/middleware/websocketMiddleware";
+import {
+  useProject,
+  useTasks,
+  usePlans,
+  useFeedback,
+  useExecuteStatus,
+  useDeliverStatus,
+  useDeliverHistory,
+  usePrd,
+  usePrdHistory,
+  useSketchChat,
+  usePlanStatus,
+} from "../api/hooks";
+import { queryKeys } from "../api/queryKeys";
 import { Layout } from "../components/layout/Layout";
 import { HilApprovalModal } from "../components/HilApprovalModal";
 import { SketchPhase } from "./phases/SketchPhase";
@@ -70,10 +88,96 @@ export function ProjectView() {
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const prevProjectIdRef = useRef<string | null>(null);
-  const project = useAppSelector((s) => s.project.data);
-  const projectLoading = useAppSelector((s) => s.project.loading);
-  const projectError = useAppSelector((s) => s.project.error);
+  /** Last synced data refs per key so we only dispatch when data actually changed (avoids flash from same data re-syncing). */
+  const lastSyncedRef = useRef<Record<string, unknown>>({});
+  const queryClient = useQueryClient();
+  const { data: project, isLoading: projectLoading, error: projectError } = useProject(projectId);
+  const { data: tasksData } = useTasks(projectId);
+  const { data: plansData } = usePlans(projectId);
+  const { data: feedbackData } = useFeedback(projectId);
+  const { data: executeStatusData } = useExecuteStatus(projectId);
+  const { data: deliverStatusData } = useDeliverStatus(projectId);
+  const { data: deliverHistoryData } = useDeliverHistory(projectId);
+  const { data: prdData } = usePrd(projectId);
+  const { data: prdHistoryData } = usePrdHistory(projectId);
+  const { data: sketchChatData } = useSketchChat(projectId);
+  const { data: planStatusData } = usePlanStatus(projectId);
   const hilRequest = useAppSelector((s) => s.websocket.hilRequest);
+
+  // Sync TanStack Query → Redux only when data reference changed (avoids flash from refetch returning same ref)
+  useEffect(() => {
+    if (!projectId || !tasksData) return;
+    if (lastSyncedRef.current["tasks"] === tasksData) return;
+    lastSyncedRef.current["tasks"] = tasksData;
+    dispatch(setTasks(tasksData));
+  }, [projectId, tasksData, dispatch]);
+  useEffect(() => {
+    if (!projectId || !plansData) return;
+    if (lastSyncedRef.current["plans"] === plansData) return;
+    lastSyncedRef.current["plans"] = plansData;
+    dispatch(setPlansAndGraph({ plans: plansData.plans, dependencyGraph: plansData }));
+  }, [projectId, plansData, dispatch]);
+  useEffect(() => {
+    if (!projectId || feedbackData == null) return;
+    if (lastSyncedRef.current["feedback"] === feedbackData) return;
+    lastSyncedRef.current["feedback"] = feedbackData;
+    dispatch(setFeedback(feedbackData));
+  }, [projectId, feedbackData, dispatch]);
+  useEffect(() => {
+    if (!projectId || !executeStatusData) return;
+    if (lastSyncedRef.current["executeStatus"] === executeStatusData) return;
+    lastSyncedRef.current["executeStatus"] = executeStatusData;
+    dispatch(
+      setExecuteStatusPayload({
+        activeTasks: executeStatusData.activeTasks ?? [],
+        queueDepth: executeStatusData.queueDepth ?? 0,
+        awaitingApproval: executeStatusData.awaitingApproval,
+        totalDone: executeStatusData.totalDone ?? 0,
+        totalFailed: executeStatusData.totalFailed ?? 0,
+      })
+    );
+  }, [projectId, executeStatusData, dispatch]);
+  useEffect(() => {
+    if (!projectId || !deliverStatusData) return;
+    if (lastSyncedRef.current["deliverStatus"] === deliverStatusData) return;
+    lastSyncedRef.current["deliverStatus"] = deliverStatusData;
+    dispatch(
+      setDeliverStatusPayload({
+        activeDeployId: deliverStatusData.activeDeployId,
+        currentDeploy: deliverStatusData.currentDeploy,
+      })
+    );
+  }, [projectId, deliverStatusData, dispatch]);
+  useEffect(() => {
+    if (!projectId || deliverHistoryData == null) return;
+    if (lastSyncedRef.current["deliverHistory"] === deliverHistoryData) return;
+    lastSyncedRef.current["deliverHistory"] = deliverHistoryData;
+    dispatch(setDeliverHistoryPayload(deliverHistoryData));
+  }, [projectId, deliverHistoryData, dispatch]);
+  useEffect(() => {
+    if (!projectId || prdData == null) return;
+    if (lastSyncedRef.current["prd"] === prdData) return;
+    lastSyncedRef.current["prd"] = prdData;
+    dispatch(setPrdContent(prdData));
+  }, [projectId, prdData, dispatch]);
+  useEffect(() => {
+    if (!projectId || prdHistoryData == null) return;
+    if (lastSyncedRef.current["prdHistory"] === prdHistoryData) return;
+    lastSyncedRef.current["prdHistory"] = prdHistoryData;
+    dispatch(setPrdHistory(prdHistoryData));
+  }, [projectId, prdHistoryData, dispatch]);
+  useEffect(() => {
+    if (!projectId || sketchChatData == null) return;
+    if (lastSyncedRef.current["sketchChat"] === sketchChatData) return;
+    lastSyncedRef.current["sketchChat"] = sketchChatData;
+    dispatch(setSketchMessages(sketchChatData));
+  }, [projectId, sketchChatData, dispatch]);
+  useEffect(() => {
+    if (!projectId || planStatusData == null) return;
+    if (lastSyncedRef.current["planStatus"] === planStatusData) return;
+    lastSyncedRef.current["planStatus"] = planStatusData;
+    dispatch(setPlanStatusPayload(planStatusData));
+  }, [projectId, planStatusData, dispatch]);
   const hilNotification = useAppSelector((s) => s.websocket.hilNotification);
   const deliverToast = useAppSelector((s) => s.websocket.deliverToast);
   const planBackgroundError = useAppSelector((s) => s.plan.backgroundError);
@@ -86,6 +190,7 @@ export function ProjectView() {
     const switchingProject =
       prevProjectIdRef.current != null && prevProjectIdRef.current !== projectId;
     if (switchingProject) {
+      lastSyncedRef.current = {};
       dispatch(resetSketch(undefined as never));
       dispatch(resetPlan(undefined as never));
       dispatch(resetExecute(undefined as never));
@@ -97,14 +202,6 @@ export function ProjectView() {
     prevProjectIdRef.current = projectId;
 
     dispatch(wsConnect({ projectId }));
-    dispatch(fetchProject(projectId));
-    dispatch(fetchSketchChat(projectId));
-    dispatch(fetchPrd(projectId));
-    dispatch(fetchPrdHistory(projectId));
-    dispatch(fetchTasksFeedbackPlans(projectId));
-    dispatch(fetchExecuteStatus(projectId));
-    dispatch(fetchDeliverStatus(projectId));
-    dispatch(fetchDeliverHistory(projectId));
 
     return () => {
       dispatch(wsDisconnect());
@@ -120,16 +217,11 @@ export function ProjectView() {
   }, [projectId, redirectTo]);
 
   // Sync URL search params → Redux on load / when URL changes (deep link support).
-  // Setting selectedTaskId is enough; ExecutePhase fetches task detail when effectiveSelectedTask is set (single source of fetch, avoids duplicate request).
-  // Pre-fetch plan chat when plan in URL so messages persist across reloads and appear immediately.
-  // Use forceReplace so server is source of truth on load (ensures persisted messages display after reload).
+  // Setting selectedTaskId/selectedPlanId is enough; phase components use Query hooks for data.
   useEffect(() => {
     if (!projectId) return;
     const { plan, task } = parseDetailParams(location.search);
-    if (plan && currentPhase === "plan") {
-      dispatch(setSelectedPlanId(plan));
-      dispatch(fetchPlanChat({ projectId, context: `plan:${plan}`, forceReplace: true }));
-    }
+    if (plan && currentPhase === "plan") dispatch(setSelectedPlanId(plan));
     if (task && currentPhase === "execute") dispatch(setSelectedTaskId(task));
   }, [projectId, location.search, currentPhase, dispatch]);
 
@@ -209,7 +301,7 @@ export function ProjectView() {
   };
 
   const handleProjectSaved = () => {
-    if (projectId) dispatch(fetchProject(projectId));
+    if (projectId) void queryClient.invalidateQueries({ queryKey: queryKeys.projects.detail(projectId) });
   };
 
   // Loading state
@@ -238,7 +330,7 @@ export function ProjectView() {
   }
 
   // Error state — notification bar shows error details
-  if (projectError || !project) {
+  if (projectError || (!projectLoading && !project)) {
     return (
       <>
         <Layout>

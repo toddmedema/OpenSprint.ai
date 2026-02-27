@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAppDispatch, useAppSelector } from "../../store";
 import {
   sendSketchMessage,
   savePrdSection,
   uploadPrdFile,
   addUserMessage,
-  fetchPrd,
-  fetchPrdHistory,
-  fetchSketchChat,
+  setPrdContent,
+  setPrdHistory,
+  setMessages,
   setSketchError,
 } from "../../store/slices/sketchSlice";
-import { decomposePlans, fetchPlanStatus, fetchPlans } from "../../store/slices/planSlice";
+import { usePrd, usePrdHistory, useSketchChat, usePlanStatus, useDecomposePlans, usePlans } from "../../api/hooks";
+import { queryKeys } from "../../api/queryKeys";
 import {
   PrdViewer,
   PrdChatPanel,
@@ -119,16 +121,38 @@ function findParentSection(node: Node): string | null {
 
 export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
   const dispatch = useAppDispatch();
+  const queryClient = useQueryClient();
 
-  /* ── Redux state ── */
+  /* ── TanStack Query (server state) ── */
+  const { data: prdData } = usePrd(projectId);
+  const { data: prdHistoryData } = usePrdHistory(projectId);
+  const { data: chatMessagesData } = useSketchChat(projectId);
+  const hasPrdContentFromQuery = Object.values(prdData ?? {}).some(
+    (c) => String(c ?? "").trim().length > 0
+  );
+  const { data: planStatus } = usePlanStatus(projectId, { enabled: hasPrdContentFromQuery });
+  const decomposeMutation = useDecomposePlans(projectId ?? "");
+  const refetchPlans = usePlans(projectId);
+
+  /* ── Sync query data to Redux for components that read from store ── */
+  useEffect(() => {
+    if (prdData) dispatch(setPrdContent(prdData));
+  }, [prdData, dispatch]);
+  useEffect(() => {
+    if (prdHistoryData) dispatch(setPrdHistory(prdHistoryData));
+  }, [prdHistoryData, dispatch]);
+  useEffect(() => {
+    if (chatMessagesData) dispatch(setMessages(chatMessagesData));
+  }, [chatMessagesData, dispatch]);
+
+  /* ── Redux state (client + synced server state) ── */
   const messages = useAppSelector((s) => s.sketch.messages);
   const prdContent = useAppSelector((s) => s.sketch.prdContent);
   const prdHistory = useAppSelector((s) => s.sketch.prdHistory);
   const sending = useAppSelector((s) => s.sketch.sendingChat);
   const sketchError = useAppSelector((s) => s.sketch.error);
   const savingSections = useAppSelector((s) => s.sketch.savingSections);
-  const planStatus = useAppSelector((s) => s.plan.planStatus);
-  const decomposing = useAppSelector((s) => s.plan.decomposing);
+  const decomposing = decomposeMutation.isPending;
 
   /* ── Local UI state (preserved by mount-all) ── */
   const [initialInput, setInitialInput] = useState("");
@@ -190,27 +214,18 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
     }
   }, [projectId, hasPrdContent]);
 
-  /* ── Fetch plan-status on Sketch load and after PRD saves (PRD §7.1.5) ── */
-  useEffect(() => {
-    if (!hasPrdContent) return;
-    void dispatch(fetchPlanStatus(projectId));
-  }, [projectId, hasPrdContent, dispatch]);
-
-  /* ── Load Sketch chat history when PRD exists (persistence across refresh/return) ── */
-  useEffect(() => {
-    if (!hasPrdContent || !projectId) return;
-    void dispatch(fetchSketchChat(projectId));
-  }, [projectId, hasPrdContent, dispatch]);
-
   /* ── Debounced refresh cascade (3 s after last section save, or immediate on blur) ── */
   const REFRESH_DEBOUNCE_MS = 3000;
 
   const triggerRefreshCascade = useCallback(() => {
-    dispatch(fetchPrd(projectId));
-    dispatch(fetchPrdHistory(projectId));
-    dispatch(fetchSketchChat(projectId));
-    dispatch(fetchPlanStatus(projectId));
-  }, [projectId, dispatch]);
+    if (!projectId) return;
+    void queryClient.invalidateQueries({ queryKey: queryKeys.prd.detail(projectId) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.prd.history(projectId) });
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.chat.history(projectId, "sketch"),
+    });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.plans.status(projectId) });
+  }, [projectId, queryClient]);
 
   const scheduleRefreshCascade = useCallback(() => {
     if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current);
@@ -381,14 +396,9 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
     const result = await dispatch(sendSketchMessage({ projectId, message: text, images }));
     if (sendSketchMessage.fulfilled.match(result)) {
       imageAttachment.reset();
-      // Always refetch PRD after Dreamer response — updates may have been applied even if prdChanges
-      // was omitted from the response (e.g. edge cases). Ensures UI reflects storage.
-      dispatch(fetchPrd(projectId));
-      dispatch(fetchPrdHistory(projectId));
-      dispatch(fetchSketchChat(projectId));
-      dispatch(fetchPlanStatus(projectId));
+      triggerRefreshCascade();
     }
-  }, [initialInput, sending, projectId, dispatch, imageAttachment]);
+  }, [initialInput, sending, projectId, dispatch, imageAttachment, triggerRefreshCascade]);
 
   const onKeyDownInitial = useSubmitShortcut(handleInitialSubmit, {
     multiline: true,
@@ -407,13 +417,10 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
 
       const result = await dispatch(uploadPrdFile({ projectId, file }));
       if (uploadPrdFile.fulfilled.match(result)) {
-        dispatch(fetchPrd(projectId));
-        dispatch(fetchPrdHistory(projectId));
-        dispatch(fetchSketchChat(projectId));
-        dispatch(fetchPlanStatus(projectId));
+        triggerRefreshCascade();
       }
     },
-    [projectId, dispatch]
+    [projectId, dispatch, triggerRefreshCascade]
   );
 
   const handleGenerateFromCodebase = useCallback(async () => {
@@ -422,16 +429,14 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
     dispatch(setSketchError(null));
     try {
       await api.prd.generateFromCodebase(projectId);
-      dispatch(fetchPrd(projectId));
-      dispatch(fetchPrdHistory(projectId));
-      dispatch(fetchSketchChat(projectId));
+      triggerRefreshCascade();
     } catch (err) {
       const message = isApiError(err) ? err.message : String(err);
       dispatch(setSketchError(message));
     } finally {
       setGeneratingFromCodebase(false);
     }
-  }, [projectId, generatingFromCodebase, sending, dispatch]);
+  }, [projectId, generatingFromCodebase, sending, dispatch, triggerRefreshCascade]);
 
   const handleChatSend = useCallback(
     async (text: string) => {
@@ -453,14 +458,10 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
         sendSketchMessage({ projectId, message: fullMessage, prdSectionFocus: prdFocus })
       );
       if (sendSketchMessage.fulfilled.match(result)) {
-        // Always refetch PRD after Dreamer response — ensures UI reflects any PRD_UPDATE blocks.
-        dispatch(fetchPrd(projectId));
-        dispatch(fetchPrdHistory(projectId));
-        dispatch(fetchSketchChat(projectId));
-        dispatch(fetchPlanStatus(projectId));
+        triggerRefreshCascade();
       }
     },
-    [selectionContext, projectId, dispatch]
+    [selectionContext, projectId, dispatch, triggerRefreshCascade]
   );
 
   const handleDiscuss = () => {
@@ -495,12 +496,15 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
 
   const handlePlanIt = async () => {
     setPlanningIt(true);
-    const result = await dispatch(decomposePlans(projectId));
-    setPlanningIt(false);
-    if (decomposePlans.fulfilled.match(result)) {
-      dispatch(fetchPlanStatus(projectId));
-      await dispatch(fetchPlans({ projectId }));
+    try {
+      await decomposeMutation.mutateAsync();
+      if (projectId) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.plans.status(projectId) });
+        await refetchPlans.refetch();
+      }
       onNavigateToPlan?.();
+    } finally {
+      setPlanningIt(false);
     }
   };
 

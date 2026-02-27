@@ -14,6 +14,7 @@ type SessionParams = { projectId: string; taskId: string; attempt: string };
 
 // GET /projects/:projectId/tasks — List all tasks (supports ?limit=&offset= for pagination)
 tasksRouter.get("/", async (req: Request<ProjectParams>, res, next) => {
+  const start = performance.now();
   try {
     const limit = req.query.limit != null ? parseInt(String(req.query.limit), 10) : undefined;
     const offset = req.query.offset != null ? parseInt(String(req.query.offset), 10) : undefined;
@@ -23,6 +24,8 @@ tasksRouter.get("/", async (req: Request<ProjectParams>, res, next) => {
         : undefined;
 
     const result = await taskService.listTasks(req.params.projectId, options);
+    const durationMs = Math.round(performance.now() - start);
+    res.set("Server-Timing", `list;dur=${durationMs};desc="Task list"`);
     const body: ApiResponse<Task[] | { items: Task[]; total: number }> = { data: result };
     res.json(body);
   } catch (err) {

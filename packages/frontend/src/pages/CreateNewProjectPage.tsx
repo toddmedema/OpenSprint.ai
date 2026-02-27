@@ -31,7 +31,7 @@ export function CreateNewProjectPage() {
   const [metadata, setMetadata] = useState<ProjectMetadataState>({ name: "" });
   const [metadataError, setMetadataError] = useState<string | null>(null);
   const [parentPath, setParentPath] = useState("");
-  const [template, setTemplate] = useState<string>(TEMPLATE_OPTIONS[0].value);
+  const [template, setTemplate] = useState<"web-app-expo-react">(TEMPLATE_OPTIONS[0].value);
   const [showFolderBrowser, setShowFolderBrowser] = useState(false);
 
   const [simpleComplexityAgent, setSimpleComplexityAgent] = useState({
@@ -344,7 +344,7 @@ export function CreateNewProjectPage() {
                     id="template-select"
                     className="input w-full"
                     value={template}
-                    onChange={(e) => setTemplate(e.target.value)}
+                    onChange={(e) => setTemplate(e.target.value as "web-app-expo-react")}
                     data-testid="template-select"
                   >
                     {TEMPLATE_OPTIONS.map((opt) => (

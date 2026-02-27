@@ -250,6 +250,10 @@ const planSlice = createSlice({
     setSelectedPlanId(state, action: PayloadAction<string | null>) {
       state.selectedPlanId = action.payload;
     },
+    /** Sync from TanStack Query usePlanStatus. */
+    setPlanStatusPayload(state, action: PayloadAction<PlanStatusResponse | null>) {
+      state.planStatus = action.payload;
+    },
     addPlanLocally(state, action: PayloadAction<Plan>) {
       state.plans.push(action.payload);
     },
@@ -536,6 +540,7 @@ export const {
   setSelectedPlanId,
   addPlanLocally,
   setPlanError,
+  setPlanStatusPayload,
   setExecutingPlanId,
   clearExecuteError,
   clearPlanBackgroundError,

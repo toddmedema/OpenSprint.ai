@@ -17,11 +17,7 @@ import {
   setDeliverToast,
 } from "../slices/websocketSlice";
 import { setConnectionError } from "../slices/connectionSlice";
-import { fetchPrd, fetchPrdHistory, fetchSketchChat } from "../slices/sketchSlice";
-import { fetchPlanStatus, fetchPlanChat, fetchPlans, fetchSinglePlan } from "../slices/planSlice";
 import {
-  fetchTasks,
-  fetchTasksByIds,
   appendAgentOutput,
   setAgentOutputBackfill,
   setOrchestratorRunning,
@@ -30,14 +26,14 @@ import {
   setCompletionState,
   taskUpdated,
 } from "../slices/executeSlice";
-import { fetchFeedback, updateFeedbackItem, updateFeedbackItemResolved } from "../slices/evalSlice";
+import { updateFeedbackItem, updateFeedbackItemResolved } from "../slices/evalSlice";
 import {
   appendDeliverOutput,
   deliverStarted,
   deliverCompleted,
-  fetchDeliverStatus,
-  fetchDeliverHistory,
 } from "../slices/deliverSlice";
+import { getQueryClient } from "../../queryClient";
+import { queryKeys } from "../../api/queryKeys";
 
 type StoreDispatch = ThunkDispatch<unknown, unknown, UnknownAction>;
 
@@ -188,6 +184,7 @@ export const websocketMiddleware: Middleware = (storeApi) => {
     projectId: string,
     event: ServerEvent
   ) {
+    const qc = getQueryClient();
     switch (event.type) {
       case "hil.request":
         if (event.blocking) {
@@ -201,22 +198,28 @@ export const websocketMiddleware: Middleware = (storeApi) => {
         break;
 
       case "prd.updated":
-        d(fetchPrd(projectId));
-        d(fetchPrdHistory(projectId));
-        d(fetchSketchChat(projectId));
-        d(fetchPlanStatus(projectId));
+        void qc.invalidateQueries({ queryKey: queryKeys.prd.detail(projectId) });
+        void qc.invalidateQueries({ queryKey: queryKeys.prd.history(projectId) });
+        void qc.invalidateQueries({ queryKey: queryKeys.chat.history(projectId, "sketch") });
+        void qc.invalidateQueries({ queryKey: queryKeys.plans.status(projectId) });
         break;
 
       case "plan.generated":
-        d(fetchPlans({ projectId, background: true }));
-        d(fetchSinglePlan({ projectId, planId: event.planId }));
+        void qc.invalidateQueries({ queryKey: queryKeys.plans.list(projectId) });
+        void qc.invalidateQueries({
+          queryKey: queryKeys.plans.detail(projectId, event.planId),
+        });
         break;
 
       case "plan.updated":
-        d(fetchPlans({ projectId, background: true }));
-        d(fetchSinglePlan({ projectId, planId: event.planId }));
-        d(fetchPlanChat({ projectId, context: `plan:${event.planId}` }));
-        d(fetchTasks(projectId));
+        void qc.invalidateQueries({ queryKey: queryKeys.plans.list(projectId) });
+        void qc.invalidateQueries({
+          queryKey: queryKeys.plans.detail(projectId, event.planId),
+        });
+        void qc.invalidateQueries({
+          queryKey: queryKeys.plans.chat(projectId, `plan:${event.planId}`),
+        });
+        void qc.invalidateQueries({ queryKey: queryKeys.tasks.list(projectId) });
         break;
 
       case "task.updated": {
@@ -231,22 +234,21 @@ export const websocketMiddleware: Middleware = (storeApi) => {
             description: event.description,
           })
         );
-        // For newly created tasks, taskUpdated is a no-op (task not in state). Fetch and merge so Plan page shows them in real time.
         const root = getState() as { execute?: { tasksById?: Record<string, unknown> } };
         const taskExists = root.execute?.tasksById != null && event.taskId in root.execute.tasksById;
         if (!taskExists) {
-          d(fetchTasksByIds({ projectId, taskIds: [event.taskId] }));
+          void qc.invalidateQueries({ queryKey: queryKeys.tasks.list(projectId) });
         }
         break;
       }
 
       case "agent.started":
-        d(fetchTasks(projectId));
+        void qc.invalidateQueries({ queryKey: queryKeys.tasks.list(projectId) });
         break;
 
       case "agent.completed": {
         const completed = event as AgentCompletedEvent;
-        d(fetchTasks(projectId));
+        void qc.invalidateQueries({ queryKey: queryKeys.tasks.list(projectId) });
         d(
           setCompletionState({
             taskId: completed.taskId,
@@ -285,12 +287,11 @@ export const websocketMiddleware: Middleware = (storeApi) => {
         const ev = event as FeedbackMappedEvent | FeedbackUpdatedEvent;
         if (ev.item) {
           d(updateFeedbackItem(ev.item));
-          // Fetch only the new tasks so only the affected feedback card re-renders (not full page)
           if (ev.item.createdTaskIds?.length) {
-            d(fetchTasksByIds({ projectId, taskIds: ev.item.createdTaskIds }));
+            void qc.invalidateQueries({ queryKey: queryKeys.tasks.list(projectId) });
           }
         } else {
-          d(fetchFeedback(projectId));
+          void qc.invalidateQueries({ queryKey: queryKeys.feedback.list(projectId) });
         }
         break;
       }
@@ -301,6 +302,7 @@ export const websocketMiddleware: Middleware = (storeApi) => {
         } else {
           d(updateFeedbackItemResolved(ev.feedbackId));
         }
+        void qc.invalidateQueries({ queryKey: queryKeys.feedback.list(projectId) });
         break;
       }
 
@@ -327,8 +329,8 @@ export const websocketMiddleware: Middleware = (storeApi) => {
             variant: event.success ? "succeeded" : "failed",
           })
         );
-        d(fetchDeliverStatus(projectId));
-        d(fetchDeliverHistory(projectId));
+        void qc.invalidateQueries({ queryKey: queryKeys.deliver.status(projectId) });
+        void qc.invalidateQueries({ queryKey: queryKeys.deliver.history(projectId) });
         break;
     }
   }

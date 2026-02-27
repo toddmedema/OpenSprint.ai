@@ -1,7 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { configureStore } from "@reduxjs/toolkit";
+import { QueryClient } from "@tanstack/react-query";
 import { websocketMiddleware, wsConnect, wsDisconnect, wsSend } from "./websocketMiddleware";
+import { queryKeys } from "../../api/queryKeys";
 import projectReducer from "../slices/projectSlice";
+
+const mockInvalidateQueries = vi.fn().mockResolvedValue(undefined);
+vi.mock("../../queryClient", () => ({
+  getQueryClient: () =>
+    ({ invalidateQueries: mockInvalidateQueries }) as unknown as QueryClient,
+}));
 import websocketReducer from "../slices/websocketSlice";
 import sketchReducer from "../slices/sketchSlice";
 import planReducer from "../slices/planSlice";
@@ -93,6 +101,7 @@ describe("websocketMiddleware", () => {
 
   beforeEach(() => {
     wsInstance = null;
+    mockInvalidateQueries.mockClear();
     MockWS = class extends MockWebSocket {
       constructor(url: string) {
         super(url);
@@ -258,137 +267,84 @@ describe("websocketMiddleware", () => {
   });
 
   describe("ServerEvent handling", () => {
-    it("dispatches to sketch and plan slices on prd.updated (fetchPrd, fetchPrdHistory, fetchSketchChat, fetchPlanStatus)", async () => {
+    it("invalidates PRD and plan status queries on prd.updated", async () => {
       const store = createStore();
       store.dispatch(wsConnect({ projectId: "proj-1" }));
       wsInstance!.simulateOpen();
       await vi.waitFor(() => store.getState().websocket.connected);
-
-      const { api } = await import("../../api/client");
-      vi.mocked(api.prd.get).mockResolvedValue({ sections: { overview: { content: "Updated" } } });
-      vi.mocked(api.prd.getHistory).mockResolvedValue([
-        {
-          section: "overview",
-          version: 2,
-          source: "sketch",
-          timestamp: "2025-01-01",
-          diff: "+Updated",
-        },
-      ]);
-      vi.mocked(api.chat.history).mockResolvedValue({
-        messages: [{ role: "assistant", content: "Done", timestamp: "2025-01-01" }],
-      });
-      vi.mocked(api.projects.getPlanStatus).mockResolvedValue({
-        hasPlanningRun: false,
-        prdChangedSinceLastRun: false,
-        action: "plan",
-      });
 
       wsInstance!.simulateMessage({ type: "prd.updated", section: "overview", version: 2 });
 
       await vi.waitFor(() => {
-        expect(api.prd.get).toHaveBeenCalledWith("proj-1");
-        expect(api.prd.getHistory).toHaveBeenCalledWith("proj-1");
-        expect(api.chat.history).toHaveBeenCalledWith("proj-1", "sketch");
-        expect(api.projects.getPlanStatus).toHaveBeenCalledWith("proj-1");
-      });
-
-      await vi.waitFor(() => {
-        expect(store.getState().sketch.prdContent).toEqual({ overview: "Updated" });
-        expect(store.getState().sketch.prdHistory).toHaveLength(1);
-        expect(store.getState().sketch.messages).toHaveLength(1);
-        expect(store.getState().plan.planStatus).toEqual({
-          hasPlanningRun: false,
-          prdChangedSinceLastRun: false,
-          action: "plan",
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.prd.detail("proj-1"),
+        });
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.prd.history("proj-1"),
+        });
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.chat.history("proj-1", "sketch"),
+        });
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.plans.status("proj-1"),
         });
       });
     });
 
-    it("dispatches fetchPlans and fetchSinglePlan on plan.generated (new plan live update)", async () => {
+    it("invalidates plans queries on plan.generated", async () => {
       const store = createStore();
       store.dispatch(wsConnect({ projectId: "proj-1" }));
       wsInstance!.simulateOpen();
       await vi.waitFor(() => store.getState().websocket.connected);
-
-      const { api } = await import("../../api/client");
-      vi.mocked(api.plans.list).mockClear();
-      vi.mocked(api.plans.get).mockClear();
 
       wsInstance!.simulateMessage({ type: "plan.generated", planId: "plan-new-123" });
 
       await vi.waitFor(() => {
-        expect(api.plans.list).toHaveBeenCalledWith("proj-1");
-        expect(api.plans.get).toHaveBeenCalledWith("proj-1", "plan-new-123");
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.plans.list("proj-1"),
+        });
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.plans.detail("proj-1", "plan-new-123"),
+        });
       });
     });
 
-    it("dispatches to domain slices on plan.updated (background refresh, incl. fetchPlanChat, fetchTasks)", async () => {
+    it("invalidates plans, plan chat, and tasks on plan.updated", async () => {
       const store = createStore();
       store.dispatch(wsConnect({ projectId: "proj-1" }));
       wsInstance!.simulateOpen();
       await vi.waitFor(() => store.getState().websocket.connected);
 
-      const { api } = await import("../../api/client");
       wsInstance!.simulateMessage({ type: "plan.updated", planId: "plan-123" });
 
       await vi.waitFor(() => {
-        expect(api.plans.list).toHaveBeenCalledWith("proj-1");
-        expect(api.plans.get).toHaveBeenCalledWith("proj-1", "plan-123");
-        expect(api.chat.history).toHaveBeenCalledWith("proj-1", "plan:plan-123");
-        expect(api.tasks.list).toHaveBeenCalledWith("proj-1");
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.plans.list("proj-1"),
+        });
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.plans.detail("proj-1", "plan-123"),
+        });
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.plans.chat("proj-1", "plan:plan-123"),
+        });
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.tasks.list("proj-1"),
+        });
       });
-      expect(store.getState().plan.loading).toBe(false);
     });
 
-    it("plan.updated after plan-tasks refreshes tasks so new tasks appear in UI", async () => {
+    it("invalidates tasks list on plan.updated so UI can refetch", async () => {
       const store = createStore();
       store.dispatch(wsConnect({ projectId: "proj-1" }));
       wsInstance!.simulateOpen();
       await vi.waitFor(() => store.getState().websocket.connected);
 
-      const { api } = await import("../../api/client");
-      const newTasks = [
-        {
-          id: "epic-1.1",
-          title: "Task A",
-          description: "",
-          type: "task" as const,
-          status: "open" as const,
-          priority: 1,
-          assignee: null,
-          labels: [],
-          dependencies: [],
-          epicId: "epic-1",
-          kanbanColumn: "backlog" as const,
-          createdAt: "",
-          updatedAt: "",
-        },
-        {
-          id: "epic-1.2",
-          title: "Task B",
-          description: "",
-          type: "task" as const,
-          status: "open" as const,
-          priority: 1,
-          assignee: null,
-          labels: [],
-          dependencies: [],
-          epicId: "epic-1",
-          kanbanColumn: "backlog" as const,
-          createdAt: "",
-          updatedAt: "",
-        },
-      ];
-      vi.mocked(api.tasks.list).mockResolvedValue(newTasks as never);
-
       wsInstance!.simulateMessage({ type: "plan.updated", planId: "plan-123" });
 
       await vi.waitFor(() => {
-        const tasks = selectTasks(store.getState());
-        expect(tasks).toHaveLength(2);
-        expect(tasks[0]?.title).toBe("Task A");
-        expect(tasks[1]?.title).toBe("Task B");
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.tasks.list("proj-1"),
+        });
       });
     });
 
@@ -432,29 +388,11 @@ describe("websocketMiddleware", () => {
       expect(api.tasks.get).not.toHaveBeenCalled();
     });
 
-    it("fetches new task via fetchTasksByIds when task.updated for unknown task (Plan page live loading)", async () => {
+    it("invalidates tasks list when task.updated for unknown task (Plan page will refetch)", async () => {
       const store = createStore();
       store.dispatch(wsConnect({ projectId: "proj-1" }));
       wsInstance!.simulateOpen();
       await vi.waitFor(() => store.getState().websocket.connected);
-
-      const { api } = await import("../../api/client");
-      const newTask = {
-        id: "epic-1.1",
-        title: "Newly created task",
-        description: "",
-        type: "task" as const,
-        status: "open" as const,
-        priority: 1,
-        assignee: null,
-        labels: [],
-        dependencies: [],
-        epicId: "epic-1",
-        kanbanColumn: "backlog" as const,
-        createdAt: "",
-        updatedAt: "",
-      };
-      vi.mocked(api.tasks.get).mockResolvedValue(newTask as never);
 
       wsInstance!.simulateMessage({
         type: "task.updated",
@@ -464,12 +402,9 @@ describe("websocketMiddleware", () => {
       });
 
       await vi.waitFor(() => {
-        expect(api.tasks.get).toHaveBeenCalledWith("proj-1", "epic-1.1");
-      });
-      await vi.waitFor(() => {
-        const tasks = selectTasks(store.getState());
-        expect(tasks).toHaveLength(1);
-        expect(tasks[0]?.title).toBe("Newly created task");
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.tasks.list("proj-1"),
+        });
       });
     });
 
@@ -889,13 +824,12 @@ describe("websocketMiddleware", () => {
       expect(api.feedback.list).not.toHaveBeenCalled();
     });
 
-    it("dispatches fetchFeedback on feedback.mapped when event has no item (legacy fallback)", async () => {
+    it("invalidates feedback list when feedback.mapped has no item", async () => {
       const store = createStore();
       store.dispatch(wsConnect({ projectId: "proj-1" }));
       wsInstance!.simulateOpen();
       await vi.waitFor(() => store.getState().websocket.connected);
 
-      const { api } = await import("../../api/client");
       wsInstance!.simulateMessage({
         type: "feedback.mapped",
         feedbackId: "fb-1",
@@ -904,7 +838,9 @@ describe("websocketMiddleware", () => {
       });
 
       await vi.waitFor(() => {
-        expect(api.feedback.list).toHaveBeenCalledWith("proj-1");
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.feedback.list("proj-1"),
+        });
       });
     });
 
@@ -965,18 +901,33 @@ describe("websocketMiddleware", () => {
       await vi.waitFor(() => {
         expect(store.getState().eval.feedback[0]).toEqual(updatedItem);
       });
-      expect(api.tasks.list).not.toHaveBeenCalled();
-      expect(api.tasks.get).toHaveBeenCalledWith("proj-1", "task-1");
-      expect(api.tasks.get).toHaveBeenCalledWith("proj-1", "task-2");
-      await vi.waitFor(() => {
-        const tasks = selectTasks(store.getState());
-        expect(tasks).toHaveLength(2);
-        expect(tasks.map((t) => t.id)).toEqual(expect.arrayContaining(["task-1", "task-2"]));
+      expect(mockInvalidateQueries).toHaveBeenCalledWith({
+        queryKey: queryKeys.tasks.list("proj-1"),
       });
     });
 
-    it("live-updates feedback card when task.updated received after feedback.updated (status change)", async () => {
+    it("invalidates tasks and dispatches taskUpdated when task.updated after feedback.updated", async () => {
       const store = createStore();
+      const { setTasks } = await import("../slices/executeSlice");
+      store.dispatch(
+        setTasks([
+          {
+            id: "task-auth",
+            title: "Fix auth",
+            description: "",
+            type: "task",
+            status: "open",
+            priority: 1,
+            assignee: null,
+            labels: [],
+            dependencies: [],
+            epicId: null,
+            kanbanColumn: "backlog",
+            createdAt: "",
+            updatedAt: "",
+          },
+        ])
+      );
       store.dispatch(wsConnect({ projectId: "proj-1" }));
       wsInstance!.simulateOpen();
       await vi.waitFor(() => store.getState().websocket.connected);
@@ -995,14 +946,6 @@ describe("websocketMiddleware", () => {
         ])
       );
 
-      const { api } = await import("../../api/client");
-      vi.mocked(api.tasks.get).mockResolvedValue({
-        id: "task-auth",
-        title: "Fix auth",
-        kanbanColumn: "backlog",
-        priority: 1,
-      } as never);
-
       wsInstance!.simulateMessage({
         type: "feedback.updated",
         feedbackId: "fb-1",
@@ -1020,12 +963,10 @@ describe("websocketMiddleware", () => {
       });
 
       await vi.waitFor(() => {
-        const tasks = selectTasks(store.getState());
-        expect(tasks.some((t) => t.id === "task-auth")).toBe(true);
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.tasks.list("proj-1"),
+        });
       });
-      expect(selectTasks(store.getState()).find((t) => t.id === "task-auth")?.kanbanColumn).toBe(
-        "backlog"
-      );
 
       wsInstance!.simulateMessage({
         type: "task.updated",
@@ -1151,7 +1092,7 @@ describe("websocketMiddleware", () => {
       vi.useRealTimers();
     });
 
-    it("handles prd.updated after reconnect", async () => {
+    it("invalidates PRD queries on prd.updated after reconnect", async () => {
       vi.useFakeTimers();
       const store = createStore();
       store.dispatch(wsConnect({ projectId: "proj-1" }));
@@ -1167,23 +1108,16 @@ describe("websocketMiddleware", () => {
       wsInstance!.simulateOpen();
       await vi.waitFor(() => store.getState().websocket.connected);
 
-      const { api } = await import("../../api/client");
-      vi.mocked(api.prd.get).mockResolvedValue({
-        sections: { overview: { content: "After reconnect" } },
-      });
-      vi.mocked(api.prd.getHistory).mockResolvedValue([]);
-      vi.mocked(api.chat.history).mockResolvedValue({ messages: [] });
-      vi.mocked(api.projects.getPlanStatus).mockResolvedValue({
-        hasPlanningRun: false,
-        prdChangedSinceLastRun: false,
-        action: "plan",
-      });
-
+      mockInvalidateQueries.mockClear();
       wsInstance!.simulateMessage({ type: "prd.updated", section: "overview", version: 2 });
 
       await vi.waitFor(() => {
-        expect(store.getState().sketch.prdContent).toEqual({ overview: "After reconnect" });
-        expect(api.projects.getPlanStatus).toHaveBeenCalledWith("proj-1");
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.prd.detail("proj-1"),
+        });
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.plans.status("proj-1"),
+        });
       });
       vi.useRealTimers();
     });
