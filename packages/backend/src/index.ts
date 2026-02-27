@@ -17,6 +17,7 @@ import { taskStore } from "./services/task-store.service.js";
 import { FeedbackService } from "./services/feedback.service.js";
 import { orchestratorService } from "./services/orchestrator.service.js";
 import { watchdogService } from "./services/watchdog.service.js";
+import { sessionRetentionService } from "./services/session-retention.service.js";
 import { startProcessReaper, stopProcessReaper } from "./services/process-reaper.js";
 import {
   killAllTrackedAgentProcesses,
@@ -142,6 +143,8 @@ async function initAlwaysOnOrchestrator(): Promise<void> {
 
     // Start independent watchdog; targets refreshed each cycle so deleted projects are not patrolled
     const projectServiceForWatchdog = new ProjectService();
+    sessionRetentionService.start();
+
     watchdogService.start(async () => {
       const projects = await projectServiceForWatchdog.listProjects();
       return projects
@@ -217,6 +220,7 @@ const shutdown = async () => {
     await killAllTrackedAgentProcesses();
   }
   stopProcessReaper();
+  sessionRetentionService.stop();
   watchdogService.stop();
   orchestratorService.stopAll();
 

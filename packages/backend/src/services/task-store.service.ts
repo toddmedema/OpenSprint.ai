@@ -1729,6 +1729,40 @@ export class TaskStoreService {
   }
 
   /**
+   * Retention policy: keep only the 100 most recent agent_sessions, prune older entries,
+   * then VACUUM to reclaim disk space. Active/in-progress sessions are not in agent_sessions
+   * until archived, so this has no impact on them.
+   * @returns Number of rows pruned
+   */
+  async pruneAgentSessions(): Promise<number> {
+    return this.runWrite(async (db) => {
+      const countStmt = db.prepare("SELECT COUNT(*) as cnt FROM agent_sessions");
+      countStmt.step();
+      const total = (countStmt.getAsObject().cnt as number) ?? 0;
+      countStmt.free();
+      if (total <= 100) return 0;
+
+      const cutoffStmt = db.prepare(
+        "SELECT id FROM agent_sessions ORDER BY id DESC LIMIT 1 OFFSET 99"
+      );
+      cutoffStmt.step();
+      const row = cutoffStmt.getAsObject();
+      cutoffStmt.free();
+      const cutoffId = row?.id as number | undefined;
+      if (cutoffId == null) return 0;
+
+      db.run("DELETE FROM agent_sessions WHERE id < ?", [cutoffId]);
+      const pruned = db.getRowsModified();
+
+      db.run("VACUUM");
+      if (pruned > 0) {
+        log.info("Pruned agent_sessions", { pruned, retained: 100 });
+      }
+      return pruned;
+    });
+  }
+
+  /**
    * Return the shared DB for use by other stores (feedback, deployments, events, etc.).
    * Callers must await init() first (done at server startup in index.ts).
    */

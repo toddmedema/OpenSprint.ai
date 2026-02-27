@@ -1140,4 +1140,71 @@ describe("TaskStoreService", () => {
       expect(() => store2.show(projectId, gateId)).toThrow();
     });
   });
+
+  describe("pruneAgentSessions", () => {
+    it("returns 0 when <= 100 sessions", async () => {
+      await store.runWrite(async (db) => {
+        const now = new Date().toISOString();
+        for (let i = 0; i < 50; i++) {
+          db.run(
+            `INSERT INTO agent_sessions (project_id, task_id, attempt, agent_type, agent_model, started_at, status, git_branch) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            ["proj", `task-${i}`, 1, "coder", "claude", now, "success", "branch"]
+          );
+        }
+      });
+      const pruned = await store.pruneAgentSessions();
+      expect(pruned).toBe(0);
+
+      const db = await store.getDb();
+      const stmt = db.prepare("SELECT COUNT(*) as cnt FROM agent_sessions");
+      stmt.step();
+      expect(stmt.getAsObject().cnt).toBe(50);
+      stmt.free();
+    });
+
+    it("keeps 100 most recent and prunes older", async () => {
+      await store.runWrite(async (db) => {
+        const now = new Date().toISOString();
+        for (let i = 0; i < 150; i++) {
+          db.run(
+            `INSERT INTO agent_sessions (project_id, task_id, attempt, agent_type, agent_model, started_at, status, git_branch) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            ["proj", `task-${i}`, 1, "coder", "claude", now, "success", "branch"]
+          );
+        }
+      });
+
+      const pruned = await store.pruneAgentSessions();
+      expect(pruned).toBe(50);
+
+      const db = await store.getDb();
+      const stmt = db.prepare("SELECT COUNT(*) as cnt FROM agent_sessions");
+      stmt.step();
+      expect(stmt.getAsObject().cnt).toBe(100);
+      stmt.free();
+
+      const idsStmt = db.prepare("SELECT id FROM agent_sessions ORDER BY id ASC");
+      const ids: number[] = [];
+      while (idsStmt.step()) {
+        ids.push(idsStmt.getAsObject().id as number);
+      }
+      idsStmt.free();
+      expect(ids).toHaveLength(100);
+      expect(Math.min(...ids)).toBe(51);
+      expect(Math.max(...ids)).toBe(150);
+    });
+
+    it("runs VACUUM after pruning without error", async () => {
+      await store.runWrite(async (db) => {
+        const now = new Date().toISOString();
+        for (let i = 0; i < 120; i++) {
+          db.run(
+            `INSERT INTO agent_sessions (project_id, task_id, attempt, agent_type, agent_model, started_at, status, git_branch) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            ["proj", `task-${i}`, 1, "coder", "claude", now, "success", "branch"]
+          );
+        }
+      });
+
+      await expect(store.pruneAgentSessions()).resolves.toBe(20);
+    });
+  });
 });
