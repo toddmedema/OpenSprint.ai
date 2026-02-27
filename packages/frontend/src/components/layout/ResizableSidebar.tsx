@@ -78,8 +78,8 @@ function useViewportWidth(): number {
 }
 
 /**
- * A right-side sidebar with a draggable left edge. Width is persisted to localStorage.
- * Used in Plan and Build phases for the plan detail and task detail panels.
+ * A sidebar with a draggable edge for resize. Width is persisted to localStorage.
+ * Shared by Plan, Sketch, and Execute phases (plan detail, TOC/Discuss, task detail).
  * Min 200px, max 80% of viewport by default (per UX best practices).
  */
 export function ResizableSidebar({
