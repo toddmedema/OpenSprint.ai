@@ -264,6 +264,21 @@ describe("websocketMiddleware", () => {
         );
       });
     });
+
+    it("dispatches agent.unsubscribe when setSelectedTaskId(null) to free memory before reducer cleanup", async () => {
+      const { setSelectedTaskId } = await import("../slices/executeSlice");
+      const store = createStore();
+      store.dispatch(wsConnect({ projectId: "proj-1" }));
+      wsInstance!.simulateOpen();
+      store.dispatch(setSelectedTaskId("task-1"));
+
+      store.dispatch(setSelectedTaskId(null));
+
+      const unsubscribes = wsInstance!.sent.filter((s) => s.includes("agent.unsubscribe"));
+      expect(unsubscribes).toContainEqual(
+        JSON.stringify({ type: "agent.unsubscribe", taskId: "task-1" })
+      );
+    });
   });
 
   describe("ServerEvent handling", () => {

@@ -153,6 +153,20 @@ describe("executeSlice", () => {
       expect(store.getState().execute.completionState).toBeNull();
     });
 
+    it("setSelectedTaskId(null) clears agentOutput for previous task to free memory", () => {
+      vi.useFakeTimers();
+      const store = createStore();
+      store.dispatch(setTasks([mockTask]));
+      store.dispatch(setSelectedTaskId("task-1"));
+      store.dispatch(appendAgentOutput({ taskId: "task-1", chunk: "chunk1\n" }));
+      store.dispatch(appendAgentOutput({ taskId: "task-1", chunk: "chunk2\n" }));
+      vi.advanceTimersByTime(200);
+      expect(store.getState().execute.agentOutput["task-1"]).toEqual(["chunk1\nchunk2\n"]);
+      store.dispatch(setSelectedTaskId(null));
+      expect(store.getState().execute.agentOutput["task-1"]).toBeUndefined();
+      vi.useRealTimers();
+    });
+
     it("setSelectedTaskId clears taskDetailError when switching tasks", async () => {
       vi.mocked(api.tasks.get).mockRejectedValue(new Error("Fetch failed"));
       const store = createStore();

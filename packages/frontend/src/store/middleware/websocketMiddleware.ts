@@ -22,6 +22,7 @@ import {
   setAwaitingApproval,
   setActiveTasks,
   setCompletionState,
+  setSelectedTaskId,
   taskUpdated,
   taskCreated,
   taskClosed,
@@ -375,6 +376,23 @@ export const websocketMiddleware: Middleware = (storeApi) => {
   }
 
   return (next) => (action) => {
+    // Unsubscribe from agent output before reducer clears agentOutput (memory cleanup)
+    if (setSelectedTaskId.match(action) && action.payload === null) {
+      const root = storeApi.getState() as {
+        execute?: { selectedTaskId?: string | null };
+      };
+      const prev = root.execute?.selectedTaskId;
+      if (
+        prev &&
+        ws?.readyState === WebSocket.OPEN &&
+        currentProjectId &&
+        currentProjectId !== HOME_SENTINEL
+      ) {
+        dispatch(wsSend({ type: "agent.unsubscribe", taskId: prev }));
+      }
+      const idx = pendingSubscribes.findIndex((p) => p.taskId === prev);
+      if (idx >= 0) pendingSubscribes.splice(idx, 1);
+    }
     if (wsConnect.match(action)) {
       connect(action.payload.projectId);
     } else if (wsConnectHome.match(action)) {

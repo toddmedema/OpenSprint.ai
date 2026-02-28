@@ -50,7 +50,7 @@ describe("agentOutputFilterMiddleware", () => {
     expect(store.getState().execute.agentOutput["task-1"]).toEqual(["xy"]);
   });
 
-  it("does not lose content when flushing on setSelectedTaskId", () => {
+  it("does not lose content when flushing on setSelectedTaskId (switch tasks)", () => {
     const store = createStore();
     store.dispatch(setSelectedTaskId("task-1"));
 
@@ -61,6 +61,7 @@ describe("agentOutputFilterMiddleware", () => {
     store.dispatch(setSelectedTaskId("task-1"));
     store.dispatch(appendAgentOutput({ taskId: "task-1", chunk: "second\n" }));
     store.dispatch(setSelectedTaskId(null));
-    expect(store.getState().execute.agentOutput["task-1"]).toEqual(["first\n", "second\n"]);
+    // Closing sidebar clears agentOutput for previous task to free memory
+    expect(store.getState().execute.agentOutput["task-1"]).toBeUndefined();
   });
 });

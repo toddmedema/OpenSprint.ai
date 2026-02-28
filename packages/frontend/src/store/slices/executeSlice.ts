@@ -263,7 +263,8 @@ export const unblockTask = createAsyncThunk(
   }
 );
 
-const MAX_AGENT_OUTPUT = 5000;
+/** Max chunks to retain per task (configurable; reduced for memory). */
+export const MAX_AGENT_OUTPUT = 2000;
 
 /** Convert TaskEventPayload (WebSocket) to Task shape for Redux. */
 function taskEventPayloadToTask(p: TaskEventPayload): Task {
@@ -325,11 +326,16 @@ const executeSlice = createSlice({
   reducers: {
     setSelectedTaskId(state, action: PayloadAction<string | null>) {
       const next = action.payload;
-      const changed = state.selectedTaskId !== next;
+      const prev = state.selectedTaskId;
+      const changed = prev !== next;
       state.selectedTaskId = next;
       state.completionState = null;
       state.archivedSessions = [];
       if (changed) state.async.taskDetail.error = null;
+      // Clear agentOutput for previous task when closing sidebar to free memory
+      if (next === null && prev && state.agentOutput[prev]) {
+        delete state.agentOutput[prev];
+      }
     },
     appendAgentOutput(state, action: PayloadAction<{ taskId: string; chunk: string }>) {
       const { taskId, chunk } = action.payload;
