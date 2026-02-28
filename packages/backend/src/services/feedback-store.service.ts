@@ -1,6 +1,6 @@
 /**
  * SQL-backed feedback and feedback inbox store.
- * Uses ~/.opensprint/tasks.db (feedback + feedback_inbox tables).
+ * Uses Postgres (feedback + feedback_inbox tables) via DbClient.
  * Images are stored under ~/.opensprint/feedback-assets/<project_id>/<feedback_id>/.
  */
 
@@ -11,7 +11,6 @@ import { taskStore } from "./task-store.service.js";
 import { AppError } from "../middleware/error-handler.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
 import { createLogger } from "../utils/logger.js";
-import { toPgParams } from "../db/sql-params.js";
 
 const log = createLogger("feedback-store");
 
@@ -189,7 +188,7 @@ export class FeedbackStoreService {
       const id = generateShortFeedbackId();
       const client = await taskStore.getDb();
       const row = await client.queryOne(
-        toPgParams("SELECT 1 FROM feedback WHERE id = ? AND project_id = ? LIMIT 1"),
+        "SELECT 1 FROM feedback WHERE id = $1 AND project_id = $2 LIMIT 1",
         [id, projectId]
       );
       if (!row) return id;
@@ -209,13 +208,11 @@ export class FeedbackStoreService {
 
     await taskStore.runWrite(async (client) => {
       await client.execute(
-        toPgParams(
-          `INSERT INTO feedback (
+        `INSERT INTO feedback (
           id, project_id, text, category, mapped_plan_id, created_task_ids, status, created_at,
           task_titles, proposed_tasks, mapped_epic_id, is_scope_change, feedback_source_task_id,
           parent_id, depth, user_priority, image_paths, extra
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        ),
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
         [
           row.id,
           row.project_id,
@@ -244,19 +241,17 @@ export class FeedbackStoreService {
     const row = itemToRow(item, projectId);
     const client = await taskStore.getDb();
     await client.queryOne(
-      toPgParams("SELECT image_paths FROM feedback WHERE id = ? AND project_id = ?"),
+      "SELECT image_paths FROM feedback WHERE id = $1 AND project_id = $2",
       [item.id, projectId]
     );
 
     await taskStore.runWrite(async (tx) => {
       await tx.execute(
-        toPgParams(
-          `UPDATE feedback SET
-          text = ?, category = ?, mapped_plan_id = ?, created_task_ids = ?, status = ?,
-          task_titles = ?, proposed_tasks = ?, mapped_epic_id = ?, is_scope_change = ?,
-          feedback_source_task_id = ?, parent_id = ?, depth = ?, user_priority = ?, extra = ?
-        WHERE id = ? AND project_id = ?`
-        ),
+        `UPDATE feedback SET
+          text = $1, category = $2, mapped_plan_id = $3, created_task_ids = $4, status = $5,
+          task_titles = $6, proposed_tasks = $7, mapped_epic_id = $8, is_scope_change = $9,
+          feedback_source_task_id = $10, parent_id = $11, depth = $12, user_priority = $13, extra = $14
+        WHERE id = $15 AND project_id = $16`,
         [
           row.text,
           row.category,
@@ -282,7 +277,7 @@ export class FeedbackStoreService {
   async getFeedbackRow(projectId: string, feedbackId: string): Promise<FeedbackRow | null> {
     const client = await taskStore.getDb();
     const row = await client.queryOne(
-      toPgParams("SELECT * FROM feedback WHERE id = ? AND project_id = ?"),
+      "SELECT * FROM feedback WHERE id = $1 AND project_id = $2",
       [feedbackId, projectId]
     );
     return row ? (row as unknown as FeedbackRow) : null;
@@ -316,7 +311,7 @@ export class FeedbackStoreService {
 
     if (limit != null) {
       const countRow = await client.queryOne(
-        toPgParams("SELECT COUNT(*)::int as cnt FROM feedback WHERE project_id = ?"),
+        "SELECT COUNT(*)::int as cnt FROM feedback WHERE project_id = $1",
         [projectId]
       );
       const total = (countRow?.cnt as number) ?? 0;
@@ -324,7 +319,7 @@ export class FeedbackStoreService {
       const safeLimit = Math.max(1, Math.min(500, limit));
       const safeOffset = Math.max(0, offset);
       const rows = await client.query(
-        toPgParams("SELECT * FROM feedback WHERE project_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?"),
+        "SELECT * FROM feedback WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
         [projectId, safeLimit, safeOffset]
       );
 
@@ -339,7 +334,7 @@ export class FeedbackStoreService {
     }
 
     const rows = await client.query(
-      toPgParams("SELECT * FROM feedback WHERE project_id = ? ORDER BY created_at DESC"),
+      "SELECT * FROM feedback WHERE project_id = $1 ORDER BY created_at DESC",
       [projectId]
     );
 
@@ -360,9 +355,7 @@ export class FeedbackStoreService {
     if (existing.includes(feedbackId)) return;
     await taskStore.runWrite(async (client) => {
       await client.execute(
-        toPgParams(
-          "INSERT INTO feedback_inbox (project_id, feedback_id, enqueued_at) VALUES (?, ?, ?) ON CONFLICT (project_id, feedback_id) DO NOTHING"
-        ),
+        "INSERT INTO feedback_inbox (project_id, feedback_id, enqueued_at) VALUES ($1, $2, $3) ON CONFLICT (project_id, feedback_id) DO NOTHING",
         [projectId, feedbackId, new Date().toISOString()]
       );
     });
@@ -372,9 +365,7 @@ export class FeedbackStoreService {
   async getNextPendingFeedbackId(projectId: string): Promise<string | null> {
     const client = await taskStore.getDb();
     const row = await client.queryOne(
-      toPgParams(
-        "SELECT feedback_id FROM feedback_inbox WHERE project_id = ? ORDER BY enqueued_at ASC LIMIT 1"
-      ),
+      "SELECT feedback_id FROM feedback_inbox WHERE project_id = $1 ORDER BY enqueued_at ASC LIMIT 1",
       [projectId]
     );
     return row ? (row.feedback_id as string) : null;
@@ -389,15 +380,13 @@ export class FeedbackStoreService {
     let claimedId: string | null = null;
     await taskStore.runWrite(async (client) => {
       const row = await client.queryOne(
-        toPgParams(
-          "SELECT feedback_id FROM feedback_inbox WHERE project_id = ? ORDER BY enqueued_at ASC LIMIT 1"
-        ),
+        "SELECT feedback_id FROM feedback_inbox WHERE project_id = $1 ORDER BY enqueued_at ASC LIMIT 1",
         [projectId]
       );
       if (row) {
         claimedId = row.feedback_id as string;
         await client.execute(
-          toPgParams("DELETE FROM feedback_inbox WHERE project_id = ? AND feedback_id = ?"),
+          "DELETE FROM feedback_inbox WHERE project_id = $1 AND feedback_id = $2",
           [projectId, claimedId]
         );
         log.info("Claimed feedback from inbox for Analyst", { projectId, feedbackId: claimedId });
@@ -409,7 +398,7 @@ export class FeedbackStoreService {
   async removeFromInbox(projectId: string, feedbackId: string): Promise<void> {
     await taskStore.runWrite(async (client) => {
       await client.execute(
-        toPgParams("DELETE FROM feedback_inbox WHERE project_id = ? AND feedback_id = ?"),
+        "DELETE FROM feedback_inbox WHERE project_id = $1 AND feedback_id = $2",
         [projectId, feedbackId]
       );
     });
@@ -419,7 +408,7 @@ export class FeedbackStoreService {
   async listPendingFeedbackIds(projectId: string): Promise<string[]> {
     const client = await taskStore.getDb();
     const rows = await client.query(
-      toPgParams("SELECT feedback_id FROM feedback_inbox WHERE project_id = ? ORDER BY enqueued_at ASC"),
+      "SELECT feedback_id FROM feedback_inbox WHERE project_id = $1 ORDER BY enqueued_at ASC",
       [projectId]
     );
     return rows.map((r) => r.feedback_id as string);
