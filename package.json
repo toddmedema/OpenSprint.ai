@@ -24,7 +24,10 @@
     "format:check": "prettier --check .",
     "prepare": "husky",
     "clean": "npm run clean --workspaces --if-present && rm -rf node_modules",
-    "setup": "bash scripts/setup.sh"
+    "setup": "bash scripts/setup.sh",
+    "perf": "npx tsx scripts/perf.ts",
+    "perf:baseline": "npx tsx scripts/perf.ts --baseline",
+    "perf:compare": "npx tsx scripts/perf.ts --compare"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -43,7 +46,8 @@
     "prettier": "^3.4.2",
     "typescript-eslint": "^8.18.0",
     "husky": "^9.1.7",
-    "lint-staged": "^15.4.3"
+    "lint-staged": "^15.4.3",
+    "puppeteer": "^24.0.0"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx,json,md}": [

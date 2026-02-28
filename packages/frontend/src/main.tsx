@@ -8,6 +8,7 @@ import { setQueryClient } from "./queryClient";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { DisplayPreferencesProvider } from "./contexts/DisplayPreferencesContext";
 import { App } from "./App";
+import { DevProfiler } from "./dev/DevProfiler";
 import "./styles/index.css";
 
 const queryClient = new QueryClient({
@@ -27,7 +28,9 @@ createRoot(document.getElementById("root")!).render(
         <ThemeProvider>
           <DisplayPreferencesProvider>
             <BrowserRouter>
-              <App />
+              <DevProfiler>
+                <App />
+              </DevProfiler>
             </BrowserRouter>
           </DisplayPreferencesProvider>
         </ThemeProvider>
