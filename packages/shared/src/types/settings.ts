@@ -161,8 +161,8 @@ function migrateDeploymentConfig(raw: unknown): DeploymentConfig {
   const input = (raw ?? DEFAULT_DEPLOYMENT_CONFIG) as LegacyDeploymentInput & DeploymentConfig;
   const base: DeploymentConfig = {
     ...DEFAULT_DEPLOYMENT_CONFIG,
-    ...input,
     mode: input.mode ?? "custom",
+    target: input.target,
     targets: input.targets,
     envVars: input.envVars,
     autoResolveFeedbackOnTaskCompletion: input.autoResolveFeedbackOnTaskCompletion,
@@ -170,9 +170,8 @@ function migrateDeploymentConfig(raw: unknown): DeploymentConfig {
     customCommand: input.customCommand,
     webhookUrl: input.webhookUrl,
     rollbackCommand: input.rollbackCommand,
+    nightlyDeployTime: input.nightlyDeployTime,
   };
-  delete (base as Record<string, unknown>).autoDeployOnEpicCompletion;
-  delete (base as Record<string, unknown>).autoDeployOnEvalResolution;
 
   const epic = input.autoDeployOnEpicCompletion === true;
   const evalRes = input.autoDeployOnEvalResolution === true;
