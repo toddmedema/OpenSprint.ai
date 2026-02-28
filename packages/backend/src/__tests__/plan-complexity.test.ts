@@ -18,11 +18,13 @@ const TEST_PROJECT_ID = "test-project";
 // Use in-memory DB so we don't touch ~/.opensprint/tasks.db (avoids ENOENT when other tests change HOME)
 vi.mock("../services/task-store.service.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/task-store.service.js")>();
+  const { createSqliteDbClient, SCHEMA_SQL_SQLITE } = await import("./test-db-helper.js");
   const initSqlJs = (await import("sql.js")).default;
   const SQL = await initSqlJs();
   const sharedDb = new SQL.Database();
-  sharedDb.run(actual.SCHEMA_SQL);
-  const store = new actual.TaskStoreService(sharedDb);
+  sharedDb.run(SCHEMA_SQL_SQLITE);
+  const sharedClient = createSqliteDbClient(sharedDb);
+  const store = new actual.TaskStoreService(sharedClient);
   await store.init();
   const reset = () => {
     sharedDb.run("DELETE FROM task_dependencies");

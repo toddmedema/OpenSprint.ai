@@ -4,6 +4,31 @@ vi.mock("../websocket/index.js", () => ({
   broadcastToProject: vi.fn(),
 }));
 
+vi.mock("../services/task-store.service.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/task-store.service.js")>();
+  const { createSqliteDbClient, SCHEMA_SQL_SQLITE } = await import("./test-db-helper.js");
+  const initSqlJs = (await import("sql.js")).default;
+  const SQL = await initSqlJs();
+  const sharedDb = new SQL.Database();
+  sharedDb.run(SCHEMA_SQL_SQLITE);
+  const sharedClient = createSqliteDbClient(sharedDb);
+
+  class MockTaskStoreService extends actual.TaskStoreService {
+    constructor() {
+      super(sharedClient);
+    }
+  }
+
+  const singletonInstance = new MockTaskStoreService();
+  await singletonInstance.init();
+
+  return {
+    ...actual,
+    TaskStoreService: MockTaskStoreService,
+    taskStore: singletonInstance,
+  };
+});
+
 const mockGetSettings = vi.fn();
 
 vi.mock("../services/project.service.js", () => {

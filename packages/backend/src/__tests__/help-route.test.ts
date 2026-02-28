@@ -21,11 +21,13 @@ vi.mock("../services/beads.service.js", () => ({
 
 vi.mock("../services/task-store.service.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/task-store.service.js")>();
+  const { createSqliteDbClient, SCHEMA_SQL_SQLITE } = await import("./test-db-helper.js");
   const initSqlJs = (await import("sql.js")).default;
   const SQL = await initSqlJs();
   const db = new SQL.Database();
-  db.run(actual.SCHEMA_SQL);
-  const store = new actual.TaskStoreService(db);
+  db.run(SCHEMA_SQL_SQLITE);
+  const client = createSqliteDbClient(db);
+  const store = new actual.TaskStoreService(client);
   await store.init();
   return { ...actual, taskStore: store };
 });

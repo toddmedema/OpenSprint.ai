@@ -299,17 +299,15 @@ export class NotificationService {
    */
   async deleteAll(): Promise<number> {
     const db = await taskStore.getDb();
-    const countStmt = db.prepare("SELECT COUNT(*) as cnt FROM open_questions");
-    countStmt.step();
-    const count = (countStmt.getAsObject() as { cnt: number }).cnt;
-    countStmt.free();
+    const row = await db.queryOne("SELECT COUNT(*)::int as cnt FROM open_questions");
+    const count = (row?.cnt as number) ?? 0;
 
     if (count === 0) {
       return 0;
     }
 
     await taskStore.runWrite(async (db) => {
-      db.run("DELETE FROM open_questions");
+      await db.execute("DELETE FROM open_questions");
     });
 
     log.info("Deleted all HIL notifications", { deletedCount: count });

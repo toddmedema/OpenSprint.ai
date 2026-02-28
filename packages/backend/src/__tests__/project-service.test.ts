@@ -1,10 +1,35 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
 import { ProjectService } from "../services/project.service.js";
 import { notificationService } from "../services/notification.service.js";
 import { DEFAULT_HIL_CONFIG, DEFAULT_REVIEW_MODE } from "@opensprint/shared";
+
+vi.mock("../services/task-store.service.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/task-store.service.js")>();
+  const { createSqliteDbClient, SCHEMA_SQL_SQLITE } = await import("./test-db-helper.js");
+  const initSqlJs = (await import("sql.js")).default;
+  const SQL = await initSqlJs();
+  const sharedDb = new SQL.Database();
+  sharedDb.run(SCHEMA_SQL_SQLITE);
+  const sharedClient = createSqliteDbClient(sharedDb);
+
+  class MockTaskStoreService extends actual.TaskStoreService {
+    constructor() {
+      super(sharedClient);
+    }
+  }
+
+  const singletonInstance = new MockTaskStoreService();
+  await singletonInstance.init();
+
+  return {
+    ...actual,
+    TaskStoreService: MockTaskStoreService,
+    taskStore: singletonInstance,
+  };
+});
 
 /** Read project settings from global store (when HOME=tempDir in tests). */
 async function readSettingsFromGlobalStore(

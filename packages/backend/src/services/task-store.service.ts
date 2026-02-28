@@ -134,6 +134,7 @@ export class TaskStoreService {
     if (this.injectedClient) {
       this.client = this.injectedClient;
       // Caller is responsible for schema when using injected client (e.g. tests)
+      await this.migratePlansWithGateTasks();
       return;
     }
 
@@ -217,7 +218,6 @@ export class TaskStoreService {
 
   /** Migration: Epic-blocked model. Plans with gate_task_id migrated to remove gate tasks. */
   private async migratePlansWithGateTasks(): Promise<void> {
-    if (this.injectedClient) return;
     const client = this.ensureClient();
     const rows = await client.query(
       "SELECT project_id, plan_id, epic_id, gate_task_id, re_execute_gate_task_id FROM plans WHERE (gate_task_id IS NOT NULL AND gate_task_id != '') OR (re_execute_gate_task_id IS NOT NULL AND re_execute_gate_task_id != '')"
@@ -1129,7 +1129,7 @@ export class TaskStoreService {
   }
 
   async comment(_projectId: string, _id: string, _message: string): Promise<void> {
-    // Comments not supported in sql.js store — no-op for API compatibility
+    // Comments not supported — no-op for API compatibility
   }
 
   async addLabel(projectId: string, id: string, label: string): Promise<void> {
@@ -1239,7 +1239,7 @@ export class TaskStoreService {
     }
   }
 
-  /** No-op. Dolt sync removed — persistence is handled by saveToDisk(). */
+  /** No-op. Dolt sync removed — persistence is handled by Postgres. */
   async syncForPush(_projectId: string): Promise<void> {}
 
   // ──── Plan storage (SQL-only) ────
@@ -1449,10 +1449,13 @@ export class TaskStoreService {
    * Retention policy: keep only the 100 most recent agent_sessions, prune older entries,
    * then VACUUM to reclaim disk space. Active/in-progress sessions are not in agent_sessions
    * until archived, so this has no impact on them.
+   * Uses withWriteLock directly because VACUUM cannot run inside a transaction.
    * @returns Number of rows pruned
    */
   async pruneAgentSessions(): Promise<number> {
-    return this.runWrite(async (client) => {
+    return this.withWriteLock(async () => {
+      await this.ensureInitialized();
+      const client = this.ensureClient();
       const countRow = await client.queryOne("SELECT COUNT(*)::int as cnt FROM agent_sessions");
       const total = (countRow?.cnt as number) ?? 0;
       if (total <= 100) return 0;
@@ -1487,12 +1490,13 @@ export class TaskStoreService {
 
   /**
    * Run a write transaction under the shared write lock.
-   * Use this from feedback-store, deploy-storage, event-log, agent-identity, orchestrator counters, sessions.
+   * Uses runInTransaction for atomicity. Use from feedback-store, deploy-storage, event-log, agent-identity, orchestrator counters, sessions.
    */
   async runWrite<T>(fn: (client: DbClient) => Promise<T>): Promise<T> {
     await this.ensureInitialized();
     return this.withWriteLock(async () => {
-      return await fn(this.ensureClient());
+      const client = this.ensureClient();
+      return await client.runInTransaction(fn);
     });
   }
 
@@ -1502,5 +1506,5 @@ export class TaskStoreService {
   }
 }
 
-/** Process-wide singleton — all services share one in-memory database. */
+/** Process-wide singleton — all services share one Postgres connection pool. */
 export const taskStore = new TaskStoreService();

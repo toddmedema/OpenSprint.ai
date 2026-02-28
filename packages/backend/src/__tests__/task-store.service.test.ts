@@ -10,6 +10,8 @@ import {
   type DbClient,
 } from "../db/index.js";
 import { TaskStoreService } from "../services/task-store.service.js";
+import { createSqliteDbClient, SCHEMA_SQL_SQLITE } from "./test-db-helper.js";
+import initSqlJs from "sql.js";
 
 const TEST_PROJECT_ID = "test-project";
 
@@ -20,6 +22,8 @@ describe("TaskStoreService", () => {
   let store: TaskStoreService;
   let client: DbClient | null = null;
   let pool: Pool | null = null;
+  let sqliteDb: import("sql.js").Database | null = null;
+  let usePostgres = false;
 
   beforeAll(async () => {
     try {
@@ -27,9 +31,13 @@ describe("TaskStoreService", () => {
       client = result.client;
       pool = result.pool;
       await client.query("SELECT 1");
+      usePostgres = true;
     } catch {
-      client = null;
-      pool = null;
+      const SQL = await initSqlJs();
+      sqliteDb = new SQL.Database();
+      sqliteDb.run(SCHEMA_SQL_SQLITE);
+      client = createSqliteDbClient(sqliteDb);
+      usePostgres = false;
     }
   });
 
@@ -38,10 +46,10 @@ describe("TaskStoreService", () => {
   });
 
   beforeEach(async () => {
-    if (!client) {
-      throw new Error("Postgres not available - set TEST_DATABASE_URL or run docker compose up -d");
+    if (!client) throw new Error("No database client");
+    if (usePostgres) {
+      await runSchema(client);
     }
-    await runSchema(client);
     store = new TaskStoreService(client);
     await store.init();
     await store.deleteByProjectId(TEST_PROJECT_ID);
@@ -1246,7 +1254,7 @@ describe("TaskStoreService", () => {
     });
 
     it("migrates plan with closed gate: epic set open, gate task and deps removed", async () => {
-      const store1 = new TaskStoreService();
+      const store1 = new TaskStoreService(client!);
       await store1.init();
 
       const now = new Date().toISOString();
@@ -1280,7 +1288,7 @@ describe("TaskStoreService", () => {
         );
       });
 
-      const store2 = new TaskStoreService();
+      const store2 = new TaskStoreService(client!);
       await store2.init();
 
       const epic = await store2.show(projectId, epicId);
@@ -1294,7 +1302,7 @@ describe("TaskStoreService", () => {
     });
 
     it("migrates plan with open gate: epic set blocked", async () => {
-      const store1 = new TaskStoreService();
+      const store1 = new TaskStoreService(client!);
       await store1.init();
 
       const now = new Date().toISOString();
@@ -1328,7 +1336,7 @@ describe("TaskStoreService", () => {
         );
       });
 
-      const store2 = new TaskStoreService();
+      const store2 = new TaskStoreService(client!);
       await store2.init();
 
       const epic = await store2.show(projectId, epicId);
@@ -1339,6 +1347,15 @@ describe("TaskStoreService", () => {
   });
 
   describe("pruneAgentSessions", () => {
+    beforeEach(async () => {
+      await store.runWrite(async (db) => {
+        await db.execute("DELETE FROM agent_sessions");
+        if (!usePostgres) {
+          await db.execute("DELETE FROM sqlite_sequence WHERE name='agent_sessions'");
+        }
+      });
+    });
+
     it("returns 0 when <= 100 sessions", async () => {
       await store.runWrite(async (client) => {
         const now = new Date().toISOString();

@@ -15,22 +15,16 @@ const mockUnregister = vi.fn();
 
 vi.mock("../services/task-store.service.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/task-store.service.js")>();
+  const { createSqliteDbClient, SCHEMA_SQL_SQLITE } = await import("./test-db-helper.js");
   const initSqlJs = (await import("sql.js")).default;
   const SQL = await initSqlJs();
   const sharedDb = new SQL.Database();
-  sharedDb.run(actual.SCHEMA_SQL);
+  sharedDb.run(SCHEMA_SQL_SQLITE);
+  const sharedClient = createSqliteDbClient(sharedDb);
 
   class MockTaskStoreService extends actual.TaskStoreService {
-    async init(): Promise<void> {
-      (this as unknown as { db: unknown }).db = sharedDb;
-      (this as unknown as { injectedDb: unknown }).injectedDb = sharedDb;
-    }
-    protected ensureDb() {
-      if (!(this as unknown as { db: unknown }).db) {
-        (this as unknown as { db: unknown }).db = sharedDb;
-        (this as unknown as { injectedDb: unknown }).injectedDb = sharedDb;
-      }
-      return super.ensureDb();
+    constructor() {
+      super(sharedClient);
     }
   }
 
