@@ -312,7 +312,12 @@ export function DeliverPhase({ projectId, onOpenSettings }: DeliverPhaseProps) {
         </div>
 
         <div className="flex-1 min-h-0 flex overflow-hidden">
-          <ResizableSidebar storageKey="deliver" defaultWidth={280} visible>
+          <ResizableSidebar
+            storageKey="deliver"
+            defaultWidth={280}
+            side="left"
+            resizeHandleLabel="Resize delivery history sidebar"
+          >
             <div className="h-full flex flex-col border-r border-theme-border bg-theme-bg">
               <div className="px-3 py-2 border-b border-theme-border flex items-center justify-between gap-2">
                 <h3 className="text-sm font-medium text-theme-text">Delivery History</h3>
@@ -343,9 +348,9 @@ export function DeliverPhase({ projectId, onOpenSettings }: DeliverPhaseProps) {
                             setEnvFilter("all");
                             setFilterDropdownOpen(false);
                           }}
-className={`dropdown-item w-full text-left text-sm hover:bg-theme-border-subtle ${
-                          envFilter === "all" ? "bg-theme-surface-muted font-medium" : ""
-                        }`}
+                          className={`dropdown-item w-full text-left text-sm hover:bg-theme-border-subtle ${
+                            envFilter === "all" ? "bg-theme-surface-muted font-medium" : ""
+                          }`}
                         >
                           All ({envCounts.all})
                         </button>

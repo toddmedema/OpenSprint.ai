@@ -4,6 +4,7 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DeliverPhase } from "./DeliverPhase";
 import deliverReducer from "../../store/slices/deliverSlice";
 import projectReducer from "../../store/slices/projectSlice";
@@ -75,22 +76,26 @@ function createStore(initialDeployState = {}) {
   });
 }
 
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
 function renderWithRouter(
   store: ReturnType<typeof createStore>,
   projectId = "proj-1",
   onOpenSettings?: () => void
 ) {
   return render(
-    <Provider store={store}>
-      <MemoryRouter initialEntries={[`/projects/${projectId}/deliver`]}>
-        <Routes>
-          <Route
-            path="/projects/:projectId/deliver"
-            element={<DeliverPhase projectId={projectId} onOpenSettings={onOpenSettings} />}
-          />
-        </Routes>
-      </MemoryRouter>
-    </Provider>
+    <QueryClientProvider client={queryClient}>
+      <Provider store={store}>
+        <MemoryRouter initialEntries={[`/projects/${projectId}/deliver`]}>
+          <Routes>
+            <Route
+              path="/projects/:projectId/deliver"
+              element={<DeliverPhase projectId={projectId} onOpenSettings={onOpenSettings} />}
+            />
+          </Routes>
+        </MemoryRouter>
+      </Provider>
+    </QueryClientProvider>
   );
 }
 
@@ -130,6 +135,31 @@ describe("DeliverPhase", () => {
     const store = createStore();
     renderWithRouter(store);
     expect(screen.getByTestId("deploy-log")).toBeInTheDocument();
+  });
+
+  it("renders resizable delivery history sidebar with resize handle", () => {
+    const store = createStore();
+    renderWithRouter(store);
+    expect(
+      screen.getByRole("separator", { name: "Resize delivery history sidebar" })
+    ).toBeInTheDocument();
+  });
+
+  it("persists delivery history sidebar width to localStorage when resized (matches Plan/Sketch/Execute)", async () => {
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
+    const store = createStore();
+    renderWithRouter(store);
+    const handle = screen.getByRole("separator", {
+      name: "Resize delivery history sidebar",
+    });
+    handle.dispatchEvent(new MouseEvent("mousedown", { clientX: 100, bubbles: true }));
+    document.dispatchEvent(new MouseEvent("mousemove", { clientX: 150, bubbles: true }));
+    document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+    expect(setItemSpy).toHaveBeenCalledWith(
+      "opensprint-sidebar-width-deliver",
+      expect.any(String)
+    );
+    setItemSpy.mockRestore();
   });
 
   it("renders rolled_back status badge", async () => {
