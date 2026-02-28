@@ -1,13 +1,28 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import MDEditor from "@uiw/react-md-editor";
+import * as prettier from "prettier";
+import parserMarkdown from "prettier/plugins/markdown";
 import { api } from "../api/client";
+import { useTheme } from "../contexts/ThemeContext";
 
 interface AgentsMdSectionProps {
   projectId: string;
+  /** When true, renders a plain textarea for simpler testing. */
+  testMode?: boolean;
 }
 
-export function AgentsMdSection({ projectId }: AgentsMdSectionProps) {
+async function prettifyMarkdown(content: string): Promise<string> {
+  return prettier.format(content, {
+    parser: "markdown",
+    plugins: [parserMarkdown],
+    proseWrap: "preserve",
+  });
+}
+
+export function AgentsMdSection({ projectId, testMode = false }: AgentsMdSectionProps) {
+  const { resolved } = useTheme();
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,12 +56,23 @@ export function AgentsMdSection({ projectId }: AgentsMdSectionProps) {
     };
   }, [projectId]);
 
+  const handlePrettify = useCallback(async () => {
+    try {
+      const formatted = await prettifyMarkdown(editValue);
+      setEditValue(formatted);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Prettify failed");
+    }
+  }, [editValue]);
+
   const handleSave = async () => {
     setSaving(true);
     setSaveFeedback(null);
     try {
-      await api.projects.updateAgentsInstructions(projectId, editValue);
-      setContent(editValue);
+      const toSave = await prettifyMarkdown(editValue);
+      await api.projects.updateAgentsInstructions(projectId, toSave);
+      setContent(toSave);
+      setEditValue(toSave);
       setEditing(false);
       setSaveFeedback("saved");
       setTimeout(() => setSaveFeedback(null), 2000);
@@ -102,14 +128,47 @@ export function AgentsMdSection({ projectId }: AgentsMdSectionProps) {
       </p>
 
       {editing ? (
-        <div className="space-y-3">
-          <textarea
-            className="input w-full font-mono text-sm min-h-[200px] resize-y"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            placeholder="# Agent Instructions\n\nAdd instructions for your agents..."
-            data-testid="agents-md-textarea"
-          />
+        <div className="space-y-3" data-color-mode={resolved}>
+          <div data-testid="agents-md-editor">
+            {testMode ? (
+              <textarea
+                className="input w-full font-mono text-sm min-h-[200px] resize-y"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                placeholder="# Agent Instructions\n\nAdd instructions for your agents..."
+                data-testid="agents-md-textarea"
+              />
+            ) : (
+              <MDEditor
+                value={editValue}
+                onChange={(v) => setEditValue(v ?? "")}
+                height={280}
+                visibleDragbar={false}
+                preview="edit"
+                textareaProps={{
+                  placeholder: "# Agent Instructions\n\nAdd instructions for your agents...",
+                }}
+                extraCommands={[
+                  {
+                    name: "prettify",
+                    keyCommand: "prettify",
+                    buttonProps: { "aria-label": "Prettify markdown" },
+                    icon: (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M4 6h16M4 12h10M4 18h16" />
+                      </svg>
+                    ),
+                    execute: () => {
+                      handlePrettify();
+                    },
+                  },
+                ]}
+                previewOptions={{
+                  remarkPlugins: [remarkGfm],
+                }}
+              />
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -119,6 +178,15 @@ export function AgentsMdSection({ projectId }: AgentsMdSectionProps) {
               data-testid="agents-md-save"
             >
               {saving ? "Saving..." : "Save"}
+            </button>
+            <button
+              type="button"
+              onClick={handlePrettify}
+              disabled={saving}
+              className="btn-secondary text-sm"
+              data-testid="agents-md-prettify"
+            >
+              Prettify
             </button>
             <button
               type="button"

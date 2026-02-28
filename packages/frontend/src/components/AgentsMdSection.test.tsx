@@ -7,6 +7,11 @@ import { AgentsMdSection } from "./AgentsMdSection";
 const mockGetAgentsInstructions = vi.fn();
 const mockUpdateAgentsInstructions = vi.fn();
 
+vi.mock("prettier", () => ({
+  format: (content: string) => Promise.resolve(content),
+}));
+vi.mock("prettier/plugins/markdown", () => ({ default: {} }));
+
 vi.mock("../api/client", () => ({
   api: {
     projects: {
@@ -33,10 +38,10 @@ describe("AgentsMdSection", () => {
     mockUpdateAgentsInstructions.mockResolvedValue({ saved: true });
   });
 
-  function renderSection() {
+  function renderSection(opts?: { testMode?: boolean }) {
     return render(
       <ThemeProvider>
-        <AgentsMdSection projectId={projectId} />
+        <AgentsMdSection projectId={projectId} testMode={opts?.testMode} />
       </ThemeProvider>
     );
   }
@@ -78,7 +83,7 @@ describe("AgentsMdSection", () => {
 
   it("switches to edit mode when Edit is clicked", async () => {
     const user = userEvent.setup();
-    renderSection();
+    renderSection({ testMode: true });
 
     await screen.findByTestId("agents-md-view");
     await user.click(screen.getByTestId("agents-md-edit"));
@@ -92,7 +97,7 @@ describe("AgentsMdSection", () => {
 
   it("calls PUT and returns to view mode on Save", async () => {
     const user = userEvent.setup();
-    renderSection();
+    renderSection({ testMode: true });
 
     await screen.findByTestId("agents-md-view");
     await user.click(screen.getByTestId("agents-md-edit"));
@@ -113,7 +118,7 @@ describe("AgentsMdSection", () => {
 
   it("discards changes and returns to view mode on Cancel", async () => {
     const user = userEvent.setup();
-    renderSection();
+    renderSection({ testMode: true });
 
     await screen.findByTestId("agents-md-view");
     await user.click(screen.getByTestId("agents-md-edit"));
@@ -132,12 +137,41 @@ describe("AgentsMdSection", () => {
   it("shows error feedback when save fails", async () => {
     mockUpdateAgentsInstructions.mockRejectedValue(new Error("Save failed"));
     const user = userEvent.setup();
-    renderSection();
+    renderSection({ testMode: true });
 
     await screen.findByTestId("agents-md-view");
     await user.click(screen.getByTestId("agents-md-edit"));
     await user.click(screen.getByTestId("agents-md-save"));
 
-    expect(screen.getByText("Save failed")).toBeInTheDocument();
+    expect(await screen.findByText(/Save failed/)).toBeInTheDocument();
+  });
+
+  it("shows Prettify button and formats on demand in edit mode", async () => {
+    const user = userEvent.setup();
+    renderSection({ testMode: true });
+
+    await screen.findByTestId("agents-md-view");
+    await user.click(screen.getByTestId("agents-md-edit"));
+
+    expect(screen.getByTestId("agents-md-prettify")).toBeInTheDocument();
+    const textarea = screen.getByTestId("agents-md-textarea");
+    await user.clear(textarea);
+    await user.type(textarea, "#  Title\n\n- item1\n- item2");
+    await user.click(screen.getByTestId("agents-md-prettify"));
+
+    expect(textarea).toHaveValue("#  Title\n\n- item1\n- item2");
+  });
+
+  it("shows MDEditor with toolbar when not in test mode", async () => {
+    const user = userEvent.setup();
+    renderSection();
+
+    await screen.findByTestId("agents-md-view");
+    await user.click(screen.getByTestId("agents-md-edit"));
+
+    const editor = screen.getByTestId("agents-md-editor");
+    expect(editor).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /bold/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /italic/i })).toBeInTheDocument();
   });
 });
