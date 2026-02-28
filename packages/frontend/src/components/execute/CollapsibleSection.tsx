@@ -1,9 +1,11 @@
+import React from "react";
+
 /**
  * Shared collapsible section header and content wrapper.
  * Used by Description, Source Feedback, and Live Output sections in the task detail sidebar
  * so all three have identical element structure, styling, and collapse/expand behavior.
  */
-export function CollapsibleSection({
+function CollapsibleSectionInner({
   title,
   expanded,
   onToggle,
@@ -44,3 +46,5 @@ export function CollapsibleSection({
     </div>
   );
 }
+
+export const CollapsibleSection = React.memo(CollapsibleSectionInner);

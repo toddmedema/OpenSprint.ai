@@ -1,7 +1,9 @@
+import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Provider } from "react-redux";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { configureStore } from "@reduxjs/toolkit";
 import { SourceFeedbackSection } from "./SourceFeedbackSection";
 import evalReducer from "../../store/slices/evalSlice";
@@ -17,10 +19,20 @@ vi.mock("../../api/client", () => ({
   },
 }));
 
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
 function createStore() {
   return configureStore({
     reducer: { eval: evalReducer, notification: notificationReducer },
   });
+}
+
+function renderWithProviders(ui: React.ReactElement) {
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <Provider store={createStore()}>{ui}</Provider>
+    </QueryClientProvider>
+  );
 }
 
 describe("SourceFeedbackSection", () => {
@@ -30,15 +42,13 @@ describe("SourceFeedbackSection", () => {
   });
 
   it("renders collapsible header with Source Feedback label", () => {
-    render(
-      <Provider store={createStore()}>
-        <SourceFeedbackSection
-          projectId="proj-1"
-          feedbackId="fb-1"
-          expanded={false}
-          onToggle={() => {}}
-        />
-      </Provider>
+    renderWithProviders(
+      <SourceFeedbackSection
+        projectId="proj-1"
+        feedbackId="fb-1"
+        expanded={false}
+        onToggle={() => {}}
+      />
     );
 
     expect(screen.getByRole("button", { name: /source feedback/i })).toBeInTheDocument();
@@ -48,15 +58,13 @@ describe("SourceFeedbackSection", () => {
   it("calls onToggle when header is clicked", async () => {
     const user = userEvent.setup();
     const onToggle = vi.fn();
-    render(
-      <Provider store={createStore()}>
-        <SourceFeedbackSection
-          projectId="proj-1"
-          feedbackId="fb-1"
-          expanded={false}
-          onToggle={onToggle}
-        />
-      </Provider>
+    renderWithProviders(
+      <SourceFeedbackSection
+        projectId="proj-1"
+        feedbackId="fb-1"
+        expanded={false}
+        onToggle={onToggle}
+      />
     );
 
     await user.click(screen.getByRole("button", { name: /source feedback/i }));
@@ -74,15 +82,13 @@ describe("SourceFeedbackSection", () => {
       createdAt: "2026-02-17T10:00:00Z",
     });
 
-    render(
-      <Provider store={createStore()}>
-        <SourceFeedbackSection
-          projectId="proj-1"
-          feedbackId="fb-1"
-          expanded={true}
-          onToggle={() => {}}
-        />
-      </Provider>
+    renderWithProviders(
+      <SourceFeedbackSection
+        projectId="proj-1"
+        feedbackId="fb-1"
+        expanded={true}
+        onToggle={() => {}}
+      />
     );
 
     expect(await screen.findByText("Add dark mode support")).toBeInTheDocument();
@@ -100,30 +106,26 @@ describe("SourceFeedbackSection", () => {
       createdAt: "2026-02-17T10:00:00Z",
     });
 
-    render(
-      <Provider store={createStore()}>
-        <SourceFeedbackSection
-          projectId="proj-1"
-          feedbackId="fb-1"
-          expanded={true}
-          onToggle={() => {}}
-        />
-      </Provider>
+    renderWithProviders(
+      <SourceFeedbackSection
+        projectId="proj-1"
+        feedbackId="fb-1"
+        expanded={true}
+        onToggle={() => {}}
+      />
     );
 
     expect(await screen.findByText("Resolved")).toBeInTheDocument();
   });
 
   it("does not fetch when collapsed", () => {
-    render(
-      <Provider store={createStore()}>
-        <SourceFeedbackSection
-          projectId="proj-1"
-          feedbackId="fb-1"
-          expanded={false}
-          onToggle={() => {}}
-        />
-      </Provider>
+    renderWithProviders(
+      <SourceFeedbackSection
+        projectId="proj-1"
+        feedbackId="fb-1"
+        expanded={false}
+        onToggle={() => {}}
+      />
     );
 
     expect(mockFeedbackGet).not.toHaveBeenCalled();
@@ -140,15 +142,13 @@ describe("SourceFeedbackSection", () => {
       createdAt: "2026-02-17T10:00:00Z",
     });
 
-    const { container } = render(
-      <Provider store={createStore()}>
-        <SourceFeedbackSection
-          projectId="proj-1"
-          feedbackId="fb-1"
-          expanded={true}
-          onToggle={() => {}}
-        />
-      </Provider>
+    const { container } = renderWithProviders(
+      <SourceFeedbackSection
+        projectId="proj-1"
+        feedbackId="fb-1"
+        expanded={true}
+        onToggle={() => {}}
+      />
     );
 
     await screen.findByText("Test feedback");
@@ -181,15 +181,13 @@ describe("SourceFeedbackSection", () => {
       createdAt: "2026-02-17T10:00:00Z",
     });
 
-    render(
-      <Provider store={createStore()}>
-        <SourceFeedbackSection
-          projectId="proj-1"
-          feedbackId="fb-1"
-          expanded={true}
-          onToggle={() => {}}
-        />
-      </Provider>
+    renderWithProviders(
+      <SourceFeedbackSection
+        projectId="proj-1"
+        feedbackId="fb-1"
+        expanded={true}
+        onToggle={() => {}}
+      />
     );
 
     await screen.findByText("Add dark mode support");
@@ -209,15 +207,13 @@ describe("SourceFeedbackSection", () => {
       createdAt: "2026-02-17T10:00:00Z",
     });
 
-    render(
-      <Provider store={createStore()}>
-        <SourceFeedbackSection
-          projectId="proj-1"
-          feedbackId="fb-1"
-          expanded={true}
-          onToggle={() => {}}
-        />
-      </Provider>
+    renderWithProviders(
+      <SourceFeedbackSection
+        projectId="proj-1"
+        feedbackId="fb-1"
+        expanded={true}
+        onToggle={() => {}}
+      />
     );
 
     await screen.findByText("Fix the bug");
@@ -228,15 +224,13 @@ describe("SourceFeedbackSection", () => {
   it("shows loading state with matching container styling", () => {
     mockFeedbackGet.mockImplementation(() => new Promise(() => {}));
 
-    render(
-      <Provider store={createStore()}>
-        <SourceFeedbackSection
-          projectId="proj-1"
-          feedbackId="fb-1"
-          expanded={true}
-          onToggle={() => {}}
-        />
-      </Provider>
+    renderWithProviders(
+      <SourceFeedbackSection
+        projectId="proj-1"
+        feedbackId="fb-1"
+        expanded={true}
+        onToggle={() => {}}
+      />
     );
 
     expect(screen.getByTestId("source-feedback-loading")).toBeInTheDocument();

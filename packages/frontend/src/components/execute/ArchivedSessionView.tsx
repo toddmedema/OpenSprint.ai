@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { AgentSession } from "@opensprint/shared";
 import { filterAgentOutput } from "../../utils/agentOutputFilter";
 
-export function ArchivedSessionView({ sessions }: { sessions: AgentSession[] }) {
+function ArchivedSessionViewInner({ sessions }: { sessions: AgentSession[] }) {
   const [activeTab, setActiveTab] = useState<"output" | "diff">("output");
   const [selectedIdx, setSelectedIdx] = useState(sessions.length - 1);
   useEffect(() => {
@@ -94,3 +94,5 @@ export function ArchivedSessionView({ sessions }: { sessions: AgentSession[] }) 
     </div>
   );
 }
+
+export const ArchivedSessionView = React.memo(ArchivedSessionViewInner);

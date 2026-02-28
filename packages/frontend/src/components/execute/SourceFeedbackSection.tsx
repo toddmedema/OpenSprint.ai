@@ -1,10 +1,10 @@
-import { useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { useAppDispatch } from "../../store";
 import { addNotification } from "../../store/slices/notificationSlice";
 import { useFeedbackItem } from "../../api/hooks";
 import { CollapsibleSection } from "./CollapsibleSection";
 
-export function SourceFeedbackSection({
+function SourceFeedbackSectionInner({
   projectId,
   feedbackId,
   expanded,
@@ -84,3 +84,5 @@ export function SourceFeedbackSection({
     </CollapsibleSection>
   );
 }
+
+export const SourceFeedbackSection = React.memo(SourceFeedbackSectionInner);

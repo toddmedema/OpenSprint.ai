@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, useMemo } from "react";
 import { useAutoScroll } from "../../hooks/useAutoScroll";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -22,6 +22,15 @@ import { SourceFeedbackSection } from "./SourceFeedbackSection";
 import { AddLinkFlow } from "./AddLinkFlow";
 import { OpenQuestionsBlock } from "../OpenQuestionsBlock";
 import { api } from "../../api/client";
+
+const DescriptionMarkdown = React.memo(({ content }: { content: string }) => (
+  <div
+    className="prose-task-description prose-execute-task"
+    data-testid="task-description-markdown"
+  >
+    <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+  </div>
+));
 
 export interface TaskDetailSidebarProps {
   projectId: string;
@@ -71,7 +80,49 @@ const activeRoleLabel = (selectedTask: string, activeTasks: ActiveTaskInfo[]) =>
   return AGENT_ROLE_LABELS[phase === "coding" ? "coder" : "reviewer"] ?? null;
 };
 
-export function TaskDetailSidebar({
+function areTaskDetailSidebarPropsEqual(
+  prev: TaskDetailSidebarProps,
+  next: TaskDetailSidebarProps
+): boolean {
+  if (
+    prev.projectId !== next.projectId ||
+    prev.selectedTask !== next.selectedTask ||
+    prev.selectedTaskData !== next.selectedTaskData ||
+    prev.taskDetailLoading !== next.taskDetailLoading ||
+    prev.taskDetailError !== next.taskDetailError ||
+    prev.archivedLoading !== next.archivedLoading ||
+    prev.markDoneLoading !== next.markDoneLoading ||
+    prev.unblockLoading !== next.unblockLoading ||
+    prev.taskIdToStartedAt !== next.taskIdToStartedAt ||
+    prev.plans !== next.plans ||
+    prev.tasks !== next.tasks ||
+    prev.activeTasks !== next.activeTasks ||
+    prev.wsConnected !== next.wsConnected ||
+    prev.isDoneTask !== next.isDoneTask ||
+    prev.isBlockedTask !== next.isBlockedTask ||
+    prev.sourceFeedbackExpanded !== next.sourceFeedbackExpanded ||
+    prev.setSourceFeedbackExpanded !== next.setSourceFeedbackExpanded ||
+    prev.descriptionSectionExpanded !== next.descriptionSectionExpanded ||
+    prev.setDescriptionSectionExpanded !== next.setDescriptionSectionExpanded ||
+    prev.artifactsSectionExpanded !== next.artifactsSectionExpanded ||
+    prev.setArtifactsSectionExpanded !== next.setArtifactsSectionExpanded ||
+    prev.onNavigateToPlan !== next.onNavigateToPlan ||
+    prev.onClose !== next.onClose ||
+    prev.openQuestionNotification !== next.openQuestionNotification ||
+    prev.onOpenQuestionResolved !== next.onOpenQuestionResolved ||
+    prev.onMarkDone !== next.onMarkDone ||
+    prev.onUnblock !== next.onUnblock ||
+    prev.onSelectTask !== next.onSelectTask
+  ) {
+    return false;
+  }
+  if (prev.agentOutput !== next.agentOutput) return false;
+  if (prev.archivedSessions !== next.archivedSessions) return false;
+  if (prev.completionState !== next.completionState) return false;
+  return true;
+}
+
+function TaskDetailSidebarInner({
   projectId,
   selectedTask,
   selectedTaskData,
@@ -108,13 +159,15 @@ export function TaskDetailSidebar({
   const roleLabel = activeRoleLabel(selectedTask, activeTasks);
   const [priorityDropdownOpen, setPriorityDropdownOpen] = useState(false);
 
+  const agentOutputText = useMemo(() => agentOutput.join(""), [agentOutput]);
+
   const {
     containerRef: liveOutputRef,
     showJumpToBottom,
     jumpToBottom,
     handleScroll: handleLiveOutputScroll,
   } = useAutoScroll({
-    contentLength: agentOutput.join("").length,
+    contentLength: agentOutputText.length,
     resetKey: selectedTask,
   });
   const priorityDropdownRef = useRef<HTMLDivElement>(null);
@@ -124,6 +177,33 @@ export function TaskDetailSidebar({
   const [addLinkOpen, setAddLinkOpen] = useState(false);
   const task = selectedTaskData;
   const displayLabel = task ? complexityToDisplay(task.complexity) : null;
+
+  const displayDesc = useMemo(() => {
+    if (!task) return "";
+    const desc = task.description ?? "";
+    const isOnlyFeedbackId = /^Feedback ID:\s*.+$/.test(desc.trim());
+    const hasSourceFeedback =
+      (task.sourceFeedbackIds?.length ?? (task.sourceFeedbackId ? 1 : 0)) > 0;
+    return hasSourceFeedback && isOnlyFeedbackId ? "" : desc;
+  }, [task?.description, task?.sourceFeedbackIds, task?.sourceFeedbackId]);
+
+  const feedbackIds = useMemo(
+    () =>
+      task?.sourceFeedbackIds ?? (task?.sourceFeedbackId ? [task.sourceFeedbackId] : []),
+    [task?.sourceFeedbackIds, task?.sourceFeedbackId]
+  );
+
+  const sourceFeedbackToggleCallbacks = useMemo(() => {
+    const map: Record<string, () => void> = {};
+    feedbackIds.forEach((feedbackId, index) => {
+      map[feedbackId] = () =>
+        setSourceFeedbackExpanded((prev) => ({
+          ...prev,
+          [feedbackId]: !(prev[feedbackId] ?? index === 0),
+        }));
+    });
+    return map;
+  }, [feedbackIds, setSourceFeedbackExpanded]);
 
   const hasActions = isBlockedTask || (!isDoneTask && !isBlockedTask);
 
@@ -526,66 +606,36 @@ export function TaskDetailSidebar({
           </div>
         )}
 
-        {task &&
-          (() => {
-            const desc = task.description ?? "";
-            const isOnlyFeedbackId = /^Feedback ID:\s*.+$/.test(desc.trim());
-            const hasSourceFeedback =
-              (task.sourceFeedbackIds?.length ?? (task.sourceFeedbackId ? 1 : 0)) > 0;
-            const displayDesc = hasSourceFeedback && isOnlyFeedbackId ? "" : desc;
-            if (!displayDesc) return null;
+        {task && displayDesc ? (
+          <CollapsibleSection
+            title="Description"
+            expanded={descriptionSectionExpanded}
+            onToggle={() => setDescriptionSectionExpanded((prev) => !prev)}
+            expandAriaLabel="Expand Description"
+            collapseAriaLabel="Collapse Description"
+            contentId="description-content"
+            headerId="description-header"
+          >
+            <DescriptionMarkdown content={displayDesc} />
+          </CollapsibleSection>
+        ) : null}
 
-            return (
-              <>
-                {/* Description */}
-                {displayDesc && (
-                  <CollapsibleSection
-                    title="Description"
-                    expanded={descriptionSectionExpanded}
-                    onToggle={() => setDescriptionSectionExpanded((prev) => !prev)}
-                    expandAriaLabel="Expand Description"
-                    collapseAriaLabel="Collapse Description"
-                    contentId="description-content"
-                    headerId="description-header"
-                  >
-                    <div
-                      className="prose-task-description prose-execute-task"
-                      data-testid="task-description-markdown"
-                    >
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayDesc}</ReactMarkdown>
-                    </div>
-                  </CollapsibleSection>
-                )}
-              </>
-            );
-          })()}
-
-        {((): React.ReactNode => {
-          // Support both sourceFeedbackIds (array) and legacy sourceFeedbackId (single)
-          const feedbackIds =
-            task?.sourceFeedbackIds ?? (task?.sourceFeedbackId ? [task.sourceFeedbackId] : []);
-          if (feedbackIds.length === 0) return null;
-          const count = feedbackIds.length;
-          return feedbackIds.map((feedbackId, index) => (
-            <SourceFeedbackSection
-              key={feedbackId}
-              projectId={projectId}
-              feedbackId={feedbackId}
-              expanded={sourceFeedbackExpanded[feedbackId] ?? index === 0}
-              onToggle={() =>
-                setSourceFeedbackExpanded((prev) => ({
-                  ...prev,
-                  [feedbackId]: !(prev[feedbackId] ?? index === 0),
-                }))
-              }
-              title={
-                count > 1
-                  ? `Source feedback (${index + 1} of ${count})`
-                  : "Source Feedback"
-              }
-            />
-          ));
-        })()}
+        {feedbackIds.length > 0
+          ? feedbackIds.map((feedbackId, index) => (
+              <SourceFeedbackSection
+                key={feedbackId}
+                projectId={projectId}
+                feedbackId={feedbackId}
+                expanded={sourceFeedbackExpanded[feedbackId] ?? index === 0}
+                onToggle={sourceFeedbackToggleCallbacks[feedbackId] ?? (() => {})}
+                title={
+                  feedbackIds.length > 1
+                    ? `Source feedback (${index + 1} of ${feedbackIds.length})`
+                    : "Source Feedback"
+                }
+              />
+            ))
+          : null}
 
         <CollapsibleSection
           title={isDoneTask ? "Done Work Artifacts" : "Live agent output"}
@@ -645,8 +695,8 @@ export function TaskDetailSidebar({
                       onScroll={handleLiveOutputScroll}
                     >
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {agentOutput.length > 0
-                          ? agentOutput.join("")
+                        {agentOutputText.length > 0
+                          ? agentOutputText
                           : archivedSessions.length > 0
                             ? filterAgentOutput(
                                 archivedSessions[archivedSessions.length - 1]?.outputLog ?? ""
@@ -715,3 +765,8 @@ export function TaskDetailSidebar({
     </>
   );
 }
+
+export const TaskDetailSidebar = React.memo(
+  TaskDetailSidebarInner,
+  areTaskDetailSidebarPropsEqual
+);

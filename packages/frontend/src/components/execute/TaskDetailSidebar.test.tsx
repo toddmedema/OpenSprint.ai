@@ -1,7 +1,9 @@
+import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Provider, useSelector } from "react-redux";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { configureStore } from "@reduxjs/toolkit";
 import type { RootState } from "../../store";
 import { TaskDetailSidebar } from "./TaskDetailSidebar";
@@ -98,6 +100,8 @@ function createMinimalProps(overrides: Record<string, unknown> = {}) {
   };
 }
 
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
 function createStore() {
   return configureStore({
     reducer: {
@@ -129,6 +133,25 @@ function createStore() {
   });
 }
 
+function wrapWithProviders(
+  ui: React.ReactElement,
+  store?: ReturnType<typeof createStore>
+) {
+  const s = store ?? createStore();
+  return (
+    <QueryClientProvider client={queryClient}>
+      <Provider store={s}>{ui}</Provider>
+    </QueryClientProvider>
+  );
+}
+
+function renderWithProviders(
+  ui: React.ReactElement,
+  options?: { store?: ReturnType<typeof createStore> }
+) {
+  return render(wrapWithProviders(ui, options?.store));
+}
+
 describe("TaskDetailSidebar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -140,11 +163,7 @@ describe("TaskDetailSidebar", () => {
 
   it("renders task title from selectedTaskData", () => {
     const props = createMinimalProps();
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     expect(screen.getByTestId("task-detail-title")).toHaveTextContent("Task A");
   });
@@ -166,11 +185,7 @@ describe("TaskDetailSidebar", () => {
       openQuestionNotification,
       onOpenQuestionResolved: vi.fn(),
     });
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     expect(screen.getByTestId("open-questions-block")).toBeInTheDocument();
     expect(screen.getByText("Which database should I use for this feature?")).toBeInTheDocument();
@@ -197,11 +212,7 @@ describe("TaskDetailSidebar", () => {
         updatedAt: "",
       },
     });
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     expect(screen.getByTestId("task-detail-title")).toHaveTextContent("Cached Task Title");
     expect(screen.getByTestId("task-detail-loading")).toBeInTheDocument();
@@ -227,11 +238,7 @@ describe("TaskDetailSidebar", () => {
         updatedAt: "",
       },
     });
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     expect(screen.getByTestId("task-detail-title")).toHaveTextContent("Task With Error");
     expect(screen.getByTestId("task-detail-error")).toHaveTextContent(
@@ -242,11 +249,7 @@ describe("TaskDetailSidebar", () => {
   it("renders actions menu with Mark done when task is not done and not blocked", async () => {
     const user = userEvent.setup();
     const props = createMinimalProps();
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     expect(screen.getByTestId("sidebar-actions-menu-trigger")).toBeInTheDocument();
     expect(screen.queryByTestId("sidebar-unblock-btn")).not.toBeInTheDocument();
@@ -257,11 +260,7 @@ describe("TaskDetailSidebar", () => {
 
   it("renders actions menu trigger to the right of title, close to the left of X", () => {
     const props = createMinimalProps();
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     const title = screen.getByTestId("task-detail-title");
     const menuTrigger = screen.getByTestId("sidebar-actions-menu-trigger");
@@ -295,11 +294,7 @@ describe("TaskDetailSidebar", () => {
       },
       isBlockedTask: true,
     });
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     expect(screen.getByTestId("sidebar-actions-menu-trigger")).toBeInTheDocument();
     await user.click(screen.getByTestId("sidebar-actions-menu-trigger"));
@@ -327,11 +322,7 @@ describe("TaskDetailSidebar", () => {
       },
       isBlockedTask: true,
     });
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     const blockReason = screen.getByTestId("task-block-reason");
     expect(blockReason).toBeInTheDocument();
@@ -343,11 +334,7 @@ describe("TaskDetailSidebar", () => {
     const onClose = vi.fn();
     const props = createMinimalProps({ onClose });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     await user.click(screen.getByRole("button", { name: "Close task detail" }));
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -358,11 +345,7 @@ describe("TaskDetailSidebar", () => {
     const onMarkDone = vi.fn();
     const props = createMinimalProps({ onMarkDone });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     await user.click(screen.getByTestId("sidebar-actions-menu-trigger"));
     await user.click(screen.getByTestId("sidebar-mark-done-btn"));
@@ -392,11 +375,7 @@ describe("TaskDetailSidebar", () => {
       isBlockedTask: true,
     });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     await user.click(screen.getByTestId("sidebar-actions-menu-trigger"));
     await user.click(screen.getByTestId("sidebar-unblock-btn"));
@@ -405,11 +384,7 @@ describe("TaskDetailSidebar", () => {
 
   it("does not render actions menu when task is done", () => {
     const props = createMinimalProps({ isDoneTask: true });
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     expect(screen.queryByTestId("sidebar-actions-menu-trigger")).not.toBeInTheDocument();
   });
@@ -417,11 +392,7 @@ describe("TaskDetailSidebar", () => {
   it("closes actions menu on outside click", async () => {
     const user = userEvent.setup();
     const props = createMinimalProps();
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     await user.click(screen.getByTestId("sidebar-actions-menu-trigger"));
     expect(screen.getByTestId("sidebar-actions-menu")).toBeInTheDocument();
@@ -436,11 +407,7 @@ describe("TaskDetailSidebar", () => {
       agentOutput: ["Hello **world**"],
     });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     const container = screen.getByTestId("live-agent-output");
     expect(container.tagName).toBe("DIV");
@@ -456,11 +423,7 @@ describe("TaskDetailSidebar", () => {
       agentOutput: ["**Bold text** and `inline code`\n\n```\ncode block\n```"],
     });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     const container = screen.getByTestId("live-agent-output");
     expect(container).toBeInTheDocument();
@@ -476,11 +439,7 @@ describe("TaskDetailSidebar", () => {
       agentOutput: ["```\ncode\n```"],
     });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     const container = screen.getByTestId("live-agent-output");
     expect(container).toHaveClass("prose-execute-task");
@@ -508,11 +467,7 @@ describe("TaskDetailSidebar", () => {
       ],
     });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     const container = screen.getByTestId("live-agent-output");
     expect(container).toHaveTextContent("Visible content");
@@ -554,11 +509,7 @@ describe("TaskDetailSidebar", () => {
       ],
     });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     const container = screen.getByTestId("live-agent-output");
     expect(container).toHaveTextContent("Merge conflict output from failed run");
@@ -572,11 +523,7 @@ describe("TaskDetailSidebar", () => {
       agentOutput: ["Line 1\n", "Line 2\n", "Line 3\n"],
     });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     const pre = screen.getByTestId("live-agent-output");
     expect(pre).toBeInTheDocument();
@@ -599,11 +546,7 @@ describe("TaskDetailSidebar", () => {
       agentOutput: ["Line 1\n", "Line 2\n", "Line 3\n"],
     });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     const pre = screen.getByTestId("live-agent-output");
     Object.defineProperty(pre, "scrollHeight", { value: 500, configurable: true });
@@ -628,11 +571,7 @@ describe("TaskDetailSidebar", () => {
   it("shows connecting state when wsConnected is false and task is not done", () => {
     const props = createMinimalProps({ wsConnected: false, isDoneTask: false });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     expect(screen.getByTestId("live-output-connecting")).toBeInTheDocument();
     expect(screen.getByText("Connecting to live output…")).toBeInTheDocument();
@@ -641,11 +580,7 @@ describe("TaskDetailSidebar", () => {
   it("shows task detail error when taskDetailError is set", () => {
     const props = createMinimalProps({ taskDetailError: "Network error" });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     expect(screen.getByTestId("task-detail-error")).toHaveTextContent("Network error");
   });
@@ -686,11 +621,7 @@ describe("TaskDetailSidebar", () => {
       descriptionSectionExpanded: true,
     });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     const linksHeader = screen.getByText("Links:");
     const descriptionHeader = screen.getByRole("button", { name: /collapse description/i });
@@ -720,11 +651,7 @@ describe("TaskDetailSidebar", () => {
       descriptionSectionExpanded: true,
     });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     expect(screen.queryByText("Links:")).not.toBeInTheDocument();
   });
@@ -752,11 +679,7 @@ describe("TaskDetailSidebar", () => {
       descriptionSectionExpanded: true,
     });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     expect(screen.getByText("Links:")).toBeInTheDocument();
     const planLink = screen.getByTestId("sidebar-view-plan-btn");
@@ -802,11 +725,7 @@ describe("TaskDetailSidebar", () => {
       descriptionSectionExpanded: true,
     });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     expect(screen.getByText("Links:")).toBeInTheDocument();
     const planLink = screen.getByTestId("sidebar-view-plan-btn");
@@ -856,11 +775,7 @@ describe("TaskDetailSidebar", () => {
       descriptionSectionExpanded: true,
     });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     expect(screen.getByText("Links:")).toBeInTheDocument();
     expect(screen.getByText("Prerequisite Task")).toBeInTheDocument();
@@ -903,11 +818,7 @@ describe("TaskDetailSidebar", () => {
       descriptionSectionExpanded: true,
     });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     expect(screen.getByText("Links:")).toBeInTheDocument();
     expect(screen.getByText("Other Task")).toBeInTheDocument();
@@ -983,11 +894,7 @@ describe("TaskDetailSidebar", () => {
       descriptionSectionExpanded: true,
     });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     expect(screen.getByText("Links:")).toBeInTheDocument();
     expect(screen.getByText("Blocked on:")).toBeInTheDocument();
@@ -1010,11 +917,7 @@ describe("TaskDetailSidebar", () => {
   describe("Add link", () => {
     it("shows Add link button in Execute sidebar", () => {
       const props = createMinimalProps({ tasks: [{ id: "epic-1.2", title: "Task B" }] });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       expect(screen.getByTestId("sidebar-add-link-btn")).toBeInTheDocument();
       expect(screen.getByTestId("sidebar-add-link-btn")).toHaveTextContent("Add link");
     });
@@ -1027,11 +930,7 @@ describe("TaskDetailSidebar", () => {
           { id: "epic-1.2", title: "Task B", epicId: "epic-1", kanbanColumn: "in_progress" as const, priority: 0, assignee: null, type: "task" as const, status: "in_progress" as const, labels: [], dependencies: [], description: "", createdAt: "", updatedAt: "" },
         ],
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       await user.click(screen.getByTestId("sidebar-add-link-btn"));
       expect(screen.getByTestId("add-link-flow")).toBeInTheDocument();
       expect(screen.getByTestId("add-link-type-select")).toBeInTheDocument();
@@ -1049,11 +948,7 @@ describe("TaskDetailSidebar", () => {
     it("cancel dismisses Add link flow without changes", async () => {
       const user = userEvent.setup();
       const props = createMinimalProps({ tasks: [{ id: "epic-1.2", title: "Task B" }] });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       await user.click(screen.getByTestId("sidebar-add-link-btn"));
       expect(screen.getByTestId("add-link-flow")).toBeInTheDocument();
       await user.click(screen.getByTestId("add-link-cancel-btn"));
@@ -1085,11 +980,7 @@ describe("TaskDetailSidebar", () => {
           { id: "epic-1.2", title: "Task B", epicId: "epic-1", kanbanColumn: "in_progress" as const, priority: 0, assignee: null, type: "task" as const, status: "in_progress" as const, labels: [], dependencies: [], description: "", createdAt: "", updatedAt: "" },
         ],
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       await user.click(screen.getByTestId("sidebar-add-link-btn"));
       await user.type(screen.getByTestId("add-link-input"), "b");
       const suggestion = await screen.findByTestId("add-link-suggestions");
@@ -1127,11 +1018,7 @@ describe("TaskDetailSidebar", () => {
           taskC,
         ],
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       await user.click(screen.getByTestId("sidebar-add-link-btn"));
       await user.type(screen.getByTestId("add-link-input"), "task");
       const suggestionList = await screen.findByTestId("add-link-suggestions");
@@ -1164,11 +1051,7 @@ describe("TaskDetailSidebar", () => {
           taskC,
         ],
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       await user.click(screen.getByTestId("sidebar-add-link-btn"));
       await user.type(screen.getByTestId("add-link-input"), "task");
       const suggestionList = await screen.findByTestId("add-link-suggestions");
@@ -1210,11 +1093,7 @@ describe("TaskDetailSidebar", () => {
           { id: "epic-1.2", title: "Task B", epicId: "epic-1", kanbanColumn: "in_progress" as const, priority: 0, assignee: null, type: "task" as const, status: "in_progress" as const, labels: [], dependencies: [], description: "", createdAt: "", updatedAt: "" },
         ],
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       await user.click(screen.getByTestId("sidebar-add-link-btn"));
       await user.type(screen.getByTestId("add-link-input"), "b");
       await screen.findByTestId("add-link-suggestions");
@@ -1244,11 +1123,7 @@ describe("TaskDetailSidebar", () => {
       },
     });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     expect(screen.getByTestId("task-description-markdown")).toBeInTheDocument();
     expect(screen.getByText("Steps")).toBeInTheDocument();
@@ -1275,11 +1150,7 @@ describe("TaskDetailSidebar", () => {
       },
     });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     const markdownEl = screen.getByTestId("task-description-markdown");
     expect(markdownEl).toHaveClass("prose-task-description");
@@ -1307,11 +1178,7 @@ describe("TaskDetailSidebar", () => {
       const props = createMinimalProps({
         selectedTaskData: { ...taskDetailWithPriority(1), status: "open" as const },
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       expect(screen.getByTestId("priority-dropdown-trigger")).toBeInTheDocument();
       expect(screen.queryByTestId("priority-read-only")).not.toBeInTheDocument();
     });
@@ -1320,11 +1187,7 @@ describe("TaskDetailSidebar", () => {
       const props = createMinimalProps({
         selectedTaskData: taskDetailWithPriority(1),
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       const trigger = screen.getByTestId("priority-dropdown-trigger");
       expect(trigger).toBeInTheDocument();
       expect(trigger).toHaveTextContent("High");
@@ -1335,11 +1198,7 @@ describe("TaskDetailSidebar", () => {
       const props = createMinimalProps({
         selectedTaskData: taskDetailWithPriority(1),
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       const trigger = screen.getByTestId("priority-dropdown-trigger");
       expect(within(trigger).getByRole("img", { name: "High" })).toBeInTheDocument();
     });
@@ -1349,11 +1208,7 @@ describe("TaskDetailSidebar", () => {
       const props = createMinimalProps({
         selectedTaskData: taskDetailWithPriority(2),
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       await user.click(screen.getByTestId("priority-dropdown-trigger"));
       const labels = ["Critical", "High", "Medium", "Low", "Lowest"] as const;
       for (let p = 0; p <= 4; p++) {
@@ -1367,11 +1222,7 @@ describe("TaskDetailSidebar", () => {
       const props = createMinimalProps({
         selectedTaskData: taskDetailWithPriority(2),
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       await user.click(screen.getByTestId("priority-dropdown-trigger"));
       const dropdown = screen.getByTestId("priority-dropdown");
       expect(dropdown).toBeInTheDocument();
@@ -1392,11 +1243,7 @@ describe("TaskDetailSidebar", () => {
       const props = createMinimalProps({
         selectedTaskData: taskDetailWithPriority(1),
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       await user.click(screen.getByTestId("priority-dropdown-trigger"));
       expect(screen.getByTestId("priority-dropdown")).toBeInTheDocument();
       await user.click(screen.getByTestId("priority-option-0"));
@@ -1409,11 +1256,7 @@ describe("TaskDetailSidebar", () => {
       const props = createMinimalProps({
         selectedTaskData: taskDetailWithPriority(2),
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       await user.click(screen.getByTestId("priority-dropdown-trigger"));
       await user.click(screen.getByTestId("priority-option-2"));
       expect(mockUpdatePriority).not.toHaveBeenCalled();
@@ -1424,11 +1267,7 @@ describe("TaskDetailSidebar", () => {
       const props = createMinimalProps({
         selectedTaskData: taskDetailWithPriority(2),
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       await user.click(screen.getByTestId("priority-dropdown-trigger"));
       expect(screen.getByTestId("priority-dropdown")).toBeInTheDocument();
       await user.click(document.body);
@@ -1444,11 +1283,7 @@ describe("TaskDetailSidebar", () => {
         },
         isDoneTask: true,
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       expect(screen.getByTestId("priority-read-only")).toBeInTheDocument();
       expect(screen.getByTestId("priority-read-only")).toHaveTextContent("Medium");
       expect(screen.getByTestId("priority-read-only")).toHaveClass("cursor-default");
@@ -1465,11 +1300,7 @@ describe("TaskDetailSidebar", () => {
         },
         isDoneTask: true,
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       const readOnly = screen.getByTestId("priority-read-only");
       await user.click(readOnly);
       expect(screen.queryByTestId("priority-dropdown")).not.toBeInTheDocument();
@@ -1485,19 +1316,20 @@ describe("TaskDetailSidebar", () => {
         })
       );
       const { rerender } = render(
-        <Provider store={store}>
+        wrapWithProviders(
           <TaskDetailSidebar
             {...createMinimalProps({
               selectedTaskData: { ...taskDetail, kanbanColumn: "in_progress" as const },
               isDoneTask: false,
             })}
-          />
-        </Provider>
+          />,
+          store
+        )
       );
       expect(screen.getByTestId("priority-dropdown-trigger")).toBeInTheDocument();
 
       rerender(
-        <Provider store={store}>
+        wrapWithProviders(
           <TaskDetailSidebar
             {...createMinimalProps({
               selectedTaskData: {
@@ -1507,8 +1339,9 @@ describe("TaskDetailSidebar", () => {
               },
               isDoneTask: true,
             })}
-          />
-        </Provider>
+          />,
+          store
+        )
       );
       expect(screen.getByTestId("priority-read-only")).toBeInTheDocument();
       expect(screen.queryByTestId("priority-dropdown-trigger")).not.toBeInTheDocument();
@@ -1541,11 +1374,7 @@ describe("TaskDetailSidebar", () => {
         });
         return <TaskDetailSidebar {...props} />;
       }
-      render(
-        <Provider store={store}>
-          <Wrapper />
-        </Provider>
-      );
+      render(wrapWithProviders(<Wrapper />, store));
       expect(screen.getByTestId("priority-dropdown-trigger")).toHaveTextContent("High");
       await user.click(screen.getByTestId("priority-dropdown-trigger"));
       await user.click(screen.getByTestId("priority-option-0"));
@@ -1567,11 +1396,7 @@ describe("TaskDetailSidebar", () => {
           complexity: 3,
         },
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       const complexity = screen.getByTestId("task-complexity");
       expect(complexity).toHaveTextContent("Simple");
       expect(complexity).toHaveAttribute("aria-label", "Complexity: Simple");
@@ -1585,11 +1410,7 @@ describe("TaskDetailSidebar", () => {
           complexity: 7,
         },
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       const complexity = screen.getByTestId("task-complexity");
       expect(complexity).toHaveTextContent("Complex");
       expect(complexity).toHaveAttribute("aria-label", "Complexity: Complex");
@@ -1603,11 +1424,7 @@ describe("TaskDetailSidebar", () => {
           complexity: undefined,
         },
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       const complexity = screen.getByTestId("task-complexity");
       expect(complexity).toHaveTextContent("—");
       expect(complexity).toHaveAttribute("aria-label", "Complexity: not set");
@@ -1620,11 +1437,7 @@ describe("TaskDetailSidebar", () => {
           complexity: 7,
         },
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       const row = screen.getByTestId("task-detail-priority-state-row");
       expect(row).toContainElement(screen.getByTestId("task-complexity"));
       expect(row).toHaveTextContent("Complex");
@@ -1644,11 +1457,7 @@ describe("TaskDetailSidebar", () => {
           completedAt: "2026-02-16T12:05:30.000Z",
         },
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       const duration = screen.getByTestId("task-duration");
       expect(duration).toHaveTextContent("Took 5:30");
       expect(duration).toHaveAttribute("aria-label", "Took 5:30");
@@ -1664,11 +1473,7 @@ describe("TaskDetailSidebar", () => {
           completedAt: null,
         },
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       expect(screen.queryByTestId("task-duration")).not.toBeInTheDocument();
     });
 
@@ -1683,11 +1488,7 @@ describe("TaskDetailSidebar", () => {
           completedAt: null,
         },
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       expect(screen.queryByTestId("task-duration")).not.toBeInTheDocument();
     });
 
@@ -1702,11 +1503,7 @@ describe("TaskDetailSidebar", () => {
           completedAt: "2026-02-16T12:05:30.000Z",
         },
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       expect(screen.queryByTestId("task-duration")).not.toBeInTheDocument();
     });
   });
@@ -1732,11 +1529,7 @@ describe("TaskDetailSidebar", () => {
       const props = createMinimalProps({
         selectedTaskData: taskDetailWithPriority(1),
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       const row = screen.getByTestId("task-detail-priority-state-row");
       expect(row).toBeInTheDocument();
       expect(within(row).getByTestId("priority-dropdown-trigger")).toHaveTextContent("High");
@@ -1749,11 +1542,7 @@ describe("TaskDetailSidebar", () => {
         const props = createMinimalProps({
           selectedTaskData: taskDetailWithPriority(p),
         });
-        const { unmount } = render(
-          <Provider store={createStore()}>
-            <TaskDetailSidebar {...props} />
-          </Provider>
-        );
+        const { unmount } = renderWithProviders(<TaskDetailSidebar {...props} />);
         const row = screen.getByTestId("task-detail-priority-state-row");
         expect(row).toBeInTheDocument();
         expect(within(row).getByText(labels[p])).toBeInTheDocument();
@@ -1777,11 +1566,7 @@ describe("TaskDetailSidebar", () => {
         ],
         taskIdToStartedAt: { "epic-1.1": startedAt },
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       const callout = screen.getByTestId("task-detail-active-callout");
       expect(callout).toBeInTheDocument();
       expect(callout).toHaveTextContent("Active: Coder");
@@ -1803,11 +1588,7 @@ describe("TaskDetailSidebar", () => {
         ],
         taskIdToStartedAt: { "epic-1.1": startedAt },
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       const callout = screen.getByTestId("task-detail-active-callout");
       expect(callout).toHaveTextContent("Active: Reviewer");
       expect(callout.textContent).toMatch(/2m/);
@@ -1825,11 +1606,7 @@ describe("TaskDetailSidebar", () => {
         ],
         taskIdToStartedAt: {},
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       const callout = screen.getByTestId("task-detail-active-callout");
       expect(callout).toHaveTextContent("Active: Coder");
     });
@@ -1838,11 +1615,7 @@ describe("TaskDetailSidebar", () => {
       const props = createMinimalProps({
         selectedTaskData: taskDetailWithPriority(1),
       });
-      render(
-        <Provider store={createStore()}>
-          <TaskDetailSidebar {...props} />
-        </Provider>
-      );
+      renderWithProviders(<TaskDetailSidebar {...props} />);
       const row = screen.getByTestId("task-detail-priority-state-row");
       expect(row).toHaveClass("flex");
       expect(row).toHaveClass("flex-wrap");
@@ -1880,11 +1653,7 @@ describe("TaskDetailSidebar", () => {
       artifactsSectionExpanded: true,
     });
 
-    const { container } = render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    const { container } = renderWithProviders(<TaskDetailSidebar {...props} />);
 
     await screen.findByText("Add feature");
 
@@ -1917,11 +1686,7 @@ describe("TaskDetailSidebar", () => {
       artifactsSectionExpanded: true,
     });
 
-    const { container } = render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    const { container } = renderWithProviders(<TaskDetailSidebar {...props} />);
 
     const descriptionContent = container.querySelector("#description-content");
     const artifactsContent = container.querySelector("#artifacts-content");
@@ -1963,11 +1728,7 @@ describe("TaskDetailSidebar", () => {
       artifactsSectionExpanded: true,
     });
 
-    const { container } = render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    const { container } = renderWithProviders(<TaskDetailSidebar {...props} />);
 
     await screen.findByText("Add feature");
 
@@ -2073,11 +1834,7 @@ describe("TaskDetailSidebar", () => {
       setArtifactsSectionExpanded,
     });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     await screen.findByText("Add feature");
 
@@ -2129,11 +1886,7 @@ describe("TaskDetailSidebar", () => {
       artifactsSectionExpanded: true,
     });
 
-    const { container } = render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    const { container } = renderWithProviders(<TaskDetailSidebar {...props} />);
 
     await screen.findByText("Add feature");
 
@@ -2170,11 +1923,7 @@ describe("TaskDetailSidebar", () => {
       artifactsSectionExpanded: true,
     });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     expect(screen.getByTestId("completion-failure-reason")).toHaveTextContent(
       "Cursor agent requires authentication. Run agent login."
@@ -2222,11 +1971,7 @@ describe("TaskDetailSidebar", () => {
       artifactsSectionExpanded: true,
     });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     expect(screen.getByRole("button", { name: /source feedback \(1 of 2\)/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /source feedback \(2 of 2\)/i })).toBeInTheDocument();
@@ -2265,11 +2010,7 @@ describe("TaskDetailSidebar", () => {
       artifactsSectionExpanded: true,
     });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     const firstHeader = screen.getByRole("button", { name: /source feedback \(1 of 2\)/i });
     const secondHeader = screen.getByRole("button", { name: /source feedback \(2 of 2\)/i });
@@ -2311,11 +2052,7 @@ describe("TaskDetailSidebar", () => {
     });
 
     const user = userEvent.setup();
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     await user.click(screen.getByRole("button", { name: /collapse source feedback \(1 of 2\)/i }));
     expect(setSourceFeedbackExpanded).toHaveBeenCalledWith(
@@ -2362,11 +2099,7 @@ describe("TaskDetailSidebar", () => {
       artifactsSectionExpanded: true,
     });
 
-    render(
-      <Provider store={createStore()}>
-        <TaskDetailSidebar {...props} />
-      </Provider>
-    );
+    renderWithProviders(<TaskDetailSidebar {...props} />);
 
     expect(screen.getByRole("button", { name: /source feedback/i })).toBeInTheDocument();
     expect(await screen.findByText("Legacy single feedback")).toBeInTheDocument();
