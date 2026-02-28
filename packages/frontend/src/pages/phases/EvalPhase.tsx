@@ -58,6 +58,9 @@ function ReplyIcon({ className }: { className?: string }) {
 export const FEEDBACK_COLLAPSED_KEY_PREFIX = "opensprint-eval-feedback-collapsed";
 export const EVALUATE_FEEDBACK_FILTER_KEY = "opensprint.evaluateFeedbackFilter";
 
+/** Debounce before showing loading spinner or empty state (avoids flicker on fast responses) */
+export const FEEDBACK_LOADING_DEBOUNCE_MS = 300;
+
 function getFeedbackCollapsedKey(projectId: string): string {
   return `${FEEDBACK_COLLAPSED_KEY_PREFIX}-${projectId}`;
 }
@@ -748,6 +751,17 @@ export function EvalPhase({
   const loading = useAppSelector((s) => s.eval?.async?.feedback?.loading ?? false);
   const submitting = useAppSelector((s) => s.eval?.async?.submit?.loading ?? false);
 
+  /* Debounce loading indicator to avoid flicker when fetch completes quickly */
+  const [showLoadingIndicator, setShowLoadingIndicator] = useState(false);
+  useEffect(() => {
+    if (!loading) {
+      setShowLoadingIndicator(false);
+      return;
+    }
+    const id = setTimeout(() => setShowLoadingIndicator(true), FEEDBACK_LOADING_DEBOUNCE_MS);
+    return () => clearTimeout(id);
+  }, [loading]);
+
   /* Fetch missing tasks for feedback cards (createdTaskIds) and merge into query cache so list stays in sync */
   const taskIdsFromFeedback = useMemo(() => {
     const ids = new Set<string>();
@@ -1216,8 +1230,20 @@ export function EvalPhase({
             )}
           </div>
 
-          {loading ? (
-            <div className="text-center py-10 text-theme-muted">Loading feedback...</div>
+          {loading && showLoadingIndicator ? (
+            <div
+              className="flex flex-col items-center justify-center gap-3 py-10"
+              data-testid="feedback-loading-spinner"
+            >
+              <div
+                className="w-8 h-8 border-2 border-brand-600 border-t-transparent rounded-full animate-spin"
+                role="status"
+                aria-label="Loading feedback"
+              />
+              <span className="text-sm text-theme-muted">Loading feedback...</span>
+            </div>
+          ) : loading ? (
+            <div className="text-center py-10" aria-hidden="true" />
           ) : feedback.length === 0 ? (
             <div className="text-center py-10 text-theme-muted text-sm">
               No feedback submitted yet. Test your app and report findings above.

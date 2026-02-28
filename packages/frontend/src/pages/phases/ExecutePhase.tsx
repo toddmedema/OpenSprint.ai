@@ -226,6 +226,16 @@ export function ExecutePhase({
     searchQuery
   );
 
+  // Default to "All" when selected filter has no visible tasks (e.g. user navigated with "Blocked" selected but no blocked tasks)
+  useEffect(() => {
+    if (loading || implTasks.length === 0) return;
+    if (statusFilter === "all") return;
+    const chip = chipConfig.find((c) => c.filter === statusFilter);
+    if (!chip || chip.count === 0) {
+      setStatusFilter("all");
+    }
+  }, [loading, implTasks.length, statusFilter, chipConfig, setStatusFilter]);
+
   useScrollToQuestion();
   const { notifications: openQuestionNotifications, refetch: refetchNotifications } =
     useOpenQuestionNotifications(projectId);

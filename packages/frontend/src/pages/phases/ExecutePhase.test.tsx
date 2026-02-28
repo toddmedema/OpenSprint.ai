@@ -1,9 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { render as rtlRender, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Provider } from "react-redux";
 import { MemoryRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { configureStore } from "@reduxjs/toolkit";
+
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+function render(ui: React.ReactElement) {
+  return rtlRender(ui, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    ),
+  });
+}
 import { ExecutePhase } from "./ExecutePhase";
 import { api } from "../../api/client";
 import {
@@ -784,6 +795,85 @@ describe("ExecutePhase top bar", () => {
 
     expect(screen.queryByRole("button", { name: /pick up next task/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /pause/i })).not.toBeInTheDocument();
+  });
+
+  it("defaults to All when persisted filter has no visible tasks (e.g. In Progress with 0 tasks)", async () => {
+    localStorage.setItem("opensprint.executeStatusFilter", "in_progress");
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Ready task",
+        epicId: "epic-1",
+        kanbanColumn: "ready",
+        priority: 0,
+        assignee: null,
+      },
+    ];
+    const store = createStore(tasks);
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <ExecutePhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("filter-chip-all")).toHaveAttribute("aria-pressed", "true");
+    });
+    expect(localStorage.getItem("opensprint.executeStatusFilter")).toBe("all");
+  });
+
+  it("defaults to All when persisted filter is Blocked but no blocked tasks exist", async () => {
+    localStorage.setItem("opensprint.executeStatusFilter", "blocked");
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Ready task",
+        epicId: "epic-1",
+        kanbanColumn: "ready",
+        priority: 0,
+        assignee: null,
+      },
+    ];
+    const store = createStore(tasks);
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <ExecutePhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("filter-chip-all")).toHaveAttribute("aria-pressed", "true");
+    });
+    expect(localStorage.getItem("opensprint.executeStatusFilter")).toBe("all");
+  });
+
+  it("keeps selected filter when it has visible tasks", () => {
+    localStorage.setItem("opensprint.executeStatusFilter", "ready");
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Ready task",
+        epicId: "epic-1",
+        kanbanColumn: "ready",
+        priority: 0,
+        assignee: null,
+      },
+    ];
+    const store = createStore(tasks);
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <ExecutePhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByTestId("filter-chip-ready")).toHaveAttribute("aria-pressed", "true");
+    expect(localStorage.getItem("opensprint.executeStatusFilter")).toBe("ready");
   });
 
   it("shows awaiting approval message when awaitingApproval is true", () => {

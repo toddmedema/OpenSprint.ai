@@ -1,11 +1,25 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, within, act } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Provider } from "react-redux";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { configureStore } from "@reduxjs/toolkit";
-import { EvalPhase, EVALUATE_FEEDBACK_FILTER_KEY } from "./EvalPhase";
+
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+function render(ui: React.ReactElement) {
+  return rtlRender(ui, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    ),
+  });
+}
+import {
+  EvalPhase,
+  EVALUATE_FEEDBACK_FILTER_KEY,
+  FEEDBACK_LOADING_DEBOUNCE_MS,
+} from "./EvalPhase";
 import { FEEDBACK_FORM_DRAFT_KEY_PREFIX } from "../../lib/feedbackFormStorage";
 import { CONTENT_CONTAINER_CLASS } from "../../lib/constants";
 import projectReducer from "../../store/slices/projectSlice";
@@ -118,7 +132,11 @@ function createMockTask(overrides: Partial<Task> = {}): Task {
   };
 }
 
-function createStore(overrides?: { evalFeedback?: FeedbackItem[]; executeTasks?: Task[] }) {
+function createStore(overrides?: {
+  evalFeedback?: FeedbackItem[];
+  executeTasks?: Task[];
+  feedbackLoading?: boolean;
+}) {
   const preloadedState: Record<string, unknown> = {
     project: {
       data: {
@@ -133,14 +151,14 @@ function createStore(overrides?: { evalFeedback?: FeedbackItem[]; executeTasks?:
       error: null,
     },
   };
-  if (overrides?.evalFeedback) {
+  if (overrides?.evalFeedback !== undefined || overrides?.feedbackLoading) {
     preloadedState.eval = {
-      feedback: overrides.evalFeedback,
+      feedback: overrides?.evalFeedback ?? [],
       feedbackItemCache: {},
       feedbackItemErrorId: null,
       feedbackItemLoadingId: null,
       async: {
-        feedback: { loading: false, error: null },
+        feedback: { loading: overrides?.feedbackLoading ?? false, error: null },
         submit: { loading: false, error: null },
         feedbackItem: { loading: false, error: null },
       },
@@ -271,6 +289,59 @@ const mockFeedbackWithCancelled: FeedbackItem[] = [
     createdAt: "2024-01-01T00:00:07Z",
   },
 ];
+
+describe("EvalPhase feedback loading state", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("shows loading spinner when fetch takes longer than debounce threshold", async () => {
+    vi.useFakeTimers();
+    const store = createStore({ evalFeedback: [], feedbackLoading: true });
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <EvalPhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>
+    );
+    expect(screen.queryByTestId("feedback-loading-spinner")).not.toBeInTheDocument();
+    await act(() => {
+      vi.advanceTimersByTime(FEEDBACK_LOADING_DEBOUNCE_MS);
+    });
+    expect(screen.getByTestId("feedback-loading-spinner")).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: /Loading feedback/i })).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it("does not show spinner when response is fast (no flicker)", () => {
+    vi.useFakeTimers();
+    const store = createStore({ evalFeedback: [], feedbackLoading: true });
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <EvalPhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>
+    );
+    vi.advanceTimersByTime(FEEDBACK_LOADING_DEBOUNCE_MS - 1);
+    expect(screen.queryByTestId("feedback-loading-spinner")).not.toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it("shows empty state only after fetch completes with no feedback", () => {
+    const store = createStore({ evalFeedback: [] });
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <EvalPhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>
+    );
+    expect(screen.getByText(/No feedback submitted yet/)).toBeInTheDocument();
+    expect(screen.queryByTestId("feedback-loading-spinner")).not.toBeInTheDocument();
+  });
+});
 
 describe("EvalPhase feedback form", () => {
   beforeEach(() => {
