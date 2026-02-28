@@ -1323,9 +1323,6 @@ suite("TaskStoreService", () => {
     beforeEach(async () => {
       await store.runWrite(async (db) => {
         await db.execute("DELETE FROM agent_sessions");
-        if (!usePostgres) {
-          await db.execute("DELETE FROM sqlite_sequence WHERE name='agent_sessions'");
-        }
       });
     });
 

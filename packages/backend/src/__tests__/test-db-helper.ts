@@ -1,8 +1,14 @@
 /**
  * Test helpers for database: DbClient mocks and SQLite schema for migration tests.
  * Tests that need a real DB use createTestPostgresClient() or createPostgresDbClientFromUrl + runSchema.
+ *
+ * Uses TEST_DATABASE_URL if set, else reads from .vitest-postgres-url (written by global-setup
+ * when using testcontainers). Falls back to localhost if neither.
  */
 
+import fs from "fs/promises";
+import path from "path";
+import { fileURLToPath } from "url";
 import type { Pool } from "pg";
 import type { DbClient } from "../db/client.js";
 import {
@@ -10,9 +16,21 @@ import {
   runSchema,
 } from "../db/index.js";
 
-const TEST_DB_URL =
-  process.env.TEST_DATABASE_URL ??
-  "postgresql://opensprint:opensprint@localhost:5432/opensprint";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const URL_FILE = path.resolve(__dirname, "../../.vitest-postgres-url");
+const DEFAULT_URL = "postgresql://opensprint:opensprint@localhost:5432/opensprint";
+
+async function getTestDatabaseUrl(): Promise<string> {
+  if (process.env.TEST_DATABASE_URL) {
+    return process.env.TEST_DATABASE_URL;
+  }
+  try {
+    const url = await fs.readFile(URL_FILE, "utf-8");
+    return url.trim();
+  } catch {
+    return DEFAULT_URL;
+  }
+}
 
 /**
  * Create a Postgres DbClient for tests. Returns null if Postgres is unreachable.
@@ -23,7 +41,8 @@ export async function createTestPostgresClient(): Promise<{
   pool: Pool;
 } | null> {
   try {
-    const result = await createPostgresDbClientFromUrl(TEST_DB_URL);
+    const url = await getTestDatabaseUrl();
+    const result = await createPostgresDbClientFromUrl(url);
     await result.client.query("SELECT 1");
     await runSchema(result.client);
     return result;

@@ -20,9 +20,11 @@ export default defineConfig({
     poolOptions: {
       forks: { minForks: 1, maxForks: 4 },
     },
+    globalSetup: ["./src/__tests__/global-setup.ts"],
+    globalTeardown: ["./src/__tests__/global-teardown.ts"],
     testTimeout: 30_000,
     teardownTimeout: 25_000,
-    hookTimeout: 25_000,
+    hookTimeout: 60_000,
     coverage: {
       provider: "v8",
       include: ["src/services/**"],
