@@ -124,6 +124,17 @@ export async function updateGlobalSettings(
 let atomicLock: Promise<void> = Promise.resolve();
 
 /**
+ * Ensures ~/.opensprint exists and global-settings.json has default databaseUrl if missing.
+ * Used by setup.sh. Idempotent; safe to run multiple times.
+ */
+export async function ensureDefaultDatabaseUrl(): Promise<void> {
+  const current = await load();
+  if (!current.databaseUrl) {
+    await updateGlobalSettings({ databaseUrl: DEFAULT_DATABASE_URL });
+  }
+}
+
+/**
  * Atomically update global settings via read-modify-write with serialization.
  * Prevents concurrent updates from clobbering each other (same pattern as updateSettingsInStore).
  */

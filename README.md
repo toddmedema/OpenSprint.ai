@@ -37,11 +37,13 @@ Traditional AI development is broken. Open Sprint fixes it.
 brew install node   # or install Node.js ≥20 from nodejs.org
 git clone https://github.com/toddmedema/opensprint.dev.git
 cd opensprint.dev
-npm run setup
+npm run setup       # installs deps, ensures ~/.opensprint, starts Docker Postgres, writes default databaseUrl
 npm run dev
 ```
 
 Then open **http://localhost:5173**.
+
+Setup runs `docker compose up -d` to start PostgreSQL. If Docker is not installed, configure a remote `databaseUrl` in `~/.opensprint/global-settings.json`.
 
 ### Integrations (BYO-AI)
 
@@ -107,7 +109,15 @@ opensprint.dev/
 └── package.json   # npm workspaces
 ```
 
-Task data: `~/.opensprint/tasks.db`. See [AGENTS.md](AGENTS.md) for orchestrator and task workflow.
+**Task store:** PostgreSQL at `~/.opensprint` (or configured `databaseUrl` in `~/.opensprint/global-settings.json`). See [AGENTS.md](AGENTS.md) for orchestrator and task workflow.
+
+**Migrating from SQLite:** If you have existing data in `~/.opensprint/tasks.db`, run:
+
+```bash
+npx tsx scripts/migrate-sqlite-to-postgres.ts
+```
+
+Then remove the old file: `rm ~/.opensprint/tasks.db`
 
 ### Scripts (from repo root)
 
@@ -122,11 +132,11 @@ Task data: `~/.opensprint/tasks.db`. See [AGENTS.md](AGENTS.md) for orchestrator
 
 ### Tech stack
 
-**Backend:** Node.js, Express, WebSocket (ws), TypeScript, Vitest · **Frontend:** React 19, React Router, Vite, Tailwind, TypeScript · **Task store:** sql.js (WASM SQLite) at `~/.opensprint/tasks.db`
+**Backend:** Node.js, Express, WebSocket (ws), TypeScript, Vitest · **Frontend:** React 19, React Router, Vite, Tailwind, TypeScript · **Task store:** PostgreSQL (node-postgres) at `~/.opensprint` or configured URL in `~/.opensprint/global-settings.json`
 
-### Docker Postgres (optional)
+### Docker Postgres
 
-OpenSprint can use PostgreSQL instead of SQLite. A Docker Compose setup is provided:
+OpenSprint uses PostgreSQL. A Docker Compose setup is provided; `npm run setup` starts it automatically:
 
 ```bash
 docker compose up -d

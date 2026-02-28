@@ -10,6 +10,7 @@ import {
   setGlobalSettings,
   updateGlobalSettings,
   getDatabaseUrl,
+  ensureDefaultDatabaseUrl,
 } from "../services/global-settings.service.js";
 import { DEFAULT_DATABASE_URL } from "@opensprint/shared";
 
@@ -95,6 +96,44 @@ describe("global-settings.service", () => {
 
       const url = await getDatabaseUrl();
       expect(url).toBe(DEFAULT_DATABASE_URL);
+    });
+  });
+
+  describe("ensureDefaultDatabaseUrl", () => {
+    it("creates ~/.opensprint and writes default databaseUrl when file missing", async () => {
+      await ensureDefaultDatabaseUrl();
+
+      const raw = await fs.readFile(getFilePath(), "utf-8");
+      const parsed = JSON.parse(raw);
+      expect(parsed.databaseUrl).toBe(DEFAULT_DATABASE_URL);
+    });
+
+    it("adds databaseUrl when file exists but databaseUrl is missing", async () => {
+      await setGlobalSettings({ useCustomCli: true });
+
+      await ensureDefaultDatabaseUrl();
+
+      const settings = await getGlobalSettings();
+      expect(settings.databaseUrl).toBe(DEFAULT_DATABASE_URL);
+      expect(settings.useCustomCli).toBe(true);
+    });
+
+    it("does not overwrite existing databaseUrl", async () => {
+      const customUrl = "postgresql://user:pass@remote:5432/db";
+      await setGlobalSettings({ databaseUrl: customUrl });
+
+      await ensureDefaultDatabaseUrl();
+
+      const settings = await getGlobalSettings();
+      expect(settings.databaseUrl).toBe(customUrl);
+    });
+
+    it("is idempotent (safe to run multiple times)", async () => {
+      await ensureDefaultDatabaseUrl();
+      await ensureDefaultDatabaseUrl();
+
+      const settings = await getGlobalSettings();
+      expect(settings.databaseUrl).toBe(DEFAULT_DATABASE_URL);
     });
   });
 
