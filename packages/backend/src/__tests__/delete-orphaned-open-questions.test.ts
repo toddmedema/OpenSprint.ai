@@ -1,26 +1,29 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import initSqlJs from "sql.js";
 import { deleteOrphanedOpenQuestions } from "../services/delete-orphaned-open-questions.js";
 import type { DbClient } from "../db/client.js";
-import { createSqliteDbClient, SCHEMA_SQL_SQLITE } from "./test-db-helper.js";
 
-let testClient: DbClient;
-
-vi.mock("../services/task-store.service.js", async () => ({
-  taskStore: {
+const { testClientRef } = vi.hoisted(() => ({ testClientRef: { current: null as DbClient | null } }));
+vi.mock("../services/task-store.service.js", async () => {
+  const { createTestPostgresClient } = await import("./test-db-helper.js");
+  const dbResult = await createTestPostgresClient();
+  testClientRef.current = dbResult?.client ?? null;
+  return {
+    taskStore: {
       async init() {},
       async getDb() {
-        if (!testClient) throw new Error("testClient not initialized");
-        return testClient;
+        if (!testClientRef.current) throw new Error("testClient not initialized");
+        return testClientRef.current;
       },
       async runWrite<T>(fn: (client: DbClient) => Promise<T>): Promise<T> {
-        if (!testClient) throw new Error("testClient not initialized");
-        return fn(testClient);
+        if (!testClientRef.current) throw new Error("testClient not initialized");
+        return fn(testClientRef.current);
       },
     },
-  TaskStoreService: vi.fn(),
-  SCHEMA_SQL: "",
-}));
+    TaskStoreService: vi.fn(),
+    SCHEMA_SQL: "",
+    _postgresAvailable: !!dbResult,
+  };
+});
 
 const mockProjects: Array<{ id: string; name: string; repoPath: string; createdAt: string }> = [];
 
@@ -48,12 +51,13 @@ async function countOpenQuestions(client: DbClient): Promise<number> {
   return (row?.cnt as number) ?? 0;
 }
 
-describe("deleteOrphanedOpenQuestions", () => {
+const deleteOrphanedTaskStoreMod = await import("../services/task-store.service.js");
+const deleteOrphanedPostgresOk = (deleteOrphanedTaskStoreMod as { _postgresAvailable?: boolean })._postgresAvailable ?? false;
+
+describe.skipIf(!deleteOrphanedPostgresOk)("deleteOrphanedOpenQuestions", () => {
   beforeEach(async () => {
-    const SQL = await initSqlJs();
-    const db = new SQL.Database();
-    db.run(SCHEMA_SQL_SQLITE);
-    testClient = createSqliteDbClient(db);
+    if (!testClientRef.current) throw new Error("Postgres required");
+    await testClientRef.current.execute("DELETE FROM open_questions");
     mockProjects.length = 0;
   });
 
@@ -64,13 +68,13 @@ describe("deleteOrphanedOpenQuestions", () => {
       repoPath: "/path/1",
       createdAt: new Date().toISOString(),
     });
-    await insertOpenQuestion(testClient, "oq-1", "proj-1");
+    await insertOpenQuestion(testClientRef.current!, "oq-1", "proj-1");
 
     const result = await deleteOrphanedOpenQuestions();
 
     expect(result.deletedCount).toBe(0);
     expect(result.deletedIds).toEqual([]);
-    expect(await countOpenQuestions(testClient)).toBe(1);
+    expect(await countOpenQuestions(testClientRef.current!)).toBe(1);
   });
 
   it("deletes orphaned rows and leaves valid rows", async () => {
@@ -78,10 +82,10 @@ describe("deleteOrphanedOpenQuestions", () => {
       { id: "proj-1", name: "P1", repoPath: "/p1", createdAt: new Date().toISOString() },
       { id: "proj-2", name: "P2", repoPath: "/p2", createdAt: new Date().toISOString() }
     );
-    await insertOpenQuestion(testClient, "oq-1", "proj-1");
-    await insertOpenQuestion(testClient, "oq-2", "proj-2");
-    await insertOpenQuestion(testClient, "oq-3", "proj-deleted");
-    await insertOpenQuestion(testClient, "oq-4", "proj-ghost");
+    await insertOpenQuestion(testClientRef.current!, "oq-1", "proj-1");
+    await insertOpenQuestion(testClientRef.current!, "oq-2", "proj-2");
+    await insertOpenQuestion(testClientRef.current!, "oq-3", "proj-deleted");
+    await insertOpenQuestion(testClientRef.current!, "oq-4", "proj-ghost");
 
     const result = await deleteOrphanedOpenQuestions();
 
@@ -89,16 +93,16 @@ describe("deleteOrphanedOpenQuestions", () => {
     expect(result.deletedIds).toHaveLength(2);
     expect(result.deletedIds.map((r) => r.id).sort()).toEqual(["oq-3", "oq-4"]);
     expect(result.deletedIds.map((r) => r.project_id).sort()).toEqual(["proj-deleted", "proj-ghost"]);
-    expect(await countOpenQuestions(testClient)).toBe(2);
+    expect(await countOpenQuestions(testClientRef.current!)).toBe(2);
   });
 
   it("is idempotent — second run deletes nothing", async () => {
     mockProjects.push({ id: "proj-1", name: "P1", repoPath: "/p1", createdAt: new Date().toISOString() });
-    await insertOpenQuestion(testClient, "oq-1", "proj-orphan");
+    await insertOpenQuestion(testClientRef.current!, "oq-1", "proj-orphan");
 
     const first = await deleteOrphanedOpenQuestions();
     expect(first.deletedCount).toBe(1);
-    expect(await countOpenQuestions(testClient)).toBe(0);
+    expect(await countOpenQuestions(testClientRef.current!)).toBe(0);
 
     const second = await deleteOrphanedOpenQuestions();
     expect(second.deletedCount).toBe(0);
@@ -106,12 +110,12 @@ describe("deleteOrphanedOpenQuestions", () => {
   });
 
   it("deletes all rows when project index is empty", async () => {
-    await insertOpenQuestion(testClient, "oq-1", "proj-a");
-    await insertOpenQuestion(testClient, "oq-2", "proj-b");
+    await insertOpenQuestion(testClientRef.current!, "oq-1", "proj-a");
+    await insertOpenQuestion(testClientRef.current!, "oq-2", "proj-b");
 
     const result = await deleteOrphanedOpenQuestions();
 
     expect(result.deletedCount).toBe(2);
-    expect(await countOpenQuestions(testClient)).toBe(0);
+    expect(await countOpenQuestions(testClientRef.current!)).toBe(0);
   });
 });

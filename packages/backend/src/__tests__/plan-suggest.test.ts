@@ -15,30 +15,23 @@ const mockUnregister = vi.fn();
 
 vi.mock("../services/task-store.service.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/task-store.service.js")>();
-  const { createSqliteDbClient, SCHEMA_SQL_SQLITE } = await import("./test-db-helper.js");
-  const initSqlJs = (await import("sql.js")).default;
-  const SQL = await initSqlJs();
-  const sharedDb = new SQL.Database();
-  sharedDb.run(SCHEMA_SQL_SQLITE);
-  const sharedClient = createSqliteDbClient(sharedDb);
-
-  class MockTaskStoreService extends actual.TaskStoreService {
-    constructor() {
-      super(sharedClient);
-    }
+  const { createTestPostgresClient } = await import("./test-db-helper.js");
+  const dbResult = await createTestPostgresClient();
+  if (!dbResult) {
+    return { ...actual, TaskStoreService: class { constructor() { throw new Error("Postgres required"); } }, taskStore: null, _postgresAvailable: false, _resetSharedDb: () => {} };
   }
-
-  const singletonInstance = new MockTaskStoreService();
-  await singletonInstance.init();
-
+  const store = new actual.TaskStoreService(dbResult.client);
+  await store.init();
+  const resetSharedDb = async () => {
+    await dbResult.client.execute("DELETE FROM task_dependencies");
+    await dbResult.client.execute("DELETE FROM tasks");
+  };
   return {
     ...actual,
-    TaskStoreService: MockTaskStoreService,
-    taskStore: singletonInstance,
-    _resetSharedDb: () => {
-      sharedDb.run("DELETE FROM task_dependencies");
-      sharedDb.run("DELETE FROM tasks");
-    },
+    TaskStoreService: class extends actual.TaskStoreService { constructor() { super(dbResult.client); } },
+    taskStore: store,
+    _resetSharedDb: resetSharedDb,
+    _postgresAvailable: true,
   };
 });
 
@@ -66,7 +59,10 @@ vi.mock("../websocket/index.js", () => ({
   broadcastToProject: vi.fn(),
 }));
 
-describe("Plan suggestPlans (POST /plans/suggest)", () => {
+const planSuggestTaskStoreMod = await import("../services/task-store.service.js");
+const planSuggestPostgresOk = (planSuggestTaskStoreMod as { _postgresAvailable?: boolean })._postgresAvailable ?? false;
+
+describe.skipIf(!planSuggestPostgresOk)("Plan suggestPlans (POST /plans/suggest)", () => {
   let planService: PlanService;
   let projectService: ProjectService;
   let taskStore: TaskStoreService;
@@ -78,9 +74,9 @@ describe("Plan suggestPlans (POST /plans/suggest)", () => {
   beforeEach(async () => {
     const mod = (await import("../services/task-store.service.js")) as unknown as {
       taskStore: TaskStoreService;
-      _resetSharedDb?: () => void;
+      _resetSharedDb?: () => void | Promise<void>;
     };
-    mod._resetSharedDb?.();
+    await mod._resetSharedDb?.();
     taskStore = mod.taskStore;
 
     vi.clearAllMocks();

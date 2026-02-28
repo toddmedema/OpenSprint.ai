@@ -29,34 +29,26 @@ vi.mock("../websocket/index.js", () => ({
   broadcastToProject: (...args: unknown[]) => mockBroadcastToProject(...args),
 }));
 
-// Mock TaskStoreService with in-memory sql.js database (shared across all instances)
 vi.mock("../services/task-store.service.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/task-store.service.js")>();
-  const initSqlJs = (await import("sql.js")).default;
-  const { createSqliteDbClient, SCHEMA_SQL_SQLITE } = await import("./test-db-helper.js");
-  const SQL = await initSqlJs();
-  const sharedDb = new SQL.Database();
-  sharedDb.run(SCHEMA_SQL_SQLITE);
-  const sharedClient = createSqliteDbClient(sharedDb);
-
-  class MockTaskStoreService extends actual.TaskStoreService {
-    constructor() {
-      super(sharedClient);
-    }
+  const { createTestPostgresClient } = await import("./test-db-helper.js");
+  const dbResult = await createTestPostgresClient();
+  if (!dbResult) {
+    return { ...actual, TaskStoreService: class { constructor() { throw new Error("Postgres required"); } }, taskStore: null, _postgresAvailable: false, _resetSharedDb: () => {} };
   }
-
-  const singletonInstance = new MockTaskStoreService();
-  await singletonInstance.init();
-
+  const store = new actual.TaskStoreService(dbResult.client);
+  await store.init();
+  const resetSharedDb = async () => {
+    await dbResult.client.execute("DELETE FROM task_dependencies");
+    await dbResult.client.execute("DELETE FROM tasks");
+    await dbResult.client.execute("DELETE FROM plans");
+  };
   return {
     ...actual,
-    TaskStoreService: MockTaskStoreService,
-    taskStore: singletonInstance,
-    _resetSharedDb: () => {
-      sharedDb.run("DELETE FROM task_dependencies");
-      sharedDb.run("DELETE FROM tasks");
-      sharedDb.run("DELETE FROM plans");
-    },
+    TaskStoreService: class extends actual.TaskStoreService { constructor() { super(dbResult.client); } },
+    taskStore: store,
+    _resetSharedDb: resetSharedDb,
+    _postgresAvailable: true,
   };
 });
 
@@ -75,7 +67,10 @@ vi.mock("../services/orchestrator.service.js", () => ({
   },
 }));
 
-describe("Plan REST endpoints - task decomposition", () => {
+const planRouteTaskStoreMod = await import("../services/task-store.service.js");
+const planRoutePostgresOk = (planRouteTaskStoreMod as { _postgresAvailable?: boolean })._postgresAvailable ?? false;
+
+describe.skipIf(!planRoutePostgresOk)("Plan REST endpoints - task decomposition", () => {
   let app: ReturnType<typeof createApp>;
   let tempDir: string;
   let originalHome: string | undefined;
@@ -85,9 +80,9 @@ describe("Plan REST endpoints - task decomposition", () => {
 
   beforeEach(async () => {
     const mod = (await import("../services/task-store.service.js")) as unknown as {
-      _resetSharedDb?: () => void;
+      _resetSharedDb?: () => void | Promise<void>;
     };
-    mod._resetSharedDb?.();
+    await mod._resetSharedDb?.();
 
     const { wireTaskStoreEvents } = await import("../task-store-events.js");
     wireTaskStoreEvents(mockBroadcastToProject);

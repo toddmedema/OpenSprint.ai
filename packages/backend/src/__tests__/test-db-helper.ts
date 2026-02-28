@@ -1,12 +1,38 @@
 /**
- * Test helpers for database: SQLite-compatible schema and DbClient wrapper for sql.js.
- * Used by tests that need a real DB without requiring Postgres/Docker.
+ * Test helpers for database: DbClient mocks and SQLite schema for migration tests.
+ * Tests that need a real DB use createTestPostgresClient() or createPostgresDbClientFromUrl + runSchema.
  */
 
-import type { Database } from "sql.js";
-import type { DbClient, DbRow } from "../db/client.js";
+import type { Pool } from "pg";
+import type { DbClient } from "../db/client.js";
+import {
+  createPostgresDbClientFromUrl,
+  runSchema,
+} from "../db/index.js";
 
-/** SQLite-compatible schema (SERIAL -> INTEGER PRIMARY KEY AUTOINCREMENT). */
+const TEST_DB_URL =
+  process.env.TEST_DATABASE_URL ??
+  "postgresql://opensprint:opensprint@localhost:5432/opensprint";
+
+/**
+ * Create a Postgres DbClient for tests. Returns null if Postgres is unreachable.
+ * Caller must call pool.end() in afterAll.
+ */
+export async function createTestPostgresClient(): Promise<{
+  client: DbClient;
+  pool: Pool;
+} | null> {
+  try {
+    const result = await createPostgresDbClientFromUrl(TEST_DB_URL);
+    await result.client.query("SELECT 1");
+    await runSchema(result.client);
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+/** SQLite-compatible schema (SERIAL -> INTEGER PRIMARY KEY AUTOINCREMENT). Used by migrate-sqlite-to-postgres.test.ts. */
 export const SCHEMA_SQL_SQLITE = `
 CREATE TABLE IF NOT EXISTS tasks (
     id            TEXT PRIMARY KEY,
@@ -176,51 +202,6 @@ CREATE TABLE IF NOT EXISTS open_questions (
 CREATE INDEX IF NOT EXISTS idx_open_questions_project_id ON open_questions(project_id);
 CREATE INDEX IF NOT EXISTS idx_open_questions_status ON open_questions(status);
 `;
-
-/** Convert $1, $2, ... placeholders to ? for sql.js. Remove Postgres ::type casts (SQLite incompatible). */
-function toSqliteParams(sql: string): string {
-  let s = sql.replace(/\$(\d+)/g, "?");
-  s = s.replace(/::\w+/g, ""); // ::int, ::bigint, etc. - SQLite returns correct types from COUNT/LENGTH
-  return s;
-}
-
-/** Create a DbClient that wraps sql.js Database. For tests only. */
-export function createSqliteDbClient(db: Database): DbClient {
-  return {
-    async query(sql: string, params?: unknown[]): Promise<DbRow[]> {
-      const q = toSqliteParams(sql);
-      const stmt = db.prepare(q);
-      stmt.bind(params ?? []);
-      const rows: DbRow[] = [];
-      while (stmt.step()) {
-        const row = stmt.getAsObject() as DbRow;
-        rows.push(row);
-      }
-      stmt.free();
-      return rows;
-    },
-    async queryOne(sql: string, params?: unknown[]): Promise<DbRow | undefined> {
-      const rows = await this.query(sql, params);
-      return rows.length > 0 ? rows[0] : undefined;
-    },
-    async execute(sql: string, params?: unknown[]): Promise<number> {
-      const q = toSqliteParams(sql);
-      db.run(q, params ?? []);
-      return db.getRowsModified();
-    },
-    async runInTransaction<T>(fn: (client: DbClient) => Promise<T>): Promise<T> {
-      db.run("BEGIN");
-      try {
-        const result = await fn(this);
-        db.run("COMMIT");
-        return result;
-      } catch (err) {
-        db.run("ROLLBACK");
-        throw err;
-      }
-    },
-  };
-}
 
 /** Create a mock DbClient for tests that don't need real DB. */
 export function createMockDbClient(overrides?: Partial<DbClient>): DbClient {

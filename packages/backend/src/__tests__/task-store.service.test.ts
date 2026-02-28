@@ -3,53 +3,26 @@ import fs from "fs/promises";
 import os from "os";
 import path from "path";
 import type { Pool } from "pg";
-import {
-  createPostgresDbClientFromUrl,
-  runSchema,
-  toPgParams,
-  type DbClient,
-} from "../db/index.js";
+import { runSchema, toPgParams, type DbClient } from "../db/index.js";
 import { TaskStoreService } from "../services/task-store.service.js";
-import { createSqliteDbClient, SCHEMA_SQL_SQLITE } from "./test-db-helper.js";
-import initSqlJs from "sql.js";
+import { createTestPostgresClient } from "./test-db-helper.js";
 
 const TEST_PROJECT_ID = "test-project";
 
-const url =
-  process.env.TEST_DATABASE_URL ?? "postgresql://opensprint:opensprint@localhost:5432/opensprint";
+const withDb = await createTestPostgresClient();
+const suite = withDb ? describe : describe.skip;
 
-describe("TaskStoreService", () => {
+suite("TaskStoreService", () => {
+  if (!withDb) return;
   let store: TaskStoreService;
-  let client: DbClient | null = null;
-  let pool: Pool | null = null;
-  let sqliteDb: import("sql.js").Database | null = null;
-  let usePostgres = false;
-
-  beforeAll(async () => {
-    try {
-      const result = await createPostgresDbClientFromUrl(url);
-      client = result.client;
-      pool = result.pool;
-      await client.query("SELECT 1");
-      usePostgres = true;
-    } catch {
-      const SQL = await initSqlJs();
-      sqliteDb = new SQL.Database();
-      sqliteDb.run(SCHEMA_SQL_SQLITE);
-      client = createSqliteDbClient(sqliteDb);
-      usePostgres = false;
-    }
-  });
+  const { client, pool } = withDb;
 
   afterAll(async () => {
-    if (pool) await pool.end();
+    await pool.end();
   });
 
   beforeEach(async () => {
-    if (!client) throw new Error("No database client");
-    if (usePostgres) {
-      await runSchema(client);
-    }
+    await runSchema(client);
     store = new TaskStoreService(client);
     await store.init();
     await store.deleteByProjectId(TEST_PROJECT_ID);

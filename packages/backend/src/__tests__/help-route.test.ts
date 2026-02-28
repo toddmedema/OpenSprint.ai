@@ -21,16 +21,18 @@ vi.mock("../services/beads.service.js", () => ({
 
 vi.mock("../services/task-store.service.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/task-store.service.js")>();
-  const { createSqliteDbClient, SCHEMA_SQL_SQLITE } = await import("./test-db-helper.js");
-  const initSqlJs = (await import("sql.js")).default;
-  const SQL = await initSqlJs();
-  const db = new SQL.Database();
-  db.run(SCHEMA_SQL_SQLITE);
-  const client = createSqliteDbClient(db);
-  const store = new actual.TaskStoreService(client);
+  const { createTestPostgresClient } = await import("./test-db-helper.js");
+  const dbResult = await createTestPostgresClient();
+  if (!dbResult) {
+    return { ...actual, taskStore: null, _postgresAvailable: false };
+  }
+  const store = new actual.TaskStoreService(dbResult.client);
   await store.init();
-  return { ...actual, taskStore: store };
+  return { ...actual, taskStore: store, _postgresAvailable: true };
 });
+
+const helpTaskStoreMod = await import("../services/task-store.service.js");
+const helpPostgresOk = (helpTaskStoreMod as { _postgresAvailable?: boolean })._postgresAvailable ?? false;
 
 const mockInvokePlanningAgent = vi.fn();
 
@@ -54,7 +56,7 @@ vi.mock("../websocket/index.js", () => ({
   broadcastToProject: (...args: unknown[]) => mockBroadcastToProject(...args),
 }));
 
-describe("Help chat API", () => {
+describe.skipIf(!helpPostgresOk)("Help chat API", () => {
   let app: ReturnType<typeof createApp>;
   let projectService: ProjectService;
   let tempDir: string;

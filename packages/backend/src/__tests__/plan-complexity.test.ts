@@ -15,38 +15,40 @@ import {
 
 const TEST_PROJECT_ID = "test-project";
 
-// Use in-memory DB so we don't touch ~/.opensprint/tasks.db (avoids ENOENT when other tests change HOME)
 vi.mock("../services/task-store.service.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/task-store.service.js")>();
-  const { createSqliteDbClient, SCHEMA_SQL_SQLITE } = await import("./test-db-helper.js");
-  const initSqlJs = (await import("sql.js")).default;
-  const SQL = await initSqlJs();
-  const sharedDb = new SQL.Database();
-  sharedDb.run(SCHEMA_SQL_SQLITE);
-  const sharedClient = createSqliteDbClient(sharedDb);
-  const store = new actual.TaskStoreService(sharedClient);
+  const { createTestPostgresClient } = await import("./test-db-helper.js");
+  const dbResult = await createTestPostgresClient();
+  if (!dbResult) {
+    return { ...actual, taskStore: null, _postgresAvailable: false, _resetPlanComplexityDb: () => {} };
+  }
+  const store = new actual.TaskStoreService(dbResult.client);
   await store.init();
-  const reset = () => {
-    sharedDb.run("DELETE FROM task_dependencies");
-    sharedDb.run("DELETE FROM tasks");
-    sharedDb.run("DELETE FROM plans");
+  const reset = async () => {
+    await dbResult.client.execute("DELETE FROM task_dependencies");
+    await dbResult.client.execute("DELETE FROM tasks");
+    await dbResult.client.execute("DELETE FROM plans");
   };
   return {
     ...actual,
     taskStore: store,
     _resetPlanComplexityDb: reset,
+    _postgresAvailable: true,
   };
 });
 
-describe("getPlanComplexityForTask", () => {
+const planComplexityTaskStoreMod = await import("../services/task-store.service.js");
+const planComplexityPostgresOk = (planComplexityTaskStoreMod as { _postgresAvailable?: boolean })._postgresAvailable ?? false;
+
+describe.skipIf(!planComplexityPostgresOk)("getPlanComplexityForTask", () => {
   let tempDir: string;
   let taskStore: TaskStoreService;
 
   beforeEach(async () => {
     const mod = (await import("../services/task-store.service.js")) as unknown as {
-      _resetPlanComplexityDb?: () => void;
+      _resetPlanComplexityDb?: () => void | Promise<void>;
     };
-    mod._resetPlanComplexityDb?.();
+    await mod._resetPlanComplexityDb?.();
 
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-complexity-"));
     taskStore = taskStoreSingleton;
@@ -157,7 +159,7 @@ describe("getPlanComplexityForTask", () => {
   });
 });
 
-describe("planComplexityToTask", () => {
+describe.skipIf(!planComplexityPostgresOk)("planComplexityToTask", () => {
   it("maps low and medium to 3", () => {
     expect(planComplexityToTask("low")).toBe(3);
     expect(planComplexityToTask("medium")).toBe(3);
@@ -168,7 +170,7 @@ describe("planComplexityToTask", () => {
   });
 });
 
-describe("getTaskComplexity", () => {
+describe.skipIf(!planComplexityPostgresOk)("getTaskComplexity", () => {
   it("returns task own complexity when set (1-10)", () => {
     const task = { complexity: 7 } as { complexity?: number };
     expect(getTaskComplexity(task, "low")).toBe(7);
@@ -187,15 +189,15 @@ describe("getTaskComplexity", () => {
   });
 });
 
-describe("getComplexityForAgent", () => {
+describe.skipIf(!planComplexityPostgresOk)("getComplexityForAgent", () => {
   let tempDir: string;
   let taskStore: TaskStoreService;
 
   beforeEach(async () => {
     const mod = (await import("../services/task-store.service.js")) as unknown as {
-      _resetPlanComplexityDb?: () => void;
+      _resetPlanComplexityDb?: () => void | Promise<void>;
     };
-    mod._resetPlanComplexityDb?.();
+    await mod._resetPlanComplexityDb?.();
 
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-complexity-agent-"));
     taskStore = taskStoreSingleton;

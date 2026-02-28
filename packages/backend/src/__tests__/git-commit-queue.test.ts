@@ -18,32 +18,28 @@ const execAsync = promisify(exec);
 
 vi.mock("../services/task-store.service.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/task-store.service.js")>();
-  const { createSqliteDbClient, SCHEMA_SQL_SQLITE } = await import("./test-db-helper.js");
-  const initSqlJs = (await import("sql.js")).default;
-  const SQL = await initSqlJs();
-  const sharedDb = new SQL.Database();
-  sharedDb.run(SCHEMA_SQL_SQLITE);
-  const sharedClient = createSqliteDbClient(sharedDb);
-
-  class MockTaskStoreService extends actual.TaskStoreService {
-    constructor() {
-      super(sharedClient);
-    }
+  const { createTestPostgresClient } = await import("./test-db-helper.js");
+  const dbResult = await createTestPostgresClient();
+  if (!dbResult) {
+    return { ...actual, TaskStoreService: class { constructor() { throw new Error("Postgres required"); } }, taskStore: null, _postgresAvailable: false, _resetSharedDb: () => {} };
   }
-
-  const singletonInstance = new MockTaskStoreService();
-  await singletonInstance.init();
-
+  const store = new actual.TaskStoreService(dbResult.client);
+  await store.init();
+  const resetSharedDb = async () => {
+    await dbResult.client.execute("DELETE FROM task_dependencies");
+    await dbResult.client.execute("DELETE FROM tasks");
+  };
   return {
     ...actual,
-    TaskStoreService: MockTaskStoreService,
-    taskStore: singletonInstance,
-    _resetSharedDb: () => {
-      sharedDb.run("DELETE FROM task_dependencies");
-      sharedDb.run("DELETE FROM tasks");
-    },
+    TaskStoreService: class extends actual.TaskStoreService { constructor() { super(dbResult.client); } },
+    taskStore: store,
+    _resetSharedDb: resetSharedDb,
+    _postgresAvailable: true,
   };
 });
+
+const gitQueueTaskStoreMod = await import("../services/task-store.service.js");
+const gitQueuePostgresOk = (gitQueueTaskStoreMod as { _postgresAvailable?: boolean })._postgresAvailable ?? false;
 
 /**
  * Put a git repo into a merge-conflict state by creating divergent changes
@@ -75,14 +71,14 @@ async function createMergeConflict(repoPath: string): Promise<string> {
   return conflictFile;
 }
 
-describe("GitCommitQueue", () => {
+describe.skipIf(!gitQueuePostgresOk)("GitCommitQueue", () => {
   let repoPath: string;
 
   beforeEach(async () => {
     const mod = (await import("../services/task-store.service.js")) as unknown as {
-      _resetSharedDb?: () => void;
+      _resetSharedDb?: () => void | Promise<void>;
     };
-    mod._resetSharedDb?.();
+    await mod._resetSharedDb?.();
 
     repoPath = path.join(os.tmpdir(), `git-queue-test-${Date.now()}`);
     await fs.mkdir(repoPath, { recursive: true });

@@ -2,37 +2,37 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
-import initSqlJs from "sql.js";
 import { EventLogService, type OrchestratorEvent } from "../services/event-log.service.js";
 import type { DbClient } from "../db/client.js";
-import { createSqliteDbClient, SCHEMA_SQL_SQLITE } from "./test-db-helper.js";
 
-let testClient: DbClient;
+const { testClientRef } = vi.hoisted(() => ({ testClientRef: { current: null as DbClient | null } }));
 vi.mock("../services/task-store.service.js", async () => {
-  const { createSqliteDbClient, SCHEMA_SQL_SQLITE } = await import("./test-db-helper.js");
+  const { createTestPostgresClient } = await import("./test-db-helper.js");
+  const dbResult = await createTestPostgresClient();
+  testClientRef.current = dbResult?.client ?? null;
   return {
     taskStore: {
-      init: vi.fn().mockImplementation(async () => {
-        const SQL = await initSqlJs();
-        const db = new SQL.Database();
-        db.run(SCHEMA_SQL_SQLITE);
-        testClient = createSqliteDbClient(db);
-      }),
-      getDb: vi.fn().mockImplementation(async () => testClient),
+      init: vi.fn().mockImplementation(async () => {}),
+      getDb: vi.fn().mockImplementation(async () => testClientRef.current),
       runWrite: vi
         .fn()
-        .mockImplementation(async (fn: (client: DbClient) => Promise<unknown>) => fn(testClient)),
+        .mockImplementation(async (fn: (client: DbClient) => Promise<unknown>) => fn(testClientRef.current!)),
     },
     TaskStoreService: vi.fn(),
     SCHEMA_SQL: "",
+    _postgresAvailable: !!dbResult,
   };
 });
 
-describe("EventLogService", () => {
+const eventLogTaskStoreMod = await import("../services/task-store.service.js");
+const eventLogPostgresOk = (eventLogTaskStoreMod as { _postgresAvailable?: boolean })._postgresAvailable ?? false;
+
+describe.skipIf(!eventLogPostgresOk)("EventLogService", () => {
   let tmpDir: string;
   let service: EventLogService;
 
   beforeEach(async () => {
+    if (!testClientRef.current) throw new Error("Postgres required");
     tmpDir = path.join(os.tmpdir(), `event-log-test-${Date.now()}`);
     await fs.mkdir(tmpDir, { recursive: true });
     const { taskStore } = await import("../services/task-store.service.js");

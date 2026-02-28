@@ -2,41 +2,41 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
-import initSqlJs from "sql.js";
 import { deployStorageService } from "../services/deploy-storage.service.js";
 import { ProjectService } from "../services/project.service.js";
 import { DEFAULT_HIL_CONFIG } from "@opensprint/shared";
 import type { DbClient } from "../db/client.js";
-import { createSqliteDbClient, SCHEMA_SQL_SQLITE } from "./test-db-helper.js";
 
-let testClient: DbClient;
+const { testClientRef } = vi.hoisted(() => ({ testClientRef: { current: null as DbClient | null } }));
 vi.mock("../services/task-store.service.js", async () => {
-  const { createSqliteDbClient, SCHEMA_SQL_SQLITE } = await import("./test-db-helper.js");
+  const { createTestPostgresClient } = await import("./test-db-helper.js");
+  const dbResult = await createTestPostgresClient();
+  testClientRef.current = dbResult?.client ?? null;
   return {
     taskStore: {
-      init: vi.fn().mockImplementation(async () => {
-        const SQL = await initSqlJs();
-        const db = new SQL.Database();
-        db.run(SCHEMA_SQL_SQLITE);
-        testClient = createSqliteDbClient(db);
-      }),
-      getDb: vi.fn().mockImplementation(async () => testClient),
+      init: vi.fn().mockImplementation(async () => {}),
+      getDb: vi.fn().mockImplementation(async () => testClientRef.current),
       runWrite: vi
         .fn()
-        .mockImplementation(async (fn: (client: DbClient) => Promise<unknown>) => fn(testClient)),
+        .mockImplementation(async (fn: (client: DbClient) => Promise<unknown>) => fn(testClientRef.current!)),
     },
     TaskStoreService: vi.fn(),
     SCHEMA_SQL: "",
+    _postgresAvailable: !!dbResult,
   };
 });
 
-describe("DeployStorageService", () => {
+const deployStorageTaskStoreMod = await import("../services/task-store.service.js");
+const deployStoragePostgresOk = (deployStorageTaskStoreMod as { _postgresAvailable?: boolean })._postgresAvailable ?? false;
+
+describe.skipIf(!deployStoragePostgresOk)("DeployStorageService", () => {
   let projectService: ProjectService;
   let tempDir: string;
   let projectId: string;
   let originalHome: string | undefined;
 
   beforeEach(async () => {
+    if (!testClientRef.current) throw new Error("Postgres required");
     projectService = new ProjectService();
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-deploy-storage-test-"));
     originalHome = process.env.HOME;

@@ -11,35 +11,46 @@ import { DEFAULT_HIL_CONFIG } from "@opensprint/shared";
 
 vi.mock("../services/task-store.service.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/task-store.service.js")>();
-  const { createSqliteDbClient, SCHEMA_SQL_SQLITE } = await import("./test-db-helper.js");
-  const initSqlJs = (await import("sql.js")).default;
-  const SQL = await initSqlJs();
-  const sharedDb = new SQL.Database();
-  sharedDb.run(SCHEMA_SQL_SQLITE);
-  const sharedClient = createSqliteDbClient(sharedDb);
-
-  class MockTaskStoreService extends actual.TaskStoreService {
-    constructor() {
-      super(sharedClient);
-    }
+  const { createTestPostgresClient } = await import("./test-db-helper.js");
+  const dbResult = await createTestPostgresClient();
+  if (!dbResult) {
+    return {
+      ...actual,
+      TaskStoreService: class {
+        constructor() {
+          throw new Error("Postgres required for task-route tests (TEST_DATABASE_URL)");
+        }
+      },
+      taskStore: null as unknown as TaskStoreService,
+      _resetSharedDb: () => {},
+      _postgresAvailable: false,
+    };
   }
-
-  const singletonInstance = new MockTaskStoreService();
-  await singletonInstance.init();
-
+  const { client } = dbResult;
+  const store = new actual.TaskStoreService(client);
+  await store.init();
+  const resetSharedDb = async () => {
+    await client.execute("DELETE FROM task_dependencies");
+    await client.execute("DELETE FROM tasks");
+    await client.execute("DELETE FROM plans");
+  };
   return {
     ...actual,
-    TaskStoreService: MockTaskStoreService,
-    taskStore: singletonInstance,
-    _resetSharedDb: () => {
-      sharedDb.run("DELETE FROM task_dependencies");
-      sharedDb.run("DELETE FROM tasks");
-      sharedDb.run("DELETE FROM plans");
+    TaskStoreService: class extends actual.TaskStoreService {
+      constructor() {
+        super(client);
+      }
     },
+    taskStore: store,
+    _resetSharedDb: resetSharedDb,
+    _postgresAvailable: true,
   };
 });
 
-describe("Tasks REST - task-to-kanban-column mapping", () => {
+const taskStoreMod = await import("../services/task-store.service.js");
+const postgresAvailable = (taskStoreMod as { _postgresAvailable?: boolean })._postgresAvailable ?? false;
+
+describe.skipIf(!postgresAvailable)("Tasks REST - task-to-kanban-column mapping", () => {
   let app: ReturnType<typeof createApp>;
   let tempDir: string;
   let originalHome: string | undefined;
@@ -49,10 +60,10 @@ describe("Tasks REST - task-to-kanban-column mapping", () => {
 
   beforeEach(async () => {
     const mod = (await import("../services/task-store.service.js")) as unknown as {
-      _resetSharedDb?: () => void;
+      _resetSharedDb?: () => void | Promise<void>;
       taskStore: TaskStoreService;
     };
-    mod._resetSharedDb?.();
+    await mod._resetSharedDb?.();
 
     app = createApp();
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-task-route-test-"));

@@ -3,12 +3,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
-import initSqlJs from "sql.js";
 import { SessionManager } from "../services/session-manager.js";
 import { OPENSPRINT_PATHS } from "@opensprint/shared";
 import { ensureRuntimeDir, getRuntimePath } from "../utils/runtime-dir.js";
 import type { DbClient } from "../db/client.js";
-import { createSqliteDbClient, SCHEMA_SQL_SQLITE } from "./test-db-helper.js";
 
 function repoPathToProjectId(repoPath: string): string {
   return "repo:" + crypto.createHash("sha256").update(repoPath).digest("hex").slice(0, 12);
@@ -55,32 +53,34 @@ async function insertSession(
   );
 }
 
-let testClient: DbClient;
+const { testClientRef } = vi.hoisted(() => ({ testClientRef: { current: null as DbClient | null } }));
 vi.mock("../services/task-store.service.js", async () => {
-  const { createSqliteDbClient, SCHEMA_SQL_SQLITE } = await import("./test-db-helper.js");
+  const { createTestPostgresClient } = await import("./test-db-helper.js");
+  const dbResult = await createTestPostgresClient();
+  testClientRef.current = dbResult?.client ?? null;
   return {
     taskStore: {
-      init: vi.fn().mockImplementation(async () => {
-        const SQL = await initSqlJs();
-        const db = new SQL.Database();
-        db.run(SCHEMA_SQL_SQLITE);
-        testClient = createSqliteDbClient(db);
-      }),
-      getDb: vi.fn().mockImplementation(async () => testClient),
+      init: vi.fn().mockImplementation(async () => {}),
+      getDb: vi.fn().mockImplementation(async () => testClientRef.current),
       runWrite: vi
         .fn()
-        .mockImplementation(async (fn: (client: DbClient) => Promise<unknown>) => fn(testClient)),
+        .mockImplementation(async (fn: (client: DbClient) => Promise<unknown>) => fn(testClientRef.current!)),
     },
     TaskStoreService: vi.fn(),
     SCHEMA_SQL: "",
+    _postgresAvailable: !!dbResult,
   };
 });
 
-describe("SessionManager", () => {
+const sessionTaskStoreMod = await import("../services/task-store.service.js");
+const sessionPostgresOk = (sessionTaskStoreMod as { _postgresAvailable?: boolean })._postgresAvailable ?? false;
+
+describe.skipIf(!sessionPostgresOk)("SessionManager", () => {
   let manager: SessionManager;
   let repoPath: string;
 
   beforeEach(async () => {
+    if (!testClientRef.current) throw new Error("Postgres required");
     manager = new SessionManager();
     repoPath = path.join(os.tmpdir(), `opensprint-session-test-${Date.now()}`);
     await fs.mkdir(repoPath, { recursive: true });

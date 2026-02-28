@@ -11,30 +11,20 @@ import { API_PREFIX, DEFAULT_HIL_CONFIG } from "@opensprint/shared";
 
 vi.mock("../services/task-store.service.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/task-store.service.js")>();
-  const { createSqliteDbClient, SCHEMA_SQL_SQLITE } = await import("./test-db-helper.js");
-  const initSqlJs = (await import("sql.js")).default;
-  const SQL = await initSqlJs();
-  const sharedDb = new SQL.Database();
-  sharedDb.run(SCHEMA_SQL_SQLITE);
-  const sharedClient = createSqliteDbClient(sharedDb);
-
-  class MockTaskStoreService extends actual.TaskStoreService {
-    constructor() {
-      super(sharedClient);
-    }
+  const { createTestPostgresClient } = await import("./test-db-helper.js");
+  const dbResult = await createTestPostgresClient();
+  if (!dbResult) {
+    return { ...actual, TaskStoreService: class { constructor() { throw new Error("Postgres required"); } }, taskStore: null, _postgresAvailable: false };
   }
-
-  const singletonInstance = new MockTaskStoreService();
-  await singletonInstance.init();
-
-  return {
-    ...actual,
-    TaskStoreService: MockTaskStoreService,
-    taskStore: singletonInstance,
-  };
+  const store = new actual.TaskStoreService(dbResult.client);
+  await store.init();
+  return { ...actual, TaskStoreService: class extends actual.TaskStoreService { constructor() { super(dbResult.client); } }, taskStore: store, _postgresAvailable: true };
 });
 
-describe("Notifications REST API", () => {
+const notificationsTaskStoreMod = await import("../services/task-store.service.js");
+const notificationsPostgresOk = (notificationsTaskStoreMod as { _postgresAvailable?: boolean })._postgresAvailable ?? false;
+
+describe.skipIf(!notificationsPostgresOk)("Notifications REST API", () => {
   let app: ReturnType<typeof createApp>;
   let tempDir: string;
   let projectId: string;

@@ -1,35 +1,40 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import initSqlJs from "sql.js";
 import { NotificationService } from "../services/notification.service.js";
 import { AppError } from "../middleware/error-handler.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
 import type { DbClient } from "../db/client.js";
-import { createSqliteDbClient, SCHEMA_SQL_SQLITE } from "./test-db-helper.js";
 
-let sharedClient: DbClient;
-vi.mock("../services/task-store.service.js", async () => ({
-  taskStore: {
+const { sharedClientRef } = vi.hoisted(() => ({ sharedClientRef: { current: null as DbClient | null } }));
+vi.mock("../services/task-store.service.js", async () => {
+  const { createTestPostgresClient } = await import("./test-db-helper.js");
+  const dbResult = await createTestPostgresClient();
+  sharedClientRef.current = dbResult?.client ?? null;
+  return {
+    taskStore: {
     async getDb() {
-      if (!sharedClient) throw new Error("sharedClient not initialized");
-      return sharedClient;
+      if (!sharedClientRef.current) throw new Error("sharedClient not initialized");
+      return sharedClientRef.current;
     },
     async runWrite<T>(fn: (client: DbClient) => Promise<T>): Promise<T> {
-      if (!sharedClient) throw new Error("sharedClient not initialized");
-      return fn(sharedClient);
+      if (!sharedClientRef.current) throw new Error("sharedClient not initialized");
+      return fn(sharedClientRef.current);
     },
-  },
-  TaskStoreService: vi.fn(),
-  SCHEMA_SQL: "",
-}));
+    },
+    TaskStoreService: vi.fn(),
+    SCHEMA_SQL: "",
+    _postgresAvailable: !!dbResult,
+  };
+});
 
-describe("NotificationService", () => {
+const notifTaskStoreMod = await import("../services/task-store.service.js");
+const notifPostgresOk = (notifTaskStoreMod as { _postgresAvailable?: boolean })._postgresAvailable ?? false;
+
+describe.skipIf(!notifPostgresOk)("NotificationService", () => {
   let service: NotificationService;
 
   beforeEach(async () => {
-    const SQL = await initSqlJs();
-    const db = new SQL.Database();
-    db.run(SCHEMA_SQL_SQLITE);
-    sharedClient = createSqliteDbClient(db);
+    if (!sharedClientRef.current) throw new Error("Postgres required");
+    await sharedClientRef.current.execute("DELETE FROM open_questions");
     service = new NotificationService();
   });
 

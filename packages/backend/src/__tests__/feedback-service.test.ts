@@ -2,13 +2,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
-import initSqlJs from "sql.js";
 import { FeedbackService } from "../services/feedback.service.js";
 import { ProjectService } from "../services/project.service.js";
 import { DEFAULT_HIL_CONFIG } from "@opensprint/shared";
 import { feedbackStore } from "../services/feedback-store.service.js";
 import type { DbClient } from "../db/client.js";
-import { createSqliteDbClient, SCHEMA_SQL_SQLITE } from "./test-db-helper.js";
 
 const mockInvoke = vi.fn();
 vi.mock("../services/agent-client.js", () => ({
@@ -121,20 +119,17 @@ vi.mock("../utils/feedback-id.js", () => ({
 const mockTaskStoreListAll = vi.fn().mockResolvedValue([]);
 const mockTaskStoreReady = vi.fn().mockResolvedValue([]);
 
-let testClient: DbClient;
+const { testClientRef } = vi.hoisted(() => ({ testClientRef: { current: null as DbClient | null } }));
 vi.mock("../services/task-store.service.js", async () => {
-  const { createSqliteDbClient, SCHEMA_SQL_SQLITE } = await import("./test-db-helper.js");
+  const { createTestPostgresClient } = await import("./test-db-helper.js");
+  const dbResult = await createTestPostgresClient();
+  testClientRef.current = dbResult?.client ?? null;
   const mockInstance = {
-    init: vi.fn().mockImplementation(async () => {
-      const SQL = await initSqlJs();
-      const db = new SQL.Database();
-      db.run(SCHEMA_SQL_SQLITE);
-      testClient = createSqliteDbClient(db);
-    }),
-    getDb: vi.fn().mockImplementation(async () => testClient),
+    init: vi.fn().mockImplementation(async () => {}),
+    getDb: vi.fn().mockImplementation(async () => testClientRef.current),
     runWrite: vi
       .fn()
-      .mockImplementation(async (fn: (client: DbClient) => Promise<unknown>) => fn(testClient)),
+      .mockImplementation(async (fn: (client: DbClient) => Promise<unknown>) => fn(testClientRef.current!)),
     create: (...args: unknown[]) => mockTaskStoreCreate(...args),
     createWithRetry: (...args: unknown[]) => mockTaskStoreCreateWithRetry(...args),
     addDependency: (...args: unknown[]) => mockTaskStoreAddDependency(...args),
@@ -154,10 +149,14 @@ vi.mock("../services/task-store.service.js", async () => {
     TaskStoreService: vi.fn().mockImplementation(() => mockInstance),
     taskStore: mockInstance,
     SCHEMA_SQL: "",
+    _postgresAvailable: !!dbResult,
   };
 });
 
-describe("FeedbackService", () => {
+const feedbackServiceTaskStoreMod = await import("../services/task-store.service.js");
+const feedbackServicePostgresOk = (feedbackServiceTaskStoreMod as { _postgresAvailable?: boolean })._postgresAvailable ?? false;
+
+describe.skipIf(!feedbackServicePostgresOk)("FeedbackService", () => {
   let feedbackService: FeedbackService;
   let projectService: ProjectService;
   let tempDir: string;
