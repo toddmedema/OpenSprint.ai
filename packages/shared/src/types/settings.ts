@@ -293,10 +293,46 @@ export interface ApiKeyEntry {
 /** API keys per provider: array of entries ordered by preference (first available used) */
 export type ApiKeys = Partial<Record<ApiKeyProvider, ApiKeyEntry[]>>;
 
+/** Default PostgreSQL URL when databaseUrl is not configured */
+export const DEFAULT_DATABASE_URL =
+  "postgresql://opensprint:opensprint@localhost:5432/opensprint";
+
 /** Global settings stored at ~/.opensprint/global-settings.json */
 export interface GlobalSettings {
   apiKeys?: ApiKeys;
   useCustomCli?: boolean;
+  /** PostgreSQL connection URL. Never stored in the database; only in this JSON file. */
+  databaseUrl?: string;
+}
+
+/**
+ * Validate that a string is a valid PostgreSQL URL format.
+ * Accepts postgres:// or postgresql:// schemes.
+ * @throws Error if invalid
+ */
+export function validateDatabaseUrl(url: string): string {
+  if (typeof url !== "string" || !url.trim()) {
+    throw new Error("databaseUrl must be a non-empty string");
+  }
+  const trimmed = url.trim();
+  if (!/^postgres(ql)?:\/\//i.test(trimmed)) {
+    throw new Error("databaseUrl must start with postgres:// or postgresql://");
+  }
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "postgres:" && parsed.protocol !== "postgresql:") {
+      throw new Error("databaseUrl must use postgres or postgresql scheme");
+    }
+    if (!parsed.hostname) {
+      throw new Error("databaseUrl must have a host");
+    }
+    return trimmed;
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith("databaseUrl")) {
+      throw err;
+    }
+    throw new Error("databaseUrl must be a valid PostgreSQL connection URL");
+  }
 }
 
 /** Masked API key entry for API responses (never exposes raw value) */

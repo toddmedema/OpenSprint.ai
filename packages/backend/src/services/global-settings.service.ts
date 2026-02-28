@@ -1,12 +1,17 @@
 /**
  * Global settings store at ~/.opensprint/global-settings.json.
- * Schema: { apiKeys?: ApiKeys, useCustomCli?: boolean }
+ * Schema: { apiKeys?: ApiKeys, useCustomCli?: boolean, databaseUrl?: string }
  * Uses same ApiKeyEntry structure for apiKeys. Atomic writes via writeJsonAtomic.
+ * databaseUrl is stored only in this JSON file; never in the database.
  */
 import fs from "fs/promises";
 import path from "path";
 import type { GlobalSettings, ApiKeys } from "@opensprint/shared";
-import { sanitizeApiKeys } from "@opensprint/shared";
+import {
+  sanitizeApiKeys,
+  DEFAULT_DATABASE_URL,
+  validateDatabaseUrl,
+} from "@opensprint/shared";
 import { writeJsonAtomic } from "../utils/file-utils.js";
 
 function getGlobalSettingsPath(): string {
@@ -16,6 +21,15 @@ function getGlobalSettingsPath(): string {
 
 /** Default empty settings */
 const DEFAULT: GlobalSettings = {};
+
+function parseDatabaseUrl(raw: unknown): string | undefined {
+  if (raw == null || typeof raw !== "string" || !raw.trim()) return undefined;
+  try {
+    return validateDatabaseUrl(raw);
+  } catch {
+    return undefined;
+  }
+}
 
 async function load(): Promise<GlobalSettings> {
   const file = getGlobalSettingsPath();
@@ -27,9 +41,11 @@ async function load(): Promise<GlobalSettings> {
       const apiKeys = sanitizeApiKeys(obj.apiKeys);
       const useCustomCli =
         obj.useCustomCli === true ? true : obj.useCustomCli === false ? false : undefined;
+      const databaseUrl = parseDatabaseUrl(obj.databaseUrl);
       return {
         ...(apiKeys && { apiKeys }),
         ...(useCustomCli !== undefined && { useCustomCli }),
+        ...(databaseUrl && { databaseUrl }),
       };
     }
   } catch {
@@ -53,6 +69,16 @@ export async function getGlobalSettings(): Promise<GlobalSettings> {
 }
 
 /**
+ * Get the effective database URL. Returns databaseUrl from global settings when set,
+ * otherwise the default: postgresql://opensprint:opensprint@localhost:5432/opensprint.
+ * Never stored in the database; only in ~/.opensprint/global-settings.json.
+ */
+export async function getDatabaseUrl(): Promise<string> {
+  const settings = await getGlobalSettings();
+  return settings.databaseUrl ?? DEFAULT_DATABASE_URL;
+}
+
+/**
  * Set global settings (replace entire file).
  */
 export async function setGlobalSettings(settings: GlobalSettings): Promise<void> {
@@ -63,6 +89,9 @@ export async function setGlobalSettings(settings: GlobalSettings): Promise<void>
   }
   if (settings.useCustomCli !== undefined) {
     sanitized.useCustomCli = settings.useCustomCli;
+  }
+  if (settings.databaseUrl !== undefined) {
+    sanitized.databaseUrl = validateDatabaseUrl(settings.databaseUrl);
   }
   await save(sanitized);
 }
@@ -82,6 +111,9 @@ export async function updateGlobalSettings(
   }
   if (updates.useCustomCli !== undefined) {
     merged.useCustomCli = updates.useCustomCli;
+  }
+  if (updates.databaseUrl !== undefined) {
+    merged.databaseUrl = validateDatabaseUrl(updates.databaseUrl);
   }
 
   await save(merged);

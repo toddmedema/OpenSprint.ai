@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   DEFAULT_HIL_CONFIG,
+  DEFAULT_DATABASE_URL,
   getAgentForComplexity,
   getAgentForPlanningRole,
   parseSettings,
@@ -11,6 +12,7 @@ import {
   getDeploymentTargetsForUi,
   API_KEY_PROVIDERS,
   validateApiKeyEntry,
+  validateDatabaseUrl,
   sanitizeApiKeys,
   isLimitHitExpired,
   maskApiKeysForResponse,
@@ -663,6 +665,58 @@ describe("maskApiKeysForResponse", () => {
     const masked = maskApiKeysForResponse(apiKeys);
     expect(masked?.CURSOR_API_KEY?.[0]).not.toHaveProperty("value");
     expect(masked?.CURSOR_API_KEY?.[0]).toEqual({ id: "c1", masked: "••••••••" });
+  });
+});
+
+describe("DEFAULT_DATABASE_URL", () => {
+  it("is the local Docker Postgres URL", () => {
+    expect(DEFAULT_DATABASE_URL).toBe(
+      "postgresql://opensprint:opensprint@localhost:5432/opensprint"
+    );
+  });
+});
+
+describe("validateDatabaseUrl", () => {
+  it("accepts valid postgresql URL", () => {
+    const url = "postgresql://opensprint:opensprint@localhost:5432/opensprint";
+    expect(validateDatabaseUrl(url)).toBe(url);
+  });
+
+  it("accepts valid postgres URL", () => {
+    const url = "postgres://user:pass@host.example.com:5432/mydb";
+    expect(validateDatabaseUrl(url)).toBe(url);
+  });
+
+  it("accepts remote Supabase-style URL", () => {
+    const url =
+      "postgresql://postgres.xxx:password@aws-0-us-west-1.pooler.supabase.com:6543/postgres";
+    expect(validateDatabaseUrl(url)).toBe(url);
+  });
+
+  it("trims whitespace", () => {
+    const url = "  postgresql://localhost/db  ";
+    expect(validateDatabaseUrl(url)).toBe("postgresql://localhost/db");
+  });
+
+  it("throws when empty or not a string", () => {
+    expect(() => validateDatabaseUrl("")).toThrow("databaseUrl must be a non-empty string");
+    expect(() => validateDatabaseUrl("   ")).toThrow("databaseUrl must be a non-empty string");
+    expect(() => validateDatabaseUrl(null as unknown as string)).toThrow(
+      "databaseUrl must be a non-empty string"
+    );
+  });
+
+  it("throws when scheme is not postgres/postgresql", () => {
+    expect(() => validateDatabaseUrl("mysql://localhost/db")).toThrow(
+      "databaseUrl must start with postgres:// or postgresql://"
+    );
+    expect(() => validateDatabaseUrl("https://localhost/db")).toThrow(
+      "databaseUrl must start with postgres:// or postgresql://"
+    );
+  });
+
+  it("throws when URL is malformed (missing host)", () => {
+    expect(() => validateDatabaseUrl("postgresql://")).toThrow("databaseUrl must have a host");
   });
 });
 

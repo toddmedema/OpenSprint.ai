@@ -9,7 +9,9 @@ import {
   getGlobalSettings,
   setGlobalSettings,
   updateGlobalSettings,
+  getDatabaseUrl,
 } from "../services/global-settings.service.js";
+import { DEFAULT_DATABASE_URL } from "@opensprint/shared";
 
 describe("global-settings.service", () => {
   let tempDir: string;
@@ -70,6 +72,45 @@ describe("global-settings.service", () => {
       });
       expect(settings.useCustomCli).toBe(true);
     });
+
+    it("returns databaseUrl when set", async () => {
+      const customUrl = "postgresql://user:pass@remote.example.com:5432/mydb";
+      await setGlobalSettings({ databaseUrl: customUrl });
+
+      const settings = await getGlobalSettings();
+      expect(settings.databaseUrl).toBe(customUrl);
+    });
+
+    it("omits invalid databaseUrl from file (falls back to default via getDatabaseUrl)", async () => {
+      const dir = path.join(tempDir, ".opensprint");
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(
+        getFilePath(),
+        JSON.stringify({ databaseUrl: "mysql://invalid" }),
+        "utf-8"
+      );
+
+      const settings = await getGlobalSettings();
+      expect(settings.databaseUrl).toBeUndefined();
+
+      const url = await getDatabaseUrl();
+      expect(url).toBe(DEFAULT_DATABASE_URL);
+    });
+  });
+
+  describe("getDatabaseUrl", () => {
+    it("returns DEFAULT_DATABASE_URL when databaseUrl is not set", async () => {
+      const url = await getDatabaseUrl();
+      expect(url).toBe(DEFAULT_DATABASE_URL);
+    });
+
+    it("returns configured databaseUrl when set", async () => {
+      const customUrl = "postgresql://custom:secret@host:5432/db";
+      await setGlobalSettings({ databaseUrl: customUrl });
+
+      const url = await getDatabaseUrl();
+      expect(url).toBe(customUrl);
+    });
   });
 
   describe("setGlobalSettings", () => {
@@ -127,6 +168,21 @@ describe("global-settings.service", () => {
       expect(settings.apiKeys?.ANTHROPIC_API_KEY).toHaveLength(1);
       expect(settings.apiKeys?.ANTHROPIC_API_KEY?.[0]).toEqual({ id: "valid", value: "sk-ant-ok" });
     });
+
+    it("writes databaseUrl to global-settings.json", async () => {
+      const customUrl = "postgresql://user:pass@localhost:5432/customdb";
+      await setGlobalSettings({ databaseUrl: customUrl });
+
+      const raw = await fs.readFile(getFilePath(), "utf-8");
+      const parsed = JSON.parse(raw);
+      expect(parsed.databaseUrl).toBe(customUrl);
+    });
+
+    it("throws when databaseUrl has invalid format", async () => {
+      await expect(
+        setGlobalSettings({ databaseUrl: "mysql://localhost/db" })
+      ).rejects.toThrow("databaseUrl must start with postgres:// or postgresql://");
+    });
   });
 
   describe("updateGlobalSettings", () => {
@@ -183,6 +239,27 @@ describe("global-settings.service", () => {
       const raw = await fs.readFile(getFilePath(), "utf-8");
       const parsed = JSON.parse(raw);
       expect(parsed.useCustomCli).toBe(true);
+    });
+
+    it("updates databaseUrl", async () => {
+      await setGlobalSettings({ useCustomCli: true });
+
+      const customUrl = "postgresql://remote:secret@db.example.com:5432/opensprint";
+      const updated = await updateGlobalSettings({ databaseUrl: customUrl });
+
+      expect(updated.databaseUrl).toBe(customUrl);
+      expect(updated.useCustomCli).toBe(true);
+
+      const settings = await getGlobalSettings();
+      expect(settings.databaseUrl).toBe(customUrl);
+    });
+
+    it("throws when databaseUrl has invalid format", async () => {
+      await setGlobalSettings({ useCustomCli: true });
+
+      await expect(
+        updateGlobalSettings({ databaseUrl: "invalid-url" })
+      ).rejects.toThrow("databaseUrl must start with postgres:// or postgresql://");
     });
   });
 
