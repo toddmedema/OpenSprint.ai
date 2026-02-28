@@ -87,16 +87,42 @@ export function ProjectView() {
   const lastSyncedRef = useRef<Record<string, unknown>>({});
   const queryClient = useQueryClient();
   const { data: project, isLoading: projectLoading, error: projectError } = useProject(projectId);
-  const { data: tasksData } = useTasks(projectId);
-  const { data: plansData } = usePlans(projectId);
-  const { data: feedbackData } = useFeedback(projectId);
-  const { data: executeStatusData } = useExecuteStatus(projectId);
-  const { data: deliverStatusData } = useDeliverStatus(projectId);
-  const { data: deliverHistoryData } = useDeliverHistory(projectId);
-  const { data: prdData } = usePrd(projectId);
-  const { data: prdHistoryData } = usePrdHistory(projectId);
-  const { data: sketchChatData } = useSketchChat(projectId);
-  const { data: planStatusData } = usePlanStatus(projectId);
+  // Phase-specific queries: only fetch when phase is active. Cached data persists when switching phases.
+  const isSketch = currentPhase === "sketch";
+  const isPlan = currentPhase === "plan";
+  const isExecute = currentPhase === "execute";
+  const isEval = currentPhase === "eval";
+  const isDeliver = currentPhase === "deliver";
+  const { data: tasksData } = useTasks(projectId, {
+    enabled: isExecute || isEval,
+  });
+  const { data: plansData } = usePlans(projectId, {
+    enabled: isSketch || isPlan || isExecute,
+  });
+  const { data: feedbackData } = useFeedback(projectId, {
+    enabled: isEval,
+  });
+  const { data: executeStatusData } = useExecuteStatus(projectId, {
+    enabled: isExecute,
+  });
+  const { data: deliverStatusData } = useDeliverStatus(projectId, {
+    enabled: isDeliver,
+  });
+  const { data: deliverHistoryData } = useDeliverHistory(projectId, undefined, {
+    enabled: isDeliver,
+  });
+  const { data: prdData } = usePrd(projectId, {
+    enabled: isSketch,
+  });
+  const { data: prdHistoryData } = usePrdHistory(projectId, {
+    enabled: isSketch,
+  });
+  const { data: sketchChatData } = useSketchChat(projectId, {
+    enabled: isSketch,
+  });
+  const { data: planStatusData } = usePlanStatus(projectId, {
+    enabled: isSketch || isPlan,
+  });
   // Sync TanStack Query → Redux only when data reference changed (avoids flash from refetch returning same ref)
   useEffect(() => {
     if (!projectId || !tasksData) return;

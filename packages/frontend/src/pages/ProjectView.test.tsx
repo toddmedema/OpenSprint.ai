@@ -53,6 +53,7 @@ vi.mock("../api/client", () => ({
       list: vi.fn().mockResolvedValue([]),
       getSettings: vi.fn().mockResolvedValue({ deployment: {} }),
       getSketchContext: vi.fn().mockResolvedValue({ hasExistingCode: false }),
+      getPlanStatus: vi.fn().mockResolvedValue({ status: "idle" }),
     },
     prd: { get: vi.fn().mockResolvedValue({}), getHistory: vi.fn().mockResolvedValue([]) },
     plans: { list: vi.fn().mockResolvedValue({ plans: [], edges: [] }) },
@@ -215,7 +216,7 @@ describe("ProjectView upfront loading and mount-all", () => {
     vi.clearAllMocks();
   });
 
-  it("dispatches wsConnect and all fetch thunks on mount", async () => {
+  it("dispatches wsConnect and fetches only sketch-phase data when on sketch", async () => {
     renderWithRouter("/projects/proj-1/sketch");
 
     await waitFor(() => {
@@ -223,18 +224,36 @@ describe("ProjectView upfront loading and mount-all", () => {
     });
 
     const { api: mockedApi } = await import("../api/client");
-    // Thunks are async; wait for their API calls to complete
+    // Phase-specific: only sketch-related queries run when on sketch
     await waitFor(() => {
       expect(mockedApi.projects.get).toHaveBeenCalledWith("proj-1");
       expect(mockedApi.prd.get).toHaveBeenCalledWith("proj-1");
       expect(mockedApi.prd.getHistory).toHaveBeenCalledWith("proj-1");
       expect(mockedApi.plans.list).toHaveBeenCalledWith("proj-1");
-      expect(mockedApi.tasks.list).toHaveBeenCalled();
-      expect(mockedApi.tasks.list.mock.calls[0][0]).toBe("proj-1");
-      expect(mockedApi.execute.status).toHaveBeenCalledWith("proj-1");
-      expect(mockedApi.feedback.list).toHaveBeenCalled();
-      expect(mockedApi.feedback.list.mock.calls[0][0]).toBe("proj-1");
+      expect(mockedApi.projects.getPlanStatus).toHaveBeenCalledWith("proj-1");
       expect(mockedApi.chat.history).toHaveBeenCalledWith("proj-1", "sketch");
+    });
+    // Sketch phase does NOT fetch tasks, execute status, feedback, deliver
+    expect(mockedApi.tasks.list).not.toHaveBeenCalled();
+    expect(mockedApi.execute.status).not.toHaveBeenCalled();
+    expect(mockedApi.feedback.list).not.toHaveBeenCalled();
+    expect(mockedApi.deliver.status).not.toHaveBeenCalled();
+    expect(mockedApi.deliver.history).not.toHaveBeenCalled();
+  });
+
+  it("fetches execute-phase data when on execute", async () => {
+    renderWithRouter("/projects/proj-1/execute");
+
+    await waitFor(() => {
+      expect(mockWsConnect).toHaveBeenCalledWith({ projectId: "proj-1" });
+    });
+
+    const { api: mockedApi } = await import("../api/client");
+    await waitFor(() => {
+      expect(mockedApi.projects.get).toHaveBeenCalledWith("proj-1");
+      expect(mockedApi.tasks.list).toHaveBeenCalledWith("proj-1");
+      expect(mockedApi.execute.status).toHaveBeenCalledWith("proj-1");
+      expect(mockedApi.plans.list).toHaveBeenCalledWith("proj-1");
     });
   });
 
@@ -299,6 +318,46 @@ describe("ProjectView upfront loading and mount-all", () => {
     expect(planPhaseWrapper).toHaveClass("flex-1");
     expect(planPhaseWrapper).toHaveClass("min-h-0");
     expect(planPhaseWrapper).toHaveClass("overflow-hidden");
+  });
+
+  it("keeps phase data in store when switching phases; no refetch when returning", async () => {
+    vi.mocked(api.tasks.list).mockResolvedValue([TASK_FOR_DEEP_LINK]);
+    const store = createStore();
+    renderWithRouter("/projects/proj-1/execute", store);
+
+    await waitFor(() => {
+      expect(screen.getByText("Test Project")).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(store.getState().execute.tasksById["opensprint.dev-xyz.1"]).toBeDefined();
+    });
+
+    const { api: mockedApi } = await import("../api/client");
+    const tasksCallCountBefore = mockedApi.tasks.list.mock.calls.length;
+    expect(tasksCallCountBefore).toBeGreaterThanOrEqual(1);
+
+    // Switch to sketch (execute unmounts, tasks query disabled)
+    const sketchButton = screen.getByRole("button", { name: /^sketch$/i });
+    sketchButton.click();
+    await waitFor(() => {
+      expect(screen.getByTestId("phase-sketch")).toBeInTheDocument();
+    });
+
+    // Data should still be in Redux (persisted from cache)
+    expect(store.getState().execute.tasksById["opensprint.dev-xyz.1"]).toBeDefined();
+
+    // Switch back to execute
+    const executeButton = screen.getByRole("button", { name: /^execute$/i });
+    executeButton.click();
+    await waitFor(() => {
+      expect(screen.getByTestId("phase-execute")).toBeInTheDocument();
+    });
+
+    // Tasks should still be in Redux; TanStack Query serves from cache, no extra fetch
+    expect(store.getState().execute.tasksById["opensprint.dev-xyz.1"]).toBeDefined();
+    const tasksCallCountAfter = mockedApi.tasks.list.mock.calls.length;
+    // May refetch once when re-enabling (stale-while-revalidate); should not have doubled
+    expect(tasksCallCountAfter).toBeLessThanOrEqual(tasksCallCountBefore + 1);
   });
 });
 
