@@ -1,44 +1,36 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useRef, useMemo, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import type { AgentSession } from "@opensprint/shared";
 import { filterAgentOutput } from "../../utils/agentOutputFilter";
 
-function ArchivedSessionViewInner({ sessions }: { sessions: AgentSession[] }) {
-  const [activeTab, setActiveTab] = useState<"output" | "diff">("output");
-  const [selectedIdx, setSelectedIdx] = useState(sessions.length - 1);
-  useEffect(() => {
-    setSelectedIdx(Math.max(0, sessions.length - 1));
-  }, [sessions]);
-  const safeIdx = Math.min(selectedIdx, Math.max(0, sessions.length - 1));
-  const session = sessions[safeIdx];
-  if (!session) return null;
+/** Estimated height per session card (header + tabs + content area) */
+const ESTIMATED_SESSION_HEIGHT = 400;
 
+/** Single session card - only mounted when virtualized into view */
+const SessionCard = React.memo(function SessionCard({
+  session,
+  isLast,
+}: {
+  session: AgentSession;
+  isLast: boolean;
+}) {
+  const [activeTab, setActiveTab] = useState<"output" | "diff">("output");
   const filteredOutput = useMemo(
     () => (session.outputLog ? filterAgentOutput(session.outputLog) : ""),
     [session.outputLog]
   );
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="px-4 py-2 border-b border-theme-border flex items-center gap-4 text-xs flex-wrap">
-        {sessions.length > 1 ? (
-          <select
-            value={safeIdx}
-            onChange={(e) => setSelectedIdx(Number(e.target.value))}
-            className="bg-theme-bg-elevated text-theme-success-muted border border-theme-border rounded pl-2 pr-10 py-1"
-          >
-            {sessions.map((s, i) => (
-              <option key={s.attempt} value={i}>
-                Attempt {s.attempt} ({s.status})
-              </option>
-            ))}
-          </select>
-        ) : (
-          <span className="text-theme-muted">
-            Attempt {session.attempt} · {session.status} · {session.agentType}
-          </span>
-        )}
+    <div
+      className={`border-b border-theme-border ${!isLast ? "pb-6" : ""}`}
+      data-testid={`session-card-${session.attempt}`}
+    >
+      <div className="px-4 py-2 flex items-center gap-4 text-xs flex-wrap text-theme-muted">
+        <span>
+          Attempt {session.attempt} · {session.status} · {session.agentType}
+        </span>
         {session.testResults && session.testResults.total > 0 && (
           <span className="text-theme-success-muted">
             {session.testResults.passed} passed
@@ -54,7 +46,7 @@ function ArchivedSessionViewInner({ sessions }: { sessions: AgentSession[] }) {
           </span>
         )}
       </div>
-      <div className="flex gap-2 px-4 py-2 border-b border-theme-border shrink-0">
+      <div className="flex gap-2 px-4 py-2 border-b border-theme-border">
         <button
           type="button"
           onClick={() => setActiveTab("output")}
@@ -81,16 +73,96 @@ function ArchivedSessionViewInner({ sessions }: { sessions: AgentSession[] }) {
         )}
       </div>
       {activeTab === "output" ? (
-        <div className="flex-1 p-4 text-xs overflow-y-auto prose prose-sm prose-neutral dark:prose-invert prose-execute-task max-w-none prose-pre:bg-theme-code-bg prose-pre:text-theme-code-text prose-pre:border prose-pre:border-theme-border prose-pre:rounded-lg">
+        <div className="p-4 text-xs prose prose-sm prose-neutral dark:prose-invert prose-execute-task max-w-none prose-pre:bg-theme-code-bg prose-pre:text-theme-code-text prose-pre:border prose-pre:border-theme-border prose-pre:rounded-lg">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
             {filteredOutput || "(no output)"}
           </ReactMarkdown>
         </div>
       ) : (
-        <pre className="flex-1 p-4 text-xs font-mono whitespace-pre-wrap overflow-y-auto">
+        <pre className="p-4 text-xs font-mono whitespace-pre-wrap">
           {session.gitDiff || "(no diff)"}
         </pre>
       )}
+    </div>
+  );
+});
+
+function ArchivedSessionViewInner({ sessions }: { sessions: AgentSession[] }) {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: sessions.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => ESTIMATED_SESSION_HEIGHT,
+    overscan: 2,
+  });
+
+  // Scroll to last (most recent) session on mount, matching previous dropdown default
+  useEffect(() => {
+    if (sessions.length > 1) {
+      virtualizer.scrollToIndex(sessions.length - 1, { align: "end" });
+    }
+  }, [sessions.length]); // eslint-disable-line react-hooks/exhaustive-deps -- scroll only when session count changes
+
+  if (sessions.length === 0) return null;
+
+  const virtualItems = virtualizer.getVirtualItems();
+
+  // Fallback: when scroll container has no height (e.g. jsdom, initial layout),
+  // render all sessions so content is visible. Virtualization kicks in when
+  // the scroll element has measurable dimensions.
+  const useFallback = virtualItems.length === 0;
+
+  return (
+    <div className="flex flex-col h-full min-h-0">
+      <div
+        ref={parentRef}
+        className="flex-1 overflow-y-auto min-h-0"
+        data-testid="archived-sessions-list"
+      >
+        {useFallback ? (
+          <div className="space-y-6">
+            {sessions.map((session, i) => (
+              <SessionCard
+                key={session.attempt}
+                session={session}
+                isLast={i === sessions.length - 1}
+              />
+            ))}
+          </div>
+        ) : (
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {virtualItems.map((virtualItem) => {
+              const session = sessions[virtualItem.index];
+              if (!session) return null;
+              return (
+                <div
+                  key={session.attempt}
+                  data-index={virtualItem.index}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                >
+                  <SessionCard
+                    session={session}
+                    isLast={virtualItem.index === sessions.length - 1}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

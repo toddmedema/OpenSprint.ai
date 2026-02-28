@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { MemoryRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { configureStore } from "@reduxjs/toolkit";
 import { ExecutePhase } from "../pages/phases/ExecutePhase";
 import { appendAgentOutput } from "../store/slices/executeSlice";
@@ -16,6 +17,8 @@ import planReducer from "../store/slices/planSlice";
 import executeReducer, { initialExecuteState } from "../store/slices/executeSlice";
 import evalReducer from "../store/slices/evalSlice";
 import websocketReducer from "../store/slices/websocketSlice";
+
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
 const mockGet = vi.fn();
 const mockSessions = vi.fn();
@@ -169,11 +172,13 @@ describe("E2E: Readable agent output", () => {
     });
 
     render(
-      <MemoryRouter>
-        <Provider store={store}>
-          <ExecutePhase projectId="proj-1" />
-        </Provider>
-      </MemoryRouter>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <Provider store={store}>
+            <ExecutePhase projectId="proj-1" />
+          </Provider>
+        </MemoryRouter>
+      </QueryClientProvider>
     );
 
     await waitFor(() => {
@@ -220,11 +225,13 @@ describe("E2E: Readable agent output", () => {
     });
 
     render(
-      <MemoryRouter>
-        <Provider store={store}>
-          <ExecutePhase projectId="proj-1" />
-        </Provider>
-      </MemoryRouter>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <Provider store={store}>
+            <ExecutePhase projectId="proj-1" />
+          </Provider>
+        </MemoryRouter>
+      </QueryClientProvider>
     );
 
     await waitFor(() => {
@@ -441,11 +448,13 @@ describe("E2E: Readable agent output", () => {
     });
 
     render(
-      <MemoryRouter>
-        <Provider store={store}>
-          <ExecutePhase projectId="proj-1" />
-        </Provider>
-      </MemoryRouter>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <Provider store={store}>
+            <ExecutePhase projectId="proj-1" />
+          </Provider>
+        </MemoryRouter>
+      </QueryClientProvider>
     );
 
     await waitFor(() => {

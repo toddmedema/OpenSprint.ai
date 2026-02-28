@@ -1,7 +1,13 @@
+import React from "react";
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ArchivedSessionView } from "./ArchivedSessionView";
+
+/** Wrapper with fixed height so virtualizer has a scroll container (jsdom has no layout) */
+function TestWrapper({ children }: { children: React.ReactNode }) {
+  return <div style={{ height: 600 }}>{children}</div>;
+}
 
 describe("ArchivedSessionView", () => {
   it("renders single session with attempt, status, and agent type", () => {
@@ -16,7 +22,11 @@ describe("ArchivedSessionView", () => {
         failureReason: null,
       },
     ];
-    render(<ArchivedSessionView sessions={sessions} />);
+    render(
+      <TestWrapper>
+        <ArchivedSessionView sessions={sessions} />
+      </TestWrapper>
+    );
 
     expect(screen.getByText(/Attempt 1/)).toBeInTheDocument();
     expect(screen.getByText(/approved/)).toBeInTheDocument();
@@ -37,7 +47,11 @@ describe("ArchivedSessionView", () => {
         failureReason: null,
       },
     ];
-    render(<ArchivedSessionView sessions={sessions} />);
+    render(
+      <TestWrapper>
+        <ArchivedSessionView sessions={sessions} />
+      </TestWrapper>
+    );
 
     expect(screen.getByText("Output log")).toBeInTheDocument();
     expect(screen.getByText("Git diff")).toBeInTheDocument();
@@ -68,12 +82,16 @@ describe("ArchivedSessionView", () => {
         failureReason: null,
       },
     ];
-    render(<ArchivedSessionView sessions={sessions} />);
+    render(
+      <TestWrapper>
+        <ArchivedSessionView sessions={sessions} />
+      </TestWrapper>
+    );
 
-    const select = screen.getByRole("combobox");
-    expect(select).toBeInTheDocument();
-    expect(select).toHaveValue("1"); // Last session selected by default
+    // Virtualized list: no combobox; scroll to last session by default
+    expect(screen.getByTestId("archived-sessions-list")).toBeInTheDocument();
     expect(screen.getByText("Second attempt")).toBeInTheDocument();
+    expect(screen.getByText("First attempt")).toBeInTheDocument(); // overscan may show both
   });
 
   it("shows test results when present", () => {
@@ -88,7 +106,11 @@ describe("ArchivedSessionView", () => {
         failureReason: null,
       },
     ];
-    render(<ArchivedSessionView sessions={sessions} />);
+    render(
+      <TestWrapper>
+        <ArchivedSessionView sessions={sessions} />
+      </TestWrapper>
+    );
 
     expect(screen.getByText(/4 passed/)).toBeInTheDocument();
     expect(screen.getByText(/, 1 failed/)).toBeInTheDocument();
@@ -106,7 +128,11 @@ describe("ArchivedSessionView", () => {
         failureReason: "Build timeout",
       },
     ];
-    render(<ArchivedSessionView sessions={sessions} />);
+    render(
+      <TestWrapper>
+        <ArchivedSessionView sessions={sessions} />
+      </TestWrapper>
+    );
 
     expect(screen.getByText("Build timeout")).toBeInTheDocument();
   });
@@ -128,7 +154,11 @@ describe("ArchivedSessionView", () => {
         failureReason: null,
       },
     ];
-    render(<ArchivedSessionView sessions={sessions} />);
+    render(
+      <TestWrapper>
+        <ArchivedSessionView sessions={sessions} />
+      </TestWrapper>
+    );
     expect(screen.getByText("Bold")).toBeInTheDocument();
     expect(screen.getByText("code")).toBeInTheDocument();
     expect(screen.getByText("block")).toBeInTheDocument();
@@ -147,7 +177,11 @@ describe("ArchivedSessionView", () => {
         failureReason: null,
       },
     ];
-    render(<ArchivedSessionView sessions={sessions} />);
+    render(
+      <TestWrapper>
+        <ArchivedSessionView sessions={sessions} />
+      </TestWrapper>
+    );
     expect(screen.getByText("Visible content")).toBeInTheDocument();
     expect(screen.queryByText(/tool_use/)).not.toBeInTheDocument();
   });
