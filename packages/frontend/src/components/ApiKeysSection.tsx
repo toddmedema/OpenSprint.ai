@@ -65,13 +65,15 @@ export function ApiKeysSection({ settings, onApiKeysChange }: ApiKeysSectionProp
     (provider: ApiKeyProvider): Array<{ id: string; value: string; limitHitAt?: string }> => {
       const existing = (settings?.apiKeys as Record<string, MaskedApiKeyEntry[]> | undefined)?.[provider] ?? [];
       const added = newKeys[provider] ?? [];
+      const existingIds = new Set(existing.map((e) => e.id));
+      const addedOnly = added.filter((e) => !existingIds.has(e.id));
       return [
         ...existing.map((e) => ({
           id: e.id,
-          value: editedValues[e.id] ?? "",
+          value: editedValues[e.id] ?? (e as { value?: string }).value ?? "",
           limitHitAt: e.limitHitAt,
         })),
-        ...added.map((e) => ({
+        ...addedOnly.map((e) => ({
           id: e.id,
           value: e.value,
           limitHitAt: undefined as string | undefined,
