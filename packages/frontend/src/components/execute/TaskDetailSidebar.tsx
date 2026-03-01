@@ -4,7 +4,13 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { AgentSession, Notification, Plan, Task } from "@opensprint/shared";
 import { VirtualizedAgentOutput } from "./VirtualizedAgentOutput";
-import { PRIORITY_LABELS, AGENT_ROLE_LABELS, complexityToDisplay } from "@opensprint/shared";
+import {
+  PRIORITY_LABELS,
+  AGENT_ROLE_LABELS,
+  complexityToDisplay,
+  TASK_COMPLEXITY_MIN,
+  TASK_COMPLEXITY_MAX,
+} from "@opensprint/shared";
 import type { ActiveTaskInfo } from "../../store/slices/executeSlice";
 import { useAppDispatch } from "../../store";
 import { updateTaskPriority, addTaskDependency } from "../../store/slices/executeSlice";
@@ -460,6 +466,13 @@ function TaskDetailSidebarInner({
                     displayLabel
                       ? `Complexity: ${displayLabel}`
                       : "Complexity: not set"
+                  }
+                  title={
+                    typeof task.complexity === "number" &&
+                    task.complexity >= TASK_COMPLEXITY_MIN &&
+                    task.complexity <= TASK_COMPLEXITY_MAX
+                      ? `Score: ${task.complexity}/10`
+                      : undefined
                   }
                 >
                   <ComplexityIcon complexity={task.complexity} size="sm" />

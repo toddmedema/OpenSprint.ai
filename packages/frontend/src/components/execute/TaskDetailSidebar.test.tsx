@@ -1539,6 +1539,62 @@ describe("TaskDetailSidebar", () => {
       expect(complexity).toHaveAttribute("aria-label", "Complexity: not set");
     });
 
+    it("shows Score: N/10 tooltip on hover when task has valid complexity", () => {
+      const props = createMinimalProps({
+        selectedTaskData: {
+          ...defaultSelectedTaskData,
+          complexity: 5,
+        },
+      });
+      renderWithProviders(<TaskDetailSidebar {...props} />, {
+        preloadedState: defaultPreloadedState,
+      });
+      const complexity = screen.getByTestId("task-complexity");
+      expect(complexity).toHaveAttribute("title", "Score: 5/10");
+    });
+
+    it("shows Score: 1/10 tooltip for complexity 1", () => {
+      const props = createMinimalProps({
+        selectedTaskData: {
+          ...defaultSelectedTaskData,
+          complexity: 1,
+        },
+      });
+      renderWithProviders(<TaskDetailSidebar {...props} />, {
+        preloadedState: defaultPreloadedState,
+      });
+      const complexity = screen.getByTestId("task-complexity");
+      expect(complexity).toHaveAttribute("title", "Score: 1/10");
+    });
+
+    it("shows Score: 10/10 tooltip for complexity 10", () => {
+      const props = createMinimalProps({
+        selectedTaskData: {
+          ...defaultSelectedTaskData,
+          complexity: 10,
+        },
+      });
+      renderWithProviders(<TaskDetailSidebar {...props} />, {
+        preloadedState: defaultPreloadedState,
+      });
+      const complexity = screen.getByTestId("task-complexity");
+      expect(complexity).toHaveAttribute("title", "Score: 10/10");
+    });
+
+    it("has no tooltip when task has no complexity", () => {
+      const props = createMinimalProps({
+        selectedTaskData: {
+          ...defaultSelectedTaskData,
+          complexity: undefined,
+        },
+      });
+      renderWithProviders(<TaskDetailSidebar {...props} />, {
+        preloadedState: defaultPreloadedState,
+      });
+      const complexity = screen.getByTestId("task-complexity");
+      expect(complexity).not.toHaveAttribute("title");
+    });
+
     it("displays complexity in same row as priority", () => {
       const props = createMinimalProps({
         selectedTaskData: {
