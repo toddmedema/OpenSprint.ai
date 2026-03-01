@@ -130,14 +130,23 @@ describe("ProjectSettingsPage", () => {
 
     const page = screen.getByTestId("project-settings-page");
     const modal = screen.getByTestId("settings-modal");
-    // Page has 2 direct children: header div and ProjectSettingsModal root
+    // Page has 1 direct child: ProjectSettingsModal root (no header)
     const pageChildren = Array.from(page.children);
-    expect(pageChildren.length).toBe(2);
-    // Modal (settings content) is inside the second child - no extra overflow-hidden wrapper between
-    const modalWrapper = pageChildren[1];
+    expect(pageChildren.length).toBe(1);
+    const modalWrapper = pageChildren[0];
     expect(modalWrapper).toContainElement(modal);
     expect(modalWrapper).toHaveClass("flex-1");
     expect(modalWrapper).toHaveClass("min-h-0");
+  });
+
+  it("does not render back button in header", async () => {
+    renderProjectSettingsPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("project-settings-page")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("link", { name: "Back to project" })).not.toBeInTheDocument();
   });
 
   it("settings content area has overflow-y-auto for scroll when content exceeds viewport", async () => {
@@ -145,13 +154,6 @@ describe("ProjectSettingsPage", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("settings-modal-content")).toBeInTheDocument();
-    });
-
-    const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
-    await userEvent.click(agentConfigTab);
-
-    await waitFor(() => {
-      expect(screen.getByText("Task Complexity")).toBeInTheDocument();
     });
 
     const contentArea = screen.getByTestId("settings-modal-content");

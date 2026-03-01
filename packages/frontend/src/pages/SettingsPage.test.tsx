@@ -80,4 +80,14 @@ describe("SettingsPage", () => {
       expect(screen.getByTestId("display-section")).toBeInTheDocument();
     });
   });
+
+  it("does not render back button in header", async () => {
+    renderSettingsPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("settings-page")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("link", { name: "Back to home" })).not.toBeInTheDocument();
+  });
 });

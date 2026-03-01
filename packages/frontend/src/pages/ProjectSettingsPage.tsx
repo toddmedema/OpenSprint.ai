@@ -52,23 +52,6 @@ export function ProjectSettingsPage() {
   return (
     <Layout project={project} currentPhase="sketch">
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col px-6 py-6" data-testid="project-settings-page">
-        <div className="flex items-center gap-4 mb-4 shrink-0">
-          <Link
-            to={getProjectPhasePath(projectId, "sketch")}
-            className="p-2 rounded-md text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle transition-colors"
-            aria-label="Back to project"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-            </svg>
-          </Link>
-        </div>
         <ProjectSettingsModal
           project={project}
           onClose={handleClose}
