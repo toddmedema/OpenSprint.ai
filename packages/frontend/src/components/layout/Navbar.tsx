@@ -13,6 +13,7 @@ import { NotificationBell } from "../NotificationBell";
 import { GlobalNotificationBell } from "../GlobalNotificationBell";
 import { ConnectionIndicator } from "../ConnectionIndicator";
 import { ApiKeySetupModal } from "../ApiKeySetupModal";
+import { HelpModal } from "../HelpModal";
 
 interface NavbarProps {
   project?: Project | null;
@@ -40,17 +41,17 @@ export function Navbar({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [apiKeyModalRoute, setApiKeyModalRoute] = useState<string | null>(null);
+  const [helpModalOpen, setHelpModalOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const isSettingsActive =
     location.pathname === "/settings" ||
     (project && location.pathname === `/projects/${project.id}/settings`);
-  const isHelpActive =
-    location.pathname === "/help" ||
-    (project && location.pathname === `/projects/${project.id}/help`);
 
   const settingsHref = project ? `/projects/${project.id}/settings` : "/settings";
-  const helpHref = project ? `/projects/${project.id}/help` : "/help";
+
+  const helpButtonClassName =
+    "p-1.5 rounded-md transition-colors text-brand-600 hover:text-brand-700 hover:bg-theme-info-bg";
 
   const dispatch = useAppDispatch();
   const executeBlockedCount = useAppSelector((s) => {
@@ -233,16 +234,15 @@ export function Navbar({
               <ActiveAgentsList projectId={project.id} />
               <NotificationBell projectId={project.id} />
               <ConnectionIndicator />
-              <Link
-                to={helpHref}
-                className={`p-1.5 rounded-md transition-colors ${
-                  isHelpActive ? "phase-tab phase-tab-active" : "text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle"
-                }`}
+              <button
+                type="button"
+                onClick={() => setHelpModalOpen(true)}
+                className={helpButtonClassName}
                 aria-label="Help"
                 title="Help"
               >
                 <span className="text-lg font-medium leading-none">?</span>
-              </Link>
+              </button>
               <Link
                 to={settingsHref}
                 className={`p-1.5 rounded-md transition-colors ${
@@ -275,16 +275,15 @@ export function Navbar({
             <>
               <GlobalActiveAgentsList />
               <GlobalNotificationBell />
-              <Link
-                to={helpHref}
-                className={`p-1.5 rounded-md transition-colors ${
-                  isHelpActive ? "phase-tab phase-tab-active" : "text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle"
-                }`}
+              <button
+                type="button"
+                onClick={() => setHelpModalOpen(true)}
+                className={helpButtonClassName}
                 aria-label="Help"
                 title="Help"
               >
                 <span className="text-lg font-medium leading-none">?</span>
-              </Link>
+              </button>
               <Link
                 to={settingsHref}
                 className={`p-1.5 rounded-md transition-colors ${
@@ -315,16 +314,15 @@ export function Navbar({
             </>
           ) : (
             <>
-              <Link
-                to={helpHref}
-                className={`p-1.5 rounded-md transition-colors ${
-                  isHelpActive ? "phase-tab phase-tab-active" : "text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle"
-                }`}
+              <button
+                type="button"
+                onClick={() => setHelpModalOpen(true)}
+                className={helpButtonClassName}
                 aria-label="Help"
                 title="Help"
               >
                 <span className="text-lg font-medium leading-none">?</span>
-              </Link>
+              </button>
               <Link
                 to={settingsHref}
                 className={`p-1.5 rounded-md transition-colors ${
@@ -365,6 +363,13 @@ export function Navbar({
           }}
           onCancel={() => setApiKeyModalRoute(null)}
           intendedRoute={apiKeyModalRoute}
+        />
+      )}
+
+      {helpModalOpen && (
+        <HelpModal
+          onClose={() => setHelpModalOpen(false)}
+          project={project ? { id: project.id, name: project.name } : undefined}
         />
       )}
     </nav>

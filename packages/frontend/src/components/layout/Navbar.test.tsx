@@ -287,10 +287,9 @@ describe("Navbar", () => {
     expect(screen.queryByRole("button", { name: "⚠️ Execute" })).not.toBeInTheDocument();
   });
 
-  describe("integration: (?) navigates to Help page", () => {
-    it("homepage (project=null): Help link has correct href and navigates to help page", async () => {
+  describe("integration: (?) opens Help modal (preserves project context)", () => {
+    it("homepage (project=null): Help button opens modal without navigating", async () => {
       const user = userEvent.setup();
-      const { HelpPage } = await import("../../pages/HelpPage");
       render(
         <ThemeProvider>
           <DisplayPreferencesProvider>
@@ -299,7 +298,6 @@ describe("Navbar", () => {
                 <MemoryRouter initialEntries={["/"]}>
                   <Routes>
                     <Route path="/" element={<Navbar project={null} />} />
-                    <Route path="/help" element={<HelpPage />} />
                   </Routes>
                 </MemoryRouter>
               </QueryClientProvider>
@@ -308,17 +306,18 @@ describe("Navbar", () => {
         </ThemeProvider>
       );
 
-      const helpLink = await screen.findByRole("link", { name: "Help" });
-      expect(helpLink).toHaveAttribute("href", "/help");
-      await user.click(helpLink);
+      const helpButton = await screen.findByRole("button", { name: "Help" });
+      await user.click(helpButton);
 
-      expect(screen.getByTestId("help-page")).toBeInTheDocument();
+      expect(screen.getByRole("dialog", { name: /help/i })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Ask a Question" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Meet your Team" })).toBeInTheDocument();
       expect(screen.getByText(/Ask about your projects/)).toBeInTheDocument();
     });
 
-    it("project view (project set): Help link has project-scoped href", () => {
+    it("project view (project set): Help button opens modal with project context", async () => {
+      const user = userEvent.setup();
+      const { api } = await import("../../api/client");
       const mockProject = {
         id: "proj-1",
         name: "Test",
@@ -329,11 +328,15 @@ describe("Navbar", () => {
       };
       renderNavbar(<Navbar project={mockProject} currentPhase="sketch" onPhaseChange={vi.fn()} />);
 
-      const helpLink = screen.getByRole("link", { name: "Help" });
-      expect(helpLink).toHaveAttribute("href", "/projects/proj-1/help");
+      const helpButton = screen.getByRole("button", { name: "Help" });
+      await user.click(helpButton);
+
+      expect(screen.getByRole("dialog", { name: /help/i })).toBeInTheDocument();
+      expect(api.help.history).toHaveBeenCalledWith("proj-1");
     });
 
-    it("project help page: Help link stays project-scoped (does not navigate to homepage)", async () => {
+    it("Help modal preserves route and project view (does not navigate)", async () => {
+      const user = userEvent.setup();
       const mockProject = {
         id: "proj-1",
         name: "Test Project",
@@ -342,43 +345,14 @@ describe("Navbar", () => {
         createdAt: "2025-01-01T00:00:00Z",
         updatedAt: "2025-01-01T00:00:00Z",
       };
-      mockProjectsGet.mockResolvedValue(mockProject);
-      const client = new QueryClient();
-      client.setQueryData(queryKeys.projects.detail("proj-1"), mockProject);
-      const { HelpPage } = await import("../../pages/HelpPage");
-      render(
-        <ThemeProvider>
-          <DisplayPreferencesProvider>
-            <Provider store={createStore()}>
-              <QueryClientProvider client={client}>
-                <MemoryRouter initialEntries={["/projects/proj-1/help"]}>
-                  <Routes>
-                    <Route path="/projects/:projectId/help" element={<HelpPage />} />
-                  </Routes>
-                </MemoryRouter>
-              </QueryClientProvider>
-            </Provider>
-          </DisplayPreferencesProvider>
-        </ThemeProvider>
-      );
-
-      await screen.findByTestId("help-page");
-      const helpLink = screen.getByRole("link", { name: "Help" });
-      expect(helpLink).toHaveAttribute("href", "/projects/proj-1/help");
-    });
-
-    it("Meet your Team tab shows agent grid when on help page", async () => {
-      const user = userEvent.setup();
-      const { HelpPage } = await import("../../pages/HelpPage");
       render(
         <ThemeProvider>
           <DisplayPreferencesProvider>
             <Provider store={createStore()}>
               <QueryClientProvider client={queryClient}>
-                <MemoryRouter initialEntries={["/help"]}>
+                <MemoryRouter initialEntries={["/projects/proj-1/execute"]}>
                   <Routes>
-                    <Route path="/" element={<Navbar project={null} />} />
-                    <Route path="/help" element={<HelpPage />} />
+                    <Route path="/projects/:projectId/:phase?" element={<Navbar project={mockProject} currentPhase="execute" onPhaseChange={vi.fn()} />} />
                   </Routes>
                 </MemoryRouter>
               </QueryClientProvider>
@@ -387,7 +361,20 @@ describe("Navbar", () => {
         </ThemeProvider>
       );
 
+      const helpButton = screen.getByRole("button", { name: "Help" });
+      await user.click(helpButton);
+
+      expect(screen.getByRole("dialog", { name: /help/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Test Project/i })).toBeInTheDocument();
+    });
+
+    it("Meet your Team tab shows agent grid when Help modal is open", async () => {
+      const user = userEvent.setup();
+      renderNavbar(<Navbar project={null} />);
+
+      await user.click(screen.getByRole("button", { name: "Help" }));
       await user.click(screen.getByRole("tab", { name: "Meet your Team" }));
+
       expect(screen.getByRole("tab", { name: "Meet your Team" })).toHaveAttribute(
         "aria-selected",
         "true"
@@ -396,6 +383,12 @@ describe("Navbar", () => {
       expect(screen.getByText("Planner")).toBeInTheDocument();
       expect(screen.getByText("Sketch")).toBeInTheDocument();
       expect(screen.getAllByRole("listitem")).toHaveLength(9);
+    });
+
+    it("Help button has blue styling", () => {
+      renderNavbar(<Navbar project={null} />);
+      const helpButton = screen.getByRole("button", { name: "Help" });
+      expect(helpButton).toHaveClass("text-brand-600");
     });
   });
 
@@ -512,7 +505,7 @@ describe("Navbar", () => {
     expect(localStorage.getItem("opensprint.theme")).toBe("dark");
   });
 
-  it("Settings and Help links show blue active state when on their page", async () => {
+  it("Settings link shows blue active state when on settings page", async () => {
     const { SettingsPage } = await import("../../pages/SettingsPage");
     render(
       <ThemeProvider>
