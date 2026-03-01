@@ -44,4 +44,6 @@ export interface FeedbackItem {
   userPriority?: number | null;
   /** Internal: retry count when link_to_existing_task_ids had invalid IDs (cap at 2, then fall back to create) */
   linkInvalidRetryCount?: number;
+  /** When true, feedback was routed to Planner to create a new Epic/Plan instead of individual tickets (PRD §7.4.2) */
+  isLargeScope?: boolean;
 }

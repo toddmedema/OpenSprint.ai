@@ -85,10 +85,25 @@ vi.mock("../websocket/index.js", () => ({
 }));
 
 const mockStopTaskAndFreeSlot = vi.fn().mockResolvedValue(undefined);
+const mockOrchestratorNudge = vi.fn().mockResolvedValue(undefined);
 vi.mock("../services/orchestrator.service.js", () => ({
   orchestratorService: {
     stopTaskAndFreeSlot: (...args: unknown[]) => mockStopTaskAndFreeSlot(...args),
+    nudge: (...args: unknown[]) => mockOrchestratorNudge(...args),
   },
+}));
+
+const mockGeneratePlanFromDescription = vi.fn();
+const mockShipPlan = vi.fn().mockResolvedValue({ metadata: { planId: "gen-plan", epicId: "os-gen1" } });
+const mockListPlans = vi.fn().mockResolvedValue([]);
+const mockGetPlan = vi.fn().mockResolvedValue({ metadata: { planId: "auth", epicId: "os-auth1" } });
+vi.mock("../services/plan.service.js", () => ({
+  PlanService: vi.fn().mockImplementation(() => ({
+    generatePlanFromDescription: (...args: unknown[]) => mockGeneratePlanFromDescription(...args),
+    shipPlan: (...args: unknown[]) => mockShipPlan(...args),
+    listPlans: (...args: unknown[]) => mockListPlans(...args),
+    getPlan: (...args: unknown[]) => mockGetPlan(...args),
+  })),
 }));
 
 const mockTriggerDeployForEvent = vi.fn().mockResolvedValue([]);
@@ -177,6 +192,12 @@ describe.skipIf(!feedbackServicePostgresOk)("FeedbackService", () => {
     feedbackIdSequence = [];
     mockHilEvaluate.mockResolvedValue({ approved: false });
     mockSyncPrdFromScopeChange.mockResolvedValue(undefined);
+    mockGeneratePlanFromDescription.mockResolvedValue({
+      metadata: { planId: "large-scope-plan", epicId: "os-large1" },
+      content: "# Large Scope Feature\n\nPlan content",
+      _createdTaskIds: ["os-large1.1", "os-large1.2"],
+    });
+    mockShipPlan.mockResolvedValue({ metadata: { planId: "large-scope-plan", epicId: "os-large1" } });
     taskStoreCreateCallCount = 0;
     feedbackService = new FeedbackService();
     projectService = new ProjectService();
@@ -1762,6 +1783,147 @@ describe.skipIf(!feedbackServicePostgresOk)("FeedbackService", () => {
         projectId,
         "Add mobile app as a new platform - scope change"
       );
+      expect(mockTaskStoreCreate).toHaveBeenCalled();
+    });
+  });
+
+  describe("Large-scope feedback (Analyst→Planner routing)", () => {
+    it("should route to Planner when is_large_scope is true and link feedback to new plan", async () => {
+      mockInvoke.mockResolvedValue({
+        content: JSON.stringify({
+          category: "scope",
+          mapped_plan_id: null,
+          mapped_epic_id: null,
+          is_scope_change: true,
+          is_large_scope: true,
+          proposed_tasks: [],
+        }),
+      });
+
+      const item = await feedbackService.submitFeedback(projectId, {
+        text: "We need to completely rewrite the auth architecture - switch to OAuth2 and add SSO",
+      });
+
+      await feedbackService.processFeedbackWithAnalyst(projectId, item.id);
+
+      expect(mockGeneratePlanFromDescription).toHaveBeenCalledTimes(1);
+      expect(mockGeneratePlanFromDescription).toHaveBeenCalledWith(
+        projectId,
+        "We need to completely rewrite the auth architecture - switch to OAuth2 and add SSO"
+      );
+      expect(mockShipPlan).toHaveBeenCalledWith(projectId, "large-scope-plan");
+      expect(mockOrchestratorNudge).toHaveBeenCalledWith(projectId);
+
+      const updated = await feedbackService.getFeedback(projectId, item.id);
+      expect(updated.mappedPlanId).toBe("large-scope-plan");
+      expect(updated.mappedEpicId).toBe("os-large1");
+      expect(updated.createdTaskIds).toEqual(["os-large1.1", "os-large1.2"]);
+      expect(updated.isLargeScope).toBe(true);
+    });
+
+    it("should prompt HIL for plan execution when scopeChanges is requires_approval", async () => {
+      const projWithHil = await projectService.createProject({
+        name: "HIL Project",
+        repoPath: path.join(tempDir, "hil-project"),
+        simpleComplexityAgent: { type: "cursor", model: "claude-sonnet-4", cliCommand: null },
+        complexComplexityAgent: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
+        deployment: { mode: "custom" },
+        hilConfig: {
+          scopeChanges: "requires_approval",
+          architectureDecisions: "requires_approval",
+          dependencyModifications: "automated",
+        },
+      });
+      feedbackIdSequence = ["largefb1"];
+
+      mockInvoke.mockResolvedValue({
+        content: JSON.stringify({
+          category: "scope",
+          mapped_plan_id: null,
+          is_scope_change: true,
+          is_large_scope: true,
+          proposed_tasks: [],
+        }),
+      });
+      mockHilEvaluate.mockResolvedValue({ approved: true });
+
+      const item = await feedbackService.submitFeedback(projWithHil.id, {
+        text: "Whole epic rewrite - new architecture",
+      });
+
+      await feedbackService.processFeedbackWithAnalyst(projWithHil.id, item.id);
+
+      expect(mockHilEvaluate).toHaveBeenCalledWith(
+        projWithHil.id,
+        "scopeChanges",
+        expect.stringContaining("A new plan was created from large-scope feedback"),
+        expect.arrayContaining([
+          expect.objectContaining({ id: "approve", label: "Execute" }),
+          expect.objectContaining({ id: "reject", label: "Reject" }),
+        ]),
+        true,
+        undefined,
+        "eval",
+        item.id
+      );
+      expect(mockShipPlan).toHaveBeenCalledWith(projWithHil.id, "large-scope-plan");
+    });
+
+    it("should not ship plan when HIL rejects (requires_approval)", async () => {
+      const projWithHil = await projectService.createProject({
+        name: "HIL Reject Project",
+        repoPath: path.join(tempDir, "hil-reject-project"),
+        simpleComplexityAgent: { type: "cursor", model: "claude-sonnet-4", cliCommand: null },
+        complexComplexityAgent: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
+        deployment: { mode: "custom" },
+        hilConfig: {
+          scopeChanges: "requires_approval",
+          architectureDecisions: "requires_approval",
+          dependencyModifications: "automated",
+        },
+      });
+      feedbackIdSequence = ["largefb2"];
+
+      mockInvoke.mockResolvedValue({
+        content: JSON.stringify({
+          category: "scope",
+          is_large_scope: true,
+          proposed_tasks: [],
+        }),
+      });
+      mockHilEvaluate.mockResolvedValue({ approved: false });
+
+      const item = await feedbackService.submitFeedback(projWithHil.id, {
+        text: "Major architecture change",
+      });
+
+      await feedbackService.processFeedbackWithAnalyst(projWithHil.id, item.id);
+
+      expect(mockGeneratePlanFromDescription).toHaveBeenCalledTimes(1);
+      expect(mockShipPlan).not.toHaveBeenCalled();
+      const updated = await feedbackService.getFeedback(projWithHil.id, item.id);
+      expect(updated.mappedPlanId).toBe("large-scope-plan");
+      expect(updated.createdTaskIds).toEqual(["os-large1.1", "os-large1.2"]);
+    });
+
+    it("should parse is_large_scope from Analyst response", async () => {
+      mockInvoke.mockResolvedValue({
+        content: JSON.stringify({
+          category: "feature",
+          mapped_plan_id: null,
+          is_scope_change: false,
+          is_large_scope: false,
+          proposed_tasks: [{ index: 0, title: "Small task", description: "", priority: 2, depends_on: [] }],
+        }),
+      });
+
+      const item = await feedbackService.submitFeedback(projectId, {
+        text: "Add a small button",
+      });
+
+      await feedbackService.processFeedbackWithAnalyst(projectId, item.id);
+
+      expect(mockGeneratePlanFromDescription).not.toHaveBeenCalled();
       expect(mockTaskStoreCreate).toHaveBeenCalled();
     });
   });

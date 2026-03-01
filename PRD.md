@@ -423,7 +423,8 @@ The Evaluate phase closes the feedback loop. Users test the built software indep
 #### 7.4.2 Key Capabilities
 
 - **Feedback submission & mapping:** Users submit feedback in natural language. The **Analyst** categorizes each item (bug/feature/UX/scope), maps it to a Plan epic, and proposes new tasks. The orchestrator creates the corresponding tasks (Section 5.5).
-- **Automatic PRD updates:** When feedback is categorized as a scope change, the Harmonizer proposes PRD updates, subject to HIL approval configuration.
+- **Large-scope routing:** When the Analyst determines feedback has large scope (whole epic/plan, architecture changes, significant tradeoffs), it routes to the **Planner** to create a new Epic/Plan instead of individual tickets. The feedback is linked to that epic/plan. Autonomy-aware execution applies: (1) For "Confirm all scope changes" or "Major scope changes only" — the user is prompted to review the plan before execution via HIL. (2) For "Full Autonomy" — newly generated plans are auto-executed.
+- **Automatic PRD updates:** When feedback is categorized as a scope change (non-large-scope path), the Harmonizer proposes PRD updates, subject to HIL approval configuration.
 - **Flywheel operation:** New tasks automatically enter `ready()` — no user intervention required.
 - **Feedback history:** A scrollable feed shows all feedback items with their categorization, mapped Plan/task, and resolution status.
 
@@ -597,7 +598,7 @@ Stored as `.opensprint/sessions/<task-id>-<attempt>.json`. Fields: `task_id`, `a
 
 #### FeedbackItem
 
-Stored as `.opensprint/feedback/<feedback-id>.json`. Fields: `id`, `text` (user's natural language feedback), `category` (bug/feature/ux/scope), `mapped_plan_id`, `created_task_ids` (task IDs created from this feedback), `status` (pending/mapped/resolved), `created_at`.
+Stored as `.opensprint/feedback/<feedback-id>.json`. Fields: `id`, `text` (user's natural language feedback), `category` (bug/feature/ux/scope), `mapped_plan_id`, `created_task_ids` (task IDs created from this feedback), `status` (pending/mapped/resolved), `created_at`, `is_large_scope` (when true, feedback was routed to Planner for new Epic/Plan).
 
 #### DeploymentRecord
 
@@ -809,9 +810,11 @@ The orchestrator creates tasks from this output, resolving ordinal indices to ac
 
 **Plan/epic association:** Associate feedback to a plan/epic ONLY when there is a very clear link. When feedback does not clearly map to work in an existing plan/epic, use `mapped_plan_id: null` and `mapped_epic_id: null`. In that case, `proposed_tasks` create top-level (standalone) tasks — do not force feedback into an existing plan when the link is ambiguous.
 
+**Large-scope routing:** When feedback has large scope (whole epic/plan, architecture changes, significant tradeoffs), set `is_large_scope: true` and omit `proposed_tasks`. The orchestrator routes to the Planner to create a new Epic/Plan and links the feedback to it. Autonomy-aware execution: for "Confirm all" or "Major only" — HIL prompts the user to review the plan before execution; for "Full Autonomy" — auto-execute.
+
 **Input:** `context/prd.json`, `context/plans_index.json`, `context/feedback.txt`, open tasks list. **Additional config:** `feedback_id`.
 
-**Output (`result.json`):** `{ "status": "success", "category": "<bug|feature|ux|scope>", "mapped_plan_id": "<id>|null", "mapped_epic_id": "<id>|null", "proposed_tasks": [<indexed task list, same format as Planner>], "is_scope_change": <bool>, "link_to_existing_task_ids": ["task-id"], "update_existing_tasks": {...} }`. When `is_scope_change` is `true`, the orchestrator also invokes the Harmonizer with `trigger: "scope_change"`. When `link_to_existing_task_ids` is non-empty, no new tasks are created; feedback is linked to those existing tasks.
+**Output (`result.json`):** `{ "status": "success", "category": "<bug|feature|ux|scope>", "mapped_plan_id": "<id>|null", "mapped_epic_id": "<id>|null", "is_scope_change": <bool>, "is_large_scope": <bool>, "proposed_tasks": [<indexed task list, same format as Planner>], "link_to_existing_task_ids": ["task-id"], "update_existing_tasks": {...} }`. When `is_scope_change` is `true` (and not `is_large_scope`), the orchestrator invokes the Harmonizer with `trigger: "scope_change"`. When `is_large_scope` is `true`, the orchestrator invokes the Planner to create a new plan and links feedback to it. When `link_to_existing_task_ids` is non-empty, no new tasks are created; feedback is linked to those existing tasks.
 
 #### 12.3.5 Summarizer
 

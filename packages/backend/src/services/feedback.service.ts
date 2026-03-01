@@ -4,6 +4,7 @@ import type {
   FeedbackSubmitRequest,
   FeedbackCategory,
   ProposedTask,
+  Plan,
 } from "@opensprint/shared";
 import { getAgentForPlanningRole, clampTaskComplexity } from "@opensprint/shared";
 import { AppError } from "../middleware/error-handler.js";
@@ -41,6 +42,19 @@ function buildScopeChangeHilDescription(feedbackText: string): string {
 User feedback: "${truncated}"`;
 }
 
+/**
+ * Build description for plan-execution HIL (large-scope feedback → new plan).
+ * Prompts the user to review the plan before execution.
+ */
+function buildPlanExecutionHilDescription(feedbackText: string, planTitle: string): string {
+  const truncated = feedbackText.length > 150 ? `${feedbackText.slice(0, 150)}…` : feedbackText;
+  return `A new plan was created from large-scope feedback. Please review the plan before execution.
+
+User feedback: "${truncated}"
+
+Plan: ${planTitle}`;
+}
+
 const FEEDBACK_CATEGORIZATION_PROMPT = `You are an AI assistant that categorizes user feedback about a software product (PRD §12.3.4 Analyst contract).
 
 ${JSON_OUTPUT_PREAMBLE}
@@ -56,7 +70,8 @@ Given the user's feedback (and any attached images), the PRD, available plans, a
 2. Which feature/plan it relates to (if clearly identifiable) — use the planId from the available plans list, or null when the link is not clear
 3. The mapped epic ID — use the epicId from the plan you mapped to (or null if no plan or link unclear)
 4. Whether this is a scope change — true if the feedback fundamentally alters requirements/PRD; false otherwise
-5. Proposed tasks in indexed Planner format — same structure as Planner output: index, title, description, priority, depends_on, complexity (integer 1-10 — assign per task based on implementation difficulty, 1=simplest, 10=most complex). When mapped_plan_id is null, create top-level tasks (no parent epic).
+5. Whether this is **large scope** — true when feedback affects a whole epic/plan, architecture changes, or significant tradeoffs. Large-scope feedback is routed to the Planner to create a new Epic/Plan instead of individual tickets. Use is_large_scope: true for: whole-epic rewrites, architecture changes, major feature pivots, significant tradeoff decisions. Use is_large_scope: false for: single-task fixes, small enhancements, localized bugs.
+6. Proposed tasks in indexed Planner format — same structure as Planner output: index, title, description, priority, depends_on, complexity (integer 1-10 — assign per task based on implementation difficulty, 1=simplest, 10=most complex). When mapped_plan_id is null and is_large_scope is false, create top-level tasks (no parent epic). **When is_large_scope is true, omit proposed_tasks** — the Planner will create the plan.
 
 **Linking to existing tasks:** When feedback is clearly covered by one or more existing OPEN tasks, prefer linking instead of creating new tasks:
 - \`link_to_existing_task_ids\`: string[]. If non-empty, do NOT create new tasks; link feedback to these existing task IDs. All IDs must appear in the Existing OPEN/READY tasks list.
@@ -76,6 +91,7 @@ JSON format:
   "mapped_plan_id": "plan-id-if-identifiable or null",
   "mapped_epic_id": "epicId-from-plan or null",
   "is_scope_change": true | false,
+  "is_large_scope": true | false,
   "proposed_tasks": [
     { "index": 0, "title": "Task title", "description": "Detailed spec with acceptance criteria", "priority": 1, "depends_on": [], "complexity": 3 }
   ],
@@ -433,6 +449,12 @@ export class FeedbackService {
             ? parsed.is_scope_change
             : item.category === "scope";
 
+        // is_large_scope: route to Planner for new Epic/Plan instead of individual tickets (PRD §7.4.2)
+        item.isLargeScope =
+          typeof parsed.is_large_scope === "boolean"
+            ? parsed.is_large_scope
+            : false;
+
         const rawProposed = parsed.proposed_tasks ?? parsed.proposedTasks;
         if (Array.isArray(rawProposed) && rawProposed.length > 0) {
           const parsedTasks: ProposedTask[] = rawProposed
@@ -562,6 +584,60 @@ export class FeedbackService {
           });
           await this.enqueueForCategorization(projectId, item.id);
           return;
+        }
+
+        // Large-scope feedback: route to Planner to create new Epic/Plan (PRD §7.4.2)
+        if (item.isLargeScope) {
+          try {
+            const plan = await this.planService.generatePlanFromDescription(projectId, item.text);
+            item.mappedPlanId = plan.metadata.planId;
+            item.mappedEpicId = plan.metadata.epicId ?? undefined;
+            const childIds = (plan as Plan & { _createdTaskIds?: string[] })._createdTaskIds ?? [];
+            item.createdTaskIds = childIds.length > 0 ? childIds : [plan.metadata.epicId!];
+
+            // Autonomy-aware execution: scopeChanges requires_approval → HIL; automated → auto-ship
+            const scopeMode = settings.hilConfig.scopeChanges;
+            if (scopeMode === "requires_approval") {
+              const planTitle =
+                plan.content.split("\n")[0]?.replace(/^#+\s*/, "").trim() || plan.metadata.planId;
+              const { approved } = await this.hilService.evaluateDecision(
+                projectId,
+                "scopeChanges",
+                buildPlanExecutionHilDescription(item.text, planTitle),
+                [
+                  { id: "approve", label: "Execute", description: "Approve plan and queue for execution" },
+                  { id: "reject", label: "Reject", description: "Keep plan in Planning state" },
+                ],
+                true,
+                undefined,
+                "eval",
+                item.id
+              );
+              if (approved) {
+                await this.planService.shipPlan(projectId, plan.metadata.planId);
+                orchestratorService.nudge(projectId);
+              }
+            } else {
+              // automated or notify_and_proceed: auto-execute
+              await this.planService.shipPlan(projectId, plan.metadata.planId);
+              orchestratorService.nudge(projectId);
+            }
+
+            item.status = "pending";
+            await this.saveFeedback(projectId, item);
+            broadcastToProject(projectId, {
+              type: "feedback.updated",
+              feedbackId: item.id,
+              planId: item.mappedPlanId || "",
+              taskIds: item.createdTaskIds,
+              item,
+            });
+            return;
+          } catch (err) {
+            log.error("Large-scope plan creation failed", { feedbackId: item.id, err });
+            await this.enqueueForCategorization(projectId, item.id);
+            throw err;
+          }
         }
 
         // Handle scope changes with HIL (PRD §7.4.2, §15.1) — category=scope OR is_scope_change=true

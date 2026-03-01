@@ -90,6 +90,7 @@ function rowToItem(row: FeedbackRow): FeedbackItem {
     ...(proposedTasks?.length && { proposedTasks }),
     ...(row.mapped_epic_id != null && { mappedEpicId: row.mapped_epic_id }),
     ...(row.is_scope_change != null && { isScopeChange: Boolean(row.is_scope_change) }),
+    ...(extra?.isLargeScope != null && { isLargeScope: Boolean(extra.isLargeScope) }),
     ...(row.feedback_source_task_id && { feedbackSourceTaskId: row.feedback_source_task_id }),
     parent_id: row.parent_id ?? null,
     ...(row.depth != null && { depth: row.depth }),
@@ -116,10 +117,10 @@ function itemToRow(item: FeedbackItem, projectId: string): Record<string, unknow
     parent_id: item.parent_id ?? null,
     depth: item.depth ?? null,
     user_priority: item.userPriority ?? null,
-    extra:
-      item.linkInvalidRetryCount != null
-        ? JSON.stringify({ linkInvalidRetryCount: item.linkInvalidRetryCount })
-        : "{}",
+    extra: JSON.stringify({
+      ...(item.linkInvalidRetryCount != null && { linkInvalidRetryCount: item.linkInvalidRetryCount }),
+      ...(item.isLargeScope != null && { isLargeScope: item.isLargeScope }),
+    }),
   };
 }
 
