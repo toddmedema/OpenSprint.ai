@@ -24,12 +24,17 @@ import { AddLinkFlow } from "./AddLinkFlow";
 import { OpenQuestionsBlock } from "../OpenQuestionsBlock";
 import { api } from "../../api/client";
 
+/** Execute sidebar: no horizontal rules (task feedback x5cqqc) */
+const MARKDOWN_NO_HR = { hr: () => null };
+
 const DescriptionMarkdown = React.memo(({ content }: { content: string }) => (
   <div
     className="prose-task-description prose-execute-task"
     data-testid="task-description-markdown"
   >
-    <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_NO_HR}>
+      {content}
+    </ReactMarkdown>
   </div>
 ));
 
@@ -289,7 +294,7 @@ function TaskDetailSidebarInner({
 
   return (
     <>
-      <div className="flex items-center gap-2 p-4 border-b border-theme-border shrink-0 min-h-0 flex-nowrap">
+      <div className="flex items-center gap-2 p-4 shrink-0 min-h-0 flex-nowrap">
         {/* Title: single line for header */}
         <div className="min-w-0 flex-1">
           <h3
@@ -379,7 +384,7 @@ function TaskDetailSidebarInner({
           />
         )}
 
-        <div className="p-4 border-b border-theme-border has-[+_[data-section=view-plan-deps-addlink]]:border-b-0">
+        <div className="p-4">
           {task && (
             <>
               {/* Row 1: Status and priority on a single row */}
@@ -522,7 +527,7 @@ function TaskDetailSidebarInner({
 
         {/* Links (Plan first, then blocked/parent/related) and Add link */}
         {task && (
-          <div className="p-4 border-b border-theme-border" data-section="view-plan-deps-addlink">
+          <div className="p-4" data-section="view-plan-deps-addlink">
             {/* Links: Plan first, then blocked/parent/related */}
             {(() => {
               const plan =
@@ -747,7 +752,7 @@ function TaskDetailSidebarInner({
                   </div>
                 )}
                 {completionState && (
-                  <div className="px-4 pb-4 border-t border-theme-border pt-3 mt-0">
+                  <div className="px-4 pb-4 pt-3 mt-0">
                     <div
                       className={`text-sm font-medium ${
                         completionState.status === "approved"

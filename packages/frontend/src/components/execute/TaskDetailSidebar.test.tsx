@@ -1909,12 +1909,12 @@ describe("TaskDetailSidebar", () => {
     }
 
     // Verify outer wrapper (section container) has identical structure for spacing consistency
-    const sourceFeedbackSection = sourceFeedbackHeader?.closest(".border-b");
-    const descriptionSection = descriptionHeader?.closest(".border-b");
-    const artifactsSection = artifactsHeader?.closest(".border-b");
-    expect(sourceFeedbackSection).toHaveClass("border-theme-border-subtle");
-    expect(descriptionSection).toHaveClass("border-theme-border-subtle");
-    expect(artifactsSection).toHaveClass("border-theme-border-subtle");
+    const sourceFeedbackSection = sourceFeedbackHeader?.parentElement;
+    const descriptionSection = descriptionHeader?.parentElement;
+    const artifactsSection = artifactsHeader?.parentElement;
+    expect(sourceFeedbackSection).toBeInTheDocument();
+    expect(descriptionSection).toBeInTheDocument();
+    expect(artifactsSection).toBeInTheDocument();
 
     // Verify chevron icon placement is identical (same span with text-xs)
     for (const header of [sourceFeedbackHeader, descriptionHeader, artifactsHeader]) {
@@ -1930,6 +1930,101 @@ describe("TaskDetailSidebar", () => {
     ];
     expect(sectionClassNames[0]).toBe(sectionClassNames[1]);
     expect(sectionClassNames[1]).toBe(sectionClassNames[2]);
+  });
+
+  it("has no horizontal rules or horizontal borders between sections in Execute details sidebar", async () => {
+    mockGet.mockResolvedValue({
+      id: "fb-1",
+      text: "Add feature",
+      category: "feature",
+      mappedPlanId: null,
+      createdTaskIds: [],
+      status: "pending",
+      createdAt: "2026-02-17T10:00:00Z",
+    });
+    const props = createMinimalProps({
+      selectedTaskData: {
+        id: "epic-1.1",
+        title: "Task with both",
+        epicId: "epic-1",
+        kanbanColumn: "in_progress" as const,
+        priority: 0,
+        assignee: null,
+        type: "task" as const,
+        status: "in_progress" as const,
+        labels: [],
+        dependencies: [],
+        description: "Task description content",
+        sourceFeedbackId: "fb-1",
+        createdAt: "",
+        updatedAt: "",
+      },
+      sourceFeedbackExpanded: { "fb-1": true },
+      descriptionSectionExpanded: true,
+      artifactsSectionExpanded: true,
+    });
+
+    const { container } = renderWithProviders(<TaskDetailSidebar {...props} />, {
+      preloadedState: defaultPreloadedState,
+    });
+
+    await screen.findByText("Add feature");
+
+    // No <hr> elements
+    const hrElements = container.querySelectorAll("hr");
+    expect(hrElements).toHaveLength(0);
+
+    // No section dividers: scrollable content area should have no border-b/border-t used as dividers.
+    // Exclude: loading spinner (animate-spin), prose/markdown elements (prose, prose-pre), code blocks.
+    const scrollContent = container.querySelector(".flex-1.overflow-y-auto");
+    expect(scrollContent).toBeInTheDocument();
+    const contentElements = scrollContent?.querySelectorAll("*") ?? [];
+    const sectionDividers = Array.from(contentElements).filter((el) => {
+      const cls = el.className?.toString?.() ?? "";
+      if (
+        cls.includes("animate-spin") ||
+        cls.includes("prose") ||
+        cls.includes("rounded-lg")
+      )
+        return false;
+      return (
+        (cls.includes("border-b") && cls.includes("border-theme")) ||
+        (cls.includes("border-t") && cls.includes("border-theme"))
+      );
+    });
+    expect(sectionDividers).toHaveLength(0);
+  });
+
+  it("renders no hr elements even when description contains markdown horizontal rule (---)", async () => {
+    const props = createMinimalProps({
+      selectedTaskData: {
+        id: "epic-1.1",
+        title: "Task with hr in markdown",
+        epicId: "epic-1",
+        kanbanColumn: "in_progress" as const,
+        priority: 0,
+        assignee: null,
+        type: "task" as const,
+        status: "in_progress" as const,
+        labels: [],
+        dependencies: [],
+        description: "Section one\n\n---\n\nSection two",
+        createdAt: "",
+        updatedAt: "",
+      },
+      descriptionSectionExpanded: true,
+      artifactsSectionExpanded: false,
+    });
+
+    const { container } = renderWithProviders(<TaskDetailSidebar {...props} />, {
+      preloadedState: defaultPreloadedState,
+    });
+
+    await screen.findByText("Section one");
+    expect(screen.getByText("Section two")).toBeInTheDocument();
+
+    const hrElements = container.querySelectorAll("hr");
+    expect(hrElements).toHaveLength(0);
   });
 
   it("collapse/expand interaction is identical for Description, Source Feedback, and Live Output", async () => {

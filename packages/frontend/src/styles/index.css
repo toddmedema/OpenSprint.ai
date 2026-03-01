@@ -306,7 +306,7 @@ html[data-theme="dark"] {
     @apply prose-em:!text-gray-900 dark:prose-em:!text-gray-100 prose-code:!text-gray-900 dark:prose-code:!text-gray-100;
     @apply prose-strong:!text-gray-900 dark:prose-strong:!text-gray-100 prose-blockquote:!text-gray-900 dark:prose-blockquote:!text-gray-100;
     @apply prose-ol:!text-gray-900 dark:prose-ol:!text-gray-100 prose-ul:!text-gray-900 dark:prose-ul:!text-gray-100;
-    @apply prose-blockquote:border-theme-border prose-hr:border-theme-border;
+    @apply prose-blockquote:border-theme-border;
     @apply prose-pre:bg-theme-code-bg prose-pre:text-theme-code-text prose-pre:border prose-pre:border-theme-border prose-pre:rounded-lg;
     @apply prose-kbd:!text-gray-900 dark:prose-kbd:!text-gray-100 prose-figcaption:!text-gray-900 dark:prose-figcaption:!text-gray-100;
     @apply prose-a:text-brand-600 dark:prose-a:text-brand-400;

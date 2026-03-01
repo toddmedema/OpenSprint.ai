@@ -3,6 +3,9 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+/** Execute sidebar: no horizontal rules (task feedback x5cqqc) */
+const MARKDOWN_NO_HR = { hr: () => null };
+
 const LINES_PER_BLOCK = 30;
 const ESTIMATED_LINE_HEIGHT = 20;
 
@@ -75,7 +78,9 @@ export const VirtualizedAgentOutput = React.memo(function VirtualizedAgentOutput
         onScroll={onScroll}
       >
         {useMarkdown ? (
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{deferredContent || ""}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_NO_HR}>
+            {deferredContent || ""}
+          </ReactMarkdown>
         ) : (
           <pre className="whitespace-pre-wrap font-sans m-0">{deferredContent || ""}</pre>
         )}
@@ -112,7 +117,9 @@ export const VirtualizedAgentOutput = React.memo(function VirtualizedAgentOutput
               }}
             >
               {useMarkdown ? (
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{blockContent}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_NO_HR}>
+                  {blockContent}
+                </ReactMarkdown>
               ) : (
                 <pre className="whitespace-pre-wrap font-sans m-0">{blockContent}</pre>
               )}

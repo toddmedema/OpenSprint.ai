@@ -5,6 +5,9 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import type { AgentSession } from "@opensprint/shared";
 import { filterAgentOutput } from "../../utils/agentOutputFilter";
 
+/** Execute sidebar: no horizontal rules (task feedback x5cqqc) */
+const MARKDOWN_NO_HR = { hr: () => null };
+
 /** Estimated height per session card (header + tabs + content area) */
 const ESTIMATED_SESSION_HEIGHT = 400;
 
@@ -24,7 +27,7 @@ const SessionCard = React.memo(function SessionCard({
 
   return (
     <div
-      className={`border-b border-theme-border ${!isLast ? "pb-6" : ""}`}
+      className={!isLast ? "pb-6" : ""}
       data-testid={`session-card-${session.attempt}`}
     >
       <div className="px-4 py-2 flex items-center gap-4 text-xs flex-wrap text-theme-muted">
@@ -46,7 +49,7 @@ const SessionCard = React.memo(function SessionCard({
           </span>
         )}
       </div>
-      <div className="flex gap-2 px-4 py-2 border-b border-theme-border">
+      <div className="flex gap-2 px-4 py-2">
         <button
           type="button"
           onClick={() => setActiveTab("output")}
@@ -74,7 +77,7 @@ const SessionCard = React.memo(function SessionCard({
       </div>
       {activeTab === "output" ? (
         <div className="p-4 text-xs prose prose-sm prose-neutral dark:prose-invert prose-execute-task max-w-none prose-pre:bg-theme-code-bg prose-pre:text-theme-code-text prose-pre:border prose-pre:border-theme-border prose-pre:rounded-lg">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_NO_HR}>
             {filteredOutput || "(no output)"}
           </ReactMarkdown>
         </div>

@@ -25,7 +25,7 @@ function CollapsibleSectionInner({
   children: React.ReactNode;
 }) {
   return (
-    <div className="border-b border-theme-border-subtle has-[+_[data-section=depends-on]]:border-b-0">
+    <div>
       <button
         type="button"
         onClick={onToggle}
