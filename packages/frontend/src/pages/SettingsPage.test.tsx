@@ -1,0 +1,83 @@
+import "@testing-library/jest-dom/vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { ThemeProvider } from "../contexts/ThemeContext";
+import { DisplayPreferencesProvider } from "../contexts/DisplayPreferencesContext";
+import { SettingsPage } from "./SettingsPage";
+
+const mockGetKeys = vi.fn();
+const mockGlobalSettingsGet = vi.fn();
+
+vi.mock("../api/client", () => ({
+  api: {
+    env: {
+      getKeys: () => mockGetKeys(),
+    },
+    globalSettings: {
+      get: () => mockGlobalSettingsGet(),
+    },
+  },
+}));
+
+vi.mock("../components/layout/Layout", () => ({
+  Layout: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="layout">{children}</div>
+  ),
+}));
+
+function renderSettingsPage() {
+  return render(
+    <ThemeProvider>
+      <DisplayPreferencesProvider>
+        <MemoryRouter initialEntries={["/settings"]}>
+          <Routes>
+            <Route path="/settings" element={<SettingsPage />} />
+          </Routes>
+        </MemoryRouter>
+      </DisplayPreferencesProvider>
+    </ThemeProvider>
+  );
+}
+
+describe("SettingsPage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }))
+    );
+    mockGetKeys.mockResolvedValue({
+      anthropic: true,
+      cursor: true,
+      claudeCli: true,
+      useCustomCli: false,
+    });
+    mockGlobalSettingsGet.mockResolvedValue({ databaseUrl: "" });
+  });
+
+  it("renders settings page with scrollable container", async () => {
+    renderSettingsPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("settings-page")).toBeInTheDocument();
+    });
+
+    const page = screen.getByTestId("settings-page");
+    expect(page).toHaveClass("overflow-y-auto");
+    expect(page).toHaveClass("min-h-0");
+    expect(page).toHaveClass("flex-1");
+  });
+
+  it("renders display settings content", async () => {
+    renderSettingsPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("display-section")).toBeInTheDocument();
+    });
+  });
+});

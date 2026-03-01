@@ -69,14 +69,12 @@ export function ProjectSettingsPage() {
             </svg>
           </Link>
         </div>
-        <div className="flex-1 min-h-0 overflow-hidden">
-          <ProjectSettingsModal
-            project={project}
-            onClose={handleClose}
-            onSaved={handleSaved}
-            fullScreen
-          />
-        </div>
+        <ProjectSettingsModal
+          project={project}
+          onClose={handleClose}
+          onSaved={handleSaved}
+          fullScreen
+        />
       </div>
     </Layout>
   );
