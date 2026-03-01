@@ -231,7 +231,7 @@ export class FailureHandlerService {
           ? `Review rejected (attempt ${cumulativeAttempts}):\n\n${reviewFeedback.slice(0, 2000)}`
           : `Attempt ${cumulativeAttempts} failed [${failureType}]: ${reason.slice(0, 500)}`;
     await this.host.taskStore
-      .comment(repoPath, task.id, commentText)
+      .comment(projectId, task.id, commentText)
       .catch((err) => log.warn("Failed to add failure comment", { err }));
 
     if (isInfraFailure && slot.infraRetries < MAX_INFRA_RETRIES) {
@@ -259,7 +259,7 @@ export class FailureHandlerService {
       slot.infraRetries = 0;
     }
 
-    await this.host.taskStore.setCumulativeAttempts(repoPath, task.id, cumulativeAttempts, {
+    await this.host.taskStore.setCumulativeAttempts(projectId, task.id, cumulativeAttempts, {
       currentLabels: (task.labels ?? []) as string[],
     });
 
@@ -298,7 +298,7 @@ export class FailureHandlerService {
         );
 
         try {
-          await this.host.taskStore.update(repoPath, task.id, {
+          await this.host.taskStore.update(projectId, task.id, {
             status: "open",
             assignee: "",
             priority: newPriority,
@@ -359,7 +359,7 @@ export class FailureHandlerService {
     log.info(`Blocking ${task.id} after ${cumulativeAttempts} cumulative failures at max priority`);
 
     try {
-      await this.host.taskStore.update(repoPath, task.id, {
+      await this.host.taskStore.update(projectId, task.id, {
         status: "blocked",
         assignee: "",
         block_reason: "Coding Failure",
