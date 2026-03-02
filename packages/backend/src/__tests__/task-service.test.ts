@@ -42,6 +42,7 @@ vi.mock("../services/task-store.service.js", async () => {
       }),
       update: vi.fn(),
       close: vi.fn(),
+      delete: vi.fn(),
       create: vi.fn(),
       createMany: vi.fn(),
       addDependencies: vi.fn(),
@@ -691,6 +692,19 @@ describe("TaskService", () => {
       "task-1",
       "/tmp/opensprint-worktrees/task-1"
     );
+  });
+
+  it("deleteTask deletes task via task store and nudges orchestrator", async () => {
+    const { taskStore } = await import("../services/task-store.service.js");
+    vi.mocked(taskStore.delete).mockResolvedValue(undefined as never);
+    mockOrchestrator.stopTaskAndFreeSlot.mockResolvedValue(undefined);
+
+    const result = await taskService.deleteTask("proj-1", "task-1");
+
+    expect(result.taskDeleted).toBe(true);
+    expect(mockOrchestrator.stopTaskAndFreeSlot).toHaveBeenCalledWith("proj-1", "task-1");
+    expect(taskStore.delete).toHaveBeenCalledWith("proj-1", "task-1");
+    expect(mockOrchestrator.nudge).toHaveBeenCalledWith("proj-1");
   });
 
   describe("sourceFeedbackIds", () => {

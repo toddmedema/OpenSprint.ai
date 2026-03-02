@@ -18,6 +18,7 @@ import {
   useTaskExecutionDiagnostics,
   useMarkTaskDone,
   useUnblockTask,
+  useDeleteTask,
   useTasks,
 } from "../../api/hooks";
 import { usePhaseLoadingState } from "../../hooks/usePhaseLoadingState";
@@ -115,6 +116,7 @@ export function ExecutePhase({
   );
   const markDoneMutation = useMarkTaskDone(projectId);
   const unblockMutation = useUnblockTask(projectId);
+  const deleteTaskMutation = useDeleteTask(projectId);
 
   const taskDetailData = taskDetailQuery.data;
   const taskDetailLoading = taskDetailQuery.isFetching;
@@ -202,6 +204,12 @@ export function ExecutePhase({
   const handleUnblock = async () => {
     if (!effectiveSelectedTask || !isBlockedTask) return;
     unblockMutation.mutate({ taskId: effectiveSelectedTask });
+  };
+
+  const handleDeleteTask = async () => {
+    if (!effectiveSelectedTask) return;
+    await deleteTaskMutation.mutateAsync(effectiveSelectedTask);
+    handleClose();
   };
 
   const handleClose = () => {
@@ -463,6 +471,7 @@ export function ExecutePhase({
             archivedLoading={archivedLoading}
             markDoneLoading={markDoneLoading}
             unblockLoading={unblockLoading}
+            deleteLoading={deleteTaskMutation.isPending}
             taskIdToStartedAt={taskIdToStartedAt}
             planByEpicId={planByEpicId}
             taskById={taskById}
@@ -482,6 +491,7 @@ export function ExecutePhase({
               onClose: handleClose,
               onMarkDone: handleMarkDone,
               onUnblock: handleUnblock,
+              onDeleteTask: handleDeleteTask,
               onSelectTask: (taskId) => dispatch(setSelectedTaskId(taskId)),
               onNavigateToPlan,
               onOpenQuestionResolved: refetchNotifications,

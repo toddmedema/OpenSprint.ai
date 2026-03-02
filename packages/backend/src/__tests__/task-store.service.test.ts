@@ -751,6 +751,64 @@ suite("TaskStoreService", () => {
       const parentTask = await store.show(TEST_PROJECT_ID, parent.id);
       expect(parentTask.dependent_count).toBe(0);
     });
+
+    it("should remove deleted task references from feedback rows", async () => {
+      const task = await store.create(TEST_PROJECT_ID, "Feedback-linked task");
+      await client.execute(
+        toPgParams(
+          "INSERT INTO feedback (id, project_id, text, category, mapped_plan_id, created_task_ids, status, created_at, feedback_source_task_id, mapped_epic_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        ),
+        [
+          "fb-delete-cascade",
+          TEST_PROJECT_ID,
+          "Feedback linked to task",
+          "bug",
+          null,
+          JSON.stringify([task.id]),
+          "pending",
+          new Date().toISOString(),
+          task.id,
+          task.id,
+        ]
+      );
+
+      await store.delete(TEST_PROJECT_ID, task.id);
+
+      const row = await client.queryOne(
+        toPgParams(
+          "SELECT created_task_ids, feedback_source_task_id, mapped_epic_id FROM feedback WHERE id = ? AND project_id = ?"
+        ),
+        ["fb-delete-cascade", TEST_PROJECT_ID]
+      );
+      expect(JSON.parse((row?.created_task_ids as string) || "[]")).toEqual([]);
+      expect(row?.feedback_source_task_id).toBeNull();
+      expect(row?.mapped_epic_id).toBeNull();
+    });
+
+    it("should remove deleted task references from plan content and metadata", async () => {
+      const task = await store.create(TEST_PROJECT_ID, "Plan-linked task");
+      const planId = "plan-delete-cascade";
+      await store.planInsert(TEST_PROJECT_ID, planId, {
+        epic_id: "epic-delete-cascade",
+        content: `# Plan\n\n- [ ] ${task.id}: remove me`,
+        metadata: JSON.stringify({
+          planId,
+          epicId: "epic-delete-cascade",
+          shippedAt: null,
+          complexity: "low",
+          linkedTaskIds: [task.id],
+        }),
+      });
+
+      await store.delete(TEST_PROJECT_ID, task.id);
+
+      const plan = await store.planGet(TEST_PROJECT_ID, planId);
+      expect(plan).not.toBeNull();
+      expect(plan!.content).not.toContain(task.id);
+      const linkedTaskIds = ((plan!.metadata as { linkedTaskIds?: string[] }).linkedTaskIds ??
+        []) as string[];
+      expect(linkedTaskIds).not.toContain(task.id);
+    });
   });
 
   describe("deleteMany", () => {

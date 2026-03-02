@@ -496,6 +496,26 @@ export class TaskService {
     return { taskUnblocked: true };
   }
 
+  /** Delete a task and cascade cleanup of references in store-backed entities. */
+  async deleteTask(projectId: string, taskId: string): Promise<{ taskDeleted: boolean }> {
+    await this.projectService.getProject(projectId);
+
+    // Best-effort: stop active work before deleting task state.
+    try {
+      await this.orchestrator.stopTaskAndFreeSlot(projectId, taskId);
+    } catch (err) {
+      log.warn("Stop-agent-on-delete failed, continuing delete", {
+        projectId,
+        taskId,
+        err,
+      });
+    }
+
+    await this.taskStore.delete(projectId, taskId);
+    this.orchestrator.nudge(projectId);
+    return { taskDeleted: true };
+  }
+
   /** Update a task's priority (0–4) and/or complexity (1–10). */
   async updateTask(
     projectId: string,

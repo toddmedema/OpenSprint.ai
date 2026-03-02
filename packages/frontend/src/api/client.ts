@@ -333,6 +333,10 @@ export const api = {
           method: "POST",
         }
       ),
+    delete: (projectId: string, taskId: string) =>
+      request<{ taskDeleted: boolean }>(`/projects/${projectId}/tasks/${taskId}`, {
+        method: "DELETE",
+      }),
     unblock: (projectId: string, taskId: string, options?: { resetAttempts?: boolean }) =>
       request<{ taskUnblocked: boolean }>(`/projects/${projectId}/tasks/${taskId}/unblock`, {
         method: "POST",

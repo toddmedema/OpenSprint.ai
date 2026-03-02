@@ -102,6 +102,7 @@ export interface TaskDetailCallbacks {
   onClose: () => void;
   onMarkDone: () => void;
   onUnblock: () => void;
+  onDeleteTask: () => void | Promise<void>;
   onSelectTask: (taskId: string) => void;
   onNavigateToPlan?: (planId: string) => void;
   onOpenQuestionResolved?: () => void;
@@ -123,6 +124,7 @@ export interface TaskDetailSidebarProps {
   archivedLoading: boolean;
   markDoneLoading: boolean;
   unblockLoading: boolean;
+  deleteLoading: boolean;
   taskIdToStartedAt: Record<string, string>;
   planByEpicId: Record<string, Plan>;
   taskById: Record<string, Task>;
@@ -159,6 +161,7 @@ function areTaskDetailSidebarPropsEqual(
     prev.archivedLoading !== next.archivedLoading ||
     prev.markDoneLoading !== next.markDoneLoading ||
     prev.unblockLoading !== next.unblockLoading ||
+    prev.deleteLoading !== next.deleteLoading ||
     prev.taskIdToStartedAt !== next.taskIdToStartedAt ||
     prev.planByEpicId !== next.planByEpicId ||
     prev.taskById !== next.taskById ||
@@ -180,6 +183,7 @@ function areTaskDetailSidebarPropsEqual(
     cb(prev).onOpenQuestionResolved !== cb(next).onOpenQuestionResolved ||
     cb(prev).onMarkDone !== cb(next).onMarkDone ||
     cb(prev).onUnblock !== cb(next).onUnblock ||
+    cb(prev).onDeleteTask !== cb(next).onDeleteTask ||
     cb(prev).onSelectTask !== cb(next).onSelectTask
   ) {
     return false;
@@ -202,6 +206,7 @@ function TaskDetailSidebarInner({
   archivedLoading,
   markDoneLoading,
   unblockLoading,
+  deleteLoading,
   taskIdToStartedAt,
   planByEpicId,
   taskById,
@@ -222,7 +227,15 @@ function TaskDetailSidebarInner({
     artifactsSectionExpanded,
     setArtifactsSectionExpanded,
   } = sections;
-  const { onNavigateToPlan, onClose, onOpenQuestionResolved, onMarkDone, onUnblock, onSelectTask } =
+  const {
+    onNavigateToPlan,
+    onClose,
+    onOpenQuestionResolved,
+    onMarkDone,
+    onUnblock,
+    onDeleteTask,
+    onSelectTask,
+  } =
     callbacks;
   const dispatch = useAppDispatch();
   const roleLabel = activeRoleLabel(selectedTask, activeTasks);
@@ -254,6 +267,7 @@ function TaskDetailSidebarInner({
   const priorityDropdownRef = useRef<HTMLDivElement>(null);
   const actionsMenuRef = useRef<HTMLDivElement>(null);
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [addLinkOpen, setAddLinkOpen] = useState(false);
   const task = selectedTaskData;
   const displayLabel = task ? complexityToDisplay(task.complexity) : null;
@@ -372,6 +386,11 @@ function TaskDetailSidebarInner({
     setPriorityDropdownOpen(false);
   };
 
+  const handleConfirmDeleteTask = async () => {
+    await onDeleteTask();
+    setDeleteConfirmOpen(false);
+  };
+
   return (
     <>
       <div className="flex items-center gap-2 p-4 shrink-0 min-h-0 flex-nowrap">
@@ -440,6 +459,21 @@ function TaskDetailSidebarInner({
                     </button>
                   </li>
                 )}
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setDeleteConfirmOpen(true);
+                      setActionsMenuOpen(false);
+                    }}
+                    disabled={deleteLoading}
+                    className="dropdown-item w-full flex items-center gap-2 text-left text-xs text-theme-error-text hover:bg-theme-error-bg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    data-testid="sidebar-delete-task-btn"
+                  >
+                    {deleteLoading ? "Deleting..." : "Delete"}
+                  </button>
+                </li>
               </ul>
             )}
           </div>
@@ -448,6 +482,61 @@ function TaskDetailSidebarInner({
           <CloseButton onClick={onClose} ariaLabel="Close task detail" />
         </div>
       </div>
+
+      {deleteConfirmOpen && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Close delete task confirmation"
+            onClick={() => setDeleteConfirmOpen(false)}
+            className="absolute inset-0 bg-theme-overlay backdrop-blur-sm"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-task-confirm-title"
+            className="relative bg-theme-surface rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto flex flex-col"
+            data-testid="sidebar-delete-task-dialog"
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-theme-border shrink-0">
+              <h2 id="delete-task-confirm-title" className="text-lg font-semibold text-theme-text">
+                Delete task
+              </h2>
+              <CloseButton
+                onClick={() => setDeleteConfirmOpen(false)}
+                ariaLabel="Close delete task confirmation"
+              />
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-sm text-theme-text">
+                Delete this task permanently? This also removes links and references to this task.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-4 border-t border-theme-border bg-theme-bg rounded-b-xl">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmOpen(false)}
+                className="btn-secondary"
+                data-testid="sidebar-delete-task-cancel-btn"
+                disabled={deleteLoading}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void handleConfirmDeleteTask();
+                }}
+                className="btn-primary disabled:opacity-50"
+                data-testid="sidebar-delete-task-confirm-btn"
+                disabled={deleteLoading}
+              >
+                {deleteLoading ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto min-h-0">
         {/* Open questions block — when coder needs clarification */}

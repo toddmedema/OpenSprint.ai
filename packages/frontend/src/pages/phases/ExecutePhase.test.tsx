@@ -31,6 +31,7 @@ import websocketReducer, { setConnected } from "../../store/slices/websocketSlic
 const mockGet = vi.fn().mockResolvedValue({});
 const mockMarkDone = vi.fn().mockResolvedValue(undefined);
 const mockUnblock = vi.fn().mockResolvedValue({ taskUnblocked: true });
+const mockDeleteTask = vi.fn().mockResolvedValue({ taskDeleted: true });
 const mockFeedbackGet = vi.fn().mockResolvedValue(null);
 const mockAgentsActive = vi.fn().mockResolvedValue([]);
 const mockLiveOutput = vi.fn().mockResolvedValue({ output: "" });
@@ -44,6 +45,7 @@ vi.mock("../../api/client", () => ({
       sessions: vi.fn().mockResolvedValue([]),
       markDone: (...args: unknown[]) => mockMarkDone(...args),
       unblock: (...args: unknown[]) => mockUnblock(...args),
+      delete: (...args: unknown[]) => mockDeleteTask(...args),
     },
     plans: {
       list: vi.fn().mockResolvedValue({ plans: [], edges: [] }),
@@ -1849,6 +1851,41 @@ describe("ExecutePhase Redux integration", () => {
 
     await vi.waitFor(() => {
       expect(mockUnblock).toHaveBeenCalledWith("proj-1", "epic-1.1", expect.anything());
+    });
+  });
+
+  it("dispatches deleteTask when Delete is confirmed from actions menu", async () => {
+    const user = userEvent.setup();
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Task A",
+        epicId: "epic-1",
+        kanbanColumn: "in_progress",
+        priority: 0,
+        assignee: "agent",
+      },
+    ];
+    const store = createStore(tasks, { selectedTaskId: "epic-1.1" });
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <ExecutePhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>
+    );
+
+    const menuTrigger = await screen.findByTestId("sidebar-actions-menu-trigger");
+    await user.click(menuTrigger);
+    await user.click(screen.getByTestId("sidebar-delete-task-btn"));
+    expect(screen.getByTestId("sidebar-delete-task-dialog")).toBeInTheDocument();
+    await user.click(screen.getByTestId("sidebar-delete-task-confirm-btn"));
+
+    await vi.waitFor(() => {
+      expect(mockDeleteTask).toHaveBeenCalledWith("proj-1", "epic-1.1");
+    });
+    await vi.waitFor(() => {
+      expect(store.getState().execute.selectedTaskId).toBeNull();
     });
   });
 

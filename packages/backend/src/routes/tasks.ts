@@ -110,6 +110,21 @@ type SessionParams = { projectId: string; taskId: string; attempt: string };
   }
   });
 
+  // DELETE /projects/:projectId/tasks/:taskId — Delete task with cascading reference cleanup
+  router.delete(
+    "/:taskId",
+    validateParams(taskIdParamSchema),
+    async (req: Request<TaskParams>, res, next) => {
+      try {
+        const result = await taskService.deleteTask(req.params.projectId, req.params.taskId);
+        const body: ApiResponse<{ taskDeleted: boolean }> = { data: result };
+        res.json(body);
+      } catch (err) {
+        next(err);
+      }
+    }
+  );
+
   // POST /projects/:projectId/tasks/:taskId/dependencies — Add dependency (child depends on parent)
   router.post(
   "/:taskId/dependencies",

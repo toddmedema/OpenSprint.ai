@@ -119,6 +119,21 @@ export function useUnblockTask(projectId: string) {
   });
 }
 
+export function useDeleteTask(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (taskId: string) => api.tasks.delete(projectId, taskId),
+    onSuccess: (_, taskId) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.tasks.list(projectId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.tasks.detail(projectId, taskId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.tasks.sessions(projectId, taskId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.execute.status(projectId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.plans.list(projectId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.feedback.list(projectId) });
+    },
+  });
+}
+
 export function useAddTaskDependency(projectId: string) {
   const qc = useQueryClient();
   return useMutation({

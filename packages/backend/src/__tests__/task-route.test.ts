@@ -541,6 +541,85 @@ Test review prompt generation.
     }
   );
 
+  it("DELETE /tasks/:taskId deletes task and cascades feedback/plan references", async () => {
+    const targetTask = await taskStore.create(projectId, "Delete me", {
+      type: "task",
+      priority: 1,
+      description: "Task scheduled for deletion",
+    });
+    const dependentTask = await taskStore.create(projectId, "Depends on delete me", {
+      type: "task",
+      priority: 2,
+    });
+    await taskStore.addDependency(projectId, dependentTask.id, targetTask.id, "blocks");
+
+    const db = await taskStore.getDb();
+    await db.execute(
+      `INSERT INTO feedback (id, project_id, text, category, mapped_plan_id, created_task_ids, status, created_at, feedback_source_task_id, mapped_epic_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        "fb-delete-task-route",
+        projectId,
+        "Feedback linked to deleted task",
+        "bug",
+        null,
+        JSON.stringify([targetTask.id]),
+        "pending",
+        new Date().toISOString(),
+        targetTask.id,
+        targetTask.id,
+      ]
+    );
+
+    const planId = "plan-delete-task-route";
+    await taskStore.planInsert(projectId, planId, {
+      epic_id: "epic-delete-task-route",
+      content: `# Plan\n\n- [ ] ${targetTask.id}: remove this task line`,
+      metadata: JSON.stringify({
+        planId,
+        epicId: "epic-delete-task-route",
+        shippedAt: null,
+        complexity: "low",
+        linkedTaskIds: [targetTask.id],
+      }),
+    });
+
+    const res = await request(app).delete(
+      `${API_PREFIX}/projects/${projectId}/tasks/${targetTask.id}`
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.data.taskDeleted).toBe(true);
+
+    await expect(taskStore.show(projectId, targetTask.id)).rejects.toThrow(/not found/i);
+
+    const dependentAfter = await taskStore.show(projectId, dependentTask.id);
+    expect(
+      (dependentAfter.dependencies ?? []).some((d) => d.depends_on_id === targetTask.id)
+    ).toBe(false);
+
+    const feedbackAfter = await db.queryOne(
+      "SELECT created_task_ids, feedback_source_task_id, mapped_epic_id FROM feedback WHERE id = $1 AND project_id = $2",
+      ["fb-delete-task-route", projectId]
+    );
+    expect(JSON.parse((feedbackAfter?.created_task_ids as string) || "[]")).toEqual([]);
+    expect(feedbackAfter?.feedback_source_task_id).toBeNull();
+    expect(feedbackAfter?.mapped_epic_id).toBeNull();
+
+    const planAfter = await taskStore.planGet(projectId, planId);
+    expect(planAfter).not.toBeNull();
+    expect(planAfter!.content).not.toContain(targetTask.id);
+    const linkedTaskIds = ((planAfter!.metadata as { linkedTaskIds?: string[] }).linkedTaskIds ??
+      []) as string[];
+    expect(linkedTaskIds).not.toContain(targetTask.id);
+  });
+
+  it("DELETE /tasks/:taskId returns 404 when task does not exist", async () => {
+    const res = await request(app).delete(
+      `${API_PREFIX}/projects/${projectId}/tasks/non-existent-task`
+    );
+    expect(res.status).toBe(404);
+  });
+
   it("PATCH /tasks/:taskId updates task priority", async () => {
     const _project = await projectService.getProject(projectId);
     const _repoPath = _project.repoPath;

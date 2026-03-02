@@ -89,6 +89,7 @@ function createMinimalProps(overrides: Record<string, unknown> = {}) {
     onClose: vi.fn(),
     onMarkDone: vi.fn(),
     onUnblock: vi.fn(),
+    onDeleteTask: vi.fn(),
     onSelectTask: vi.fn(),
     onNavigateToPlan: undefined as undefined | ((planId: string) => void),
     onOpenQuestionResolved: undefined as undefined | (() => void),
@@ -113,6 +114,7 @@ function createMinimalProps(overrides: Record<string, unknown> = {}) {
     archivedLoading: (flat.archivedLoading as boolean) ?? false,
     markDoneLoading: (flat.markDoneLoading as boolean) ?? false,
     unblockLoading: (flat.unblockLoading as boolean) ?? false,
+    deleteLoading: (flat.deleteLoading as boolean) ?? false,
     taskIdToStartedAt: (flat.taskIdToStartedAt as Record<string, string>) ?? {},
     planByEpicId: ((flat.plans as Plan[]) ?? [basePlan]).reduce<Record<string, Plan>>(
       (acc, plan) => {
@@ -141,6 +143,7 @@ function createMinimalProps(overrides: Record<string, unknown> = {}) {
       onClose: flat.onClose as () => void,
       onMarkDone: flat.onMarkDone as () => void,
       onUnblock: flat.onUnblock as () => void,
+      onDeleteTask: flat.onDeleteTask as () => void | Promise<void>,
       onSelectTask: flat.onSelectTask as (taskId: string) => void,
       onNavigateToPlan: flat.onNavigateToPlan as undefined | (planId: string) => void,
       onOpenQuestionResolved: flat.onOpenQuestionResolved as undefined | () => void,
@@ -287,6 +290,7 @@ describe("TaskDetailSidebar", () => {
     expect(screen.queryByTestId("sidebar-unblock-btn")).not.toBeInTheDocument();
     await user.click(screen.getByTestId("sidebar-actions-menu-trigger"));
     expect(screen.getByTestId("sidebar-mark-done-btn")).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-delete-task-btn")).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /mark done/i })).toBeInTheDocument();
   });
 
@@ -426,6 +430,35 @@ describe("TaskDetailSidebar", () => {
     expect(onUnblock).toHaveBeenCalledTimes(1);
   });
 
+  it("opens and closes delete confirmation dialog from actions menu", async () => {
+    const user = userEvent.setup();
+    const props = createMinimalProps();
+    renderWithProviders(<TaskDetailSidebar {...props} />, {
+      preloadedState: defaultPreloadedState,
+    });
+
+    await user.click(screen.getByTestId("sidebar-actions-menu-trigger"));
+    await user.click(screen.getByTestId("sidebar-delete-task-btn"));
+    expect(screen.getByTestId("sidebar-delete-task-dialog")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("sidebar-delete-task-cancel-btn"));
+    expect(screen.queryByTestId("sidebar-delete-task-dialog")).not.toBeInTheDocument();
+  });
+
+  it("calls onDeleteTask when delete is confirmed", async () => {
+    const user = userEvent.setup();
+    const onDeleteTask = vi.fn().mockResolvedValue(undefined);
+    const props = createMinimalProps({ onDeleteTask });
+    renderWithProviders(<TaskDetailSidebar {...props} />, {
+      preloadedState: defaultPreloadedState,
+    });
+
+    await user.click(screen.getByTestId("sidebar-actions-menu-trigger"));
+    await user.click(screen.getByTestId("sidebar-delete-task-btn"));
+    await user.click(screen.getByTestId("sidebar-delete-task-confirm-btn"));
+    expect(onDeleteTask).toHaveBeenCalledTimes(1);
+  });
+
   it("does not render actions menu when task is done", () => {
     const props = createMinimalProps({ isDoneTask: true });
     renderWithProviders(<TaskDetailSidebar {...props} />, {
@@ -489,7 +522,7 @@ describe("TaskDetailSidebar", () => {
     const container = screen.getByTestId("live-agent-output");
     expect(container.tagName).toBe("DIV");
     expect(container).toHaveClass("overflow-y-auto");
-    expect(container).toHaveClass("prose-execute-task");
+    expect(container).toHaveClass("text-theme-success-muted");
     expect(container).toHaveTextContent("Hello **world**");
   });
 
