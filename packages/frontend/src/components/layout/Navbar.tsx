@@ -145,11 +145,11 @@ export function Navbar({
           </Link>
 
           <div className="relative flex items-center min-w-0" ref={dropdownRef}>
-            <span className="hidden min-[1000px]:inline text-theme-muted shrink-0">/</span>
+            <span className="hidden min-[1000px]:inline text-theme-muted shrink-0 pr-1">/</span>
             <button
               type="button"
               onClick={() => setDropdownOpen((o) => !o)}
-              className="dropdown-trigger ml-1 inline-flex items-center gap-1 min-h-[44px] min-w-[44px] text-sm font-medium text-theme-muted hover:text-theme-text transition-colors rounded py-1 px-2 hover:bg-theme-border-subtle max-w-[120px] md:max-w-none"
+              className="dropdown-trigger inline-flex items-center gap-1 min-h-[44px] min-w-[44px] text-sm font-medium text-theme-muted hover:text-theme-text transition-colors rounded py-1 px-2 hover:bg-theme-border-subtle max-w-[120px] md:max-w-none"
               aria-expanded={dropdownOpen}
               aria-haspopup="listbox"
               aria-label={`Select project: ${project ? project.name : "All Projects"}`}
@@ -221,7 +221,7 @@ export function Navbar({
 
         {/* Center: Phase Tabs — horizontally scrollable on mobile */}
         {project && currentPhase && onPhaseChange && (
-          <div className="flex flex-1 min-w-0 md:flex-initial overflow-x-auto -mx-1 md:mx-0 [&::-webkit-scrollbar]:h-1">
+          <div className="flex flex-1 min-w-0 md:flex-initial overflow-x-auto px-1 md:px-0 [&::-webkit-scrollbar]:h-1">
             <div
               className="flex items-center gap-1 bg-theme-border-subtle rounded-lg p-1 shrink-0"
               role="tablist"
@@ -258,8 +258,8 @@ export function Navbar({
           </div>
         )}
 
-        {/* Right: Active agents + Help + Status + Settings */}
-        <div className="flex items-center gap-1 md:gap-3 shrink-0">
+        {/* Right: Active agents + Help + Status + Settings — padding only, no margin */}
+        <div className="flex items-center shrink-0 [&>*:not(:first-child)]:pl-1 md:[&>*:not(:first-child)]:pl-3">
           {project ? (
             <>
               <ActiveAgentsList projectId={project.id} />
