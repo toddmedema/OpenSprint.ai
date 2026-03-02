@@ -142,6 +142,15 @@ If the user references a specific section (e.g., "update the acceptance criteria
 
 Only include a PLAN_UPDATE block when you are making substantive changes to the Plan. For questions, suggestions, or discussion, respond in natural language without a PLAN_UPDATE block.`;
 
+const EXECUTE_TASK_CHAT_SYSTEM_PROMPT = `You are the Analyst agent for OpenSprint Execute phase task chat. You process user feedback in response to a Coder's open questions about a task.
+
+Your role is to:
+1. Acknowledge the user's answer to the Coder's clarification question
+2. Summarize or refine the task understanding based on the user's feedback
+3. Respond conversationally and concisely
+
+The user is replying to an open question the Coder asked about a specific task. Your response will be shown in the task chat. The task will be unblocked and the Coder will resume with the clarified context.`;
+
 export class ChatService {
   private projectService = new ProjectService();
   private prdService = new PrdService();
@@ -269,8 +278,8 @@ export class ChatService {
     }
     const context = body.context ?? "sketch";
     const isPlanContext = context.startsWith("plan:");
-    const planId = isPlanContext ? context.slice(5) : null;
     const isExecuteContext = context.startsWith("execute:");
+    const planId = isPlanContext ? context.slice(5) : null;
     const taskId = isExecuteContext ? context.slice(8) : null;
 
     const conversation = await this.getOrCreateConversation(projectId, context);
@@ -303,7 +312,7 @@ export class ChatService {
 
     // Build prompt for agent; add PRD section context if user clicked to focus (PRD §7.1.5)
     let agentPrompt = body.message;
-    if (!isPlanContext && body.prdSectionFocus) {
+    if (!isPlanContext && !isExecuteContext && body.prdSectionFocus) {
       const prd = await this.prdService.getPrd(projectId);
       const section = prd.sections[body.prdSectionFocus as keyof typeof prd.sections];
       const sectionLabel = body.prdSectionFocus
@@ -330,11 +339,22 @@ export class ChatService {
       this.projectService.getSettings(projectId),
       this.projectService.getRepoPath(projectId),
     ]);
-    const agentConfig = getAgentForPlanningRole(settings, "dreamer");
+    // Execute task chat uses Analyst; Sketch and Plan use Dreamer
+    const planningRole = isExecuteContext ? "analyst" : "dreamer";
+    const agentConfig = getAgentForPlanningRole(settings, planningRole);
 
-    // Build system prompt and context based on design vs plan
+    // Build system prompt and context based on design vs plan vs execute
     let systemPrompt: string;
-    if (isPlanContext && planId) {
+    if (isExecuteContext && taskId) {
+      let taskContext = `## Task ${taskId}\n\n(Task details not found.)`;
+      try {
+        const task = await taskStore.show(projectId, taskId);
+        taskContext = `## Task ${taskId}: ${task.title}\n\n${task.description ?? "(No description)"}`;
+      } catch {
+        // Use fallback taskContext
+      }
+      systemPrompt = `${EXECUTE_TASK_CHAT_SYSTEM_PROMPT}\n\n${taskContext}`;
+    } else if (isPlanContext && planId) {
       const planContent = await this.getPlanContent(projectId, planId);
       const planContext = planContent
         ? `## Current Plan (${planId})\n\n${planContent}`
@@ -360,18 +380,22 @@ export class ChatService {
 
     let responseContent: string;
 
-    // Register agent for unified active-agents view (Design: phase design, Plan: phase plan)
+    // Register agent for unified active-agents view (Design: phase design, Plan: phase plan, Execute: task chat)
     const agentId =
-      isPlanContext && planId
-        ? `plan-chat-${projectId}-${planId}-${conversation.id}-${Date.now()}`
-        : `design-chat-${projectId}-${conversation.id}-${Date.now()}`;
-    const phase = isPlanContext ? "plan" : "sketch";
-    const label = isPlanContext ? "Plan chat" : "Sketch chat";
+      isExecuteContext && taskId
+        ? `execute-chat-${projectId}-${taskId}-${conversation.id}-${Date.now()}`
+        : isPlanContext && planId
+          ? `plan-chat-${projectId}-${planId}-${conversation.id}-${Date.now()}`
+          : `design-chat-${projectId}-${conversation.id}-${Date.now()}`;
+    const phase = isExecuteContext ? "execute" : isPlanContext ? "plan" : "sketch";
+    const label = isExecuteContext ? "Execute task chat" : isPlanContext ? "Plan chat" : "Sketch chat";
+    const trackingRole = isExecuteContext ? "analyst" : "dreamer";
     try {
       log.info("Invoking planning agent", {
         type: agentConfig.type,
         model: agentConfig.model ?? "default",
         context,
+        role: trackingRole,
         messagesLen: messages.length,
       });
       const response = await agentService.invokePlanningAgent({
@@ -385,7 +409,7 @@ export class ChatService {
           id: agentId,
           projectId,
           phase,
-          role: "dreamer",
+          role: trackingRole,
           label,
           ...(isPlanContext && planId && { planId }),
         },
@@ -405,7 +429,10 @@ export class ChatService {
     let displayContent: string;
     const prdChanges: ChatResponse["prdChanges"] = [];
 
-    if (isPlanContext && planId) {
+    if (isExecuteContext) {
+      // Execute task chat: no structured blocks; use response as-is
+      displayContent = responseContent;
+    } else if (isPlanContext && planId) {
       // Plan context: parse PLAN_UPDATE, apply, strip from display
       const planUpdate = this.parsePlanUpdate(responseContent);
       const stripped = this.stripPlanUpdate(responseContent).trim();
