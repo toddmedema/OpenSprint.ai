@@ -11,7 +11,7 @@ import { PlanPhase, getPlanChatMessageDisplay } from "./PlanPhase";
 import { api } from "../../api/client";
 import { queryKeys } from "../../api/queryKeys";
 import projectReducer from "../../store/slices/projectSlice";
-import planReducer, { setPlansAndGraph } from "../../store/slices/planSlice";
+import planReducer, { setPlansAndGraph, setSelectedPlanId } from "../../store/slices/planSlice";
 import executeReducer, {
   fetchTasks,
   taskUpdated,
@@ -2124,6 +2124,80 @@ describe("PlanPhase sendPlanMessage thunk", () => {
       "true"
     );
     expect(screen.getByTestId("plan-graph-view")).toBeInTheDocument();
+  });
+
+  it("positions dependency graph nodes on initial graph-view render without a click", async () => {
+    storage["opensprint.planView"] = "graph";
+
+    let resizeCallback: ((entries: unknown[]) => void) | null = null;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(cb: (entries: unknown[]) => void) {
+          resizeCallback = cb;
+        }
+
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      } as unknown as typeof ResizeObserver
+    );
+
+    const planA = {
+      ...basePlan,
+      metadata: { ...basePlan.metadata, planId: "plan-a", epicId: "epic-a" },
+      status: "planning" as const,
+    };
+    const planB = {
+      ...basePlan,
+      metadata: { ...basePlan.metadata, planId: "plan-b", epicId: "epic-b" },
+      status: "building" as const,
+    };
+    const planC = {
+      ...basePlan,
+      metadata: { ...basePlan.metadata, planId: "plan-c", epicId: "epic-c" },
+      status: "complete" as const,
+    };
+    const graph = {
+      plans: [planA, planB, planC],
+      edges: [
+        { from: "plan-a", to: "plan-b", type: "blocks" as const },
+        { from: "plan-b", to: "plan-c", type: "blocks" as const },
+      ],
+    };
+
+    const store = createStore([planA, planB, planC]);
+    act(() => {
+      store.dispatch(setPlansAndGraph({ plans: graph.plans, dependencyGraph: graph }));
+      store.dispatch(setSelectedPlanId(null));
+    });
+
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <PlanPhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>,
+      { wrapper: planPhaseWrapper }
+    );
+
+    const graphView = screen.getByTestId("plan-graph-view");
+    const graphRoot = graphView.firstElementChild as HTMLElement;
+    Object.defineProperty(graphRoot, "clientWidth", { value: 900, configurable: true });
+    Object.defineProperty(graphRoot, "clientHeight", { value: 420, configurable: true });
+    act(() => resizeCallback?.([]));
+
+    await waitFor(() => {
+      expect(graphView.querySelectorAll("svg g.nodes g").length).toBe(3);
+    });
+
+    const transforms = Array.from(graphView.querySelectorAll("svg g.nodes g")).map((node) =>
+      node.getAttribute("transform")
+    );
+    for (const transform of transforms) {
+      expect(transform).toMatch(/^translate\((-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)\)$/);
+    }
+    expect(new Set(transforms).size).toBeGreaterThan(1);
   });
 
   it("dispatches sendPlanMessage thunk when chat message is sent", async () => {

@@ -431,7 +431,7 @@ export function DependencyGraph({ graph, onPlanClick, fillHeight }: DependencyGr
         return label.length > 14 ? label.slice(0, 12) + "…" : label;
       });
 
-    const tick = () => {
+    const applyNodeAndLinkPositions = () => {
       link
         .attr("x1", (d) => {
           const src = d.source as d3.SimulationNodeDatum & { x?: number; y?: number };
@@ -456,13 +456,17 @@ export function DependencyGraph({ graph, onPlanClick, fillHeight }: DependencyGr
       });
     };
 
-    simulation.on("tick", tick);
+    simulation.on("tick", applyNodeAndLinkPositions);
 
-    // Run simulation to completion synchronously so graph appears immediately (no load animation)
+    // Run the simulation to completion synchronously so the graph appears immediately.
+    // Important: manual simulation.tick() advances node coordinates, but D3 does not fire
+    // the "tick" listener for those synchronous steps, so we must apply positions to the
+    // DOM ourselves once the pre-layout loop finishes.
     for (let i = 0; i < 400; i++) {
       simulation.tick();
       if (simulation.alpha() < 0.001) break;
     }
+    applyNodeAndLinkPositions();
     simulation.stop();
 
     const defs = svg.append("defs");

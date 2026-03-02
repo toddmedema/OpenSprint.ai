@@ -35,6 +35,8 @@ const LIGHT_THEME_TOKENS = {
   nodeDefaultStroke: "#e5e7eb",
 };
 
+const TRANSLATE_PATTERN = /^translate\((-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)\)$/;
+
 function setThemeTokens(tokens: typeof LIGHT_THEME_TOKENS) {
   const root = document.documentElement;
   root.style.setProperty("--color-graph-status-planning-fill", tokens.planningFill);
@@ -46,6 +48,22 @@ function setThemeTokens(tokens: typeof LIGHT_THEME_TOKENS) {
   root.style.setProperty("--color-graph-text", tokens.text);
   root.style.setProperty("--color-graph-node-default-fill", tokens.nodeDefaultFill);
   root.style.setProperty("--color-graph-node-default-stroke", tokens.nodeDefaultStroke);
+}
+
+function getNodePositions(nodes: NodeListOf<Element>): Array<{ x: number; y: number }> {
+  return Array.from(nodes).map((node) => {
+    const transform = node.getAttribute("transform");
+    expect(transform).toMatch(TRANSLATE_PATTERN);
+    const match = transform?.match(TRANSLATE_PATTERN);
+    if (!match) {
+      throw new Error(`Expected node transform to match translate(x,y), got: ${transform}`);
+    }
+    const x = Number(match[1]);
+    const y = Number(match[2]);
+    expect(Number.isFinite(x)).toBe(true);
+    expect(Number.isFinite(y)).toBe(true);
+    return { x, y };
+  });
 }
 
 describe("DependencyGraph", () => {
@@ -148,10 +166,34 @@ describe("DependencyGraph", () => {
     const nodes = document.querySelectorAll("svg g.nodes g");
     expect(nodes.length).toBe(3);
 
-    // Acceptance: plans display in correct position on initial load (not stacked at 0,0)
-    const transforms = Array.from(nodes).map((n) => n.getAttribute("transform") ?? "");
-    const atOrigin = transforms.filter((t) => t === "translate(0,0)");
-    expect(atOrigin.length).toBeLessThan(nodes.length);
+    const positions = getNodePositions(nodes);
+    expect(new Set(positions.map(({ x, y }) => `${x.toFixed(3)},${y.toFixed(3)}`)).size).toBeGreaterThan(1);
+  });
+
+  it("applies synchronous simulation positions to the DOM before any interaction", async () => {
+    let resizeCallback: ((entries: unknown[]) => void) | null = null;
+    global.ResizeObserver = vi.fn().mockImplementation((cb: (entries: unknown[]) => void) => {
+      resizeCallback = cb;
+      return {
+        observe: vi.fn(),
+        unobserve: vi.fn(),
+        disconnect: vi.fn(),
+      };
+    });
+
+    const { container } = render(<DependencyGraph graph={mockGraph} fillHeight />);
+
+    const wrapper = container.firstElementChild!;
+    Object.defineProperty(wrapper, "clientWidth", { value: 640, configurable: true });
+    Object.defineProperty(wrapper, "clientHeight", { value: 360, configurable: true });
+    resizeCallback?.([]);
+
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("svg g.nodes g").length).toBe(3);
+    });
+
+    const positions = getNodePositions(document.querySelectorAll("svg g.nodes g"));
+    expect(new Set(positions.map(({ x, y }) => `${x.toFixed(3)},${y.toFixed(3)}`)).size).toBeGreaterThan(1);
   });
 
   it("calls onPlanClick when a plan node is clicked", async () => {
