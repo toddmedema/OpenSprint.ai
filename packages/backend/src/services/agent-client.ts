@@ -152,6 +152,18 @@ function extractExplicitAgentErrors(rawOutput: string): string {
   return errors.join("\n");
 }
 
+/**
+ * Safely get text from a Gemini response or stream chunk.
+ * response.text() / chunk.text() can throw when the response is blocked (safety) or has no content.
+ */
+function safeGeminiText(obj: { text(): string }): string {
+  try {
+    return obj.text() ?? "";
+  } catch {
+    return "";
+  }
+}
+
 /** Format raw agent errors into user-friendly messages with remediation hints */
 function formatAgentError(
   agentType: "claude" | "claude-cli" | "cursor" | "custom" | "openai" | "google",
@@ -828,7 +840,7 @@ export class AgentClient {
           let fullContent = "";
           for await (const chunk of result.stream) {
             if (aborted) break;
-            const text = chunk.text();
+            const text = safeGeminiText(chunk);
             if (text) {
               fullContent += text;
               emit(text);
@@ -1682,7 +1694,7 @@ export class AgentClient {
           const result = await chat.sendMessageStream(prompt);
           let fullContent = "";
           for await (const chunk of result.stream) {
-            const text = chunk.text();
+            const text = safeGeminiText(chunk);
             if (text) {
               fullContent += text;
               options.onChunk(text);
@@ -1696,7 +1708,7 @@ export class AgentClient {
 
         const result = await chat.sendMessage(prompt);
         const response = result.response;
-        const content = response.text();
+        const content = safeGeminiText(response);
 
         if (projectId && keyId !== ENV_FALLBACK_KEY_ID) {
           await clearLimitHit(projectId, "GOOGLE_API_KEY", keyId, source);

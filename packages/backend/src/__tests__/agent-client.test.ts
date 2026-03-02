@@ -51,6 +51,25 @@ vi.mock("../services/api-key-resolver.service.js", () => ({
   ENV_FALLBACK_KEY_ID: "__env__",
 }));
 
+const { mockGeminiSendMessage, mockGeminiSendMessageStream, mockGeminiGenerateContentStream } =
+  vi.hoisted(() => ({
+    mockGeminiSendMessage: vi.fn(),
+    mockGeminiSendMessageStream: vi.fn(),
+    mockGeminiGenerateContentStream: vi.fn(),
+  }));
+
+vi.mock("@google/generative-ai", () => ({
+  GoogleGenerativeAI: vi.fn().mockImplementation(() => ({
+    getGenerativeModel: () => ({
+      startChat: ({ history }: { history: unknown[] }) => ({
+        sendMessage: (prompt: string) => mockGeminiSendMessage(prompt, history),
+        sendMessageStream: (prompt: string) => mockGeminiSendMessageStream(prompt, history),
+      }),
+      generateContentStream: (content: string) => mockGeminiGenerateContentStream(content),
+    }),
+  })),
+}));
+
 vi.mock("util", () => ({
   promisify: (
     _fn: (
@@ -354,6 +373,48 @@ describe("AgentClient", () => {
       expect(result.content).toBe("Retry success");
     });
 
+    it("should route google config to Gemini API", async () => {
+      mockGetNextKey.mockResolvedValue({ key: "gemini-key", keyId: "k1", source: "global" });
+      mockGeminiSendMessage.mockResolvedValue({
+        response: { text: () => "Gemini planning response" },
+      });
+
+      const result = await client.invoke({
+        config: { type: "google", model: "gemini-1.5-flash", cliCommand: null },
+        prompt: "Plan the feature",
+        systemPrompt: "You are a planner.",
+        cwd: "/tmp",
+        projectId: "proj-gemini",
+      });
+
+      expect(mockSpawn).not.toHaveBeenCalled();
+      expect(mockGetNextKey).toHaveBeenCalledWith("proj-gemini", "GOOGLE_API_KEY");
+      expect(mockGeminiSendMessage).toHaveBeenCalled();
+      expect(mockClearLimitHit).toHaveBeenCalledWith("proj-gemini", "GOOGLE_API_KEY", "k1", "global");
+      expect(result.content).toBe("Gemini planning response");
+    });
+
+    it("should use safeGeminiText when Gemini response has no text (blocked)", async () => {
+      mockGetNextKey.mockResolvedValue({ key: "gemini-key", keyId: "k1", source: "global" });
+      const responseWithNoText = {
+        response: {
+          text: () => {
+            throw new Error("The `response.text` quick accessor requires the response to contain a valid `Part`");
+          },
+        },
+      };
+      mockGeminiSendMessage.mockResolvedValue(responseWithNoText);
+
+      const result = await client.invoke({
+        config: { type: "google", model: "gemini-1.5-pro", cliCommand: null },
+        prompt: "Hello",
+        cwd: "/tmp",
+        projectId: "proj-blocked",
+      });
+
+      expect(result.content).toBe("");
+    });
+
     it("should route custom config to Custom CLI", async () => {
       mockExec.mockImplementation(
         (_cmd: string, _opts: unknown, cb: (err: null, stdout: string) => void) => {
@@ -512,6 +573,56 @@ describe("AgentClient", () => {
       );
       expect(onOutput).toHaveBeenCalled();
       expect(mockClearLimitHit).toHaveBeenCalledWith("proj-openai", "OPENAI_API_KEY", "k1", "global");
+
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it("should run Google Gemini in-process for spawnWithTaskFile (no subprocess)", async () => {
+      const fs = await import("fs/promises");
+      const path = await import("path");
+      const os = await import("os");
+      const tmpDir = path.join(os.tmpdir(), `agent-client-google-${Date.now()}`);
+      const taskDir = path.join(tmpDir, ".opensprint/active/os-xyz.1");
+      await fs.mkdir(taskDir, { recursive: true });
+      const taskFilePath = path.join(taskDir, "prompt.md");
+      await fs.writeFile(taskFilePath, "# Task\n\nImplement login", "utf-8");
+
+      mockGetNextKey.mockResolvedValue({ key: "gemini-spawn-key", keyId: "k1", source: "global" });
+      async function* geminiStream() {
+        yield { text: () => "First " };
+        yield { text: () => "chunk." };
+      }
+      mockGeminiGenerateContentStream.mockReturnValue({ stream: geminiStream() });
+
+      const onOutput = vi.fn();
+      const onExit = vi.fn();
+      const config: AgentConfig = { type: "google", model: "gemini-1.5-flash", cliCommand: null };
+
+      const { kill, pid } = client.spawnWithTaskFile(
+        config,
+        taskFilePath,
+        tmpDir,
+        onOutput,
+        onExit,
+        "coder",
+        undefined,
+        "proj-google"
+      );
+
+      expect(mockSpawn).not.toHaveBeenCalled();
+      expect(pid).toBeNull();
+      expect(kill).toBeDefined();
+
+      await vi.waitFor(
+        () => {
+          expect(onExit).toHaveBeenCalledWith(0);
+        },
+        { timeout: 2000 }
+      );
+      expect(mockGeminiGenerateContentStream).toHaveBeenCalledWith("# Task\n\nImplement login");
+      expect(onOutput).toHaveBeenCalledWith("First ");
+      expect(onOutput).toHaveBeenCalledWith("chunk.");
+      expect(mockClearLimitHit).toHaveBeenCalledWith("proj-google", "GOOGLE_API_KEY", "k1", "global");
 
       await fs.rm(tmpDir, { recursive: true, force: true });
     });
