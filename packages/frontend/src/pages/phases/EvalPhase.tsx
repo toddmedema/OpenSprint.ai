@@ -363,20 +363,21 @@ const FeedbackCard = memo(
       onCancelReply();
     };
 
+    const handleAnswerOpenQuestion = useCallback(() => {
+      if (!notification || !answerText.trim() || !onAnswerOpenQuestion || answeringOpenQuestion)
+        return;
+      onAnswerOpenQuestion(item.id, notification.id, answerText.trim());
+      setAnswerText("");
+    }, [answerText, onAnswerOpenQuestion, answeringOpenQuestion, item.id, notification]);
+
+    const onKeyDownAnswer = useSubmitShortcut(handleAnswerOpenQuestion, {
+      multiline: true,
+      disabled: !answerText.trim() || answeringOpenQuestion || !onAnswerOpenQuestion,
+    });
+
     const onKeyDownReply = useSubmitShortcut(handleSubmitReply, {
       multiline: true,
       disabled: !replyText.trim() || submitting,
-    });
-
-    const handleAnswerSubmit = useCallback(() => {
-      if (!answerText.trim() || answeringOpenQuestion || !onAnswerOpenQuestion || !notification) return;
-      onAnswerOpenQuestion(item.id, notification.id, answerText.trim());
-      setAnswerText("");
-    }, [answerText, answeringOpenQuestion, onAnswerOpenQuestion, notification, item.id]);
-
-    const onKeyDownAnswer = useSubmitShortcut(handleAnswerSubmit, {
-      multiline: true,
-      disabled: !answerText.trim() || answeringOpenQuestion,
     });
 
     const isResolvedAndAnimating =
@@ -506,12 +507,7 @@ const FeedbackCard = memo(
                 <div className="flex gap-2 flex-shrink-0">
                   <button
                     type="button"
-                    onClick={() => {
-                      if (answerText.trim() && onAnswerOpenQuestion) {
-                        onAnswerOpenQuestion(item.id, notification.id, answerText.trim());
-                        setAnswerText("");
-                      }
-                    }}
+                    onClick={handleAnswerOpenQuestion}
                     disabled={!answerText.trim() || answeringOpenQuestion}
                     className="btn-primary text-sm py-1.5 px-3 disabled:opacity-50"
                     data-testid="feedback-answer-submit"
@@ -674,9 +670,6 @@ const FeedbackCard = memo(
             />
             <ImageAttachmentThumbnails attachment={replyImages} className="mb-2" />
             <div className="flex justify-end items-stretch gap-2 flex-wrap">
-              <button type="button" onClick={onCancelReply} className="btn-secondary h-10">
-                Cancel
-              </button>
               <ImageAttachmentButton
                 attachment={replyImages}
                 variant="icon"

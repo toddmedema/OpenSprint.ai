@@ -24,7 +24,7 @@ import {
 } from "../../store/slices/executeSlice";
 import { updateFeedbackItem } from "../../store/slices/evalSlice";
 import type { ReactElement } from "react";
-import type { FeedbackItem, Task } from "@opensprint/shared";
+import type { FeedbackItem, Notification, Task } from "@opensprint/shared";
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
@@ -134,6 +134,7 @@ function createStore(overrides?: {
   evalFeedback?: FeedbackItem[];
   executeTasks?: Task[];
   feedbackLoading?: boolean;
+  openQuestionNotifications?: Notification[];
 }) {
   const preloadedState: Partial<RootState> = {
     project: {
@@ -149,6 +150,13 @@ function createStore(overrides?: {
       error: null,
     },
   };
+  if (overrides?.openQuestionNotifications !== undefined) {
+    preloadedState.openQuestions = {
+      byProject: { "proj-1": overrides.openQuestionNotifications },
+      global: [],
+      async: { project: {}, global: { loading: false } },
+    };
+  }
   if (overrides?.evalFeedback !== undefined || overrides?.feedbackLoading) {
     preloadedState.eval = {
       feedback: overrides?.evalFeedback ?? [],
@@ -629,10 +637,10 @@ describe("EvalPhase feedback form", () => {
     };
 
     it("renders open questions when notification exists for feedback", async () => {
-      const { api } = await import("../../api/client");
-      vi.mocked(api.notifications.listByProject).mockResolvedValue([openQuestionNotification]);
-
-      const store = createStore({ evalFeedback: mockFeedbackItems });
+      const store = createStore({
+        evalFeedback: mockFeedbackItems,
+        openQuestionNotifications: [openQuestionNotification],
+      });
       renderWithProviders(
         <MemoryRouter>
           <EvalPhase projectId="proj-1" />
@@ -653,9 +661,10 @@ describe("EvalPhase feedback form", () => {
 
     it("Answer button resolves notification and recategorizes with answer", async () => {
       const { api } = await import("../../api/client");
-      vi.mocked(api.notifications.listByProject).mockResolvedValue([openQuestionNotification]);
-
-      const store = createStore({ evalFeedback: mockFeedbackItems });
+      const store = createStore({
+        evalFeedback: mockFeedbackItems,
+        openQuestionNotifications: [openQuestionNotification],
+      });
       const user = userEvent.setup();
       renderWithProviders(
         <MemoryRouter>
@@ -680,9 +689,10 @@ describe("EvalPhase feedback form", () => {
 
     it("Dismiss button resolves notification without recategorizing", async () => {
       const { api } = await import("../../api/client");
-      vi.mocked(api.notifications.listByProject).mockResolvedValue([openQuestionNotification]);
-
-      const store = createStore({ evalFeedback: mockFeedbackItems });
+      const store = createStore({
+        evalFeedback: mockFeedbackItems,
+        openQuestionNotifications: [openQuestionNotification],
+      });
       const user = userEvent.setup();
       renderWithProviders(
         <MemoryRouter>
@@ -703,11 +713,12 @@ describe("EvalPhase feedback form", () => {
       expect(api.feedback.recategorize).not.toHaveBeenCalled();
     });
 
-    it("Enter key submits the notification prompt reply", async () => {
+    it("Enter submits answer (matches chat/comment input behavior)", async () => {
       const { api } = await import("../../api/client");
-      vi.mocked(api.notifications.listByProject).mockResolvedValue([openQuestionNotification]);
-
-      const store = createStore({ evalFeedback: mockFeedbackItems });
+      const store = createStore({
+        evalFeedback: mockFeedbackItems,
+        openQuestionNotifications: [openQuestionNotification],
+      });
       const user = userEvent.setup();
       renderWithProviders(
         <MemoryRouter>
@@ -721,12 +732,11 @@ describe("EvalPhase feedback form", () => {
       });
 
       const answerInput = screen.getByTestId("feedback-answer-input");
-      await user.type(answerInput, "Login screen");
-      await user.keyboard("{Enter}");
-
+      await user.type(answerInput, "Login screen{Enter}");
       await waitFor(() => {
-        expect(api.feedback.recategorize).toHaveBeenCalledWith("proj-1", "fb-1", "Login screen");
+        expect(api.notifications.resolve).toHaveBeenCalledWith("proj-1", "oq-1");
       });
+      expect(api.feedback.recategorize).toHaveBeenCalledWith("proj-1", "fb-1", "Login screen");
     });
 
     it("Ctrl+Enter submits the notification prompt reply", async () => {
@@ -757,9 +767,10 @@ describe("EvalPhase feedback form", () => {
 
     it("Shift+Enter inserts newline and does not submit", async () => {
       const { api } = await import("../../api/client");
-      vi.mocked(api.notifications.listByProject).mockResolvedValue([openQuestionNotification]);
-
-      const store = createStore({ evalFeedback: mockFeedbackItems });
+      const store = createStore({
+        evalFeedback: mockFeedbackItems,
+        openQuestionNotifications: [openQuestionNotification],
+      });
       const user = userEvent.setup();
       renderWithProviders(
         <MemoryRouter>
@@ -772,15 +783,11 @@ describe("EvalPhase feedback form", () => {
         expect(screen.getByTestId("feedback-open-questions")).toBeInTheDocument();
       });
 
-      const answerInput = screen.getByTestId("feedback-answer-input") as HTMLTextAreaElement;
+      const answerInput = screen.getByTestId("feedback-answer-input");
       await user.type(answerInput, "Line 1");
-      await user.keyboard("{Shift>}{Enter}{/Shift}");
-      await user.type(answerInput, "Line 2");
-
-      expect(answerInput.value).toContain("Line 1");
-      expect(answerInput.value).toContain("Line 2");
-      expect(answerInput.value).toContain("\n");
-      expect(api.feedback.recategorize).not.toHaveBeenCalled();
+      await user.keyboard("{Shift>}{Enter}{/Shift}Line 2");
+      expect(api.notifications.resolve).not.toHaveBeenCalled();
+      expect((answerInput as HTMLTextAreaElement).value).toBe("Line 1\nLine 2");
     });
   });
 
@@ -991,7 +998,7 @@ describe("EvalPhase feedback form", () => {
       expect(actionsRow).toHaveClass("flex-wrap");
     });
 
-    it("reply form applies consistent h-10 height to Cancel, Attach, and Submit buttons", async () => {
+    it("reply form applies consistent h-10 height to Attach and Submit buttons", async () => {
       const store = createStore({ evalFeedback: mockFeedbackItems });
       const user = userEvent.setup();
       renderWithProviders(
@@ -1009,11 +1016,10 @@ describe("EvalPhase feedback form", () => {
       });
 
       const replyForm = screen.getByPlaceholderText("Write a reply...").closest(".card");
-      const cancelButton = within(replyForm!).getByRole("button", { name: /^Cancel$/ });
+      expect(within(replyForm!).queryByRole("button", { name: /^Cancel$/ })).not.toBeInTheDocument();
       const attachButton = within(replyForm!).getByTestId("reply-attach-images");
       const submitButton = within(replyForm!).getByRole("button", { name: /^Submit$/ });
 
-      expect(cancelButton).toHaveClass("h-10");
       expect(attachButton).toHaveClass("h-10");
       expect(submitButton).toHaveClass("h-10");
     });
