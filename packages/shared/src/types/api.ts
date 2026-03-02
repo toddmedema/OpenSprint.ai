@@ -17,6 +17,15 @@ export interface ApiErrorResponse {
 /** Union of success and error response */
 export type ApiResult<T> = ApiResponse<T> | ApiErrorResponse;
 
+/** Task context for Execute chat replies (enables agent to resolve "this task" references) */
+export interface ExecuteTaskContext {
+  id: string;
+  title: string;
+  description: string;
+  status?: string;
+  kanbanColumn?: string;
+}
+
 /** Chat message request */
 export interface ChatRequest {
   message: string;
@@ -25,6 +34,8 @@ export interface ChatRequest {
   prdSectionFocus?: string;
   /** Base64-encoded image attachments (data URLs or raw base64) for sketch/Dreamer */
   images?: string[];
+  /** Task metadata for Execute chat replies (context execute:taskId). Enables agent to resolve "this task" references. */
+  taskContext?: ExecuteTaskContext;
 }
 
 /** Chat message response */

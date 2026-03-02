@@ -35,6 +35,7 @@ import type {
   HelpChatRequest,
   HelpChatResponse,
   HelpChatHistory,
+  ExecuteTaskContext,
 } from "@opensprint/shared";
 import type { TaskListResponse } from "./taskList";
 
@@ -508,7 +509,8 @@ export const api = {
       message: string,
       context?: string,
       prdSectionFocus?: string,
-      images?: string[]
+      images?: string[],
+      taskContext?: ExecuteTaskContext
     ) =>
       request<ChatResponse>(`/projects/${projectId}/chat`, {
         method: "POST",
@@ -517,6 +519,7 @@ export const api = {
           context,
           prdSectionFocus,
           ...(images?.length ? { images } : {}),
+          ...(taskContext ? { taskContext } : {}),
         } satisfies Partial<ChatRequest>),
       }),
     history: (projectId: string, context?: string) =>

@@ -459,7 +459,23 @@ function TaskDetailSidebarInner({
             sourceId={selectedTask}
             onResolved={onOpenQuestionResolved ?? (() => {})}
             onAnswerSent={async (message) => {
-              await api.chat.send(projectId, message, `execute:${selectedTask}`);
+              const taskContext = task
+                ? {
+                    id: task.id,
+                    title: task.title,
+                    description: task.description ?? "",
+                    status: task.status,
+                    kanbanColumn: task.kanbanColumn,
+                  }
+                : undefined;
+              await api.chat.send(
+                projectId,
+                message,
+                `execute:${selectedTask}`,
+                undefined,
+                undefined,
+                taskContext
+              );
             }}
           />
         )}

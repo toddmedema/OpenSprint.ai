@@ -241,6 +241,77 @@ User authentication.
     expect(prompt).toContain("Missing error handling for invalid input.");
   });
 
+  it("should include User clarification section in coding prompt when userClarification is provided", async () => {
+    await fs.writeFile(
+      path.join(repoPath, SPEC_MD),
+      `# Product Specification
+
+## Executive Summary
+
+Test product.
+`,
+      "utf-8"
+    );
+
+    const plansDir = path.join(repoPath, OPENSPRINT_PATHS.plans);
+    await fs.mkdir(plansDir, { recursive: true });
+    const planContent = `# Feature: Auth
+
+## Overview
+User authentication.
+
+## Acceptance Criteria
+
+- User can log in with email/password
+
+## Technical Approach
+
+- Use bcrypt for password hashing
+`;
+    await fs.writeFile(path.join(plansDir, "auth.md"), planContent);
+
+    const config = {
+      invocation_id: "bd-a3f8.1",
+      agent_role: "coder" as const,
+      taskId: "bd-a3f8.1",
+      repoPath,
+      branch: "opensprint/bd-a3f8.1",
+      testCommand: "npm test",
+      attempt: 1,
+      phase: "coding" as const,
+      previousFailure: null as string | null,
+      reviewFeedback: null as string | null,
+    };
+
+    const userClarification = `## Task context (for resolving "this task" references)
+
+- **ID:** bd-a3f8.1
+- **Title:** Implement login endpoint
+- **Description:** Add POST /auth/login
+- **Status:** blocked
+- **Column:** blocked
+
+## User's answer
+
+Use PostgreSQL for the database.`;
+
+    const taskDir = await assembler.assembleTaskDirectory(repoPath, config.taskId, config, {
+      taskId: config.taskId,
+      title: "Implement login endpoint",
+      description: "Add POST /auth/login",
+      planContent,
+      prdExcerpt: "# Product Requirements\n\nTest product.",
+      dependencyOutputs: [],
+      userClarification,
+    });
+
+    const prompt = await fs.readFile(path.join(taskDir, "prompt.md"), "utf-8");
+    expect(prompt).toContain("## User clarification (from open questions)");
+    expect(prompt).toContain("The user answered your open questions. Use this to proceed with the task:");
+    expect(prompt).toContain("Use PostgreSQL for the database");
+    expect(prompt).toContain("bd-a3f8.1");
+  });
+
   it("should extract SPEC when SPEC.md exists", async () => {
     await fs.writeFile(
       path.join(repoPath, SPEC_MD),

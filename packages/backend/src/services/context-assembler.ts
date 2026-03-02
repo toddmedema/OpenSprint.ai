@@ -9,6 +9,7 @@ import {
 import type { ActiveTaskConfig, ReviewAngle } from "@opensprint/shared";
 import { BranchManager } from "./branch-manager.js";
 import { PrdService } from "./prd.service.js";
+import { ChatService } from "./chat.service.js";
 import type { TaskStoreService } from "./task-store.service.js";
 import type { StoredTask } from "./task-store.service.js";
 import { getRuntimePath } from "../utils/runtime-dir.js";
@@ -89,6 +90,8 @@ export interface TaskContext {
   reviewHistory?: string;
   /** Branch diff (main...branch) from main repo; written to context/implementation.diff for review so Reviewer does not run git from worktree */
   branchDiff?: string;
+  /** User's answer from Execute open-questions chat (task context + answer). Enables Coder to resolve "this task" references. */
+  userClarification?: string;
 }
 
 /**
@@ -100,6 +103,7 @@ export interface TaskContext {
  */
 export class ContextAssembler {
   private branchManager = new BranchManager();
+  private chatService = new ChatService();
 
   /**
    * Set up the task directory with all necessary context files.
@@ -241,6 +245,22 @@ export class ContextAssembler {
       branchManager
     );
 
+    let userClarification: string | undefined;
+    try {
+      const executeConv = await this.chatService.getHistory(
+        projectId,
+        `execute:${taskId}`
+      );
+      const lastUserMsg = [...executeConv.messages]
+        .reverse()
+        .find((m) => m.role === "user");
+      if (lastUserMsg?.content?.trim()) {
+        userClarification = lastUserMsg.content.trim();
+      }
+    } catch {
+      // Conversation may not exist; proceed without user clarification
+    }
+
     return {
       taskId: task.id,
       title,
@@ -248,6 +268,7 @@ export class ContextAssembler {
       planContent,
       prdExcerpt,
       dependencyOutputs,
+      ...(userClarification ? { userClarification } : {}),
     };
   }
 
@@ -436,6 +457,11 @@ export class ContextAssembler {
     if (config.reviewFeedback) {
       prompt += `## Review Feedback\n\n`;
       prompt += `The review agent rejected the previous implementation:\n${config.reviewFeedback}\n\n`;
+    }
+
+    if (context.userClarification) {
+      prompt += `## User clarification (from open questions)\n\n`;
+      prompt += `The user answered your open questions. Use this to proceed with the task:\n\n${context.userClarification}\n\n`;
     }
 
     return prompt;

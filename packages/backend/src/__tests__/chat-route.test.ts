@@ -340,6 +340,40 @@ Let me know if you want to refine further.`,
     expect(options.images).toEqual(images);
   });
 
+  it("POST execute chat stores message with task context and does not invoke planning agent", async () => {
+    const callCountBefore = mockInvokePlanningAgent.mock.calls.length;
+
+    const res = await request(app)
+      .post(`${API_PREFIX}/projects/${projectId}/chat`)
+      .send({
+        message: "Use PostgreSQL for the database",
+        context: "execute:os-abc.1",
+        taskContext: {
+          id: "os-abc.1",
+          title: "Add user authentication",
+          description: "Implement login and signup flows",
+          status: "blocked",
+          kanbanColumn: "blocked",
+        },
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.message).toContain("Answer received");
+    expect(mockInvokePlanningAgent.mock.calls.length).toBe(callCountBefore);
+
+    const historyRes = await request(app).get(
+      `${API_PREFIX}/projects/${projectId}/chat/history?context=execute:os-abc.1`
+    );
+    expect(historyRes.status).toBe(200);
+    expect(historyRes.body.data.messages).toHaveLength(2);
+    const userMsg = historyRes.body.data.messages[0];
+    expect(userMsg.role).toBe("user");
+    expect(userMsg.content).toContain("## Task context");
+    expect(userMsg.content).toContain("os-abc.1");
+    expect(userMsg.content).toContain("Add user authentication");
+    expect(userMsg.content).toContain("Use PostgreSQL for the database");
+  });
+
   it("POST /chat should parse PRD_UPDATE blocks from agent response and apply to PRD", async () => {
     const agentResponseWithPrdUpdate = `Here's my suggested executive summary for your product.
 
