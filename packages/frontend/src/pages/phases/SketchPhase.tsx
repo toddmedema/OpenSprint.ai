@@ -33,11 +33,13 @@ import { ResizableSidebar } from "../../components/layout/ResizableSidebar";
 import { useSubmitShortcut } from "../../hooks/useSubmitShortcut";
 import { useImageAttachment } from "../../hooks/useImageAttachment";
 import { useScrollToQuestion } from "../../hooks/useScrollToQuestion";
+import { useViewportWidth } from "../../hooks/useViewportWidth";
+import { MOBILE_BREAKPOINT } from "../../lib/constants";
 import { useOpenQuestionNotifications } from "../../hooks/useOpenQuestionNotifications";
 import { HilApprovalBlock } from "../../components/HilApprovalBlock";
 import { OpenQuestionsBlock } from "../../components/OpenQuestionsBlock";
 import { ImageAttachmentThumbnails, ImageAttachmentButton } from "../../components/ImageAttachment";
-import { CommentIcon } from "../../components/icons/PrdIcons";
+import { CommentIcon, ChatIcon, ListIcon } from "../../components/icons/PrdIcons";
 import { api } from "../../api/client";
 import { isApiError } from "../../api/client";
 import { isNotificationManagedAgentFailure } from "../../lib/agentApiError";
@@ -190,6 +192,9 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
     setTocCollapsedState(collapsed);
     saveSketchTocSidebarCollapsed(collapsed);
   }, []);
+
+  const viewportWidth = useViewportWidth();
+  const isMobile = viewportWidth < MOBILE_BREAKPOINT;
 
   useScrollToQuestion();
   const { notifications: openQuestionNotifications, refetch: refetchNotifications } =
@@ -685,7 +690,7 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
                 type="button"
                 onClick={handleInitialSubmit}
                 disabled={sending || initialInput.trim().length < 10}
-                className="h-10 px-4 rounded-full bg-brand-600 text-white flex items-center justify-center gap-2 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-md text-sm font-medium"
+                className="min-h-[44px] min-w-[44px] px-4 rounded-full bg-brand-600 text-white flex items-center justify-center gap-2 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-md text-sm font-medium"
                 title="Sketch it"
                 aria-label="Sketch it"
                 data-testid="sketch-it-button"
@@ -727,18 +732,22 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
 
   /* ══════════════════════════════════════════════════════════
    *  RENDER: Split-pane (PRD exists) — left: PRD, right: chat (light mode theme)
+   *  On mobile: TOC and chat collapse to floating buttons; PRD full width; sidebars overlay when open
    * ══════════════════════════════════════════════════════════ */
+  const showTocInline = !isMobile || !tocCollapsed;
+  const showChatInline = !isMobile || !discussCollapsed;
+
   return (
     <div className="h-full flex overflow-hidden bg-theme-bg">
-      {/* Left: Table of contents (collapsible, resizable when expanded) */}
-      {tocCollapsed ? (
+      {/* Left: Table of contents (collapsible, resizable when expanded). On mobile when collapsed: hidden (floating button below) */}
+      {showTocInline && tocCollapsed ? (
         <PrdTocPanel
           prdContent={prdContent}
           scrollContainerRef={prdScrollContainerRef}
           collapsed={true}
           onCollapsedChange={setTocCollapsed}
         />
-      ) : (
+      ) : showTocInline && !tocCollapsed ? (
         <ResizableSidebar
           storageKey="sketch-toc"
           defaultWidth={220}
@@ -757,12 +766,12 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
             resizable
           />
         </ResizableSidebar>
-      )}
+      ) : null}
 
-      {/* Center: live PRD document */}
+      {/* Center: live PRD document — full width on mobile when sidebars collapsed */}
       <div ref={prdScrollContainerRef} className="flex-1 min-w-0 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-6 py-8 pb-24">
-          <div className="flex items-center justify-between mb-8 sticky top-0 bg-theme-bg/95 backdrop-blur-sm py-3 -mx-6 px-6 z-20 border-b border-theme-border">
+        <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-8 pb-24">
+          <div className="flex items-center justify-between mb-6 md:mb-8 sticky top-0 bg-theme-bg/95 backdrop-blur-sm py-3 -mx-4 md:-mx-6 px-4 md:px-6 z-20 border-b border-theme-border">
             <h1 className="text-2xl font-bold text-theme-text tracking-tight">
               Product Requirements Document
             </h1>
@@ -772,7 +781,7 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
                   type="button"
                   onClick={handlePlanIt}
                   disabled={planningIt || decomposing}
-                  className="btn-primary text-sm disabled:opacity-50"
+                  className="btn-primary text-sm disabled:opacity-50 min-h-[44px] min-w-[44px] px-4"
                   data-testid="sketch-plan-cta"
                 >
                   {planCtaLabel}
@@ -819,8 +828,8 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
         </div>
       </div>
 
-      {/* Right pane: Discuss sidebar (collapsible, resizable when expanded) */}
-      {discussCollapsed ? (
+      {/* Right pane: Discuss sidebar (collapsible, resizable when expanded). On mobile when collapsed: hidden (floating button below) */}
+      {showChatInline && discussCollapsed ? (
         <PrdChatPanel
           open={true}
           onOpenChange={() => {}}
@@ -834,7 +843,7 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
           collapsed={true}
           onCollapsedChange={setDiscussCollapsed}
         />
-      ) : (
+      ) : showChatInline && !discussCollapsed ? (
         <ResizableSidebar
           storageKey="sketch"
           defaultWidth={380}
@@ -857,6 +866,32 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
             resizable
           />
         </ResizableSidebar>
+      ) : null}
+
+      {/* Mobile: floating buttons to open TOC and Chat when collapsed (full-width PRD) */}
+      {isMobile && tocCollapsed && (
+        <button
+          type="button"
+          onClick={() => setTocCollapsed(false)}
+          className="fixed left-4 bottom-6 z-30 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full bg-theme-surface shadow-lg border border-theme-border text-theme-text hover:bg-theme-bg-elevated transition-colors"
+          title="Open table of contents"
+          aria-label="Open table of contents"
+          data-testid="sketch-toc-fab"
+        >
+          <ListIcon className="w-5 h-5" />
+        </button>
+      )}
+      {isMobile && discussCollapsed && (
+        <button
+          type="button"
+          onClick={() => setDiscussCollapsed(false)}
+          className="fixed right-4 bottom-6 z-30 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full bg-brand-600 text-white shadow-lg hover:bg-brand-700 transition-colors"
+          title="Open Discuss"
+          aria-label="Open Discuss"
+          data-testid="sketch-chat-fab"
+        >
+          <ChatIcon className="w-5 h-5" />
+        </button>
       )}
 
       {selection && (
@@ -872,7 +907,7 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
           <button
             type="button"
             onClick={handleDiscuss}
-            className="flex items-center gap-1.5 px-3 py-2 bg-theme-surface text-theme-text text-xs font-medium rounded-lg shadow-lg ring-1 ring-theme-border hover:bg-theme-bg-elevated transition-colors"
+            className="flex items-center gap-1.5 min-h-[44px] min-w-[44px] px-3 py-2 bg-theme-surface text-theme-text text-xs font-medium rounded-lg shadow-lg ring-1 ring-theme-border hover:bg-theme-bg-elevated transition-colors"
           >
             <CommentIcon className="w-3.5 h-3.5" />
             Discuss

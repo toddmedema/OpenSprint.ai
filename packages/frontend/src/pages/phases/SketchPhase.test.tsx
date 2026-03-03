@@ -47,6 +47,10 @@ vi.mock("../../hooks/useOpenQuestionNotifications", () => ({
     refetch: mockRefetchNotifications,
   }),
 }));
+let mockViewportWidth = 1024;
+vi.mock("../../hooks/useViewportWidth", () => ({
+  useViewportWidth: () => mockViewportWidth,
+}));
 vi.mock("../../hooks/usePhaseLoadingState", () => ({
   usePhaseLoadingState: (isLoading: boolean, isEmpty: boolean) => ({
     showSpinner: isLoading,
@@ -1089,6 +1093,125 @@ describe("SketchPhase with sketchSlice", () => {
 
       await waitFor(() => {
         expect(mockGetPlanStatus).toHaveBeenCalledWith("proj-1");
+      });
+    });
+
+    describe("mobile layout", () => {
+      beforeEach(() => {
+        mockViewportWidth = 400;
+      });
+      afterEach(() => {
+        mockViewportWidth = 1024;
+      });
+
+      it("shows TOC and Chat FABs when sidebars collapsed on mobile", () => {
+        const STORAGE_KEY_CHAT = "opensprint-sketch-chat-sidebar-collapsed";
+        const STORAGE_KEY_TOC = "opensprint-sketch-toc-sidebar-collapsed";
+        const localStorageMock: Record<string, string> = {
+          [STORAGE_KEY_CHAT]: "true",
+          [STORAGE_KEY_TOC]: "true",
+        };
+        vi.spyOn(Storage.prototype, "getItem").mockImplementation((key: string) => {
+          return localStorageMock[key] ?? null;
+        });
+        vi.spyOn(Storage.prototype, "setItem").mockImplementation((key: string, value: string) => {
+          localStorageMock[key] = value;
+        });
+
+        const store = createStore({
+          sketch: { prdContent: { overview: "Content" } },
+        });
+        renderSketchPhase(store);
+
+        expect(screen.getByTestId("sketch-toc-fab")).toBeInTheDocument();
+        expect(screen.getByTestId("sketch-chat-fab")).toBeInTheDocument();
+        expect(screen.getByLabelText("Open table of contents")).toBeInTheDocument();
+        expect(screen.getByLabelText("Open Discuss")).toBeInTheDocument();
+        vi.restoreAllMocks();
+      });
+
+      it("opens TOC overlay when TOC FAB is clicked on mobile", async () => {
+        const user = userEvent.setup();
+        const STORAGE_KEY_TOC = "opensprint-sketch-toc-sidebar-collapsed";
+        const localStorageMock: Record<string, string> = { [STORAGE_KEY_TOC]: "true" };
+        vi.spyOn(Storage.prototype, "getItem").mockImplementation((key: string) => {
+          return localStorageMock[key] ?? null;
+        });
+        vi.spyOn(Storage.prototype, "setItem").mockImplementation((key: string, value: string) => {
+          localStorageMock[key] = value;
+        });
+
+        const store = createStore({
+          sketch: {
+            prdContent: {
+              executive_summary: "Summary",
+              goals_and_metrics: "Goals",
+            },
+          },
+        });
+        renderSketchPhase(store);
+
+        await user.click(screen.getByTestId("sketch-toc-fab"));
+
+        await waitFor(() => {
+          expect(screen.getByTestId("prd-toc-sidebar")).toBeInTheDocument();
+          expect(screen.getByText("Contents")).toBeInTheDocument();
+        });
+        vi.restoreAllMocks();
+      });
+
+      it("opens Chat overlay when Chat FAB is clicked on mobile", async () => {
+        const user = userEvent.setup();
+        const STORAGE_KEY_CHAT = "opensprint-sketch-chat-sidebar-collapsed";
+        const localStorageMock: Record<string, string> = { [STORAGE_KEY_CHAT]: "true" };
+        vi.spyOn(Storage.prototype, "getItem").mockImplementation((key: string) => {
+          return localStorageMock[key] ?? null;
+        });
+        vi.spyOn(Storage.prototype, "setItem").mockImplementation((key: string, value: string) => {
+          localStorageMock[key] = value;
+        });
+
+        const store = createStore({
+          sketch: { prdContent: { overview: "Content" } },
+        });
+        renderSketchPhase(store);
+
+        await user.click(screen.getByTestId("sketch-chat-fab"));
+
+        await waitFor(() => {
+          expect(screen.getByTestId("prd-chat-sidebar")).toBeInTheDocument();
+          expect(screen.getByText("Chatting with Dreamer")).toBeInTheDocument();
+        });
+        vi.restoreAllMocks();
+      });
+
+      it("hides collapsed sidebars on mobile so PRD is full width", () => {
+        const STORAGE_KEY_CHAT = "opensprint-sketch-chat-sidebar-collapsed";
+        const STORAGE_KEY_TOC = "opensprint-sketch-toc-sidebar-collapsed";
+        const localStorageMock: Record<string, string> = {
+          [STORAGE_KEY_CHAT]: "true",
+          [STORAGE_KEY_TOC]: "true",
+        };
+        vi.spyOn(Storage.prototype, "getItem").mockImplementation((key: string) => {
+          return localStorageMock[key] ?? null;
+        });
+        vi.spyOn(Storage.prototype, "setItem").mockImplementation((key: string, value: string) => {
+          localStorageMock[key] = value;
+        });
+
+        const store = createStore({
+          sketch: { prdContent: { overview: "Content" } },
+        });
+        const { container } = renderSketchPhase(store);
+
+        expect(screen.getByTestId("sketch-toc-fab")).toBeInTheDocument();
+        expect(screen.getByTestId("sketch-chat-fab")).toBeInTheDocument();
+        expect(screen.queryByTestId("prd-toc-sidebar")).not.toBeInTheDocument();
+        expect(screen.queryByTestId("prd-chat-sidebar")).not.toBeInTheDocument();
+        expect(screen.getByText("Product Requirements Document")).toBeInTheDocument();
+        const prdContent = container.querySelector("[class*='max-w-4xl']");
+        expect(prdContent).toBeInTheDocument();
+        vi.restoreAllMocks();
       });
     });
 

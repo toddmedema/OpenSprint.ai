@@ -126,7 +126,7 @@ export function PrdTocPanel({
         <button
           type="button"
           onClick={() => onCollapsedChange(false)}
-          className="flex flex-col items-center gap-1 p-2 shrink-0 text-theme-muted hover:text-brand-600 dark:hover:text-brand-400 hover:bg-theme-border-subtle rounded-lg transition-colors"
+          className="flex flex-col items-center justify-center gap-1 min-h-[44px] min-w-[44px] p-2 shrink-0 text-theme-muted hover:text-brand-600 dark:hover:text-brand-400 hover:bg-theme-border-subtle rounded-lg transition-colors"
           title="Expand table of contents"
           aria-label="Expand table of contents"
         >
@@ -143,7 +143,7 @@ export function PrdTocPanel({
             <button
               type="button"
               onClick={() => onCollapsedChange(true)}
-              className="p-1.5 rounded-full hover:bg-theme-border-subtle text-theme-muted hover:text-theme-text transition-colors"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 rounded-full hover:bg-theme-border-subtle text-theme-muted hover:text-theme-text transition-colors"
               title="Collapse table of contents"
               aria-label="Collapse table of contents"
             >
