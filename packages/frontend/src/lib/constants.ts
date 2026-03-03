@@ -28,6 +28,12 @@ export const GITHUB_REPO_URL = "https://github.com/toddmedema/opensprint.dev";
 export const CONTENT_CONTAINER_CLASS = "max-w-3xl mx-auto px-6" as const;
 
 /**
+ * Max-width for Settings and Help page content (1800px).
+ * Matches Evaluate feedback cards for consistency on wide viewports.
+ */
+export const SETTINGS_HELP_CONTAINER_CLASS = "max-w-[1800px] mx-auto px-6" as const;
+
+/**
  * Wider container for homepage (header + project cards).
  * ~50% wider than CONTENT_CONTAINER_CLASS, plus ~20% extra for create button spacing,
  * plus another ~20% for adequate spacing from header text.

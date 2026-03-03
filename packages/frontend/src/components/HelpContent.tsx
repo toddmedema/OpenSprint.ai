@@ -96,7 +96,7 @@ export function HelpContent({ project, onClose }: HelpContentProps) {
             id="help-tabpanel-ask"
             role="tabpanel"
             aria-labelledby="help-tab-ask"
-            className="flex-1 min-h-0 flex flex-col overflow-hidden px-4 sm:px-6 py-4 max-w-4xl mx-auto w-full"
+            className="flex-1 min-h-0 flex flex-col overflow-hidden px-4 sm:px-6 py-4 max-w-[1800px] mx-auto w-full"
           >
             <AskQuestionContent project={project} isActive={true} />
           </div>
@@ -106,7 +106,7 @@ export function HelpContent({ project, onClose }: HelpContentProps) {
             id="help-tabpanel-meet"
             role="tabpanel"
             aria-labelledby="help-tab-meet"
-            className="flex-1 overflow-y-auto min-h-0 px-4 sm:px-6 py-4 max-w-4xl mx-auto w-full"
+            className="flex-1 overflow-y-auto min-h-0 px-4 sm:px-6 py-4 max-w-[1800px] mx-auto w-full"
           >
             <MeetYourTeamContent />
           </div>

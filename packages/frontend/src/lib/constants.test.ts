@@ -6,6 +6,7 @@ import {
   MOBILE_BREAKPOINT,
   NAVBAR_HEIGHT,
   PHASE_TOOLBAR_HEIGHT,
+  SETTINGS_HELP_CONTAINER_CLASS,
   TABLET_BREAKPOINT,
   PRD_SECTION_ORDER,
   PRD_SOURCE_COLORS,
@@ -43,6 +44,14 @@ describe("constants", () => {
       expect(CONTENT_CONTAINER_CLASS).toContain("max-w-3xl");
       expect(CONTENT_CONTAINER_CLASS).toContain("mx-auto");
       expect(CONTENT_CONTAINER_CLASS).toContain("px-6");
+    });
+  });
+
+  describe("SETTINGS_HELP_CONTAINER_CLASS", () => {
+    it("includes max-w-[1800px] mx-auto px-6 for Settings and Help page content on wide viewports", () => {
+      expect(SETTINGS_HELP_CONTAINER_CLASS).toContain("max-w-[1800px]");
+      expect(SETTINGS_HELP_CONTAINER_CLASS).toContain("mx-auto");
+      expect(SETTINGS_HELP_CONTAINER_CLASS).toContain("px-6");
     });
   });
 
