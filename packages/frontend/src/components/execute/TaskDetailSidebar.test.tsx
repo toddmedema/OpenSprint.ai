@@ -8,6 +8,9 @@ import {
   renderWithProviders,
   wrapWithProviders,
   createTestStore,
+  mockViewport,
+  VIEWPORT_MOBILE,
+  VIEWPORT_TABLET,
   type RootState,
 } from "../../test/test-utils";
 import type { RenderWithProvidersOptions } from "../../test/test-utils";
@@ -2616,6 +2619,50 @@ describe("TaskDetailSidebar", () => {
     expect(setSourceFeedbackExpanded).toHaveBeenCalledWith(expect.any(Function));
     const updater2 = setSourceFeedbackExpanded.mock.calls[0][0];
     expect(updater2({ "fb-1": true, "fb-2": false })).toEqual({ "fb-1": true, "fb-2": true });
+  });
+
+  describe("viewport behavior", () => {
+    it("renders task detail and close button at mobile viewport (375×667)", () => {
+      const restore = mockViewport(VIEWPORT_MOBILE.width, VIEWPORT_MOBILE.height);
+      try {
+        const props = createMinimalProps();
+        renderSidebar(props, { preloadedState: defaultPreloadedState });
+
+        expect(screen.getByTestId("task-detail-title")).toHaveTextContent("Task A");
+        const closeBtn = screen.getByRole("button", { name: "Close task detail" });
+        expect(closeBtn).toBeInTheDocument();
+      } finally {
+        restore();
+      }
+    });
+
+    it("renders task detail and close button at tablet viewport (768×1024)", () => {
+      const restore = mockViewport(VIEWPORT_TABLET.width, VIEWPORT_TABLET.height);
+      try {
+        const props = createMinimalProps();
+        renderSidebar(props, { preloadedState: defaultPreloadedState });
+
+        expect(screen.getByTestId("task-detail-title")).toHaveTextContent("Task A");
+        expect(screen.getByRole("button", { name: "Close task detail" })).toBeInTheDocument();
+      } finally {
+        restore();
+      }
+    });
+
+    it("calls onClose when close button is clicked at mobile viewport", async () => {
+      const restore = mockViewport(VIEWPORT_MOBILE.width, VIEWPORT_MOBILE.height);
+      try {
+        const user = userEvent.setup();
+        const onClose = vi.fn();
+        const props = createMinimalProps({ onClose });
+        renderSidebar(props, { preloadedState: defaultPreloadedState });
+
+        await user.click(screen.getByRole("button", { name: "Close task detail" }));
+        expect(onClose).toHaveBeenCalledTimes(1);
+      } finally {
+        restore();
+      }
+    });
   });
 
   it("uses sourceFeedbackId when sourceFeedbackIds is absent (backward compat)", async () => {

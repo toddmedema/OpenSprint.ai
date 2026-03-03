@@ -346,18 +346,24 @@ export interface GlobalSettings {
   useCustomCli?: boolean;
   /** PostgreSQL connection URL. Never stored in the database; only in this JSON file. */
   databaseUrl?: string;
+  /** Expo access token (EXPO_TOKEN) for EAS deploy. Stored only in this JSON file. */
+  expoToken?: string;
 }
 
-/** Response shape for GET /global-settings (apiKeys masked) */
+/** Response shape for GET /global-settings (apiKeys masked, expoToken masked) */
 export interface GlobalSettingsResponse {
   databaseUrl: string;
   apiKeys?: MaskedApiKeys;
+  /** Whether expoToken is configured (value never exposed) */
+  expoTokenConfigured?: boolean;
 }
 
 /** Request body for PUT /global-settings */
 export interface GlobalSettingsPutRequest {
   databaseUrl?: string;
   apiKeys?: ApiKeysUpdate;
+  /** Expo access token (EXPO_TOKEN). Set to empty string to remove. */
+  expoToken?: string;
 }
 
 /**

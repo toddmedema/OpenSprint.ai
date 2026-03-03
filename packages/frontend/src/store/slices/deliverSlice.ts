@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk, type PayloadAction } from "@reduxjs/toolkit";
 import type { DeploymentRecord, DeploymentConfig } from "@opensprint/shared";
-import { api } from "../../api/client";
+import { api, isApiError } from "../../api/client";
 import { DEDUP_SKIP } from "../dedup";
 import { createInitialAsyncStates, createAsyncHandlers, type AsyncStates } from "../asyncHelpers";
 
@@ -238,7 +238,21 @@ const deliverSlice = createSlice({
         state.liveLog = [];
       },
       onRejected: (state, action) => {
-        state.error = action.error?.message ?? "Expo deploy failed";
+        const err = action.error;
+        let msg = err?.message ?? "Expo deploy failed";
+        if (
+          isApiError(err) &&
+          (err.code === "EXPO_TOKEN_REQUIRED" ||
+            err.code === "EXPO_LOGIN_REQUIRED" ||
+            err.code === "EXPO_AUTH_REQUIRED")
+        ) {
+          const details = err.details as { prompt?: string } | undefined;
+          if (details?.prompt) {
+            msg = `${msg}\n\n${details.prompt}`;
+          }
+        }
+        state.error = msg;
+        state.async.expoDeploy.error = msg;
       },
       defaultError: "Expo deploy failed",
     });

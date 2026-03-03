@@ -137,6 +137,42 @@ export function wrapApp(
   );
 }
 
+/** Mobile viewport (iPhone SE). */
+export const VIEWPORT_MOBILE = { width: 375, height: 667 };
+/** Tablet viewport (iPad). */
+export const VIEWPORT_TABLET = { width: 768, height: 1024 };
+
+/**
+ * Mocks window.innerWidth/innerHeight for viewport-dependent tests.
+ * Call the returned restore function in afterEach or after the test.
+ */
+export function mockViewport(width: number, height = 667): () => void {
+  const origWidth = typeof window !== "undefined" ? window.innerWidth : 1024;
+  const origHeight = typeof window !== "undefined" ? window.innerHeight : 768;
+  if (typeof window !== "undefined") {
+    Object.defineProperty(window, "innerWidth", { value: width, writable: true, configurable: true });
+    Object.defineProperty(window, "innerHeight", {
+      value: height,
+      writable: true,
+      configurable: true,
+    });
+  }
+  return () => {
+    if (typeof window !== "undefined") {
+      Object.defineProperty(window, "innerWidth", {
+        value: origWidth,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(window, "innerHeight", {
+        value: origHeight,
+        writable: true,
+        configurable: true,
+      });
+    }
+  };
+}
+
 export { render };
 export { createTestStore };
 export type { RootState };

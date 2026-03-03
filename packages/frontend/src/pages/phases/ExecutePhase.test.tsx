@@ -2238,9 +2238,11 @@ describe("ExecutePhase Redux integration", () => {
     expect(scrollContainer.scrollTop).toBe(200);
   });
 
-  it("main task list scrolls when sidebar is open at mobile viewport (375px)", async () => {
+  it("main task list scrolls when sidebar is open at mobile viewport (375×667)", async () => {
     const originalInnerWidth = window.innerWidth;
+    const originalInnerHeight = window.innerHeight;
     Object.defineProperty(window, "innerWidth", { value: 375, writable: true });
+    Object.defineProperty(window, "innerHeight", { value: 667, writable: true });
 
     mockGet.mockResolvedValue({ id: "epic-1.1", title: "Task A", kanbanColumn: "in_progress" });
     const tasks = [
@@ -2277,6 +2279,51 @@ describe("ExecutePhase Redux integration", () => {
     expect(scrollContainer.scrollTop).toBe(150);
 
     Object.defineProperty(window, "innerWidth", { value: originalInnerWidth, writable: true });
+    Object.defineProperty(window, "innerHeight", { value: originalInnerHeight, writable: true });
+  });
+
+  it("main task list scrolls when sidebar is open at tablet viewport (768×1024)", async () => {
+    const originalInnerWidth = window.innerWidth;
+    const originalInnerHeight = window.innerHeight;
+    Object.defineProperty(window, "innerWidth", { value: 768, writable: true });
+    Object.defineProperty(window, "innerHeight", { value: 1024, writable: true });
+
+    mockGet.mockResolvedValue({ id: "epic-1.1", title: "Task A", kanbanColumn: "in_progress" });
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Task A",
+        epicId: "epic-1",
+        kanbanColumn: "in_progress",
+        priority: 0,
+        assignee: null,
+      },
+    ];
+    const store = createStore(tasks, { selectedTaskId: "epic-1.1" });
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <ExecutePhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>
+    );
+
+    await vi.waitFor(() => {
+      expect(mockGet).toHaveBeenCalledWith("proj-1", "epic-1.1");
+    });
+
+    const scrollContainer = screen.getByTestId("execute-main-scroll");
+    expect(scrollContainer).toHaveClass("overflow-auto");
+    Object.defineProperty(scrollContainer, "scrollHeight", { value: 1200, configurable: true });
+    Object.defineProperty(scrollContainer, "clientHeight", { value: 600, configurable: true });
+
+    act(() => {
+      scrollContainer.scrollTop = 250;
+    });
+    expect(scrollContainer.scrollTop).toBe(250);
+
+    Object.defineProperty(window, "innerWidth", { value: originalInnerWidth, writable: true });
+    Object.defineProperty(window, "innerHeight", { value: originalInnerHeight, writable: true });
   });
 
   it("main task list scrolls when sidebar is open at desktop viewport (1024px)", async () => {

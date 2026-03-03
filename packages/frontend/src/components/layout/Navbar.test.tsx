@@ -10,6 +10,7 @@ import type { Task } from "@opensprint/shared";
 import { ThemeProvider } from "../../contexts/ThemeContext";
 import { DisplayPreferencesProvider } from "../../contexts/DisplayPreferencesContext";
 import { NAVBAR_HEIGHT } from "../../lib/constants";
+import { mockViewport, VIEWPORT_MOBILE, VIEWPORT_TABLET } from "../../test/test-utils";
 import { Navbar } from "./Navbar";
 import executeReducer, { toTasksByIdAndOrder } from "../../store/slices/executeSlice";
 import planReducer from "../../store/slices/planSlice";
@@ -334,6 +335,72 @@ describe("Navbar", () => {
     expect(tablist).toBeInTheDocument();
     const tabs = screen.getAllByRole("tab");
     expect(tabs).toHaveLength(5);
+  });
+
+  describe("viewport behavior", () => {
+    it("navbar and phase tabs render at mobile viewport (375×667)", () => {
+      const restore = mockViewport(VIEWPORT_MOBILE.width, VIEWPORT_MOBILE.height);
+      try {
+        const mockProject = {
+          id: "proj-1",
+          name: "Test",
+          repoPath: "/path",
+          currentPhase: "sketch" as const,
+          createdAt: "2025-01-01T00:00:00Z",
+          updatedAt: "2025-01-01T00:00:00Z",
+        };
+        renderNavbar(<Navbar project={mockProject} currentPhase="sketch" onPhaseChange={vi.fn()} />);
+        expect(screen.getByRole("navigation")).toBeInTheDocument();
+        expect(screen.getByRole("tab", { name: /Sketch/ })).toBeInTheDocument();
+        expect(screen.getByRole("tab", { name: /Plan/ })).toBeInTheDocument();
+        expect(screen.getByRole("tab", { name: /Execute/ })).toBeInTheDocument();
+      } finally {
+        restore();
+      }
+    });
+
+    it("navbar and phase tabs render at tablet viewport (768×1024)", () => {
+      const restore = mockViewport(VIEWPORT_TABLET.width, VIEWPORT_TABLET.height);
+      try {
+        const mockProject = {
+          id: "proj-1",
+          name: "Test",
+          repoPath: "/path",
+          currentPhase: "sketch" as const,
+          createdAt: "2025-01-01T00:00:00Z",
+          updatedAt: "2025-01-01T00:00:00Z",
+        };
+        renderNavbar(<Navbar project={mockProject} currentPhase="sketch" onPhaseChange={vi.fn()} />);
+        expect(screen.getByRole("navigation")).toBeInTheDocument();
+        expect(screen.getByRole("tab", { name: /Sketch/ })).toBeInTheDocument();
+        expect(screen.getByRole("tab", { name: /Plan/ })).toBeInTheDocument();
+      } finally {
+        restore();
+      }
+    });
+
+    it("phase navigation works at mobile viewport", async () => {
+      const restore = mockViewport(VIEWPORT_MOBILE.width, VIEWPORT_MOBILE.height);
+      try {
+        const user = userEvent.setup();
+        const onPhaseChange = vi.fn();
+        const mockProject = {
+          id: "proj-1",
+          name: "Test",
+          repoPath: "/path",
+          currentPhase: "sketch" as const,
+          createdAt: "2025-01-01T00:00:00Z",
+          updatedAt: "2025-01-01T00:00:00Z",
+        };
+        renderNavbar(
+          <Navbar project={mockProject} currentPhase="sketch" onPhaseChange={onPhaseChange} />
+        );
+        await user.click(screen.getByRole("tab", { name: /Plan/ }));
+        expect(onPhaseChange).toHaveBeenCalledWith("plan");
+      } finally {
+        restore();
+      }
+    });
   });
 
   it("phase tabs use NavButton with ~36px height", () => {

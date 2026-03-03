@@ -25,6 +25,7 @@ import { getErrorMessage } from "../utils/error-utils.js";
 import { getExpoDeployCommand } from "../utils/expo-deploy-command.js";
 import { ensureExpoInstalled } from "../utils/expo-install.js";
 import { ensureExpoConfig } from "../utils/expo-config.js";
+import { checkExpoAuth } from "../utils/expo-auth-check.js";
 import { createLogger } from "../utils/logger.js";
 
 const log = createLogger("deliver");
@@ -264,6 +265,19 @@ deliverRouter.post("/expo-deploy", async (req: Request<ProjectParams>, res, next
       return;
     }
 
+    // Pre-deploy: identify required but missing Expo auth before starting
+    const authCheck = await checkExpoAuth(project.repoPath);
+    if (!authCheck.ok) {
+      res.status(400).json({
+        error: {
+          code: authCheck.code,
+          message: authCheck.message,
+          prompt: authCheck.prompt,
+        },
+      });
+      return;
+    }
+
     activeDeployments.set(projectId, "pending");
 
     const latest = await deployStorageService.getLatestDeploy(projectId);
@@ -292,8 +306,12 @@ deliverRouter.post("/expo-deploy", async (req: Request<ProjectParams>, res, next
     const repoInTempDir = resolvedRepo.startsWith(tmpDir + path.sep) || resolvedRepo === tmpDir;
     const expoTarget = variant === "prod" ? "production" : "staging";
     const expoTargetConfig = getDeploymentTargetConfig(settings.deployment, expoTarget);
-    const envVars =
+    const baseEnvVars =
       expoTargetConfig?.envVars ?? settings.deployment.envVars ?? {};
+    const envVars =
+      authCheck.expoToken != null
+        ? { ...baseEnvVars, EXPO_TOKEN: authCheck.expoToken }
+        : baseEnvVars;
 
     const emit = (chunk: string) => {
       deployStorageService.appendLog(projectId, record.id, chunk);
@@ -473,6 +491,20 @@ export async function runDeployAsync(
     emit("All tests passed. Proceeding with deployment...\n");
 
     if (config.mode === "expo") {
+      // Pre-deploy: identify required but missing Expo auth
+      const authCheck = await checkExpoAuth(repoPath);
+      if (!authCheck.ok) {
+        emit(`${authCheck.prompt}\n`);
+        await deployStorageService.updateRecord(projectId, deployId, {
+          status: "failed",
+          completedAt: new Date().toISOString(),
+          error: authCheck.message,
+        });
+        broadcastToProject(projectId, { type: "deliver.completed", deployId, success: false });
+        return;
+      }
+      const expoEnvVars =
+        authCheck.expoToken != null ? { ...envVars, EXPO_TOKEN: authCheck.expoToken } : envVars;
       // Expo mode: staging maps to beta variant, production to prod (PRD §7.5.3)
       const variant: "beta" | "prod" = effectiveTarget === "staging" ? "beta" : "prod";
       await runExpoDeployAsync(
@@ -481,7 +513,7 @@ export async function runDeployAsync(
         repoPath,
         variant,
         emit,
-        envVars,
+        expoEnvVars,
         projectName
       );
     } else if (config.mode === "custom") {

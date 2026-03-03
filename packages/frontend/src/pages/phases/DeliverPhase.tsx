@@ -31,6 +31,8 @@ function formatTarget(target: DeploymentRecord["target"]): string {
 interface DeliverPhaseProps {
   projectId: string;
   onOpenSettings?: () => void;
+  /** Opens global settings (Expo API Token). Defaults to onOpenSettings if not provided. */
+  onOpenGlobalSettings?: () => void;
 }
 
 function formatDate(iso: string): string {
@@ -93,7 +95,7 @@ function FilterIcon({ className }: { className?: string }) {
   );
 }
 
-export function DeliverPhase({ projectId, onOpenSettings }: DeliverPhaseProps) {
+export function DeliverPhase({ projectId, onOpenSettings, onOpenGlobalSettings }: DeliverPhaseProps) {
   const dispatch = useAppDispatch();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -141,6 +143,7 @@ export function DeliverPhase({ projectId, onOpenSettings }: DeliverPhaseProps) {
   const liveLog = useAppSelector((s) => s.deliver.liveLog);
   const deliverLoading = useAppSelector((s) => s.deliver?.async?.trigger?.loading ?? false);
   const expoDeployLoading = useAppSelector((s) => s.deliver?.async?.expoDeploy?.loading ?? false);
+  const expoDeployError = useAppSelector((s) => s.deliver?.async?.expoDeploy?.error ?? null);
   const historyLoading = useAppSelector((s) => s.deliver?.async?.history?.loading ?? false);
   const rollbackLoading = useAppSelector((s) => s.deliver?.async?.rollback?.loading ?? false);
 
@@ -508,6 +511,26 @@ export function DeliverPhase({ projectId, onOpenSettings }: DeliverPhaseProps) {
               )}
             </div>
             <div className="flex-1 overflow-y-auto p-4">
+              {expoDeployError && (
+                <div
+                  className="mb-4 p-4 bg-theme-error-bg border border-theme-error-border rounded-lg text-sm text-theme-error-text whitespace-pre-wrap"
+                  data-testid="expo-deploy-auth-error"
+                >
+                  {expoDeployError}
+                  {(onOpenGlobalSettings ?? onOpenSettings) && (
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        onClick={onOpenGlobalSettings ?? onOpenSettings}
+                        className="text-brand-600 hover:text-brand-700 font-medium underline"
+                        data-testid="expo-auth-settings-link"
+                      >
+                        Open Settings to add Expo API Token →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
               <pre
                 className="text-xs font-mono whitespace-pre-wrap text-theme-text bg-theme-code-bg text-theme-code-text p-4 rounded-lg min-h-full"
                 data-testid="deploy-log"

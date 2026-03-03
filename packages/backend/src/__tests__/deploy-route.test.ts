@@ -395,6 +395,16 @@ describe.skipIf(!deployRoutePostgresOk)("Deliver API (phase routes for deploymen
   });
 
   describe("POST /projects/:projectId/deliver/expo-deploy", () => {
+    const originalExpoToken = process.env.EXPO_TOKEN;
+
+    beforeEach(() => {
+      process.env.EXPO_TOKEN = "test-expo-token-for-deploy-route-tests";
+    });
+
+    afterEach(() => {
+      process.env.EXPO_TOKEN = originalExpoToken;
+    });
+
     it("should return 400 when deployment mode is not expo", async () => {
       const res = await request(app)
         .post(`${API_PREFIX}/projects/${projectId}/deliver/expo-deploy`)
@@ -415,6 +425,27 @@ describe.skipIf(!deployRoutePostgresOk)("Deliver API (phase routes for deploymen
 
       expect(res.status).toBe(400);
       expect(res.body.error?.code).toBe("INVALID_VARIANT");
+    });
+
+    it("should return 400 with explicit prompt when Expo auth is missing", async () => {
+      const saved = process.env.EXPO_TOKEN;
+      delete process.env.EXPO_TOKEN;
+
+      await request(app)
+        .put(`${API_PREFIX}/projects/${projectId}/deliver/settings`)
+        .send({ mode: "expo" });
+
+      const res = await request(app)
+        .post(`${API_PREFIX}/projects/${projectId}/deliver/expo-deploy`)
+        .send({ variant: "beta" });
+
+      process.env.EXPO_TOKEN = saved;
+
+      expect(res.status).toBe(400);
+      expect(res.body.error?.code).toBe("EXPO_TOKEN_REQUIRED");
+      expect(res.body.error?.message).toContain("authentication");
+      expect(res.body.error?.prompt).toBeDefined();
+      expect(res.body.error?.prompt).toContain("expo.dev/settings/access-tokens");
     });
 
     it("should accept beta variant and return deployId when mode is expo", async () => {

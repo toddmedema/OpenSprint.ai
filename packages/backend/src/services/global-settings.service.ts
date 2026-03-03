@@ -43,10 +43,15 @@ async function load(): Promise<GlobalSettings> {
       const useCustomCli =
         obj.useCustomCli === true ? true : obj.useCustomCli === false ? false : undefined;
       const databaseUrl = parseDatabaseUrl(obj.databaseUrl);
+      const expoToken =
+        obj.expoToken != null && typeof obj.expoToken === "string" && obj.expoToken.trim()
+          ? obj.expoToken.trim()
+          : undefined;
       return {
         ...(apiKeys && { apiKeys }),
         ...(useCustomCli !== undefined && { useCustomCli }),
         ...(databaseUrl && { databaseUrl }),
+        ...(expoToken && { expoToken }),
       };
     }
   } catch {
@@ -123,6 +128,9 @@ export async function setGlobalSettings(settings: GlobalSettings): Promise<void>
   if (settings.databaseUrl !== undefined) {
     sanitized.databaseUrl = validateDatabaseUrl(settings.databaseUrl);
   }
+  if (settings.expoToken !== undefined) {
+    sanitized.expoToken = settings.expoToken.trim() || undefined;
+  }
   await save(sanitized);
 }
 
@@ -145,6 +153,9 @@ export async function updateGlobalSettings(
   }
   if (updates.databaseUrl !== undefined) {
     merged.databaseUrl = validateDatabaseUrl(updates.databaseUrl);
+  }
+  if (updates.expoToken !== undefined) {
+    merged.expoToken = updates.expoToken.trim() || undefined;
   }
 
   await save(merged);

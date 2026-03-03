@@ -98,7 +98,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     const body = await response.json().catch(() => null);
     const code = body?.error?.code ?? "UNKNOWN";
     const message = body?.error?.message || response.statusText || "Request failed";
-    const details = body?.error?.details;
+    const details = body?.error;
     throw new ApiError(message, code, details);
   }
 

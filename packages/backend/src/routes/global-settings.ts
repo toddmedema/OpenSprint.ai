@@ -28,6 +28,7 @@ function buildResponse(settings: GlobalSettings) {
   return {
     databaseUrl: maskDatabaseUrl(effectiveUrl),
     ...(settings.apiKeys && { apiKeys: maskApiKeysForResponse(settings.apiKeys) }),
+    expoTokenConfigured: Boolean(settings.expoToken && settings.expoToken.trim()),
   };
 }
 
@@ -119,11 +120,11 @@ globalSettingsRouter.get("/", async (_req, res, next) => {
   }
 });
 
-// PUT /global-settings — Accepts databaseUrl, apiKeys. Validates and sanitizes. Merge apiKeys with existing (preserve value when id exists and value omitted).
+// PUT /global-settings — Accepts databaseUrl, apiKeys, expoToken. Validates and sanitizes. Merge apiKeys with existing (preserve value when id exists and value omitted).
 globalSettingsRouter.put("/", async (req: Request, res, next) => {
   try {
-    const body = req.body as { databaseUrl?: string; apiKeys?: unknown };
-    const updates: { databaseUrl?: string; apiKeys?: unknown } = {};
+    const body = req.body as { databaseUrl?: string; apiKeys?: unknown; expoToken?: string };
+    const updates: { databaseUrl?: string; apiKeys?: unknown; expoToken?: string } = {};
     const previous = await getGlobalSettings();
 
     if (body.databaseUrl !== undefined) {
@@ -144,6 +145,10 @@ globalSettingsRouter.put("/", async (req: Request, res, next) => {
 
     if (body.apiKeys !== undefined) {
       updates.apiKeys = body.apiKeys;
+    }
+
+    if (body.expoToken !== undefined) {
+      updates.expoToken = typeof body.expoToken === "string" ? body.expoToken : "";
     }
 
     if (Object.keys(updates).length === 0) {

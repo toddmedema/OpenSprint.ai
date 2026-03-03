@@ -143,6 +143,7 @@ export function ProjectView() {
           <LazyDeliverPhase
             projectId={projectId}
             onOpenSettings={() => navigate(`/projects/${projectId}/settings`)}
+            onOpenGlobalSettings={() => navigate(`/projects/${projectId}/settings?level=global`)}
           />
         )}
       </Suspense>
