@@ -919,11 +919,9 @@ describe("SketchPhase with sketchSlice", () => {
       });
       renderSketchPhase(store);
       await waitFor(() => {
-        expect(screen.getAllByRole("button", { name: /Plan it/i })).toHaveLength(2);
+        expect(screen.getByRole("button", { name: /Plan it/i })).toBeInTheDocument();
       });
-      expect(screen.getByTestId("sketch-plan-footer")).toContainElement(
-        screen.getByTestId("sketch-plan-cta")
-      );
+      expect(screen.getByTestId("sketch-plan-cta")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Replan it/i })).not.toBeInTheDocument();
     });
 
@@ -941,11 +939,9 @@ describe("SketchPhase with sketchSlice", () => {
       });
       renderSketchPhase(store);
       await waitFor(() => {
-        expect(screen.getAllByRole("button", { name: /Replan it/i })).toHaveLength(2);
+        expect(screen.getByRole("button", { name: /Replan it/i })).toBeInTheDocument();
       });
-      expect(screen.getByTestId("sketch-plan-footer")).toContainElement(
-        screen.getByTestId("sketch-plan-cta")
-      );
+      expect(screen.getByTestId("sketch-plan-cta")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /^Plan it$/i })).not.toBeInTheDocument();
     });
 
@@ -999,12 +995,12 @@ describe("SketchPhase with sketchSlice", () => {
       });
       renderSketchPhase(store);
       await waitFor(() => {
-        expect(screen.getAllByRole("button", { name: /Plan it/i })).toHaveLength(2);
+        expect(screen.getByRole("button", { name: /Plan it/i })).toBeInTheDocument();
       });
 
       await userEvent.click(screen.getByTestId("sketch-plan-cta"));
       await waitFor(() => {
-        expect(screen.getAllByRole("button", { name: /Planning/i })).toHaveLength(2);
+        expect(screen.getByRole("button", { name: /Planning/i })).toBeInTheDocument();
         expect(screen.getByTestId("sketch-plan-cta")).toBeDisabled();
       });
       resolveDecompose!();

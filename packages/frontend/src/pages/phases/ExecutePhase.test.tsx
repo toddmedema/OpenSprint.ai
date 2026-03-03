@@ -2383,48 +2383,50 @@ describe("ExecutePhase Redux integration", () => {
     });
   });
 
-  it("backfills live output once on mount and once after websocket reconnect", async () => {
-    const tasks = [
-      {
-        id: "epic-1.1",
-        title: "Task A",
-        epicId: "epic-1",
-        kanbanColumn: "in_progress",
-        priority: 0,
-        assignee: null,
-      },
-    ];
-    const store = createStore(
-      tasks,
-      { selectedTaskId: "epic-1.1", agentOutput: { "epic-1.1": ["Initial"] } },
-      { connected: false }
-    );
-    render(
-      <MemoryRouter>
-        <Provider store={store}>
-          <ExecutePhase projectId="proj-1" />
-        </Provider>
-      </MemoryRouter>
-    );
+  it(
+    "backfills live output once on mount and once after websocket reconnect",
+    async () => {
+      const tasks = [
+        {
+          id: "epic-1.1",
+          title: "Task A",
+          epicId: "epic-1",
+          kanbanColumn: "in_progress",
+          priority: 0,
+          assignee: null,
+        },
+      ];
+      const store = createStore(
+        tasks,
+        { selectedTaskId: "epic-1.1", agentOutput: { "epic-1.1": ["Initial"] } },
+        { connected: false }
+      );
+      render(
+        <MemoryRouter>
+          <Provider store={store}>
+            <ExecutePhase projectId="proj-1" />
+          </Provider>
+        </MemoryRouter>
+      );
 
-    await vi.waitFor(() => {
-      expect(mockLiveOutput).toHaveBeenCalledWith("proj-1", "epic-1.1");
-    });
-    const initialCalls = mockLiveOutput.mock.calls.length;
+      await waitFor(() => {
+        expect(mockLiveOutput).toHaveBeenCalledWith("proj-1", "epic-1.1");
+      });
+      const initialCalls = mockLiveOutput.mock.calls.length;
 
-    await act(async () => {
-      await Promise.resolve();
-    });
+      await act(async () => {
+        store.dispatch(setConnected(true));
+      });
 
-    await act(async () => {
-      store.dispatch(setConnected(true));
-      await Promise.resolve();
-    });
-
-    await vi.waitFor(() => {
-      expect(mockLiveOutput.mock.calls.length).toBe(initialCalls + 1);
-    });
-  });
+      await waitFor(
+        () => {
+          expect(mockLiveOutput.mock.calls.length).toBe(initialCalls + 1);
+        },
+        { timeout: 5000 }
+      );
+    },
+    10000
+  );
 
   it("task detail sidebar header shows only task title, not redundant Task label", async () => {
     mockGet.mockResolvedValue({

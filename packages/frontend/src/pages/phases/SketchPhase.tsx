@@ -733,6 +733,7 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
                   onClick={handlePlanIt}
                   disabled={planningIt || decomposing}
                   className="btn-primary text-sm disabled:opacity-50"
+                  data-testid="sketch-plan-cta"
                 >
                   {planCtaLabel}
                 </button>
@@ -762,25 +763,6 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
             expanded={historyExpanded}
             onToggle={() => setHistoryExpanded(!historyExpanded)}
           />
-
-          {planCtaLabel && (
-            <div
-              className="sticky bottom-6 z-10 mt-10 flex justify-center pointer-events-none"
-              data-testid="sketch-plan-footer"
-            >
-              <div className="pointer-events-auto rounded-full border border-theme-border bg-theme-bg/95 p-2 shadow-lg backdrop-blur-sm">
-                <button
-                  type="button"
-                  onClick={handlePlanIt}
-                  disabled={planningIt || decomposing}
-                  className="btn-primary min-w-[10rem] text-sm disabled:opacity-50"
-                  data-testid="sketch-plan-cta"
-                >
-                  {planCtaLabel}
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
