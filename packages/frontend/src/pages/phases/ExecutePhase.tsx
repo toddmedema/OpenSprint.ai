@@ -9,6 +9,7 @@ import {
   selectTaskById,
   selectSelectedTaskOutput,
   selectCompletionState,
+  selectPriorityUpdatePendingTaskId,
 } from "../../store/slices/executeSlice";
 import { wsSend } from "../../store/middleware/websocketMiddleware";
 import {
@@ -127,9 +128,21 @@ export function ExecutePhase({
   const archivedLoading = archivedQuery.isFetching;
   const markDoneLoading = markDoneMutation.isPending;
   const unblockLoading = unblockMutation.isPending;
-  const selectedTaskData = effectiveSelectedTask
-    ? (taskDetailData ?? selectedTaskFromStore ?? null)
-    : null;
+  const priorityUpdatePendingTaskId = useAppSelector(selectPriorityUpdatePendingTaskId);
+  const priorityUpdateLoading =
+    Boolean(effectiveSelectedTask) && priorityUpdatePendingTaskId === effectiveSelectedTask;
+  // Merge priority from Redux when both exist so optimistic update shows immediately
+  const selectedTaskData = (() => {
+    if (!effectiveSelectedTask) return null;
+    const fromDetail = taskDetailData ?? null;
+    const fromStore = selectedTaskFromStore ?? null;
+    const base = fromDetail ?? fromStore ?? null;
+    if (!base) return null;
+    if (fromStore && fromDetail?.id === fromStore.id) {
+      return { ...base, priority: fromStore.priority };
+    }
+    return base;
+  })();
   const isDoneTask = selectedTaskData?.kanbanColumn === "done";
   const isBlockedTask = selectedTaskData?.kanbanColumn === "blocked";
   const diagnosticsQuery = useTaskExecutionDiagnostics(
@@ -471,6 +484,7 @@ export function ExecutePhase({
             archivedLoading={archivedLoading}
             markDoneLoading={markDoneLoading}
             unblockLoading={unblockLoading}
+            priorityUpdateLoading={priorityUpdateLoading}
             deleteLoading={deleteTaskMutation.isPending}
             taskIdToStartedAt={taskIdToStartedAt}
             planByEpicId={planByEpicId}

@@ -114,6 +114,7 @@ function createMinimalProps(overrides: Record<string, unknown> = {}) {
     archivedLoading: (flat.archivedLoading as boolean) ?? false,
     markDoneLoading: (flat.markDoneLoading as boolean) ?? false,
     unblockLoading: (flat.unblockLoading as boolean) ?? false,
+    priorityUpdateLoading: (flat.priorityUpdateLoading as boolean) ?? false,
     deleteLoading: (flat.deleteLoading as boolean) ?? false,
     taskIdToStartedAt: (flat.taskIdToStartedAt as Record<string, string>) ?? {},
     planByEpicId: ((flat.plans as Plan[]) ?? [basePlan]).reduce<Record<string, Plan>>(
@@ -1421,6 +1422,20 @@ describe("TaskDetailSidebar", () => {
       await user.click(screen.getByTestId("priority-option-0"));
       expect(mockUpdatePriority).toHaveBeenCalledWith("proj-1", "epic-1.1", 0);
       expect(screen.queryByTestId("priority-dropdown")).not.toBeInTheDocument();
+    });
+
+    it("shows Updating… and disables dropdown when priorityUpdateLoading is true", () => {
+      const props = createMinimalProps({
+        selectedTaskData: taskDetailWithPriority(1),
+        priorityUpdateLoading: true,
+      });
+      renderWithProviders(<TaskDetailSidebar {...props} />, {
+        preloadedState: defaultPreloadedState,
+      });
+      const trigger = screen.getByTestId("priority-dropdown-trigger");
+      expect(trigger).toHaveTextContent("Updating…");
+      expect(trigger).toBeDisabled();
+      expect(trigger).toHaveAttribute("aria-busy", "true");
     });
 
     it("does not call API when selecting the same priority", async () => {

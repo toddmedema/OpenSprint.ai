@@ -15,6 +15,7 @@ import { websocketMiddleware } from "./middleware/websocketMiddleware";
 import { agentOutputFilterMiddleware } from "./middleware/agentOutputFilterMiddleware";
 import { notificationListener } from "./listeners/notificationListener";
 import { planTasksListener } from "./listeners/planTasksListener";
+import { executeListeners } from "./listeners/executeListeners";
 
 export const store = configureStore({
   reducer: {
@@ -37,7 +38,11 @@ export const store = configureStore({
       },
     })
       .concat(websocketMiddleware, agentOutputFilterMiddleware)
-      .prepend(notificationListener.middleware, planTasksListener.middleware),
+      .prepend(
+        notificationListener.middleware,
+        planTasksListener.middleware,
+        executeListeners.middleware
+      ),
 });
 
 export type RootState = ReturnType<typeof store.getState>;

@@ -124,6 +124,7 @@ export interface TaskDetailSidebarProps {
   archivedLoading: boolean;
   markDoneLoading: boolean;
   unblockLoading: boolean;
+  priorityUpdateLoading?: boolean;
   deleteLoading: boolean;
   taskIdToStartedAt: Record<string, string>;
   planByEpicId: Record<string, Plan>;
@@ -161,6 +162,7 @@ function areTaskDetailSidebarPropsEqual(
     prev.archivedLoading !== next.archivedLoading ||
     prev.markDoneLoading !== next.markDoneLoading ||
     prev.unblockLoading !== next.unblockLoading ||
+    prev.priorityUpdateLoading !== next.priorityUpdateLoading ||
     prev.deleteLoading !== next.deleteLoading ||
     prev.taskIdToStartedAt !== next.taskIdToStartedAt ||
     prev.planByEpicId !== next.planByEpicId ||
@@ -206,6 +208,7 @@ function TaskDetailSidebarInner({
   archivedLoading,
   markDoneLoading,
   unblockLoading,
+  priorityUpdateLoading = false,
   deleteLoading,
   taskIdToStartedAt,
   planByEpicId,
@@ -235,8 +238,7 @@ function TaskDetailSidebarInner({
     onUnblock,
     onDeleteTask,
     onSelectTask,
-  } =
-    callbacks;
+  } = callbacks;
   const dispatch = useAppDispatch();
   const roleLabel = activeRoleLabel(selectedTask, activeTasks);
   const [priorityDropdownOpen, setPriorityDropdownOpen] = useState(false);
@@ -599,17 +601,23 @@ function TaskDetailSidebarInner({
                     <button
                       type="button"
                       onClick={() => setPriorityDropdownOpen((o) => !o)}
-                      className="dropdown-trigger inline-flex items-center gap-2 rounded py-1 text-theme-muted hover:bg-theme-border-subtle/50 hover:text-theme-text transition-colors cursor-pointer"
+                      disabled={priorityUpdateLoading}
+                      className="dropdown-trigger inline-flex items-center gap-2 rounded py-1 text-theme-muted hover:bg-theme-border-subtle/50 hover:text-theme-text transition-colors cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
                       aria-haspopup="listbox"
                       aria-expanded={priorityDropdownOpen}
+                      aria-busy={priorityUpdateLoading}
                       aria-label={`Priority: ${PRIORITY_LABELS[task.priority ?? 1] ?? "Medium"}. Click to change`}
                       data-testid="priority-dropdown-trigger"
                     >
                       <PriorityIcon priority={task.priority ?? 1} size="sm" />
                       <span>{PRIORITY_LABELS[task.priority ?? 1] ?? "Medium"}</span>
-                      <span className="text-[10px] opacity-70 pr-2">
-                        {priorityDropdownOpen ? "▲" : "▼"}
-                      </span>
+                      {priorityUpdateLoading ? (
+                        <span className="text-[10px] opacity-70 pr-2 animate-pulse">Updating…</span>
+                      ) : (
+                        <span className="text-[10px] opacity-70 pr-2">
+                          {priorityDropdownOpen ? "▲" : "▼"}
+                        </span>
+                      )}
                     </button>
                     {priorityDropdownOpen && (
                       <ul

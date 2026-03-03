@@ -81,6 +81,8 @@ export interface ExecuteState {
   async: AsyncStates<ExecuteAsyncKey>;
   /** Last error from any async operation (for backward compat / display) */
   error: string | null;
+  /** Task ID for which priority update is in flight (for loading state) */
+  priorityUpdatePendingTaskId: string | null;
 }
 
 export const initialExecuteState: ExecuteState = {
@@ -102,6 +104,7 @@ export const initialExecuteState: ExecuteState = {
   archivedSessions: [],
   async: createInitialAsyncStates(EXECUTE_ASYNC_KEYS),
   error: null,
+  priorityUpdatePendingTaskId: null,
 };
 
 export type FetchTasksArg = string;
@@ -684,6 +687,7 @@ const executeSlice = createSlice({
         const p = priority as TaskPriority;
         const task = state.tasksById[taskId];
         if (task) task.priority = p;
+        state.priorityUpdatePendingTaskId = taskId;
       })
       .addCase(updateTaskPriority.fulfilled, (state, action) => {
         ensureTasksState(state);
@@ -692,6 +696,7 @@ const executeSlice = createSlice({
         if (t) {
           t.priority = task.priority;
         }
+        state.priorityUpdatePendingTaskId = null;
       })
       .addCase(updateTaskPriority.rejected, (state, action) => {
         ensureTasksState(state);
@@ -700,6 +705,7 @@ const executeSlice = createSlice({
         const { taskId } = action.meta.arg;
         const task = state.tasksById[taskId];
         if (task) task.priority = payload.previousPriority;
+        state.priorityUpdatePendingTaskId = null;
       });
 
     // addTaskDependency — refresh task in state after adding dependency
@@ -851,5 +857,7 @@ export const selectMarkDoneLoading = (s: ExecuteRootState) =>
   s.execute?.async?.markDone?.loading ?? false;
 export const selectUnblockLoading = (s: ExecuteRootState) =>
   s.execute?.async?.unblock?.loading ?? false;
+export const selectPriorityUpdatePendingTaskId = (s: ExecuteRootState) =>
+  s.execute?.priorityUpdatePendingTaskId ?? null;
 
 export default executeSlice.reducer;
