@@ -37,7 +37,7 @@ type NavButtonProps = NavButtonAsLinkProps | NavButtonAsButtonProps;
 const baseClasses =
   "inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium rounded-lg transition-colors min-h-[36px] focus:outline-none focus-visible:ring-2 focus-visible:ring-theme-border focus-visible:ring-offset-1";
 
-const iconVariantClasses = "aspect-square min-w-[36px] !p-2";
+const iconVariantClasses = "aspect-square min-h-[44px] min-w-[44px] !p-2";
 
 const activeClasses = "bg-brand-600 text-white";
 const inactiveClasses = "text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle";

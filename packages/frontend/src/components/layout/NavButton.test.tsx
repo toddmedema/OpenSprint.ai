@@ -82,13 +82,13 @@ describe("NavButton", () => {
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
-  it("icon variant adds aspect-square", () => {
+  it("icon variant adds aspect-square and 44×44px touch target", () => {
     render(
       <NavButton active={true} variant="icon" onClick={vi.fn()}>
         ?
       </NavButton>
     );
     const btn = screen.getByRole("button");
-    expect(btn).toHaveClass("aspect-square");
+    expect(btn).toHaveClass("aspect-square", "min-h-[44px]", "min-w-[44px]");
   });
 });
