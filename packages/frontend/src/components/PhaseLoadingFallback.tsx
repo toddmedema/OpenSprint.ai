@@ -1,6 +1,8 @@
 import type { ProjectPhase } from "@opensprint/shared";
+import { PhaseLoadingSpinner } from "./PhaseLoadingSpinner";
 
-/** Phase-appropriate loading fallback for Suspense when lazy-loading phase content. */
+/** Phase-appropriate loading fallback for Suspense when lazy-loading phase content.
+ * Execute and Evaluate show animated logo only (no skeleton blocks). */
 export function PhaseLoadingFallback({ phase }: { phase: ProjectPhase }) {
   switch (phase) {
     case "sketch":
@@ -8,9 +10,9 @@ export function PhaseLoadingFallback({ phase }: { phase: ProjectPhase }) {
     case "plan":
       return <PlanPhaseSkeleton />;
     case "execute":
-      return <ExecutePhaseSkeleton />;
+      return <ExecutePhaseAnimatedLogo />;
     case "eval":
-      return <EvalPhaseSkeleton />;
+      return <EvalPhaseAnimatedLogo />;
     case "deliver":
       return <DeliverPhaseSkeleton />;
     default:
@@ -50,53 +52,30 @@ function PlanPhaseSkeleton() {
   );
 }
 
-function ExecutePhaseSkeleton() {
+function ExecutePhaseAnimatedLogo() {
   return (
-    <div className="flex flex-1 min-h-0" data-testid="phase-execute-loading">
-      <div className="flex-1 p-6">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="rounded-xl border border-theme-border bg-theme-surface overflow-hidden"
-              style={{ minHeight: 160 }}
-            >
-              <div className="p-4 border-b border-theme-border-subtle">
-                <div className="h-4 w-3/4 rounded bg-theme-surface-muted animate-pulse" />
-                <div className="h-2 w-1/2 rounded bg-theme-surface-muted/70 animate-pulse mt-2" />
-              </div>
-              <ul className="divide-y divide-theme-border-subtle">
-                {[1, 2, 3].map((j) => (
-                  <li key={j} className="px-4 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <div className="h-5 w-16 rounded bg-theme-surface-muted/70 animate-pulse" />
-                      <div className="h-4 flex-1 rounded bg-theme-surface-muted animate-pulse" />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </div>
+    <div
+      className="flex flex-1 min-h-0 items-center justify-center bg-theme-bg"
+      data-testid="phase-execute-loading"
+    >
+      <PhaseLoadingSpinner
+        data-testid="phase-execute-loading-spinner"
+        aria-label="Loading tasks"
+      />
     </div>
   );
 }
 
-function EvalPhaseSkeleton() {
+function EvalPhaseAnimatedLogo() {
   return (
-    <div className="flex flex-1 min-h-0" data-testid="phase-eval-loading">
-      <div className="flex-1 p-6 space-y-4">
-        <div className="h-8 w-40 rounded bg-theme-surface-muted animate-pulse" />
-        <div className="space-y-3">
-          {[1, 2, 3, 4].map((i) => (
-            <div
-              key={i}
-              className="h-24 rounded-lg border border-theme-border bg-theme-surface-muted/30 animate-pulse"
-            />
-          ))}
-        </div>
-      </div>
+    <div
+      className="flex flex-1 min-h-0 items-center justify-center bg-theme-bg"
+      data-testid="phase-eval-loading"
+    >
+      <PhaseLoadingSpinner
+        data-testid="phase-eval-loading-spinner"
+        aria-label="Loading feedback"
+      />
     </div>
   );
 }
