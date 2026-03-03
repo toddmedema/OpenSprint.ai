@@ -527,14 +527,17 @@ describe.skipIf(!deployRoutePostgresOk)("Deliver API (phase routes for deploymen
       historyRes = await request(app).get(
         `${API_PREFIX}/projects/${projectId}/deliver/history?limit=5`
       );
-      const records = historyRes.body.data;
+      expect(historyRes.status).toBe(200);
+      const records = historyRes.body?.data;
+      expect(records).toBeDefined();
+      expect(Array.isArray(records)).toBe(true);
 
-      const rollbackRecord = records.find((r: { id: string }) => r.id === rollbackDeployId);
+      const rollbackRecord = (records as { id: string }[]).find((r) => r.id === rollbackDeployId);
       expect(rollbackRecord).toBeDefined();
       expect(rollbackRecord.status).toBe("success");
 
-      const rolledBackRecord = records.find(
-        (r: { id: string; rolledBackBy?: string }) => r.id === currentDeploy.id
+      const rolledBackRecord = (records as { id: string; rolledBackBy?: string }[]).find(
+        (r) => r.id === currentDeploy.id
       );
       expect(rolledBackRecord).toBeDefined();
       expect(rolledBackRecord.status).toBe("rolled_back");

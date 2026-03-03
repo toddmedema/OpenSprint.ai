@@ -73,10 +73,10 @@ export function ExecuteFilterToolbar({
 }: ExecuteFilterToolbarProps) {
   return (
     <div
-      className="w-full px-6 min-h-[48px] flex items-center py-2 border-b border-theme-border bg-theme-surface shrink-0"
+      className="w-full px-4 sm:px-6 min-h-[48px] flex items-center py-2 border-b border-theme-border bg-theme-surface shrink-0"
       data-testid="execute-filter-toolbar"
     >
-      <div className="flex w-full items-center justify-between gap-4">
+      <div className="flex w-full items-center justify-between gap-2 sm:gap-4">
         <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
           {chipConfig.map(({ label, filter, count }) => {
             const isActive = statusFilter === filter;
@@ -109,7 +109,7 @@ export function ExecuteFilterToolbar({
             </span>
           )}
         </div>
-        <div className="flex items-center shrink-0 gap-2">
+        <div className="flex items-center shrink-0 gap-1 sm:gap-2">
           {searchExpanded ? (
             <div
               className="flex items-center gap-1 animate-fade-in"
@@ -122,7 +122,7 @@ export function ExecuteFilterToolbar({
                 onChange={(e) => setSearchInputValue(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
                 placeholder="Search tickets…"
-                className="w-48 sm:w-56 px-3 py-1.5 text-sm bg-theme-surface-muted rounded-md text-theme-text placeholder:text-theme-muted border border-theme-border focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all"
+                className="w-36 sm:w-48 md:w-56 px-3 py-1.5 text-sm bg-theme-surface-muted rounded-md text-theme-text placeholder:text-theme-muted border border-theme-border focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all"
                 aria-label="Search tickets"
               />
               <button

@@ -59,7 +59,7 @@ function TimelineRow({
 
   return (
     <li data-testid={`timeline-row-${task.id}`}>
-      <div className="flex items-center gap-2 px-4 py-2.5 group">
+      <div className="flex items-center gap-2 px-4 py-2.5 group overflow-x-auto md:overflow-x-visible min-w-0">
         <button
           type="button"
           onClick={() => onTaskSelect(task.id)}

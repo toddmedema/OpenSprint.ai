@@ -1544,6 +1544,85 @@ describe("ExecutePhase expandable search bar", () => {
   });
 });
 
+describe("ExecutePhase mobile layout", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem("opensprint.executeView", "kanban");
+  });
+
+  it("main scroll area has responsive padding (p-4 on mobile, sm:p-6)", () => {
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Task A",
+        epicId: "epic-1",
+        kanbanColumn: "ready",
+        priority: 0,
+        assignee: null,
+      },
+    ];
+    const store = createStore(tasks);
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <ExecutePhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>
+    );
+
+    const mainScroll = screen.getByTestId("execute-main-scroll");
+    expect(mainScroll).toHaveClass("p-4", "sm:p-6");
+  });
+
+  it("filter toolbar has responsive padding (px-4 on mobile, sm:px-6)", () => {
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Task A",
+        epicId: "epic-1",
+        kanbanColumn: "ready",
+        priority: 0,
+        assignee: null,
+      },
+    ];
+    const store = createStore(tasks);
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <ExecutePhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>
+    );
+
+    const toolbar = screen.getByTestId("execute-filter-toolbar");
+    expect(toolbar).toHaveClass("px-4", "sm:px-6");
+  });
+
+  it("kanban grid uses grid-cols-1 on mobile, sm:grid-cols-2, lg:grid-cols-3", () => {
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Task A",
+        epicId: "epic-1",
+        kanbanColumn: "ready",
+        priority: 0,
+        assignee: null,
+      },
+    ];
+    const store = createStore(tasks);
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <ExecutePhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>
+    );
+
+    const grid = document.querySelector('[data-testid="execute-section-ready"] .grid');
+    expect(grid).toHaveClass("grid-cols-1", "sm:grid-cols-2", "lg:grid-cols-3");
+  });
+});
+
 describe("ExecutePhase view toggle", () => {
   const STORAGE_KEY = "opensprint.executeView";
 

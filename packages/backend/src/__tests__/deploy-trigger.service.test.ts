@@ -50,7 +50,7 @@ describe("deploy-trigger.service", () => {
     repoPath = path.join(os.tmpdir(), `opensprint-deploy-${Date.now()}`);
     await fs.mkdir(repoPath, { recursive: true });
 
-    mockGetProject.mockResolvedValue({ repoPath });
+    mockGetProject.mockResolvedValue({ repoPath, name: "Test Project" });
     mockGetSettings.mockResolvedValue({
       deployment: { mode: "custom", targets: [] },
     });
@@ -190,7 +190,8 @@ describe("deploy-trigger.service", () => {
         "deploy-123",
         repoPath,
         expect.any(Object),
-        "staging"
+        "staging",
+        "Test Project"
       );
     });
   });
@@ -242,7 +243,8 @@ describe("deploy-trigger.service", () => {
         "deploy-1",
         repoPath,
         expect.any(Object),
-        "staging"
+        "staging",
+        "Test Project"
       );
       expect(mockRunDeployAsync).toHaveBeenNthCalledWith(
         2,
@@ -250,7 +252,8 @@ describe("deploy-trigger.service", () => {
         "deploy-2",
         repoPath,
         expect.any(Object),
-        "production"
+        "production",
+        "Test Project"
       );
     });
 

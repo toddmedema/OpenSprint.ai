@@ -319,7 +319,7 @@ export function ExecutePhase({
 
         <div
           ref={executeScrollRef}
-          className="flex-1 min-h-0 overflow-auto p-6"
+          className="flex-1 min-h-0 overflow-auto p-4 sm:p-6"
           data-testid="execute-main-scroll"
         >
           {showTasksEmptyState ? (
@@ -335,7 +335,7 @@ export function ExecutePhase({
                       <h2 className="text-sm font-semibold text-theme-muted tracking-wide uppercase mb-4">
                         Ready
                       </h2>
-                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         {readySwimlanes.map((lane) => (
                           <BuildEpicCard
                             key={lane.epicId || "other"}
@@ -363,7 +363,7 @@ export function ExecutePhase({
                       <h2 className="text-sm font-semibold text-theme-muted tracking-wide uppercase mb-4">
                         Up Next
                       </h2>
-                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         {inLineSwimlanes.map((lane) => (
                           <BuildEpicCard
                             key={lane.epicId || "other"}
@@ -391,7 +391,7 @@ export function ExecutePhase({
                       <h2 className="text-sm font-semibold text-theme-muted tracking-wide uppercase mb-4">
                         Failures
                       </h2>
-                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         {blockedSwimlanes.map((lane) => (
                           <BuildEpicCard
                             key={lane.epicId || "other"}
@@ -434,7 +434,7 @@ export function ExecutePhase({
               </div>
             ) : (
               <>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {swimlanes.map((lane) => (
                     <BuildEpicCard
                       key={lane.epicId || "other"}
@@ -487,8 +487,8 @@ export function ExecutePhase({
           storageKey="execute"
           defaultWidth={420}
           resizeHandleLabel="Resize task detail sidebar"
-          responsive
-          overlayOnMobile={false}
+          responsive={true}
+          overlayOnMobile={true}
           onClose={handleClose}
         >
           <TaskDetailSidebar

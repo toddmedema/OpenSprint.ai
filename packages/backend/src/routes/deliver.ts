@@ -24,6 +24,7 @@ import { createFixEpicFromTestOutput } from "../services/deploy-fix-epic.service
 import { getErrorMessage } from "../utils/error-utils.js";
 import { getExpoDeployCommand } from "../utils/expo-deploy-command.js";
 import { ensureExpoInstalled } from "../utils/expo-install.js";
+import { ensureExpoConfig } from "../utils/expo-config.js";
 import { createLogger } from "../utils/logger.js";
 
 const log = createLogger("deliver");
@@ -102,7 +103,14 @@ deliverRouter.post("/", async (req: Request<ProjectParams>, res, next) => {
     const tmpDir = path.resolve(os.tmpdir());
     const repoInTempDir = resolvedRepo.startsWith(tmpDir + path.sep) || resolvedRepo === tmpDir;
 
-    const deployPromise = runDeployAsync(projectId, record.id, project.repoPath, settings, target)
+    const deployPromise = runDeployAsync(
+      projectId,
+      record.id,
+      project.repoPath,
+      settings,
+      target,
+      project.name
+    )
       .catch((err) => {
         log.error("Deploy failed", { deployId: record.id, err });
       })
@@ -392,13 +400,15 @@ deliverRouter.post("/:deployId/rollback", async (req: Request<DeployIdParams>, r
  * PRD §7.5.2: Runs pre-deploy test suite first. If tests fail, creates fix epic via Planner and aborts.
  * Exported for use by deploy-trigger.service (auto-deploy on epic completion / Evaluate resolution).
  * @param targetName — Target name from targets array; defaults to getDefaultDeploymentTarget when not provided.
+ * @param projectName — OpenSprint project name; used to auto-configure Expo (app.json name/slug) when not configured.
  */
 export async function runDeployAsync(
   projectId: string,
   deployId: string,
   repoPath: string,
   settings: ProjectSettings,
-  targetName?: string
+  targetName?: string,
+  projectName?: string
 ): Promise<void> {
   const config = settings.deployment;
   const effectiveTarget = targetName ?? getDefaultDeploymentTarget(config);
@@ -463,10 +473,17 @@ export async function runDeployAsync(
     emit("All tests passed. Proceeding with deployment...\n");
 
     if (config.mode === "expo") {
-      await ensureEasConfig(repoPath);
       // Expo mode: staging maps to beta variant, production to prod (PRD §7.5.3)
       const variant: "beta" | "prod" = effectiveTarget === "staging" ? "beta" : "prod";
-      await runExpoDeployAsync(projectId, deployId, repoPath, variant, emit, envVars);
+      await runExpoDeployAsync(
+        projectId,
+        deployId,
+        repoPath,
+        variant,
+        emit,
+        envVars,
+        projectName
+      );
     } else if (config.mode === "custom") {
       const customCommand = targetConfig?.command ?? config.customCommand;
       const webhookUrl = targetConfig?.webhookUrl ?? config.webhookUrl;
@@ -527,7 +544,8 @@ async function runExpoDeployAsync(
   repoPath: string,
   variant: "beta" | "prod",
   emit: (chunk: string) => void,
-  envVars?: Record<string, string>
+  envVars?: Record<string, string>,
+  projectName?: string
 ): Promise<void> {
   const cmd = getExpoDeployCommand(variant);
   try {
@@ -552,6 +570,21 @@ async function runExpoDeployAsync(
         status: "failed",
         completedAt: new Date().toISOString(),
         error: ensureResult.error,
+      });
+      broadcastToProject(projectId, { type: "deliver.completed", deployId, success: false });
+      return;
+    }
+    const configResult = await ensureExpoConfig(
+      repoPath,
+      projectName ?? "App",
+      emit
+    );
+    if (!configResult.ok) {
+      emit(`Expo configuration failed: ${configResult.error}\n`);
+      await deployStorageService.updateRecord(projectId, deployId, {
+        status: "failed",
+        completedAt: new Date().toISOString(),
+        error: configResult.error,
       });
       broadcastToProject(projectId, { type: "deliver.completed", deployId, success: false });
       return;

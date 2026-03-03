@@ -4,6 +4,7 @@ import type { DeploymentConfig } from "@opensprint/shared";
 import { ProjectService } from "./project.service.js";
 import { ensureEasConfig } from "./eas-config.js";
 import { ensureExpoInstalled } from "../utils/expo-install.js";
+import { ensureExpoConfig } from "../utils/expo-config.js";
 import { getErrorMessage } from "../utils/error-utils.js";
 
 const execAsync = promisify(exec);
@@ -34,7 +35,7 @@ export class DeploymentService {
 
       switch (settings.deployment.mode) {
         case "expo":
-          result = await this.deployExpo(project.repoPath, settings.deployment);
+          result = await this.deployExpo(project.repoPath, settings.deployment, project.name);
           break;
         case "custom":
           result = await this.deployCustom(project.repoPath, settings.deployment);
@@ -68,13 +69,25 @@ export class DeploymentService {
    * Deploy using Expo.dev / EAS.
    * OTA update to preview channel for Evaluate phase (PRD §6.4).
    */
-  private async deployExpo(repoPath: string, config: DeploymentConfig): Promise<DeploymentResult> {
+  private async deployExpo(
+    repoPath: string,
+    config: DeploymentConfig,
+    projectName?: string
+  ): Promise<DeploymentResult> {
     try {
       const expoOk = await ensureExpoInstalled(repoPath);
       if (!expoOk.ok) {
         return {
           success: false,
           error: expoOk.error,
+          timestamp: new Date().toISOString(),
+        };
+      }
+      const configResult = await ensureExpoConfig(repoPath, projectName ?? "App");
+      if (!configResult.ok) {
+        return {
+          success: false,
+          error: configResult.error,
           timestamp: new Date().toISOString(),
         };
       }

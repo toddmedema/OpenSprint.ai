@@ -60,7 +60,14 @@ async function doDeploy(
 
     await deployStorageService.updateRecord(projectId, record.id, { status: "running" });
 
-    const deployPromise = runDeployAsync(projectId, record.id, project.repoPath, settings, target)
+    const deployPromise = runDeployAsync(
+      projectId,
+      record.id,
+      project.repoPath,
+      settings,
+      target,
+      project.name
+    )
       .catch((err) => {
         log.error("Deploy failed", { deployId: record.id, err });
       })
