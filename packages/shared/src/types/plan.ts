@@ -1,4 +1,5 @@
 import { PLAN_STATUS_ORDER } from "../constants/index.js";
+import type { Notification } from "./notification.js";
 
 /** Plan complexity estimate */
 export type PlanComplexity = "low" | "medium" | "high" | "very_high";
@@ -153,3 +154,19 @@ export interface CrossEpicDependenciesResponse {
 export interface GeneratePlanRequest {
   description: string;
 }
+
+export interface GeneratePlanCreatedResult {
+  status: "created";
+  plan: Plan;
+}
+
+export interface GeneratePlanNeedsClarificationResult {
+  status: "needs_clarification";
+  draftId: string;
+  resumeContext: `plan-draft:${string}`;
+  notification: Notification;
+}
+
+export type GeneratePlanResult =
+  | GeneratePlanCreatedResult
+  | GeneratePlanNeedsClarificationResult;

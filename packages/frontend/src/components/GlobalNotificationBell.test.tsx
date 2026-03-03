@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import { GlobalNotificationBell } from "./GlobalNotificationBell";
@@ -35,6 +35,16 @@ beforeEach(() => {
   mockClearAllGlobal.mockResolvedValue({ deletedCount: 1 });
 });
 
+function LocationCapture() {
+  const loc = useLocation();
+  return (
+    <div data-testid="current-location">
+      {loc.pathname}
+      {loc.search}
+    </div>
+  );
+}
+
 function renderGlobalNotificationBell(
   notifications: Array<{
     id: string;
@@ -60,6 +70,7 @@ function renderGlobalNotificationBell(
   return render(
     <Provider store={store}>
       <MemoryRouter>
+        <LocationCapture />
         <GlobalNotificationBell />
       </MemoryRouter>
     </Provider>
@@ -68,13 +79,11 @@ function renderGlobalNotificationBell(
 
 describe("GlobalNotificationBell", () => {
   it("renders nothing when no notifications", async () => {
-    const { container } = renderGlobalNotificationBell([]);
+    renderGlobalNotificationBell([]);
     await waitFor(() => {
       expect(mockListGlobal).toHaveBeenCalled();
     });
-    await waitFor(() => {
-      expect(container.firstChild).toBeNull();
-    });
+    expect(screen.queryByTitle("Open questions")).not.toBeInTheDocument();
   });
 
   it("fetches global notifications and projects", async () => {
@@ -217,5 +226,34 @@ describe("GlobalNotificationBell", () => {
     expect(screen.getByText(/Project Beta/)).toBeInTheDocument();
     expect(screen.getByText(/Plan question/)).toBeInTheDocument();
     expect(screen.getByText(/Feedback question/)).toBeInTheDocument();
+  });
+
+  it("navigates draft plan notifications without setting a plan query param", async () => {
+    const notifications = [
+      {
+        id: "oq-draft-1",
+        projectId: "proj-1",
+        source: "plan" as const,
+        sourceId: "draft:draft-1",
+        questions: [{ id: "q1", text: "Clarify volunteer scope?", createdAt: "2025-01-01T00:00:00Z" }],
+        status: "open" as const,
+        createdAt: "2025-01-01T00:00:00Z",
+        resolvedAt: null,
+      },
+    ];
+    renderGlobalNotificationBell(notifications);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /1 notification/ })).toBeInTheDocument();
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByTitle("Open questions"));
+    await user.click(screen.getByText(/Clarify volunteer scope/));
+
+    await waitFor(() => {
+      const loc = screen.getByTestId("current-location");
+      expect(loc).toHaveTextContent("/projects/proj-1/plan");
+      expect(loc).toHaveTextContent("question=oq-draft-1");
+      expect(loc).not.toHaveTextContent("plan=draft%3Adraft-1");
+    });
   });
 });

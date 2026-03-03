@@ -1,5 +1,5 @@
 /** Conversation context — which phase/plan it belongs to */
-export type ConversationContext = "sketch" | `plan:${string}`;
+export type ConversationContext = "sketch" | `plan:${string}` | `plan-draft:${string}`;
 
 /** A message in a conversation */
 export interface ConversationMessage {

@@ -19,6 +19,7 @@ import type {
   UpdatePlanRequest,
   SuggestPlansResponse,
   GeneratePlanRequest,
+  GeneratePlanResult,
   CrossEpicDependenciesResponse,
   Task,
   AgentSession,
@@ -279,7 +280,7 @@ export const api = {
         method: "POST",
       }),
     generate: (projectId: string, data: GeneratePlanRequest) =>
-      request<Plan>(`/projects/${projectId}/plans/generate`, {
+      request<GeneratePlanResult>(`/projects/${projectId}/plans/generate`, {
         method: "POST",
         body: JSON.stringify(data),
       }),

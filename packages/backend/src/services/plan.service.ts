@@ -11,6 +11,7 @@ import type {
   PlanStatusResponse,
   Prd,
   CrossEpicDependenciesResponse,
+  GeneratePlanResult,
 } from "@opensprint/shared";
 import {
   OPENSPRINT_PATHS,
@@ -25,6 +26,7 @@ import { ProjectService } from "./project.service.js";
 import { planComplexityToTask } from "./plan-complexity.js";
 import { taskStore as taskStoreSingleton, type StoredTask } from "./task-store.service.js";
 import { ChatService } from "./chat.service.js";
+import { notificationService } from "./notification.service.js";
 import { PrdService } from "./prd.service.js";
 import { agentService } from "./agent.service.js";
 import { buildAuditorPrompt, parseAuditorResult } from "./auditor.service.js";
@@ -138,6 +140,27 @@ function normalizePlannerTask(
 function normalizeDependsOnPlans(spec: Record<string, unknown>): string[] {
   const arr = (spec.dependsOnPlans ?? spec.depends_on_plans ?? []) as unknown;
   return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === "string") : [];
+}
+
+function normalizePlannerOpenQuestions(
+  raw: Record<string, unknown>
+): Array<{ id: string; text: string }> {
+  const input = (raw.open_questions ?? raw.openQuestions ?? []) as unknown;
+  if (!Array.isArray(input)) return [];
+
+  return input
+    .filter(
+      (item): item is { id?: unknown; text?: unknown } =>
+        item != null && typeof item === "object" && typeof item.text === "string"
+    )
+    .map((item) => ({
+      id:
+        typeof item.id === "string" && item.id.trim()
+          ? item.id.trim()
+          : `q-${Math.random().toString(36).slice(2, 10)}`,
+      text: item.text!.trim(),
+    }))
+    .filter((item) => item.text.length > 0);
 }
 
 /**
@@ -1766,7 +1789,10 @@ ${planNew}`;
    * Invokes the planning agent with a specialized prompt, materializes the result
    * as a plan markdown + epic + child tasks (epic-blocked model: no gate), then returns the Plan.
    */
-  async generatePlanFromDescription(projectId: string, description: string): Promise<Plan> {
+  async generatePlanFromDescription(
+    projectId: string,
+    description: string
+  ): Promise<GeneratePlanResult> {
     const repoPath = await this.getRepoPath(projectId);
     const settings = await this.projectService.getSettings(projectId);
     const prdContext = await this.buildPrdContext(projectId);
@@ -1820,8 +1846,10 @@ Field rules: complexity: low, medium, high, or very_high (plan-level).
       },
     });
 
-    // Try "title" or "plan_title" so we find JSON when Planner uses snake_case
+    // Check clarification payloads first so planner can explicitly block on ambiguity.
     let parsed: Record<string, unknown> | null =
+      extractJsonFromAgentResponse<Record<string, unknown>>(response.content, "open_questions") ??
+      extractJsonFromAgentResponse<Record<string, unknown>>(response.content, "openQuestions") ??
       extractJsonFromAgentResponse<Record<string, unknown>>(response.content, "title") ??
       extractJsonFromAgentResponse<Record<string, unknown>>(response.content, "plan_title");
 
@@ -1843,7 +1871,52 @@ Field rules: complexity: low, medium, high, or very_high (plan-level).
       );
     }
 
+    const openQuestions = normalizePlannerOpenQuestions(parsed);
+    if (openQuestions.length > 0) {
+      const draftId = crypto.randomUUID();
+      const notification = await notificationService.create({
+        projectId,
+        source: "plan",
+        sourceId: `draft:${draftId}`,
+        questions: openQuestions,
+      });
+      await this.chatService.startPlanDraftConversation(
+        projectId,
+        draftId,
+        description,
+        openQuestions
+      );
+      broadcastToProject(projectId, {
+        type: "notification.added",
+        notification: {
+          id: notification.id,
+          projectId: notification.projectId,
+          source: notification.source,
+          sourceId: notification.sourceId,
+          questions: notification.questions,
+          status: notification.status,
+          createdAt: notification.createdAt,
+          resolvedAt: notification.resolvedAt,
+          kind: "open_question",
+        },
+      });
+      return {
+        status: "needs_clarification",
+        draftId,
+        resumeContext: `plan-draft:${draftId}`,
+        notification,
+      };
+    }
+
     const spec = normalizePlanSpec(parsed);
+    if (!spec.title.trim()) {
+      throw new AppError(
+        400,
+        ErrorCodes.DECOMPOSE_PARSE_FAILED,
+        "Planning agent did not return a valid plan. Response: " + response.content.slice(0, 500),
+        { responsePreview: response.content.slice(0, 500) }
+      );
+    }
 
     const plan = await this.createPlan(projectId, {
       title: spec.title,
@@ -1865,7 +1938,10 @@ Field rules: complexity: low, medium, high, or very_high (plan-level).
       planId: plan.metadata.planId,
     });
 
-    return plan;
+    return {
+      status: "created",
+      plan,
+    };
   }
 
   /**

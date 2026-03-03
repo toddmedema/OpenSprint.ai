@@ -99,8 +99,10 @@ export function GlobalNotificationBell() {
         question: n.id,
       };
       if (n.source === "plan") {
-        options.plan = n.sourceId;
-        dispatch(setSelectedPlanId(n.sourceId));
+        if (!n.sourceId.startsWith("draft:")) {
+          options.plan = n.sourceId;
+          dispatch(setSelectedPlanId(n.sourceId));
+        }
       } else if (n.source === "prd") {
         options.section = n.sourceId || "open_questions";
       } else if (n.source === "execute") {

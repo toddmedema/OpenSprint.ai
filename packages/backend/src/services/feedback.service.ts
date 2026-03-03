@@ -594,7 +594,12 @@ export class FeedbackService {
         // Large-scope feedback: route to Planner to create new Epic/Plan (PRD §7.4.2)
         if (item.isLargeScope) {
           try {
-            const plan = await this.planService.generatePlanFromDescription(projectId, item.text);
+            const generated = await this.planService.generatePlanFromDescription(projectId, item.text);
+            if (generated.status !== "created") {
+              await this.enqueueForCategorization(projectId, item.id);
+              return;
+            }
+            const plan = generated.plan;
             item.mappedPlanId = plan.metadata.planId;
             item.mappedEpicId = plan.metadata.epicId ?? undefined;
             const childIds = (plan as Plan & { _createdTaskIds?: string[] })._createdTaskIds ?? [];

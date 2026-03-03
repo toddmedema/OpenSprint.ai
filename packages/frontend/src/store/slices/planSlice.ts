@@ -1,5 +1,10 @@
 import { createSlice, createAsyncThunk, type PayloadAction } from "@reduxjs/toolkit";
-import type { Plan, PlanDependencyGraph, PlanStatusResponse } from "@opensprint/shared";
+import type {
+  GeneratePlanResult,
+  Plan,
+  PlanDependencyGraph,
+  PlanStatusResponse,
+} from "@opensprint/shared";
 import { api } from "../../api/client";
 import { DEDUP_SKIP } from "../dedup";
 
@@ -103,7 +108,7 @@ export interface GeneratePlanArg {
 
 export const generatePlan = createAsyncThunk(
   "plan/generate",
-  async ({ projectId, description }: GeneratePlanArg) => {
+  async ({ projectId, description }: GeneratePlanArg): Promise<GeneratePlanResult> => {
     return api.plans.generate(projectId, { description });
   }
 );
@@ -375,7 +380,9 @@ const planSlice = createSlice({
         if (tempId) {
           state.optimisticPlans = state.optimisticPlans.filter((p) => p.tempId !== tempId);
         }
-        state.plans.push(action.payload);
+        if (action.payload.status === "created") {
+          state.plans.push(action.payload.plan);
+        }
       })
       .addCase(generatePlan.rejected, (state, action) => {
         state.generating = false;

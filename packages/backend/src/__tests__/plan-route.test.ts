@@ -1118,7 +1118,8 @@ Updated description for task two.`;
 
         expect(res.status).toBe(201);
         expect(res.body.data).toBeDefined();
-        const plan = res.body.data;
+        expect(res.body.data.status).toBe("created");
+        const plan = res.body.data.plan;
         expect(plan.metadata.planId).toBe("dark-mode-support");
         expect(plan.metadata.epicId).toBeDefined();
         expect(plan.metadata.complexity).toBe("medium");
@@ -1199,8 +1200,9 @@ Updated description for task two.`;
         .send({ description: "A simple feature with no tasks" });
 
       expect(res.status).toBe(201);
-      expect(res.body.data.taskCount).toBe(0);
-      expect(res.body.data.metadata.epicId).toBeDefined();
+      expect(res.body.data.status).toBe("created");
+      expect(res.body.data.plan.taskCount).toBe(0);
+      expect(res.body.data.plan.metadata.epicId).toBeDefined();
     });
 
     it(
@@ -1227,7 +1229,8 @@ Updated description for task two.`;
           .send({ description: "Feature with snake_case fields" });
 
         expect(res.status).toBe(201);
-        const plan = res.body.data;
+        expect(res.body.data.status).toBe("created");
+        const plan = res.body.data.plan;
         expect(plan.metadata.planId).toBe("snake-case-feature");
         expect(plan.taskCount).toBe(0);
         expect(plan.metadata.mockups).toHaveLength(1);
@@ -1241,6 +1244,60 @@ Updated description for task two.`;
         expect(childTasks.length).toBe(0);
       }
     );
+
+    it("returns 202 with draft notification when planner asks open questions", async () => {
+      mockPlanningAgentInvoke.mockResolvedValueOnce({
+        content: JSON.stringify({
+          open_questions: [{ id: "q1", text: "Which volunteer roles should this support?" }],
+        }),
+      });
+
+      const res = await request(app)
+        .post(`${API_PREFIX}/projects/${projectId}/plans/generate`)
+        .send({ description: "Create a volunteer signup form" });
+
+      expect(res.status).toBe(202);
+      expect(res.body.data.status).toBe("needs_clarification");
+      expect(res.body.data.resumeContext).toMatch(/^plan-draft:/);
+      expect(res.body.data.notification.source).toBe("plan");
+      expect(res.body.data.notification.sourceId).toMatch(/^draft:/);
+      expect(res.body.data.notification.questions[0].text).toContain("volunteer roles");
+      expect(mockBroadcastToProject).toHaveBeenCalledWith(
+        projectId,
+        expect.objectContaining({
+          type: "notification.added",
+          notification: expect.objectContaining({
+            source: "plan",
+            sourceId: expect.stringMatching(/^draft:/),
+          }),
+        })
+      );
+    });
+
+    it("prefers clarification over plan creation when both open_questions and title are present", async () => {
+      mockPlanningAgentInvoke.mockResolvedValueOnce({
+        content: JSON.stringify({
+          title: "Volunteer Signup Form",
+          content: "# Volunteer Signup Form\n\n## Overview\n\nDraft content.",
+          complexity: "medium",
+          mockups: [{ title: "Form", content: "[form]" }],
+          open_questions: [{ text: "Should availability be weekly or one-time?" }],
+        }),
+      });
+
+      const res = await request(app)
+        .post(`${API_PREFIX}/projects/${projectId}/plans/generate`)
+        .send({ description: "Create a volunteer signup form" });
+
+      expect(res.status).toBe(202);
+      expect(res.body.data.status).toBe("needs_clarification");
+      const allIssues = await taskStore.listAll(projectId);
+      const matchingEpic = allIssues.find(
+        (i: { title?: string; issue_type?: string; type?: string }) =>
+          i.title === "Volunteer Signup Form" && (i.issue_type ?? i.type) === "epic"
+      );
+      expect(matchingEpic).toBeUndefined();
+    });
   });
 
   describe("POST /projects/:id/plans/suggest", () => {

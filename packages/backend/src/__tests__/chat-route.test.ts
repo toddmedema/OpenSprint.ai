@@ -319,6 +319,96 @@ Let me know if you want to refine further.`,
     expect(historyRes.body.data.messages[1].content).toContain("I can help refine");
   });
 
+  it("GET /projects/:id/chat/history returns seeded draft plan conversation", async () => {
+    const { ChatService } = await import("../services/chat.service.js");
+    const chatService = new ChatService();
+    await chatService.startPlanDraftConversation(projectId, "draft-1", "Create volunteer form", [
+      { id: "q1", text: "Which volunteer roles should be supported?" },
+    ]);
+
+    const historyRes = await request(app).get(
+      `${API_PREFIX}/projects/${projectId}/chat/history?context=plan-draft:draft-1`
+    );
+
+    expect(historyRes.status).toBe(200);
+    expect(historyRes.body.data.context).toBe("plan-draft:draft-1");
+    expect(historyRes.body.data.messages).toHaveLength(2);
+    expect(historyRes.body.data.messages[0].content).toBe("Create volunteer form");
+    expect(historyRes.body.data.messages[1].content).toContain("I need a bit more detail");
+  });
+
+  it("plan-draft chat answer can create a final plan and return planGenerated metadata", async () => {
+    const { ChatService } = await import("../services/chat.service.js");
+    const chatService = new ChatService();
+    await chatService.startPlanDraftConversation(projectId, "draft-2", "Create volunteer form", [
+      { id: "q1", text: "Which volunteer roles should be supported?" },
+    ]);
+
+    mockInvokePlanningAgent.mockResolvedValueOnce({
+      content: JSON.stringify({
+        title: "Volunteer Signup Form",
+        content:
+          "# Volunteer Signup Form\n\n## Overview\n\nCollect volunteer details.\n\n## Acceptance Criteria\n\n- Volunteers can submit interest.\n\n## Technical Approach\n\nBuild a form.\n\n## Dependencies\n\nNone.\n\n## Data Model Changes\n\nAdd volunteer submissions table.\n\n## API Specification\n\nPOST /volunteers\n\n## UI/UX Requirements\n\nForm with key fields.\n\n## Edge Cases and Error Handling\n\nValidate required fields.\n\n## Testing Strategy\n\nAdd API and form tests.\n\n## Estimated Complexity\n\nmedium",
+        complexity: "medium",
+        mockups: [{ title: "Volunteer Form", content: "[name][email][submit]" }],
+      }),
+    });
+
+    const sendRes = await request(app)
+      .post(`${API_PREFIX}/projects/${projectId}/chat`)
+      .send({ message: "Support general volunteers and mentors", context: "plan-draft:draft-2" });
+
+    expect(sendRes.status).toBe(200);
+    expect(sendRes.body.data.message).toBe("Plan generated");
+    expect(sendRes.body.data.planGenerated.planId).toBe("volunteer-signup-form");
+    expect(mockBroadcastToProject).toHaveBeenCalledWith(
+      projectId,
+      expect.objectContaining({ type: "plan.generated", planId: "volunteer-signup-form" })
+    );
+
+    const planRow = await taskStore.planGet(projectId, "volunteer-signup-form");
+    expect(planRow).not.toBeNull();
+    expect(planRow!.content).toContain("Volunteer Signup Form");
+
+    const historyRes = await request(app).get(
+      `${API_PREFIX}/projects/${projectId}/chat/history?context=plan-draft:draft-2`
+    );
+    expect(historyRes.body.data.messages.at(-1).content).toBe("Plan generated");
+  });
+
+  it("plan-draft chat answer can ask more questions without creating a plan", async () => {
+    const { ChatService } = await import("../services/chat.service.js");
+    const chatService = new ChatService();
+    await chatService.startPlanDraftConversation(projectId, "draft-3", "Create volunteer form", [
+      { id: "q1", text: "Which volunteer roles should be supported?" },
+    ]);
+
+    mockInvokePlanningAgent.mockResolvedValueOnce({
+      content: JSON.stringify({
+        open_questions: [{ id: "q2", text: "Should admins approve submissions before contact?" }],
+      }),
+    });
+
+    const sendRes = await request(app)
+      .post(`${API_PREFIX}/projects/${projectId}/chat`)
+      .send({ message: "Support all volunteers", context: "plan-draft:draft-3" });
+
+    expect(sendRes.status).toBe(200);
+    expect(sendRes.body.data.message).toContain("need a bit more detail");
+    expect(mockBroadcastToProject).toHaveBeenCalledWith(
+      projectId,
+      expect.objectContaining({
+        type: "notification.added",
+        notification: expect.objectContaining({
+          source: "plan",
+          sourceId: "draft:draft-3",
+        }),
+      })
+    );
+    const planIds = await taskStore.planListIds(projectId);
+    expect(planIds).toEqual([]);
+  });
+
   it("POST /projects/:id/chat should send message and return agent response", async () => {
     const res = await request(app)
       .post(`${API_PREFIX}/projects/${projectId}/chat`)

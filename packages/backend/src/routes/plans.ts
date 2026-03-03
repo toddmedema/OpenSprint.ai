@@ -7,6 +7,7 @@ import type {
   PlanDependencyGraph,
   SuggestPlansResponse,
   CrossEpicDependenciesResponse,
+  GeneratePlanResult,
 } from "@opensprint/shared";
 
 const planService = new PlanService();
@@ -35,12 +36,12 @@ plansRouter.post("/generate", async (req: Request<ProjectParams>, res, next) => 
       res.status(400).json({ error: { code: "VALIDATION", message: "description is required" } });
       return;
     }
-    const plan = await planService.generatePlanFromDescription(
+    const result = await planService.generatePlanFromDescription(
       req.params.projectId,
       description.trim()
     );
-    const body: ApiResponse<Plan> = { data: plan };
-    res.status(201).json(body);
+    const body: ApiResponse<GeneratePlanResult> = { data: result };
+    res.status(result.status === "created" ? 201 : 202).json(body);
   } catch (err) {
     next(err);
   }

@@ -372,8 +372,8 @@ describe("planSlice", () => {
     };
 
     it("sets generating true on pending and clears error", async () => {
-      let resolveApi: (v: Plan) => void;
-      const apiPromise = new Promise<Plan>((r) => {
+      let resolveApi: (v: { status: "created"; plan: Plan }) => void;
+      const apiPromise = new Promise<{ status: "created"; plan: Plan }>((r) => {
         resolveApi = r;
       });
       vi.mocked(api.plans.generate).mockReturnValue(apiPromise as never);
@@ -385,12 +385,12 @@ describe("planSlice", () => {
       expect(store.getState().plan.generating).toBe(true);
       expect(store.getState().plan.error).toBeNull();
 
-      resolveApi!(generatedPlan);
+      resolveApi!({ status: "created", plan: generatedPlan });
       await dispatchPromise;
     });
 
     it("appends generated plan to plans array on fulfilled", async () => {
-      vi.mocked(api.plans.generate).mockResolvedValue(generatedPlan);
+      vi.mocked(api.plans.generate).mockResolvedValue({ status: "created", plan: generatedPlan });
       const store = createStore();
       store.dispatch(setPlansAndGraph({ plans: [mockPlan], dependencyGraph: mockGraph }));
 
@@ -403,6 +403,34 @@ describe("planSlice", () => {
       expect(api.plans.generate).toHaveBeenCalledWith("proj-1", {
         description: "Add dark mode",
       });
+    });
+
+    it("does not append a plan when generation needs clarification", async () => {
+      vi.mocked(api.plans.generate).mockResolvedValue({
+        status: "needs_clarification",
+        draftId: "draft-1",
+        resumeContext: "plan-draft:draft-1",
+        notification: {
+          id: "oq-1",
+          projectId: "proj-1",
+          source: "plan",
+          sourceId: "draft:draft-1",
+          questions: [{ id: "q1", text: "Which volunteers are eligible?", createdAt: "2025-01-01" }],
+          status: "open",
+          createdAt: "2025-01-01",
+          resolvedAt: null,
+        },
+      });
+      const store = createStore();
+      store.dispatch(setPlansAndGraph({ plans: [mockPlan], dependencyGraph: mockGraph }));
+
+      await store.dispatch(
+        generatePlan({ projectId: "proj-1", description: "Add volunteer form" })
+      );
+
+      const state = store.getState().plan;
+      expect(state.generating).toBe(false);
+      expect(state.plans).toHaveLength(1);
     });
 
     it("sets error and clears generating on rejected", async () => {

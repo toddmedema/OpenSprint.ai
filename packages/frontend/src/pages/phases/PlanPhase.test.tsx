@@ -106,18 +106,22 @@ const mockPlansCreate = vi.fn().mockResolvedValue({
   dependencyCount: 0,
 });
 const mockGenerate = vi.fn().mockResolvedValue({
-  metadata: {
-    planId: "generated-feature",
-    epicId: "e2",
-    complexity: "medium",
-    shippedAt: null,
+  status: "created",
+  plan: {
+    metadata: {
+      planId: "generated-feature",
+      epicId: "e2",
+      complexity: "medium",
+      shippedAt: null,
+    },
+    content: "# Generated Feature\n\nContent.",
+    status: "planning",
+    taskCount: 2,
+    doneTaskCount: 0,
+    dependencyCount: 0,
   },
-  content: "# Generated Feature\n\nContent.",
-  status: "planning",
-  taskCount: 2,
-  doneTaskCount: 0,
-  dependencyCount: 0,
 });
+const mockNotificationResolve = vi.fn().mockResolvedValue({});
 const mockPlanTasks = vi.fn().mockResolvedValue({
   metadata: {
     planId: "plan-tasks-feature",
@@ -152,6 +156,8 @@ vi.mock("../../api/client", () => ({
     },
     notifications: {
       listByProject: vi.fn().mockResolvedValue([]),
+      resolve: (...args: unknown[]) => mockNotificationResolve(...args),
+      retryRateLimit: vi.fn(),
     },
   },
 }));
@@ -2547,17 +2553,20 @@ describe("PlanPhase Generate Plan", () => {
     expect(mockGenerate).toHaveBeenCalledWith("proj-1", { description: "Add dark mode support" });
 
     resolveGenerate!({
-      metadata: {
-        planId: "generated-feature",
-        epicId: "e2",
-        complexity: "medium",
-        shippedAt: null,
+      status: "created",
+      plan: {
+        metadata: {
+          planId: "generated-feature",
+          epicId: "e2",
+          complexity: "medium",
+          shippedAt: null,
+        },
+        content: "# Generated Feature\n\nContent.",
+        status: "planning",
+        taskCount: 2,
+        doneTaskCount: 0,
+        dependencyCount: 0,
       },
-      content: "# Generated Feature\n\nContent.",
-      status: "planning",
-      taskCount: 2,
-      doneTaskCount: 0,
-      dependencyCount: 0,
     });
     await waitFor(() => {
       expect(store.getState().plan.optimisticPlans).toHaveLength(0);
@@ -2630,6 +2639,99 @@ describe("PlanPhase Generate Plan", () => {
       const notifications = store.getState().notification.items;
       const errorToast = notifications.find((n: { severity: string }) => n.severity === "error");
       expect(errorToast).toBeDefined();
+    });
+  });
+
+  it("shows info notification when generation needs clarification", async () => {
+    mockGenerate.mockResolvedValueOnce({
+      status: "needs_clarification",
+      draftId: "draft-1",
+      resumeContext: "plan-draft:draft-1",
+      notification: {
+        id: "oq-draft-1",
+        projectId: "proj-1",
+        source: "plan",
+        sourceId: "draft:draft-1",
+        questions: [{ id: "q1", text: "Which volunteer roles should be supported?", createdAt: "2025-01-01" }],
+        status: "open",
+        createdAt: "2025-01-01",
+        resolvedAt: null,
+      },
+    });
+    const store = createStore();
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <PlanPhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>,
+      { wrapper: PlanPhaseWrapper }
+    );
+
+    await user.click(screen.getByTestId("add-plan-button"));
+    await user.type(screen.getByTestId("feature-description-input"), "Volunteer signup form");
+    await user.click(screen.getByTestId("generate-plan-button"));
+
+    await waitFor(() => {
+      const notifications = store.getState().notification.items;
+      expect(
+        notifications.find(
+          (n: { message: string }) =>
+            n.message === "Planner needs clarification before generating this plan"
+        )
+      ).toBeDefined();
+    });
+  });
+
+  it("renders draft planner questions without a selected plan and answers through plan-draft context", async () => {
+    const draftNotification = {
+      id: "oq-draft-2",
+      projectId: "proj-1",
+      source: "plan" as const,
+      sourceId: "draft:draft-2",
+      questions: [{ id: "q1", text: "Which volunteer roles should be supported?", createdAt: "2025-01-01T00:00:00Z" }],
+      status: "open" as const,
+      createdAt: "2025-01-01T00:00:00Z",
+      resolvedAt: null,
+    };
+    vi.mocked(api.notifications.listByProject).mockResolvedValue([draftNotification]);
+    mockChatSend.mockResolvedValueOnce({
+      message: "Plan generated",
+      planGenerated: { planId: "volunteer-signup-form" },
+    });
+
+    const store = createStore([basePlan], null, defaultExecuteTasks, { selectedPlanId: null });
+    const user = userEvent.setup();
+    act(() => {
+      store.dispatch(addOpenQuestionNotification(draftNotification as never));
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/projects/proj-1/plan?question=oq-draft-2"]}>
+        <Provider store={store}>
+          <PlanPhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>,
+      { wrapper: PlanPhaseWrapper }
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Which volunteer roles should be supported?")).toBeInTheDocument();
+    });
+
+    const answer = screen.getByTestId("open-questions-answer-input");
+    await user.type(answer, "General volunteers and mentors");
+    await user.click(screen.getByTestId("open-questions-answer-btn"));
+
+    await waitFor(() => {
+      expect(mockChatSend).toHaveBeenCalledWith(
+        "proj-1",
+        "General volunteers and mentors",
+        "plan-draft:draft-2"
+      );
+      expect(mockNotificationResolve).toHaveBeenCalledWith("proj-1", "oq-draft-2");
+      expect(store.getState().plan.selectedPlanId).toBe("volunteer-signup-form");
     });
   });
 
@@ -2744,17 +2846,20 @@ describe("PlanPhase Generate Plan", () => {
       resolveFirst = r;
     });
     mockGenerate.mockReturnValueOnce(firstPromise as never).mockResolvedValueOnce({
-      metadata: {
-        planId: "second-feature",
-        epicId: "e3",
-        complexity: "medium",
-        shippedAt: null,
+      status: "created",
+      plan: {
+        metadata: {
+          planId: "second-feature",
+          epicId: "e3",
+          complexity: "medium",
+          shippedAt: null,
+        },
+        content: "# Second\n\nContent.",
+        status: "planning",
+        taskCount: 0,
+        doneTaskCount: 0,
+        dependencyCount: 0,
       },
-      content: "# Second\n\nContent.",
-      status: "planning",
-      taskCount: 0,
-      doneTaskCount: 0,
-      dependencyCount: 0,
     });
 
     const store = createStore();
@@ -2783,17 +2888,20 @@ describe("PlanPhase Generate Plan", () => {
     expect(mockGenerate).toHaveBeenCalledTimes(1);
 
     resolveFirst!({
-      metadata: {
-        planId: "first-feature",
-        epicId: "e2",
-        complexity: "medium",
-        shippedAt: null,
+      status: "created",
+      plan: {
+        metadata: {
+          planId: "first-feature",
+          epicId: "e2",
+          complexity: "medium",
+          shippedAt: null,
+        },
+        content: "# First\n\nContent.",
+        status: "planning",
+        taskCount: 0,
+        doneTaskCount: 0,
+        dependencyCount: 0,
       },
-      content: "# First\n\nContent.",
-      status: "planning",
-      taskCount: 0,
-      doneTaskCount: 0,
-      dependencyCount: 0,
     });
 
     await waitFor(() => {

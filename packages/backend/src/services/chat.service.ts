@@ -13,6 +13,7 @@ import type { PlanComplexity } from "@opensprint/shared";
 import { ProjectService } from "./project.service.js";
 import { PrdService } from "./prd.service.js";
 import { agentService } from "./agent.service.js";
+import { notificationService } from "./notification.service.js";
 import { taskStore } from "./task-store.service.js";
 import { AppError } from "../middleware/error-handler.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
@@ -21,6 +22,7 @@ import { broadcastToProject } from "../websocket/index.js";
 import { writeJsonAtomic } from "../utils/file-utils.js";
 import { syncPlanTasksFromContent } from "./plan-task-sync.service.js";
 import { getErrorMessage } from "../utils/error-utils.js";
+import { extractJsonFromAgentResponse } from "../utils/json-extract.js";
 import { createLogger } from "../utils/logger.js";
 import {
   buildHarmonizerPromptBuildIt,
@@ -80,6 +82,27 @@ function buildArchitectureHilDescription(contextDescription: string, sections: s
 Context: ${contextDescription}
 
 Affected sections: ${sectionNames}`;
+}
+
+function normalizePlannerOpenQuestions(
+  raw: Record<string, unknown>
+): Array<{ id: string; text: string }> {
+  const input = (raw.open_questions ?? raw.openQuestions ?? []) as unknown;
+  if (!Array.isArray(input)) return [];
+
+  return input
+    .filter(
+      (item): item is { id?: unknown; text?: unknown } =>
+        item != null && typeof item === "object" && typeof item.text === "string"
+    )
+    .map((item) => ({
+      id:
+        typeof item.id === "string" && item.id.trim()
+          ? item.id.trim()
+          : `q-${Math.random().toString(36).slice(2, 10)}`,
+      text: item.text!.trim(),
+    }))
+    .filter((item) => item.text.length > 0);
 }
 
 const DREAM_SYSTEM_PROMPT = `You are the Sketch phase AI assistant for OpenSprint. You help users define their product vision and create a comprehensive Product Requirements Document (PRD).
@@ -142,6 +165,39 @@ If the user references a specific section (e.g., "update the acceptance criteria
 
 Only include a PLAN_UPDATE block when you are making substantive changes to the Plan. For questions, suggestions, or discussion, respond in natural language without a PLAN_UPDATE block.`;
 
+const PLAN_DRAFT_GENERATION_SYSTEM_PROMPT = `You are an AI planning assistant for OpenSprint. You are continuing a draft plan-generation conversation after asking the user clarifying questions.
+
+## Output requirement (mandatory)
+Your entire response MUST be a single JSON object. Do NOT write files. Do NOT include prose before or after the JSON. The system parses your message for JSON only.
+
+Allowed outputs:
+1. A final plan JSON object:
+{
+  "title": "Feature Name",
+  "content": "# Feature Name\\n\\n## Overview\\n...full markdown...",
+  "complexity": "medium",
+  "mockups": [{"title": "Main Screen", "content": "ASCII wireframe"}]
+}
+
+2. A clarification JSON object when more input is still required:
+{
+  "open_questions": [{"id": "q1", "text": "Clarification question"}]
+}
+
+Plan markdown MUST include these sections in order:
+- ## Overview
+- ## Acceptance Criteria
+- ## Technical Approach
+- ## Dependencies
+- ## Data Model Changes
+- ## API Specification
+- ## UI/UX Requirements
+- ## Edge Cases and Error Handling
+- ## Testing Strategy
+- ## Estimated Complexity
+
+MOCKUPS: Include at least one mockup in the final plan JSON.`;
+
 const EXECUTE_TASK_CHAT_SYSTEM_PROMPT = `You are the Analyst agent for OpenSprint Execute phase task chat. You process user feedback in response to a Coder's open questions about a task.
 
 Your role is to:
@@ -196,6 +252,51 @@ export class ChatService {
     const dir = await this.getConversationsDir(projectId);
     const finalPath = path.join(dir, `${conversation.id}.json`);
     await writeJsonAtomic(finalPath, conversation);
+  }
+
+  async startPlanDraftConversation(
+    projectId: string,
+    draftId: string,
+    featureDescription: string,
+    questions: Array<{ id: string; text: string }>
+  ): Promise<void> {
+    const context = `plan-draft:${draftId}` as const;
+    const conversation = await this.getOrCreateConversation(projectId, context);
+    if (conversation.messages.length > 0) return;
+
+    const createdAt = new Date().toISOString();
+    conversation.messages.push(
+      {
+        role: "user",
+        content: featureDescription,
+        timestamp: createdAt,
+      },
+      {
+        role: "assistant",
+        content:
+          questions.length > 0
+            ? `I need a bit more detail before I can generate the plan.\n\n${questions
+                .map((q) => `- ${q.text}`)
+                .join("\n")}`
+            : "I need a bit more detail before I can generate the plan.",
+        timestamp: createdAt,
+      }
+    );
+    await this.saveConversation(projectId, conversation);
+  }
+
+  private async createPlanFromDraftSpec(
+    projectId: string,
+    spec: Record<string, unknown>
+  ): Promise<{ metadata: { planId: string } }> {
+    const { PlanService } = await import("./plan.service.js");
+    const planService = new PlanService();
+    return planService.createPlan(projectId, {
+      title: (spec.title ?? spec.plan_title) as string | undefined,
+      content: (spec.content ?? spec.plan_content ?? spec.body) as string | undefined,
+      complexity: spec.complexity as PlanComplexity | undefined,
+      mockups: (spec.mockups ?? spec.mock_ups) as Array<{ title: string; content: string }>,
+    });
   }
 
   /** Build context string from current PRD */
@@ -278,8 +379,10 @@ export class ChatService {
     }
     const context = body.context ?? "sketch";
     const isPlanContext = context.startsWith("plan:");
+    const isPlanDraftContext = context.startsWith("plan-draft:");
     const isExecuteContext = context.startsWith("execute:");
     const planId = isPlanContext ? context.slice(5) : null;
+    const draftId = isPlanDraftContext ? context.slice("plan-draft:".length) : null;
     const taskId = isExecuteContext ? context.slice(8) : null;
 
     const conversation = await this.getOrCreateConversation(projectId, context);
@@ -313,7 +416,7 @@ export class ChatService {
 
     // Build prompt for agent; add PRD section context if user clicked to focus (PRD §7.1.5)
     let agentPrompt = body.message;
-    if (!isPlanContext && !isExecuteContext && body.prdSectionFocus) {
+    if (!isPlanContext && !isPlanDraftContext && !isExecuteContext && body.prdSectionFocus) {
       const prd = await this.prdService.getPrd(projectId);
       const section = prd.sections[body.prdSectionFocus as keyof typeof prd.sections];
       const sectionLabel = body.prdSectionFocus
@@ -341,7 +444,7 @@ export class ChatService {
       this.projectService.getRepoPath(projectId),
     ]);
     // Execute task chat uses Analyst; Sketch and Plan use Dreamer
-    const planningRole = isExecuteContext ? "analyst" : "dreamer";
+    const planningRole = isExecuteContext ? "analyst" : isPlanDraftContext ? "planner" : "dreamer";
     const agentConfig = getAgentForPlanningRole(settings, planningRole);
 
     // Build system prompt and context based on design vs plan vs execute
@@ -362,6 +465,9 @@ export class ChatService {
         : `## Plan ${planId}\n\n(Plan file is empty or not found.)`;
       const prdContext = await this.buildPrdContext(projectId);
       systemPrompt = `${PLAN_REFINEMENT_SYSTEM_PROMPT}\n\n${planContext}\n\n---\n\n## PRD Reference\n\n${prdContext}`;
+    } else if (isPlanDraftContext && draftId) {
+      const prdContext = await this.buildPrdContext(projectId);
+      systemPrompt = `${PLAN_DRAFT_GENERATION_SYSTEM_PROMPT}\n\n## PRD Reference\n\n${prdContext}`;
     } else {
       const prdContext = await this.buildPrdContext(projectId);
       systemPrompt = DREAM_SYSTEM_PROMPT + "\n\n" + prdContext;
@@ -385,16 +491,24 @@ export class ChatService {
     const agentId =
       isExecuteContext && taskId
         ? `execute-chat-${projectId}-${taskId}-${conversation.id}-${Date.now()}`
+        : isPlanDraftContext && draftId
+          ? `plan-draft-chat-${projectId}-${draftId}-${conversation.id}-${Date.now()}`
         : isPlanContext && planId
           ? `plan-chat-${projectId}-${planId}-${conversation.id}-${Date.now()}`
           : `design-chat-${projectId}-${conversation.id}-${Date.now()}`;
-    const phase = isExecuteContext ? "execute" : isPlanContext ? "plan" : "sketch";
+    const phase = isExecuteContext ? "execute" : isPlanContext || isPlanDraftContext ? "plan" : "sketch";
     const label = isExecuteContext
       ? "Execute task chat"
+      : isPlanDraftContext
+        ? "Draft plan generation chat"
       : isPlanContext
         ? "Plan chat"
         : "Sketch chat";
-    const trackingRole = isExecuteContext ? "analyst" : "dreamer";
+    const trackingRole = isExecuteContext
+      ? "analyst"
+      : isPlanDraftContext
+        ? "planner"
+        : "dreamer";
     try {
       log.info("Invoking planning agent", {
         type: agentConfig.type,
@@ -433,10 +547,60 @@ export class ChatService {
 
     let displayContent: string;
     const prdChanges: ChatResponse["prdChanges"] = [];
+    let planGenerated: ChatResponse["planGenerated"];
 
     if (isExecuteContext) {
       // Execute task chat: no structured blocks; use response as-is
       displayContent = responseContent;
+    } else if (isPlanDraftContext && draftId) {
+      const parsed =
+        extractJsonFromAgentResponse<Record<string, unknown>>(responseContent, "open_questions") ??
+        extractJsonFromAgentResponse<Record<string, unknown>>(responseContent, "openQuestions") ??
+        extractJsonFromAgentResponse<Record<string, unknown>>(responseContent, "title") ??
+        extractJsonFromAgentResponse<Record<string, unknown>>(responseContent, "plan_title");
+
+      if (!parsed) {
+        throw new AppError(
+          400,
+          ErrorCodes.DECOMPOSE_PARSE_FAILED,
+          "Planning agent did not return a valid plan. Response: " +
+            responseContent.slice(0, 500),
+          { responsePreview: responseContent.slice(0, 500) }
+        );
+      }
+
+      const openQuestions = normalizePlannerOpenQuestions(parsed);
+      if (openQuestions.length > 0) {
+        const notification = await notificationService.create({
+          projectId,
+          source: "plan",
+          sourceId: `draft:${draftId}`,
+          questions: openQuestions,
+        });
+        broadcastToProject(projectId, {
+          type: "notification.added",
+          notification: {
+            id: notification.id,
+            projectId: notification.projectId,
+            source: notification.source,
+            sourceId: notification.sourceId,
+            questions: notification.questions,
+            status: notification.status,
+            createdAt: notification.createdAt,
+            resolvedAt: notification.resolvedAt,
+            kind: "open_question",
+          },
+        });
+        displayContent = "I need a bit more detail before generating the plan.";
+      } else {
+        const plan = await this.createPlanFromDraftSpec(projectId, parsed);
+        planGenerated = { planId: plan.metadata.planId };
+        broadcastToProject(projectId, {
+          type: "plan.generated",
+          planId: plan.metadata.planId,
+        });
+        displayContent = "Plan generated";
+      }
     } else if (isPlanContext && planId) {
       // Plan context: parse PLAN_UPDATE, apply, strip from display
       const planUpdate = this.parsePlanUpdate(responseContent);
@@ -490,6 +654,7 @@ export class ChatService {
 
     return {
       message: displayContent,
+      planGenerated,
       prdChanges: prdChanges.length > 0 ? prdChanges : undefined,
     };
   }

@@ -212,4 +212,33 @@ describe("NotificationBell", () => {
       expect(loc).toHaveTextContent("level=global");
     });
   });
+
+  it("navigates draft plan notifications without setting a plan query param", async () => {
+    const notifications = [
+      {
+        id: "oq-draft-1",
+        projectId: "proj-1",
+        source: "plan" as const,
+        sourceId: "draft:draft-1",
+        questions: [{ id: "q1", text: "Clarify volunteer scope?", createdAt: "2025-01-01T00:00:00Z" }],
+        status: "open" as const,
+        createdAt: "2025-01-01T00:00:00Z",
+        resolvedAt: null,
+      },
+    ];
+    renderNotificationBell(notifications);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /1 notification/ })).toBeInTheDocument();
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByTitle("Notifications (open questions & API issues)"));
+    await user.click(screen.getByText(/Clarify volunteer scope/));
+
+    await waitFor(() => {
+      const loc = screen.getByTestId("current-location");
+      expect(loc).toHaveTextContent("/projects/proj-1/plan");
+      expect(loc).toHaveTextContent("question=oq-draft-1");
+      expect(loc).not.toHaveTextContent("plan=draft%3Adraft-1");
+    });
+  });
 });

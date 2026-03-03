@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { shallowEqual } from "react-redux";
 import { useQueryClient } from "@tanstack/react-query";
-import type { Plan, PlanStatus } from "@opensprint/shared";
+import type { Notification, Plan, PlanStatus } from "@opensprint/shared";
 import { sortPlansByStatus } from "@opensprint/shared";
+import { useLocation } from "react-router-dom";
 import { store, useAppDispatch, useAppSelector } from "../../store";
 import {
   executePlan,
@@ -24,6 +25,7 @@ import {
   setSinglePlan,
 } from "../../store/slices/planSlice";
 import { addNotification } from "../../store/slices/notificationSlice";
+import { addNotification as addOpenQuestionNotification } from "../../store/slices/openQuestionsSlice";
 import { usePlanChat, useSinglePlan, usePlans } from "../../api/hooks";
 import { usePhaseLoadingState } from "../../hooks/usePhaseLoadingState";
 import { PhaseLoadingSpinner } from "../../components/PhaseLoadingSpinner";
@@ -45,6 +47,7 @@ import { useScrollToQuestion } from "../../hooks/useScrollToQuestion";
 import { useOpenQuestionNotifications } from "../../hooks/useOpenQuestionNotifications";
 import { formatPlanIdAsTitle } from "../../lib/formatting";
 import { matchesPlanSearchQuery } from "../../lib/planSearchFilter";
+import { parseDetailParams } from "../../lib/phaseRouting";
 
 /** Display text for plan chat: show "Plan updated" when agent response contains [PLAN_UPDATE] */
 export function getPlanChatMessageDisplay(content: string): string {
@@ -82,6 +85,7 @@ interface PlanPhaseProps {
 export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) {
   const dispatch = useAppDispatch();
   const queryClient = useQueryClient();
+  const location = useLocation();
 
   /* ── TanStack Query for loading state (data synced to Redux by ProjectShell) ── */
   const plansQuery = usePlans(projectId);
@@ -168,12 +172,27 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   useScrollToQuestion();
   const { notifications: openQuestionNotifications, refetch: refetchNotifications } =
     useOpenQuestionNotifications(projectId);
-  const planNotification =
+  const selectedPlanNotification =
     (selectedPlanId &&
       openQuestionNotifications.find(
         (n) => n.source === "plan" && n.sourceId === selectedPlanId
       )) ??
     null;
+  const activeQuestionId = parseDetailParams(location.search).question;
+  const draftPlanNotifications = useMemo(
+    () =>
+      openQuestionNotifications.filter(
+        (n) => n.source === "plan" && n.sourceId.startsWith("draft:")
+      ),
+    [openQuestionNotifications]
+  );
+  const draftPlanNotification = useMemo(() => {
+    if (activeQuestionId) {
+      const matching = draftPlanNotifications.find((n) => n.id === activeQuestionId);
+      if (matching) return matching;
+    }
+    return draftPlanNotifications[0] ?? null;
+  }, [activeQuestionId, draftPlanNotifications]);
   const sidebarScrollRef = useRef<HTMLDivElement>(null);
   const prevChatMessageCountRef = useRef(0);
 
@@ -204,10 +223,21 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
         generateQueueRef.current = generateQueueRef.current.slice(1);
         const result = await dispatch(generatePlan({ projectId, description, tempId }));
         if (generatePlan.fulfilled.match(result)) {
-          dispatch(
-            addNotification({ message: "Plan generated successfully", severity: "success" })
-          );
-          void queryClient.invalidateQueries({ queryKey: queryKeys.plans.list(projectId) });
+          if (result.payload.status === "created") {
+            dispatch(
+              addNotification({ message: "Plan generated successfully", severity: "success" })
+            );
+            void queryClient.invalidateQueries({ queryKey: queryKeys.plans.list(projectId) });
+          } else {
+            dispatch(addOpenQuestionNotification(result.payload.notification));
+            dispatch(
+              addNotification({
+                message: "Planner needs clarification before generating this plan",
+                severity: "info",
+              })
+            );
+            void refetchNotifications();
+          }
         } else if (generatePlan.rejected.match(result)) {
           dispatch(
             addNotification({
@@ -220,7 +250,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
     } finally {
       processingGenerateRef.current = false;
     }
-  }, [dispatch, projectId]);
+  }, [dispatch, projectId, queryClient, refetchNotifications]);
 
   const planCountByStatus = useMemo(() => {
     const counts = { all: plans.length, planning: 0, building: 0, complete: 0 };
@@ -640,6 +670,47 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
                 <h2 className="text-lg font-semibold text-theme-text">Feature Plans</h2>
               </div>
 
+              {!selectedPlanNotification && draftPlanNotification && (
+                <div className="mb-4">
+                  <OpenQuestionsBlock
+                    notification={draftPlanNotification}
+                    projectId={projectId}
+                    source="plan"
+                    sourceId={draftPlanNotification.sourceId}
+                    onResolved={refetchNotifications}
+                    onAnswerSent={async (message) => {
+                      const draftId = draftPlanNotification.sourceId.replace(/^draft:/, "");
+                      const result = await dispatch(
+                        sendPlanMessage({
+                          projectId,
+                          message,
+                          context: `plan-draft:${draftId}`,
+                        })
+                      );
+                      if (!sendPlanMessage.fulfilled.match(result)) {
+                        throw new Error(result.error?.message ?? "Failed to send");
+                      }
+                      if (result.payload.response.planGenerated?.planId) {
+                        const planId = result.payload.response.planGenerated.planId;
+                        dispatch(setSelectedPlanId(planId));
+                        dispatch(
+                          addNotification({
+                            message: "Plan generated successfully",
+                            severity: "success",
+                          })
+                        );
+                        void queryClient.invalidateQueries({
+                          queryKey: queryKeys.plans.list(projectId),
+                        });
+                        void queryClient.invalidateQueries({
+                          queryKey: queryKeys.plans.detail(projectId, planId),
+                        });
+                      }
+                    }}
+                  />
+                </div>
+              )}
+
               {showPlansEmptyState ? (
                 <div className="text-center py-10">
                   <p className="text-theme-muted">
@@ -943,9 +1014,9 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
                     </div>
 
                     {/* Open questions block — when planner needs clarification */}
-                    {planNotification && (
+                    {selectedPlanNotification && (
                       <OpenQuestionsBlock
-                        notification={planNotification}
+                        notification={selectedPlanNotification}
                         projectId={projectId}
                         source="plan"
                         sourceId={selectedPlan.metadata.planId}
@@ -979,7 +1050,9 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
                     <div
                       className="p-4"
                       data-testid="plan-chat-messages"
-                      {...(planNotification && { "data-question-id": planNotification.id })}
+                      {...(selectedPlanNotification && {
+                        "data-question-id": selectedPlanNotification.id,
+                      })}
                     >
                       <h4 className="text-xs font-medium text-theme-muted uppercase tracking-wide mb-3">
                         Refine with AI
@@ -1037,7 +1110,9 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
                 <div
                   className="p-4"
                   data-testid="plan-chat-messages"
-                  {...(planNotification && { "data-question-id": planNotification.id })}
+                  {...(selectedPlanNotification && {
+                    "data-question-id": selectedPlanNotification.id,
+                  })}
                 >
                   <h4 className="text-xs font-medium text-theme-muted uppercase tracking-wide mb-3">
                     Refine with AI

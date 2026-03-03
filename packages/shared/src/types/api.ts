@@ -41,6 +41,9 @@ export interface ChatRequest {
 /** Chat message response */
 export interface ChatResponse {
   message: string;
+  planGenerated?: {
+    planId: string;
+  };
   prdChanges?: Array<{
     section: string;
     previousVersion: number;
