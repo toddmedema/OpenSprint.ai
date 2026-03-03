@@ -260,18 +260,6 @@ html[data-theme="dark"] {
     @apply px-3 py-2;
   }
 
-  .phase-tab {
-    @apply px-3 py-1.5 text-sm font-medium rounded-lg transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center;
-  }
-
-  .phase-tab-active {
-    @apply bg-brand-600 text-white;
-  }
-
-  .phase-tab-inactive {
-    @apply text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle;
-  }
-
   /* Execute task detail markdown: WCAG AA contrast (4.5:1 normal, 3:1 large) in light/dark themes.
    * Uses explicit text-gray-900/dark:text-gray-100 (feedback kutduv) so text is readable.
    * Higher specificity (.prose.prose-execute-task) ensures our variables override prose defaults. */

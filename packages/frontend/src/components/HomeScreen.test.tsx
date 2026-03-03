@@ -236,7 +236,7 @@ describe("HomeScreen", () => {
     await screen.findByTestId("create-new-button");
     await user.click(screen.getByTestId("create-new-button"));
 
-    expect(screen.getByTestId("settings-page")).toBeInTheDocument();
+    expect(await screen.findByTestId("settings-page")).toBeInTheDocument();
   });
 
   it("navigates to /settings when Add Existing clicked and no API keys", async () => {
@@ -271,7 +271,7 @@ describe("HomeScreen", () => {
     await screen.findByTestId("add-existing-button");
     await user.click(screen.getByTestId("add-existing-button"));
 
-    expect(screen.getByTestId("settings-page")).toBeInTheDocument();
+    expect(await screen.findByTestId("settings-page")).toBeInTheDocument();
   });
 
   it("clicking project card navigates to project sketch", async () => {

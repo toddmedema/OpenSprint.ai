@@ -9,6 +9,9 @@ export default defineConfig({
     alias: {
       "@opensprint/shared": path.resolve(__dirname, "../shared/src/index.ts"),
       pg: path.resolve(__dirname, "../../node_modules/pg/lib/index.js"),
+      // Alias @google/genai to a mock so Vite can load it. Fixes "Failed to load url @google/genai"
+      // in tests that indirectly import agent-client.ts.
+      "@google/genai": path.resolve(__dirname, "src/__tests__/mocks/google-genai.mock.ts"),
     },
   },
   // Let Node load @google/genai natively so Vite doesn't fail resolving/loading its ESM exports

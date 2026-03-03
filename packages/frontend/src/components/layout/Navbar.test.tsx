@@ -336,7 +336,7 @@ describe("Navbar", () => {
     expect(tabs).toHaveLength(5);
   });
 
-  it("phase tabs use phase-tab class with 44px touch targets", () => {
+  it("phase tabs use NavButton with ~36px height", () => {
     const mockProject = {
       id: "proj-1",
       name: "Test",
@@ -347,8 +347,7 @@ describe("Navbar", () => {
     };
     renderNavbar(<Navbar project={mockProject} currentPhase="sketch" onPhaseChange={vi.fn()} />);
     const sketchTab = screen.getByRole("tab", { name: /Sketch/ });
-    expect(sketchTab).toHaveClass("phase-tab");
-    // .phase-tab in index.css includes min-h-[44px] min-w-[44px] for WCAG touch targets
+    expect(sketchTab).toHaveClass("min-h-[36px]");
   });
 
   it("phase tabs support arrow key navigation", async () => {
@@ -763,7 +762,7 @@ describe("Navbar", () => {
     const addExistingButton = screen.getByRole("button", { name: /Add Existing Project/i });
     await user.click(addExistingButton);
 
-    expect(screen.getByTestId("settings-page")).toBeInTheDocument();
+    expect(await screen.findByTestId("settings-page")).toBeInTheDocument();
   });
 
   it("theme is configurable from settings page", async () => {
@@ -812,7 +811,7 @@ describe("Navbar", () => {
     );
 
     const settingsLink = screen.getByRole("link", { name: "Settings" });
-    expect(settingsLink).toHaveClass("phase-tab-active");
+    expect(settingsLink).toHaveAttribute("data-active", "true");
   });
 
   it("project settings page: only Settings icon has active state, not Sketch phase tab", async () => {
@@ -845,9 +844,8 @@ describe("Navbar", () => {
     await screen.findByTestId("project-settings-page");
     const settingsLink = screen.getByRole("link", { name: "Project settings" });
     const sketchTab = screen.getByRole("tab", { name: /Sketch/ });
-    expect(settingsLink).toHaveClass("phase-tab-active");
-    expect(sketchTab).toHaveClass("phase-tab-inactive");
-    expect(sketchTab).not.toHaveClass("phase-tab-active");
+    expect(settingsLink).toHaveAttribute("data-active", "true");
+    expect(sketchTab).toHaveAttribute("data-active", "false");
   });
 
   it("project help page: only Help icon has active state, not Sketch phase tab", async () => {
@@ -880,9 +878,8 @@ describe("Navbar", () => {
     await screen.findByTestId("help-page");
     const helpLink = screen.getByRole("link", { name: "Help" });
     const sketchTab = screen.getByRole("tab", { name: /Sketch/ });
-    expect(helpLink).toHaveClass("phase-tab-active");
-    expect(sketchTab).toHaveClass("phase-tab-inactive");
-    expect(sketchTab).not.toHaveClass("phase-tab-active");
+    expect(helpLink).toHaveAttribute("data-active", "true");
+    expect(sketchTab).toHaveAttribute("data-active", "false");
   });
 
   it("Help button displays as square when active (aspect-square)", async () => {

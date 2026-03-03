@@ -1,4 +1,5 @@
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
+import { NavButton } from "../layout/NavButton";
 import { SaveIndicator, type SaveStatus } from "../SaveIndicator";
 
 const LEVEL_PARAM = "level";
@@ -39,20 +40,20 @@ export function SettingsTopBar({ projectId, saveStatus }: SettingsTopBarProps) {
       data-testid="settings-top-bar"
     >
       <div className="flex items-center gap-1 bg-theme-border-subtle rounded-lg p-1">
-        <Link
+        <NavButton
           to={globalHref}
-          className={`phase-tab min-h-[44px] ${isGlobal ? "phase-tab-active" : "phase-tab-inactive"}`}
+          active={isGlobal}
           data-testid="settings-global-tab"
         >
           Global
-        </Link>
-        <Link
+        </NavButton>
+        <NavButton
           to={projectHref}
-          className={`phase-tab min-h-[44px] ${!isGlobal ? "phase-tab-active" : "phase-tab-inactive"}`}
+          active={!isGlobal}
           data-testid="settings-project-tab"
         >
           Project
-        </Link>
+        </NavButton>
       </div>
       <SaveIndicator status={saveStatus} data-testid="settings-save-indicator" />
     </div>

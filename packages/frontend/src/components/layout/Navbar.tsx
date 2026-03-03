@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { NavButton } from "./NavButton";
 import type { Project, ProjectPhase } from "@opensprint/shared";
 import { NAVBAR_HEIGHT } from "../../lib/constants";
 import { useAppSelector, useAppDispatch } from "../../store";
@@ -50,9 +51,6 @@ export function Navbar({
 
   const settingsHref = project ? `/projects/${project.id}/settings` : "/settings";
   const helpHref = project ? `/projects/${project.id}/help` : "/help";
-
-  const helpButtonClassName =
-    "p-1.5 rounded-md transition-colors text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle min-h-[44px] min-w-[44px] inline-flex items-center justify-center";
 
   const dispatch = useAppDispatch();
   const { data: dbStatus } = useDbStatus();
@@ -235,9 +233,10 @@ export function Navbar({
               {phaseTabs.map((phase, index) => {
                 const isActive = currentPhase === phase.key && !isSettingsActive && !isHelpActive;
                 return (
-                  <button
+                  <NavButton
                     key={phase.key}
                     role="tab"
+                    active={isActive}
                     onClick={() => onPhaseChange(phase.key)}
                     onKeyDown={(e) => {
                       if (e.key === "ArrowLeft" && index > 0) {
@@ -248,13 +247,12 @@ export function Navbar({
                         onPhaseChange(phaseTabs[index + 1].key);
                       }
                     }}
-                    className={`phase-tab ${isActive ? "phase-tab-active" : "phase-tab-inactive"}`}
                     aria-label={`Switch to ${phase.label} phase`}
                     aria-selected={isActive}
                     aria-current={isActive ? "page" : undefined}
                   >
                     {phase.label}
-                  </button>
+                  </NavButton>
                 );
               })}
             </div>
@@ -268,23 +266,21 @@ export function Navbar({
               {showDbBackedChrome && <ActiveAgentsList projectId={project.id} />}
               {showDbBackedChrome && <NotificationBell projectId={project.id} />}
               <ConnectionIndicator />
-              <Link
+              <NavButton
                 to={helpHref}
-                className={`rounded-md transition-colors inline-flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 aspect-square ${
-                  isHelpActive ? "phase-tab phase-tab-active !p-2" : helpButtonClassName
-                }`}
+                active={isHelpActive}
+                variant="icon"
+                className="shrink-0"
                 aria-label="Help"
                 title="Help"
               >
                 <span className="text-lg font-medium leading-none">?</span>
-              </Link>
-              <Link
+              </NavButton>
+              <NavButton
                 to={settingsHref}
-                className={`rounded-md transition-colors inline-flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 ${
-                  isSettingsActive
-                    ? "phase-tab phase-tab-active !p-2"
-                    : "text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle p-1.5"
-                }`}
+                active={isSettingsActive}
+                variant="icon"
+                className="shrink-0"
                 aria-label="Project settings"
                 title="Project settings"
               >
@@ -306,29 +302,27 @@ export function Navbar({
                     d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
                   />
                 </svg>
-              </Link>
+              </NavButton>
             </>
           ) : projects.length >= 1 ? (
             <>
               {showDbBackedChrome && <GlobalActiveAgentsList />}
               {showDbBackedChrome && <GlobalNotificationBell />}
-              <Link
+              <NavButton
                 to={helpHref}
-                className={`rounded-md transition-colors inline-flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 aspect-square ${
-                  isHelpActive ? "phase-tab phase-tab-active !p-2" : helpButtonClassName
-                }`}
+                active={isHelpActive}
+                variant="icon"
+                className="shrink-0"
                 aria-label="Help"
                 title="Help"
               >
                 <span className="text-lg font-medium leading-none">?</span>
-              </Link>
-              <Link
+              </NavButton>
+              <NavButton
                 to={settingsHref}
-                className={`rounded-md transition-colors inline-flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 ${
-                  isSettingsActive
-                    ? "phase-tab phase-tab-active !p-2"
-                    : "text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle p-1.5"
-                }`}
+                active={isSettingsActive}
+                variant="icon"
+                className="shrink-0"
                 aria-label="Settings"
                 title="Settings"
               >
@@ -350,27 +344,25 @@ export function Navbar({
                     d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
                   />
                 </svg>
-              </Link>
+              </NavButton>
             </>
           ) : (
             <>
-              <Link
+              <NavButton
                 to={helpHref}
-                className={`rounded-md transition-colors inline-flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 aspect-square ${
-                  isHelpActive ? "phase-tab phase-tab-active !p-2" : helpButtonClassName
-                }`}
+                active={isHelpActive}
+                variant="icon"
+                className="shrink-0"
                 aria-label="Help"
                 title="Help"
               >
                 <span className="text-lg font-medium leading-none">?</span>
-              </Link>
-              <Link
+              </NavButton>
+              <NavButton
                 to={settingsHref}
-                className={`rounded-md transition-colors inline-flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 ${
-                  isSettingsActive
-                    ? "phase-tab phase-tab-active !p-2"
-                    : "text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle p-1.5"
-                }`}
+                active={isSettingsActive}
+                variant="icon"
+                className="shrink-0"
                 aria-label="Settings"
                 title="Settings"
               >
@@ -392,7 +384,7 @@ export function Navbar({
                     d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
                   />
                 </svg>
-              </Link>
+              </NavButton>
             </>
           )}
         </div>

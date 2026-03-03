@@ -1,6 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GlobalSettingsContent } from "./GlobalSettingsContent";
+
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+function renderGlobalSettingsContent() {
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <GlobalSettingsContent onSaveStateChange={vi.fn()} />
+    </QueryClientProvider>
+  );
+}
 
 vi.mock("../contexts/ThemeContext", () => ({
   useTheme: () => ({
@@ -46,7 +57,7 @@ describe("GlobalSettingsContent", () => {
   });
 
   it("renders ApiKeysSection with all providers when keys not configured", async () => {
-    render(<GlobalSettingsContent />);
+    renderGlobalSettingsContent();
 
     await screen.findByTestId("api-keys-section-wrapper");
     expect(screen.getByTestId("api-keys-section")).toBeInTheDocument();
@@ -71,7 +82,7 @@ describe("GlobalSettingsContent", () => {
       },
     });
 
-    render(<GlobalSettingsContent />);
+    renderGlobalSettingsContent();
 
     await screen.findByTestId("api-keys-section");
     const anthropicInputs = screen.getAllByTestId(/api-key-input-ANTHROPIC_API_KEY-/);
@@ -91,7 +102,7 @@ describe("GlobalSettingsContent", () => {
     });
     mockRevealKey.mockResolvedValue({ value: "sk-ant-revealed-secret" });
 
-    render(<GlobalSettingsContent />);
+    renderGlobalSettingsContent();
 
     await screen.findByTestId("api-keys-section");
     const input = screen.getByTestId(/api-key-input-ANTHROPIC_API_KEY-/);
@@ -118,7 +129,7 @@ describe("GlobalSettingsContent", () => {
       },
     });
 
-    render(<GlobalSettingsContent />);
+    renderGlobalSettingsContent();
 
     await screen.findByTestId("api-keys-section");
     expect(screen.getByText(/Limit hit at/)).toBeInTheDocument();
@@ -139,7 +150,7 @@ describe("GlobalSettingsContent", () => {
       },
     });
 
-    render(<GlobalSettingsContent />);
+    renderGlobalSettingsContent();
 
     await screen.findByTestId("api-key-retry-ANTHROPIC_API_KEY-k1");
     const retryBtn = screen.getByTestId("api-key-retry-ANTHROPIC_API_KEY-k1");
@@ -156,7 +167,7 @@ describe("GlobalSettingsContent", () => {
   });
 
   it("renders Theme section", async () => {
-    render(<GlobalSettingsContent />);
+    renderGlobalSettingsContent();
 
     await screen.findByText("Theme");
     expect(screen.getByText(/Choose how Open Sprint looks/)).toBeInTheDocument();
@@ -166,7 +177,7 @@ describe("GlobalSettingsContent", () => {
   });
 
   it("renders Running agents display mode section", async () => {
-    render(<GlobalSettingsContent />);
+    renderGlobalSettingsContent();
 
     await screen.findByText("Running agents display mode");
     expect(screen.getByTestId("running-agents-display-mode")).toBeInTheDocument();
@@ -180,7 +191,7 @@ describe("GlobalSettingsContent", () => {
       },
     });
 
-    render(<GlobalSettingsContent />);
+    renderGlobalSettingsContent();
 
     await screen.findByTestId("api-key-add-ANTHROPIC_API_KEY");
     const addBtn = screen.getByTestId("api-key-add-ANTHROPIC_API_KEY");
@@ -225,7 +236,7 @@ describe("GlobalSettingsContent", () => {
         },
       });
 
-    render(<GlobalSettingsContent />);
+    renderGlobalSettingsContent();
 
     await screen.findByTestId("api-key-add-ANTHROPIC_API_KEY");
     await act(async () => {
@@ -266,7 +277,7 @@ describe("GlobalSettingsContent", () => {
   });
 
   it("renders Database URL section with masked value", async () => {
-    render(<GlobalSettingsContent />);
+    renderGlobalSettingsContent();
 
     await screen.findByTestId("database-url-section");
     expect(screen.getByText("Database URL")).toBeInTheDocument();
@@ -284,7 +295,7 @@ describe("GlobalSettingsContent", () => {
       databaseUrl: "postgresql://user:***@db.example.com:5432/opensprint",
     });
 
-    render(<GlobalSettingsContent />);
+    renderGlobalSettingsContent();
 
     await screen.findByTestId("database-url-input");
     const input = screen.getByTestId("database-url-input");
@@ -307,7 +318,7 @@ describe("GlobalSettingsContent", () => {
   });
 
   it("shows error when blurring masked URL", async () => {
-    render(<GlobalSettingsContent />);
+    renderGlobalSettingsContent();
 
     const input = await screen.findByTestId("database-url-input");
     fireEvent.blur(input);
@@ -319,7 +330,7 @@ describe("GlobalSettingsContent", () => {
   it("shows Set up tables button when DB URL has value and is not masked", async () => {
     mockGlobalSettingsGet.mockResolvedValue({ databaseUrl: "", apiKeys: undefined });
 
-    render(<GlobalSettingsContent />);
+    renderGlobalSettingsContent();
 
     await screen.findByTestId("database-url-input");
     const input = screen.getByTestId("database-url-input");
@@ -333,7 +344,7 @@ describe("GlobalSettingsContent", () => {
   });
 
   it("hides Set up tables button when DB URL is masked", async () => {
-    render(<GlobalSettingsContent />);
+    renderGlobalSettingsContent();
 
     await screen.findByTestId("database-url-input");
     expect(screen.queryByTestId("setup-tables-button")).not.toBeInTheDocument();
@@ -342,7 +353,7 @@ describe("GlobalSettingsContent", () => {
   it("opens confirmation dialog with warning when Set up tables clicked", async () => {
     mockGlobalSettingsGet.mockResolvedValue({ databaseUrl: "", apiKeys: undefined });
 
-    render(<GlobalSettingsContent />);
+    renderGlobalSettingsContent();
 
     await screen.findByTestId("database-url-input");
     const input = screen.getByTestId("database-url-input");
@@ -369,7 +380,7 @@ describe("GlobalSettingsContent", () => {
     mockGlobalSettingsGet.mockResolvedValue({ databaseUrl: "", apiKeys: undefined });
     mockSetupTables.mockResolvedValue({ ok: true });
 
-    render(<GlobalSettingsContent />);
+    renderGlobalSettingsContent();
 
     await screen.findByTestId("database-url-input");
     const input = screen.getByTestId("database-url-input");
@@ -401,7 +412,7 @@ describe("GlobalSettingsContent", () => {
   it("does not call setupTables on cancel", async () => {
     mockGlobalSettingsGet.mockResolvedValue({ databaseUrl: "", apiKeys: undefined });
 
-    render(<GlobalSettingsContent />);
+    renderGlobalSettingsContent();
 
     await screen.findByTestId("database-url-input");
     const input = screen.getByTestId("database-url-input");

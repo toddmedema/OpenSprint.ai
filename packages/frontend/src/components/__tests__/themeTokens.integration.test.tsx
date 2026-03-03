@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { MemoryRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { configureStore } from "@reduxjs/toolkit";
 import { ThemeProvider } from "../../contexts/ThemeContext";
 import notificationReducer from "../../store/slices/notificationSlice";
@@ -16,6 +17,8 @@ import projectReducer from "../../store/slices/projectSlice";
 import websocketReducer from "../../store/slices/websocketSlice";
 import { HomeScreen } from "../HomeScreen";
 import { Layout } from "../layout/Layout";
+
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
 const storage: Record<string, string> = {};
 
@@ -73,15 +76,17 @@ describe("theme-aware components", () => {
 
   it("HomeScreen uses theme tokens (no hard-coded brand-50/brand-700 for badges)", async () => {
     render(
-      <ThemeProvider>
-        <Provider store={createTestStore()}>
-          <MemoryRouter>
-            <Layout>
-              <HomeScreen />
-            </Layout>
-          </MemoryRouter>
-        </Provider>
-      </ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <Provider store={createTestStore()}>
+            <MemoryRouter>
+              <Layout>
+                <HomeScreen />
+              </Layout>
+            </MemoryRouter>
+          </Provider>
+        </ThemeProvider>
+      </QueryClientProvider>
     );
     await screen.findByTestId("projects-grid");
     // HomeScreen should use theme tokens; phase badges use theme-info-bg/text
@@ -95,15 +100,17 @@ describe("theme-aware components", () => {
 
   it("Layout uses theme tokens for background", () => {
     render(
-      <ThemeProvider>
-        <Provider store={createTestStore()}>
-          <MemoryRouter>
-            <Layout>
-              <div data-testid="child">Content</div>
-            </Layout>
-          </MemoryRouter>
-        </Provider>
-      </ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <Provider store={createTestStore()}>
+            <MemoryRouter>
+              <Layout>
+                <div data-testid="child">Content</div>
+              </Layout>
+            </MemoryRouter>
+          </Provider>
+        </ThemeProvider>
+      </QueryClientProvider>
     );
     const outer = document.querySelector(".bg-theme-bg");
     expect(outer).toBeInTheDocument();
@@ -114,15 +121,17 @@ describe("theme-aware components", () => {
     storage["opensprint.theme"] = "dark";
     document.documentElement.setAttribute("data-theme", "dark");
     render(
-      <ThemeProvider>
-        <Provider store={createTestStore()}>
-          <MemoryRouter>
-            <Layout>
-              <div data-testid="dark-content">Dark mode content</div>
-            </Layout>
-          </MemoryRouter>
-        </Provider>
-      </ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <Provider store={createTestStore()}>
+            <MemoryRouter>
+              <Layout>
+                <div data-testid="dark-content">Dark mode content</div>
+              </Layout>
+            </MemoryRouter>
+          </Provider>
+        </ThemeProvider>
+      </QueryClientProvider>
     );
     // CSS variables are redefined in index.css for html[data-theme="dark"]
     // Components using var(--color-*) will automatically pick up dark values
