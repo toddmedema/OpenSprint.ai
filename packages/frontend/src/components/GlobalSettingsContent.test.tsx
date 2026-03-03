@@ -439,7 +439,7 @@ describe("GlobalSettingsContent", () => {
     expect(screen.queryByTestId("setup-tables-dialog")).not.toBeInTheDocument();
   });
 
-  it("shows Saving spinner for at least 500ms on fast database URL save", async () => {
+  it("shows Saving spinner for at least 1000ms on fast database URL save", async () => {
     const timestamps: { saving?: number; saved?: number } = {};
     const onSaveStateChange = vi.fn((status: string) => {
       if (status === "saving") timestamps.saving = Date.now();
@@ -471,11 +471,11 @@ describe("GlobalSettingsContent", () => {
       { timeout: 1500 }
     );
 
-    // Allow small timing variance (499ms can occur under load)
-    expect(timestamps.saved! - timestamps.saving!).toBeGreaterThanOrEqual(490);
+    // Allow small timing variance (999ms can occur under load)
+    expect(timestamps.saved! - timestamps.saving!).toBeGreaterThanOrEqual(990);
   });
 
-  it("hides Saving spinner when save completes on slow (>500ms) database URL save", async () => {
+  it("hides Saving spinner when save completes on slow (>1000ms) database URL save", async () => {
     const onSaveStateChange = vi.fn();
     mockGlobalSettingsPut.mockImplementation(
       () =>
@@ -486,7 +486,7 @@ describe("GlobalSettingsContent", () => {
                 databaseUrl: "postgresql://user:***@localhost:5432/opensprint",
                 apiKeys: undefined,
               }),
-            600
+            1100
           )
         )
     );

@@ -121,7 +121,7 @@ describe("SettingsPage", () => {
       () => {
         expect(screen.getByTestId("settings-save-indicator")).toHaveTextContent("Saved");
       },
-      { timeout: 1500 }
+      { timeout: 2500 }
     );
 
     expect(removeSpy).toHaveBeenCalledWith("beforeunload", expect.any(Function));

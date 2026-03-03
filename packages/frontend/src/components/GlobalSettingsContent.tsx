@@ -17,9 +17,7 @@ import type {
 } from "@opensprint/shared";
 import { API_KEY_PROVIDERS } from "@opensprint/shared";
 import type { SaveStatus } from "./SaveIndicator";
-
-/** Minimum time (ms) the Saving spinner is visible, regardless of request completion time */
-const MIN_SAVE_SPINNER_MS = 500;
+import { MIN_SAVE_SPINNER_MS } from "../lib/constants";
 
 const THEME_OPTIONS: { value: "light" | "dark" | "system"; label: string }[] = [
   { value: "light", label: "Light" },

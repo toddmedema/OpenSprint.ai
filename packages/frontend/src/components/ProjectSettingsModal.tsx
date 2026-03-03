@@ -38,7 +38,7 @@ import {
   normalizeWorktreeBaseBranch,
   type AutoDeployTrigger,
 } from "@opensprint/shared";
-import { SETTINGS_HELP_CONTAINER_CLASS } from "../lib/constants";
+import { MIN_SAVE_SPINNER_MS, SETTINGS_HELP_CONTAINER_CLASS } from "../lib/constants";
 
 interface ProjectSettingsModalProps {
   project: Project;
@@ -117,6 +117,8 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
     }, [fullScreen, tabsControlledExternally, tabFromUrl, internalActiveTab]);
 
     const [saving, setSaving] = useState(false);
+    const saveGenerationRef = useRef(0);
+    const saveCompleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [showFolderBrowser, setShowFolderBrowser] = useState(false);
@@ -138,6 +140,14 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
       window.addEventListener("beforeunload", handler);
       return () => window.removeEventListener("beforeunload", handler);
     }, [saveStatus]);
+
+    useEffect(() => {
+      return () => {
+        if (saveCompleteTimeoutRef.current) {
+          clearTimeout(saveCompleteTimeoutRef.current);
+        }
+      };
+    }, []);
 
     // Project basics
     const [name, setName] = useState(project.name);
@@ -244,6 +254,9 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
         if (effComplex.type === "custom" && !(effComplex.cliCommand ?? "").trim()) return;
         setSaving(true);
         setError(null);
+        saveGenerationRef.current += 1;
+        const startTime = Date.now();
+        const completedGeneration = saveGenerationRef.current;
         try {
           await Promise.all([
             api.projects.update(project.id, { name: effName, repoPath: effRepoPath }),
@@ -294,7 +307,18 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
         } catch (err) {
           setError(err instanceof Error ? err.message : "Failed to save settings");
         } finally {
-          setSaving(false);
+          const elapsed = Date.now() - startTime;
+          const remaining = Math.max(0, MIN_SAVE_SPINNER_MS - elapsed);
+          const run = () => {
+            if (saveGenerationRef.current === completedGeneration) {
+              setSaving(false);
+            }
+          };
+          if (remaining > 0) {
+            saveCompleteTimeoutRef.current = setTimeout(run, remaining);
+          } else {
+            run();
+          }
         }
       },
       [

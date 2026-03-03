@@ -78,6 +78,9 @@ export const PRD_SOURCE_COLORS: Record<string, string> = {
 /** Poll interval (ms) for active agents dropdown. */
 export const ACTIVE_AGENTS_POLL_INTERVAL_MS = 5000;
 
+/** Minimum time (ms) the settings save spinner is visible, regardless of request completion time. */
+export const MIN_SAVE_SPINNER_MS = 1000;
+
 /** z-index for agents/notifications dropdown portal — above sidebar and Navbar. */
 export const DROPDOWN_PORTAL_Z_INDEX = 9999;
 

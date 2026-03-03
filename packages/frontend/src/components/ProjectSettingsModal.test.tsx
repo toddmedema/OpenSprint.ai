@@ -489,6 +489,50 @@ describe("ProjectSettingsModal", () => {
     );
   });
 
+  it("shows Saving spinner for at least 1000ms on fast project settings save", async () => {
+    const timestamps: { saving?: number; saved?: number } = {};
+    let seenSaving = false;
+    const onSaveStatusChange = vi.fn((status: string) => {
+      if (status === "saving") {
+        seenSaving = true;
+        timestamps.saving = Date.now();
+      }
+      if (status === "saved" && seenSaving) timestamps.saved = Date.now();
+    });
+    mockUpdate.mockResolvedValue({});
+    mockUpdateSettings.mockResolvedValue({});
+
+    renderModal(
+      <ProjectSettingsModal
+        project={mockProject}
+        onClose={onClose}
+        onSaveStatusChange={onSaveStatusChange}
+      />
+    );
+    await waitForModalReady();
+
+    // Change project name and blur to trigger a single save (avoids tab-switch persist)
+    const nameInput = screen.getByPlaceholderText("My Awesome App");
+    await userEvent.clear(nameInput);
+    await userEvent.type(nameInput, "Updated Project");
+    await userEvent.tab();
+
+    await waitFor(() => {
+      expect(timestamps.saving).toBeDefined();
+    });
+    expect(mockUpdate).toHaveBeenCalled();
+
+    await waitFor(
+      () => {
+        expect(timestamps.saved).toBeDefined();
+      },
+      { timeout: 2500 }
+    );
+
+    // Spinner must show for at least 1000ms (allow small timing variance)
+    expect(timestamps.saved! - timestamps.saving!).toBeGreaterThanOrEqual(990);
+  });
+
   it("Custom mode with targets shows per-target auto-deploy dropdowns and env vars per target", async () => {
     mockGetSettings.mockResolvedValueOnce({
       ...mockSettings,
