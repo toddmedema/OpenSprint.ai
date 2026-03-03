@@ -153,10 +153,16 @@ export function AgentsMdSection({ projectId, testMode = false }: AgentsMdSection
   return (
     <div className="pt-2">
       <div className="flex items-center justify-between gap-4 mb-3">
-        <h3 className="text-sm font-semibold text-theme-text shrink-0">
-          Agent Instructions (AGENTS.md)
-        </h3>
-        <div className="flex items-center gap-2 shrink-0 ml-auto">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold leading-tight text-theme-text">
+            Agent Instructions (AGENTS.md)
+          </h3>
+          <p className="text-xs leading-tight text-theme-muted mt-0.5">
+            Agent-specific instructions read by coding agents. Edit to customize behavior for this
+            project.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
           {!editing && (
             <button
               type="button"
@@ -174,10 +180,6 @@ export function AgentsMdSection({ projectId, testMode = false }: AgentsMdSection
           )}
         </div>
       </div>
-      <p className="text-xs text-theme-muted mb-3">
-        Agent-specific instructions read by coding agents. Edit to customize behavior for this
-        project.
-      </p>
 
       {editing ? (
         <div className="space-y-3" data-color-mode={resolved}>

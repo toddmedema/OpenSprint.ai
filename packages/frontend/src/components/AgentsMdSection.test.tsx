@@ -84,14 +84,20 @@ describe("AgentsMdSection", () => {
     expect(screen.getByTestId("agents-md-edit")).toBeInTheDocument();
   });
 
-  it("shows Edit button in same row as title, right-aligned", async () => {
+  it("keeps title, subtext, and Edit action in one row", async () => {
     renderSection();
 
     await screen.findByTestId("agents-md-view");
     const title = screen.getByText("Agent Instructions (AGENTS.md)");
+    const subtext = screen.getByText(
+      /Agent-specific instructions read by coding agents\. Edit to customize behavior/
+    );
     const editBtn = screen.getByTestId("agents-md-edit");
-    expect(title.closest("div")).toContainElement(editBtn);
-    expect(editBtn.closest("div")?.className).toMatch(/ml-auto|justify-between/);
+    const headerBlock = title.closest("div");
+    expect(headerBlock).toContainElement(subtext);
+    expect(headerBlock?.parentElement).toContainElement(editBtn);
+    expect(title.className).toContain("leading-tight");
+    expect(headerBlock?.parentElement?.className).toContain("items-center");
   });
 
   it("shows placeholder when content is empty", async () => {
