@@ -204,6 +204,9 @@ function createStore(
 
 describe("ExecutePhase epic card task order", () => {
   beforeEach(() => {
+    localStorage.setItem("opensprint.executeView", "kanban");
+  });
+  beforeEach(() => {
     vi.clearAllMocks();
     mockAgentsActive.mockResolvedValue([]);
   });
@@ -396,6 +399,9 @@ describe("ExecutePhase epic card task order", () => {
 
 describe("ExecutePhase epic completed checkmark", () => {
   beforeEach(() => {
+    localStorage.setItem("opensprint.executeView", "kanban");
+  });
+  beforeEach(() => {
     vi.clearAllMocks();
     mockAgentsActive.mockResolvedValue([]);
   });
@@ -519,6 +525,9 @@ describe("ExecutePhase epic completed checkmark", () => {
 });
 
 describe("ExecutePhase top bar", () => {
+  beforeEach(() => {
+    localStorage.setItem("opensprint.executeView", "kanban");
+  });
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -1030,6 +1039,9 @@ describe("ExecutePhase top bar", () => {
 });
 
 describe("ExecutePhase expandable search bar", () => {
+  beforeEach(() => {
+    localStorage.setItem("opensprint.executeView", "kanban");
+  });
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -1544,7 +1556,7 @@ describe("ExecutePhase view toggle", () => {
     localStorage.removeItem(STORAGE_KEY);
   });
 
-  it("default renders Kanban grid", () => {
+  it("default renders queue/list (Timeline) view", () => {
     const tasks = [
       {
         id: "epic-1.1",
@@ -1563,13 +1575,43 @@ describe("ExecutePhase view toggle", () => {
         </Provider>
       </MemoryRouter>
     );
+
+    expect(screen.getByTestId("timeline-list")).toBeInTheDocument();
+    expect(screen.queryByTestId("epic-card-epic-1")).not.toBeInTheDocument();
+    expect(screen.getByTestId("view-toggle-timeline")).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("clicking Kanban toggle renders Kanban grid and hides TimelineList", async () => {
+    const user = userEvent.setup();
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Task A",
+        epicId: "epic-1",
+        kanbanColumn: "ready",
+        priority: 0,
+        assignee: null,
+      },
+    ];
+    const store = createStore(tasks);
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <ExecutePhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByTestId("timeline-list")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("view-toggle-kanban"));
 
     expect(screen.getByTestId("epic-card-epic-1")).toBeInTheDocument();
     expect(screen.queryByTestId("timeline-list")).not.toBeInTheDocument();
     expect(screen.getByTestId("view-toggle-kanban")).toHaveAttribute("aria-checked", "true");
   });
 
-  it("clicking Timeline toggle renders TimelineList and hides Kanban grid", async () => {
+  it("toggling between Kanban and Timeline works", async () => {
     const user = userEvent.setup();
     const tasks = [
       {
@@ -1590,42 +1632,15 @@ describe("ExecutePhase view toggle", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByTestId("epic-card-epic-1")).toBeInTheDocument();
-
-    await user.click(screen.getByTestId("view-toggle-timeline"));
-
-    expect(screen.queryByTestId("epic-card-epic-1")).not.toBeInTheDocument();
-    expect(screen.getByTestId("timeline-list")).toBeInTheDocument();
-    expect(screen.getByTestId("view-toggle-timeline")).toHaveAttribute("aria-checked", "true");
-  });
-
-  it("toggling back to Kanban re-renders Kanban grid", async () => {
-    const user = userEvent.setup();
-    const tasks = [
-      {
-        id: "epic-1.1",
-        title: "Task A",
-        epicId: "epic-1",
-        kanbanColumn: "ready",
-        priority: 0,
-        assignee: null,
-      },
-    ];
-    const store = createStore(tasks);
-    render(
-      <MemoryRouter>
-        <Provider store={store}>
-          <ExecutePhase projectId="proj-1" />
-        </Provider>
-      </MemoryRouter>
-    );
-
-    await user.click(screen.getByTestId("view-toggle-timeline"));
     expect(screen.getByTestId("timeline-list")).toBeInTheDocument();
 
     await user.click(screen.getByTestId("view-toggle-kanban"));
     expect(screen.getByTestId("epic-card-epic-1")).toBeInTheDocument();
     expect(screen.queryByTestId("timeline-list")).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("view-toggle-timeline"));
+    expect(screen.getByTestId("timeline-list")).toBeInTheDocument();
+    expect(screen.queryByTestId("epic-card-epic-1")).not.toBeInTheDocument();
   });
 
   it("filter chips and search apply in Timeline mode", async () => {
@@ -1657,7 +1672,6 @@ describe("ExecutePhase view toggle", () => {
       </MemoryRouter>
     );
 
-    await user.click(screen.getByTestId("view-toggle-timeline"));
     expect(screen.getByTestId("timeline-list")).toBeInTheDocument();
     expect(screen.getByTestId("timeline-row-epic-1.1")).toBeInTheDocument();
     expect(screen.getByTestId("timeline-row-epic-1.2")).toBeInTheDocument();
@@ -1696,7 +1710,6 @@ describe("ExecutePhase view toggle", () => {
       </MemoryRouter>
     );
 
-    await user.click(screen.getByTestId("view-toggle-timeline"));
     await user.click(screen.getByTestId("filter-chip-all"));
 
     expect(screen.getByTestId("timeline-section-blocked")).toBeInTheDocument();
@@ -1710,8 +1723,7 @@ describe("ExecutePhase view toggle", () => {
     );
   });
 
-  it("Queue view with All filter hides Failures section when no blocked tasks", async () => {
-    const user = userEvent.setup();
+  it("Queue view with All filter hides Failures section when no blocked tasks", () => {
     const tasks = [
       {
         id: "epic-1.1",
@@ -1731,7 +1743,6 @@ describe("ExecutePhase view toggle", () => {
       </MemoryRouter>
     );
 
-    await user.click(screen.getByTestId("view-toggle-timeline"));
     expect(screen.queryByTestId("timeline-section-blocked")).not.toBeInTheDocument();
   });
 
@@ -1757,7 +1768,6 @@ describe("ExecutePhase view toggle", () => {
       </MemoryRouter>
     );
 
-    await user.click(screen.getByTestId("view-toggle-timeline"));
     await user.click(screen.getByTestId("timeline-row-epic-1.1").querySelector("button")!);
 
     await waitFor(() => {
@@ -1817,7 +1827,7 @@ describe("ExecutePhase view toggle", () => {
     expect(screen.getByRole("heading", { name: "Ready" })).toBeInTheDocument();
   });
 
-  it("invalid localStorage value defaults to kanban", () => {
+  it("invalid localStorage value defaults to timeline (queue/list)", () => {
     localStorage.setItem(STORAGE_KEY, "invalid");
     const tasks = [
       {
@@ -1838,15 +1848,16 @@ describe("ExecutePhase view toggle", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByTestId("epic-card-epic-1")).toBeInTheDocument();
-    expect(screen.queryByTestId("timeline-list")).not.toBeInTheDocument();
-    expect(screen.getByTestId("view-toggle-kanban")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("timeline-list")).toBeInTheDocument();
+    expect(screen.queryByTestId("epic-card-epic-1")).not.toBeInTheDocument();
+    expect(screen.getByTestId("view-toggle-timeline")).toHaveAttribute("aria-checked", "true");
   });
 });
 
 describe("ExecutePhase Redux integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.setItem("opensprint.executeView", "kanban");
   });
 
   it("renders OpenQuestionsBlock in task detail when coder has open questions", async () => {
@@ -3191,6 +3202,9 @@ describe("ExecutePhase task detail plan link", () => {
 
 describe("ExecutePhase epic card plan navigation", () => {
   beforeEach(() => {
+    localStorage.setItem("opensprint.executeView", "kanban");
+  });
+  beforeEach(() => {
     vi.clearAllMocks();
   });
 
@@ -3250,6 +3264,9 @@ describe("ExecutePhase epic card plan navigation", () => {
 });
 
 describe("ExecutePhase Source feedback section", () => {
+  beforeEach(() => {
+    localStorage.setItem("opensprint.executeView", "kanban");
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     mockFeedbackGet.mockResolvedValue(null);

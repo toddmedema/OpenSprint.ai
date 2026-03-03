@@ -53,7 +53,7 @@ export function ExecutePhase({
   const dispatch = useAppDispatch();
   const [viewMode, setViewMode] = useState<"kanban" | "timeline">(() => {
     const stored = localStorage.getItem("opensprint.executeView");
-    return stored === "kanban" || stored === "timeline" ? stored : "kanban";
+    return stored === "kanban" || stored === "timeline" ? stored : "timeline";
   });
   const [artifactsSectionExpanded, setArtifactsSectionExpanded] = useState(true);
   const [descriptionSectionExpanded, setDescriptionSectionExpanded] = useState(true);
