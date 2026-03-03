@@ -756,6 +756,7 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
                 notification={architectureHilNotification}
                 projectId={projectId}
                 onResolved={refetchNotifications}
+                hideDiffInBlock
               />
             </div>
           )}
@@ -765,6 +766,7 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
             onSectionChange={handleSectionChange}
             containerRef={prdContainerRef}
             questionIdBySection={questionIdBySection}
+            scopeChangeMetadata={architectureHilNotification?.scopeChangeMetadata}
           />
 
           <PrdChangeLog

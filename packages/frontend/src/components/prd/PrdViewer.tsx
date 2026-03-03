@@ -1,6 +1,9 @@
+import { useMemo } from "react";
+import type { ScopeChangeMetadata } from "@opensprint/shared";
 import { formatSectionKey } from "../../lib/formatting";
 import { getOrderedSections } from "../../lib/prdUtils";
 import { PrdSectionEditor } from "./PrdSectionEditor";
+import { PrdSectionInlineDiff } from "./PrdSectionInlineDiff";
 
 export interface PrdViewerProps {
   prdContent: Record<string, string>;
@@ -9,6 +12,8 @@ export interface PrdViewerProps {
   containerRef?: React.RefObject<HTMLDivElement | null>;
   /** Notification ID per section for scroll-to-question (e.g. { open_questions: "notif-xyz" }) */
   questionIdBySection?: Record<string, string>;
+  /** Proposed PRD changes from Harmonizer — when present, sections with updates show inline diff */
+  scopeChangeMetadata?: ScopeChangeMetadata;
 }
 
 export function PrdViewer({
@@ -17,14 +22,36 @@ export function PrdViewer({
   onSectionChange,
   containerRef,
   questionIdBySection,
+  scopeChangeMetadata,
 }: PrdViewerProps) {
+  const proposedBySection = useMemo(() => {
+    const map = new Map<string, (typeof scopeChangeMetadata.scopeChangeProposedUpdates)[number]>();
+    for (const u of scopeChangeMetadata?.scopeChangeProposedUpdates ?? []) {
+      map.set(u.section, u);
+    }
+    return map;
+  }, [scopeChangeMetadata?.scopeChangeProposedUpdates]);
+
+  const sectionKeys = useMemo(() => {
+    const base = getOrderedSections(prdContent);
+    const proposedOnly = (scopeChangeMetadata?.scopeChangeProposedUpdates ?? [])
+      .map((u) => u.section)
+      .filter((k) => !(k in prdContent));
+    const baseSet = new Set(base);
+    const appended = proposedOnly.filter((k) => !baseSet.has(k));
+    return [...base, ...appended];
+  }, [prdContent, scopeChangeMetadata?.scopeChangeProposedUpdates]);
+
   return (
     <div ref={containerRef}>
-      {/* PRD Sections - always editable inline */}
+      {/* PRD Sections - editable inline, or inline diff when Harmonizer proposes changes */}
       <div className="space-y-8">
-        {getOrderedSections(prdContent).map((sectionKey, index, arr) => {
+        {sectionKeys.map((sectionKey, index, arr) => {
           const isLast = index === arr.length - 1;
           const questionId = questionIdBySection?.[sectionKey];
+          const proposedUpdate = proposedBySection.get(sectionKey);
+          const showInlineDiff = !!proposedUpdate;
+
           return (
             <div
               key={sectionKey}
@@ -37,18 +64,30 @@ export function PrdViewer({
                 <h2 className="text-lg font-semibold text-theme-text">
                   {formatSectionKey(sectionKey)}
                 </h2>
-                {savingSections.includes(sectionKey) && (
+                {showInlineDiff && (
+                  <span className="text-xs text-theme-muted font-medium">
+                    Proposed changes
+                  </span>
+                )}
+                {!showInlineDiff && savingSections.includes(sectionKey) && (
                   <span className="text-xs text-theme-muted">Saving...</span>
                 )}
               </div>
 
-              {/* Section content - inline WYSIWYG editor */}
-              <PrdSectionEditor
-                sectionKey={sectionKey}
-                markdown={prdContent[sectionKey] ?? ""}
-                onSave={onSectionChange}
-                disabled={savingSections.includes(sectionKey)}
-              />
+              {/* Section content: inline diff when proposed, else WYSIWYG editor */}
+              {showInlineDiff ? (
+                <PrdSectionInlineDiff
+                  currentContent={prdContent[sectionKey] ?? ""}
+                  proposedUpdate={proposedUpdate}
+                />
+              ) : (
+                <PrdSectionEditor
+                  sectionKey={sectionKey}
+                  markdown={prdContent[sectionKey] ?? ""}
+                  onSave={onSectionChange}
+                  disabled={savingSections.includes(sectionKey)}
+                />
+              )}
 
               {/* Divider (omit after last section; PrdChangeLog provides the final separator) */}
               {!isLast && <div className="mt-8 border-b border-theme-border" />}

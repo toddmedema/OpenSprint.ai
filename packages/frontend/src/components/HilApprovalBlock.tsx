@@ -11,6 +11,8 @@ export interface HilApprovalBlockProps {
   projectId: string;
   /** Called when notification is resolved (after Approve or Reject) */
   onResolved: () => void;
+  /** When true, do not show PRD diff in this block (diff is shown inline in PrdViewer instead) */
+  hideDiffInBlock?: boolean;
 }
 
 /**
@@ -18,13 +20,20 @@ export interface HilApprovalBlockProps {
  * When scopeChangeMetadata is present, shows a PRD diff for review before accepting/rejecting.
  * Surfaces in eval (scope change) and sketch (architecture) contexts.
  */
-export function HilApprovalBlock({ notification, projectId, onResolved }: HilApprovalBlockProps) {
+export function HilApprovalBlock({
+  notification,
+  projectId,
+  onResolved,
+  hideDiffInBlock = false,
+}: HilApprovalBlockProps) {
   const [loading, setLoading] = useState(false);
 
   const { data: currentPrd } = useQuery({
     queryKey: queryKeys.prd.detail(projectId),
     queryFn: () => api.prd.get(projectId),
-    enabled: !!notification.scopeChangeMetadata?.scopeChangeProposedUpdates?.length,
+    enabled:
+      !hideDiffInBlock &&
+      !!notification.scopeChangeMetadata?.scopeChangeProposedUpdates?.length,
   });
 
   const handleApprove = useCallback(async () => {
@@ -53,7 +62,7 @@ export function HilApprovalBlock({ notification, projectId, onResolved }: HilApp
 
   const description = notification.questions?.[0]?.text ?? "Approval required";
   const proposedUpdates = notification.scopeChangeMetadata?.scopeChangeProposedUpdates ?? [];
-  const hasPrdDiff = proposedUpdates.length > 0;
+  const hasPrdDiff = !hideDiffInBlock && proposedUpdates.length > 0;
 
   return (
     <div

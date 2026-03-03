@@ -23,6 +23,19 @@ vi.mock("./PrdSectionEditor", () => ({
   ),
 }));
 
+vi.mock("./PrdSectionInlineDiff", () => ({
+  PrdSectionInlineDiff: ({
+    proposedUpdate,
+  }: {
+    currentContent: string;
+    proposedUpdate: { section: string; changeLogEntry?: string; content: string };
+  }) => (
+    <div data-testid={`prd-inline-diff-${proposedUpdate.section}`}>
+      <span>Proposed: {proposedUpdate.changeLogEntry ?? proposedUpdate.section}</span>
+    </div>
+  ),
+}));
+
 describe("PrdViewer", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -68,5 +81,38 @@ describe("PrdViewer", () => {
     await user.type(input, "Updated content");
 
     expect(onSectionChange).toHaveBeenCalledWith("overview", "Updated content");
+  });
+
+  it("shows inline diff for sections with proposed changes when scopeChangeMetadata is present", () => {
+    const prdContent = {
+      executive_summary: "Current summary",
+      feature_list: "1. Web dashboard",
+    };
+    const scopeChangeMetadata = {
+      scopeChangeSummary: "Add mobile app",
+      scopeChangeProposedUpdates: [
+        {
+          section: "feature_list",
+          changeLogEntry: "Add mobile app",
+          content: "1. Web dashboard\n2. Mobile app",
+        },
+      ],
+    };
+
+    render(
+      <PrdViewer
+        prdContent={prdContent}
+        savingSections={[]}
+        onSectionChange={vi.fn()}
+        scopeChangeMetadata={scopeChangeMetadata}
+      />
+    );
+
+    expect(screen.getByText("Executive Summary")).toBeInTheDocument();
+    expect(screen.getByText("Feature List")).toBeInTheDocument();
+    expect(screen.getByText("Proposed changes")).toBeInTheDocument();
+    expect(screen.getByTestId("prd-inline-diff-feature_list")).toBeInTheDocument();
+    expect(screen.getByText("Proposed: Add mobile app")).toBeInTheDocument();
+    expect(screen.getByTestId("editor-executive_summary")).toBeInTheDocument();
   });
 });

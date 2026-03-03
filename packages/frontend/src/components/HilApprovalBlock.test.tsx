@@ -132,4 +132,32 @@ describe("HilApprovalBlock", () => {
     expect(screen.getByText("Feature List")).toBeInTheDocument();
     expect(screen.getByTestId("prd-diff-section-feature_list")).toBeInTheDocument();
   });
+
+  it("hides PRD diff when hideDiffInBlock is true", async () => {
+    const notificationWithDiff = {
+      ...mockNotification,
+      scopeChangeMetadata: {
+        scopeChangeSummary: "• feature_list: Add mobile app",
+        scopeChangeProposedUpdates: [
+          {
+            section: "feature_list",
+            changeLogEntry: "Add mobile app",
+            content: "1. Web dashboard\n2. Mobile app",
+          },
+        ],
+      },
+    };
+    renderWithProviders(
+      <HilApprovalBlock
+        notification={notificationWithDiff}
+        projectId="proj-1"
+        onResolved={vi.fn()}
+        hideDiffInBlock
+      />
+    );
+
+    expect(screen.getByText("Approval required")).toBeInTheDocument();
+    expect(screen.queryByText("Proposed PRD changes")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("prd-diff-section-feature_list")).not.toBeInTheDocument();
+  });
 });
