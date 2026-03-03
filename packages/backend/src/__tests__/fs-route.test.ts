@@ -96,14 +96,47 @@ describe("Filesystem API", () => {
     expect(res.body.data.current).toBe(nestedDir);
   });
 
-  it("rejects paths outside HOME by default", async () => {
+  it("allows browsing outside HOME when OPENSPRINT_FS_ROOT is not set", async () => {
     const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-fs-outside-"));
 
     try {
       const res = await request(app).get(`${API_PREFIX}/fs/browse`).query({ path: outsideDir });
 
-      expect(res.status).toBe(400);
-      expect(res.body.error?.message).toBe("Path is outside the allowed directory.");
+      expect(res.status).toBe(200);
+      expect(res.body.data.current).toBe(outsideDir);
+    } finally {
+      await fs.rm(outsideDir, { recursive: true, force: true });
+    }
+  });
+
+  it("allows create-folder outside HOME when OPENSPRINT_FS_ROOT is not set", async () => {
+    const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-fs-create-outside-"));
+    const newFolderPath = path.join(outsideDir, "new-project");
+
+    try {
+      const res = await request(app)
+        .post(`${API_PREFIX}/fs/create-folder`)
+        .send({ parentPath: outsideDir, name: "new-project" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.path).toBe(newFolderPath);
+      const stat = await fs.stat(newFolderPath);
+      expect(stat.isDirectory()).toBe(true);
+    } finally {
+      await fs.rm(outsideDir, { recursive: true, force: true });
+    }
+  });
+
+  it("allows detect-test-framework outside HOME when OPENSPRINT_FS_ROOT is not set", async () => {
+    const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-fs-detect-outside-"));
+
+    try {
+      const res = await request(app)
+        .get(`${API_PREFIX}/fs/detect-test-framework`)
+        .query({ path: outsideDir });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toBeDefined();
     } finally {
       await fs.rm(outsideDir, { recursive: true, force: true });
     }

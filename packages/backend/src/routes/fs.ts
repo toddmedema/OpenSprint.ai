@@ -43,6 +43,11 @@ function isPathUnderRoot(resolvedPath: string): boolean {
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
+/** When OPENSPRINT_FS_ROOT is set, enforce path restriction for locked-down deployments. */
+function shouldEnforcePathRestriction(): boolean {
+  return !!process.env.OPENSPRINT_FS_ROOT?.trim();
+}
+
 export const fsRouter = Router();
 
 interface BrowseResult {
@@ -59,7 +64,7 @@ fsRouter.get(
       const rawPath = req.query.path;
       const targetPath = rawPath?.trim() ? resolve(rawPath) : getDefaultBrowseRoot();
 
-      if (!isPathUnderRoot(targetPath)) {
+      if (shouldEnforcePathRestriction() && !isPathUnderRoot(targetPath)) {
         throw new AppError(400, ErrorCodes.INVALID_INPUT, "Path is outside the allowed directory.");
       }
       if (!existsSync(targetPath)) {
@@ -127,7 +132,7 @@ fsRouter.post(
       if (!newPath.startsWith(parentResolved)) {
         throw new AppError(400, ErrorCodes.INVALID_INPUT, "Invalid path");
       }
-      if (!isPathUnderRoot(parentResolved) || !isPathUnderRoot(newPath)) {
+      if (shouldEnforcePathRestriction() && (!isPathUnderRoot(parentResolved) || !isPathUnderRoot(newPath))) {
         throw new AppError(400, ErrorCodes.INVALID_INPUT, "Path is outside the allowed directory.");
       }
 
@@ -167,7 +172,7 @@ fsRouter.get(
       }
 
       const targetPath = resolve(rawPath);
-      if (!isPathUnderRoot(targetPath)) {
+      if (shouldEnforcePathRestriction() && !isPathUnderRoot(targetPath)) {
         throw new AppError(400, ErrorCodes.INVALID_INPUT, "Path is outside the allowed directory.");
       }
       if (!existsSync(targetPath)) {
