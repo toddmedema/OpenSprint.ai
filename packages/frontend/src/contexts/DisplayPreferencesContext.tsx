@@ -23,7 +23,7 @@ interface DisplayPreferencesProviderProps {
 }
 
 export function DisplayPreferencesProvider({ children }: DisplayPreferencesProviderProps) {
-  const [runningAgentsDisplayMode, setModeState] = useState<RunningAgentsDisplayMode>("count");
+  const [runningAgentsDisplayMode, setModeState] = useState<RunningAgentsDisplayMode>("icons");
 
   useEffect(() => {
     setModeState(getStoredRunningAgentsDisplayMode());

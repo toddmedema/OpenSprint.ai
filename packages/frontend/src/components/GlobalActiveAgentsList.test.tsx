@@ -49,6 +49,7 @@ describe("GlobalActiveAgentsList", () => {
     mockProjectsList.mockResolvedValue([]);
     mockAgentsActive.mockResolvedValue([]);
     mockAgentsKill.mockResolvedValue({ killed: true });
+    localStorage.setItem("opensprint.runningAgentsDisplayMode", "count");
   });
 
   it("renders button agent icons at 1.5rem with 2px left margin when display mode is both", async () => {

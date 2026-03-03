@@ -80,6 +80,7 @@ describe("ActiveAgentsList", () => {
     vi.clearAllMocks();
     mockAgentsActive.mockResolvedValue([]);
     mockAgentsKill.mockResolvedValue({ killed: true });
+    localStorage.setItem("opensprint.runningAgentsDisplayMode", "count");
   });
 
   it("shows loading spinner during initial fetch (never No agents running while loading)", () => {

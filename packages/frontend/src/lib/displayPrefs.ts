@@ -6,11 +6,11 @@ const STORAGE_KEY = "opensprint.runningAgentsDisplayMode";
 const VALID: RunningAgentsDisplayMode[] = ["count", "icons", "both"];
 
 export function getStoredRunningAgentsDisplayMode(): RunningAgentsDisplayMode {
-  if (typeof window === "undefined") return "count";
+  if (typeof window === "undefined") return "icons";
   const stored = localStorage.getItem(STORAGE_KEY);
   return VALID.includes(stored as RunningAgentsDisplayMode)
     ? (stored as RunningAgentsDisplayMode)
-    : "count";
+    : "icons";
 }
 
 export function setStoredRunningAgentsDisplayMode(mode: RunningAgentsDisplayMode): void {
