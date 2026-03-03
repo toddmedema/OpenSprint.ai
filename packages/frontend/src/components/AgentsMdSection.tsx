@@ -87,15 +87,6 @@ export function AgentsMdSection({ projectId, testMode = false }: AgentsMdSection
     };
   }, [projectId]);
 
-  const handlePrettify = useCallback(async () => {
-    try {
-      const formatted = await prettifyMarkdown(editValue);
-      setEditValue(formatted);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Prettify failed");
-    }
-  }, [editValue]);
-
   const editValueRef = useRef(editValue);
   editValueRef.current = editValue;
 
@@ -203,9 +194,9 @@ export function AgentsMdSection({ projectId, testMode = false }: AgentsMdSection
                   }}
                   extraCommands={[
                     {
-                      name: "prettify",
-                      keyCommand: "prettify",
-                      buttonProps: { "aria-label": "Prettify markdown" },
+                      name: "save",
+                      keyCommand: "save",
+                      buttonProps: { "aria-label": "Save markdown" },
                       icon: (
                         <svg
                           width="12"
@@ -219,7 +210,7 @@ export function AgentsMdSection({ projectId, testMode = false }: AgentsMdSection
                         </svg>
                       ),
                       execute: () => {
-                        handlePrettify();
+                        handleSave();
                       },
                     },
                   ]}
@@ -233,12 +224,12 @@ export function AgentsMdSection({ projectId, testMode = false }: AgentsMdSection
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handlePrettify}
+              onClick={handleSave}
               disabled={saving}
               className="btn-secondary text-sm"
-              data-testid="agents-md-prettify"
+              data-testid="agents-md-save"
             >
-              Prettify
+              Save
             </button>
             {saveFeedback === "saved" && (
               <span className="text-sm text-theme-success-muted" data-testid="agents-md-saved">

@@ -135,7 +135,7 @@ describe("AgentsMdSection", () => {
     const textarea = screen.getByTestId("agents-md-textarea");
     expect(textarea).toBeInTheDocument();
     expect(textarea).toHaveValue("# Agent Instructions\n\nUse bd for tasks.");
-    expect(screen.getByTestId("agents-md-prettify")).toBeInTheDocument();
+    expect(screen.getByTestId("agents-md-save")).toBeInTheDocument();
   });
 
   it("calls PUT and returns to view mode on blur", async () => {
@@ -195,20 +195,27 @@ describe("AgentsMdSection", () => {
     expect(await screen.findByText(/Save failed/)).toBeInTheDocument();
   });
 
-  it("shows Prettify button and formats on demand in edit mode", async () => {
+  it("shows Save button and saves on click in edit mode", async () => {
     const user = userEvent.setup();
     renderSection({ testMode: true });
 
     await screen.findByTestId("agents-md-view");
     await user.click(screen.getByTestId("agents-md-edit"));
 
-    expect(screen.getByTestId("agents-md-prettify")).toBeInTheDocument();
+    expect(screen.getByTestId("agents-md-save")).toBeInTheDocument();
     const textarea = screen.getByTestId("agents-md-textarea");
     await user.clear(textarea);
-    await user.type(textarea, "#  Title\n\n- item1\n- item2");
-    await user.click(screen.getByTestId("agents-md-prettify"));
+    await user.type(textarea, "# Updated\n\nNew content.");
+    await user.click(screen.getByTestId("agents-md-save"));
 
-    expect(textarea).toHaveValue("#  Title\n\n- item1\n- item2");
+    await waitFor(() =>
+      expect(mockUpdateAgentsInstructions).toHaveBeenCalledWith(
+        projectId,
+        "# Updated\n\nNew content."
+      )
+    );
+    expect(screen.getByTestId("agents-md-saved")).toHaveTextContent("Saved");
+    await screen.findByTestId("agents-md-view");
   });
 
   it("shows MDEditor with toolbar when not in test mode (lazy-loaded)", async () => {
