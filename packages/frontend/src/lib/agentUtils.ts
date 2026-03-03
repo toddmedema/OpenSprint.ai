@@ -1,6 +1,36 @@
 import type { ActiveAgent } from "@opensprint/shared";
+import type { ProjectPhase } from "@opensprint/shared";
 import { AGENT_ROLE_LABELS, getSlotForRole } from "@opensprint/shared";
 import { ASSET_BASE } from "./constants";
+
+/** AGENT_ROLE_PHASES uses display labels; map to URL phase slugs for navigation. */
+const ROLE_TO_PHASE: Record<string, ProjectPhase> = {
+  dreamer: "sketch",
+  planner: "plan",
+  harmonizer: "plan",
+  analyst: "eval",
+  summarizer: "execute",
+  auditor: "execute",
+  coder: "execute",
+  reviewer: "execute",
+  merger: "execute",
+};
+
+/**
+ * Returns the phase to navigate to when the user clicks an agent (e.g. in active agents list).
+ * Dreamer → Sketch; Planner → Plan; Analyst → Evaluate; Coder/Reviewer/etc → Execute.
+ */
+export function getPhaseForAgentNavigation(agent: ActiveAgent): ProjectPhase {
+  if (agent.role && agent.role in ROLE_TO_PHASE) {
+    return ROLE_TO_PHASE[agent.role];
+  }
+  if (agent.phase === "review") return "execute";
+  if (agent.phase === "coding") return "execute";
+  if (agent.phase === "plan") return "plan";
+  if (agent.phase === "eval") return "eval";
+  if (agent.phase === "spec") return "sketch";
+  return "execute";
+}
 
 export function getAgentIconSrc(agent: ActiveAgent): string {
   const role = agent.role;

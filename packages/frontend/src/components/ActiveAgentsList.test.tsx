@@ -575,6 +575,108 @@ describe("ActiveAgentsList", () => {
     );
   });
 
+  it("navigates to Sketch page when clicking Dreamer agent", async () => {
+    mockAgentsActive.mockResolvedValue([
+      {
+        id: "dreamer-session-1",
+        phase: "spec",
+        role: "dreamer",
+        label: "Refining PRD",
+        startedAt: "2026-02-16T12:00:00.000Z",
+      },
+    ]);
+
+    function LocationDisplay() {
+      const { pathname } = useLocation();
+      return <div data-testid="location">{pathname}</div>;
+    }
+
+    const store = createStore();
+
+    function ActiveAgentsFetcher() {
+      useEffect(() => {
+        void mockAgentsActive("proj-1").then((agents) => {
+          store.dispatch(setActiveAgentsPayload({ agents, taskIdToStartedAt: {} }));
+        });
+      }, []);
+
+      return null;
+    }
+
+    render(
+      <Provider store={store}>
+        <DisplayPreferencesProvider>
+          <MemoryRouter initialEntries={["/projects/proj-1/execute"]}>
+            <ActiveAgentsFetcher />
+            <ActiveAgentsList projectId="proj-1" />
+            <LocationDisplay />
+          </MemoryRouter>
+        </DisplayPreferencesProvider>
+      </Provider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("1 agent running")).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByTitle("Active agents"));
+    await user.click(screen.getByRole("button", { name: /Refining PRD/ }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/projects/proj-1/sketch");
+  });
+
+  it("navigates to Plan page when clicking Planner agent", async () => {
+    mockAgentsActive.mockResolvedValue([
+      {
+        id: "planner-session-1",
+        phase: "plan",
+        role: "planner",
+        label: "Creating tasks",
+        startedAt: "2026-02-16T12:00:00.000Z",
+      },
+    ]);
+
+    function LocationDisplay() {
+      const { pathname } = useLocation();
+      return <div data-testid="location">{pathname}</div>;
+    }
+
+    const store = createStore();
+
+    function ActiveAgentsFetcher() {
+      useEffect(() => {
+        void mockAgentsActive("proj-1").then((agents) => {
+          store.dispatch(setActiveAgentsPayload({ agents, taskIdToStartedAt: {} }));
+        });
+      }, []);
+
+      return null;
+    }
+
+    render(
+      <Provider store={store}>
+        <DisplayPreferencesProvider>
+          <MemoryRouter initialEntries={["/projects/proj-1/sketch"]}>
+            <ActiveAgentsFetcher />
+            <ActiveAgentsList projectId="proj-1" />
+            <LocationDisplay />
+          </MemoryRouter>
+        </DisplayPreferencesProvider>
+      </Provider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("1 agent running")).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByTitle("Active agents"));
+    await user.click(screen.getByRole("button", { name: /Creating tasks/ }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/projects/proj-1/plan");
+  });
+
   it("renders agent icons sized to match two lines of text (3.01875rem) with 2px left margin in dropdown", async () => {
     mockAgentsActive.mockResolvedValue([
       {

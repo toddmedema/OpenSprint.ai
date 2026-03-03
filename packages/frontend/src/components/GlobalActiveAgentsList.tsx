@@ -18,7 +18,7 @@ import { UptimeDisplay } from "./UptimeDisplay";
 import { api } from "../api/client";
 import { ACTIVE_AGENTS_POLL_INTERVAL_MS, AGENT_DROPDOWN_ICON_SIZE } from "../lib/constants";
 import { getDropdownPositionRightAligned } from "../lib/dropdownViewport";
-import { getAgentIconSrc, isPlanningAgent } from "../lib/agentUtils";
+import { getAgentIconSrc, getPhaseForAgentNavigation } from "../lib/agentUtils";
 import { getKillAgentConfirmDisabled } from "../lib/killAgentConfirmStorage";
 import { KillAgentConfirmDialog } from "./KillAgentConfirmDialog";
 
@@ -212,17 +212,19 @@ export function GlobalActiveAgentsList() {
 
   const handleAgentClick = useCallback(
     (projectId: string, agent: ActiveAgent) => {
+      const phase = getPhaseForAgentNavigation(agent);
       if (agent.role === "analyst" && agent.feedbackId) {
         navigate(getProjectPhasePath(projectId, "eval", { feedback: agent.feedbackId }));
-      } else if (agent.planId) {
+      } else if (agent.planId && phase === "plan") {
         dispatch(setSelectedPlanId(agent.planId));
         navigate(getProjectPhasePath(projectId, "plan", { plan: agent.planId }));
-      } else if (isPlanningAgent(agent)) {
-        dispatch(setSelectedPlanId(null));
-        navigate(getProjectPhasePath(projectId, "plan"));
+      } else if (phase === "execute") {
+        const selectedTaskId = agent.taskId ?? agent.id;
+        dispatch(setSelectedTaskId(selectedTaskId));
+        navigate(getProjectPhasePath(projectId, "execute", { task: selectedTaskId }));
       } else {
-        dispatch(setSelectedTaskId(agent.id));
-        navigate(getProjectPhasePath(projectId, "execute", { task: agent.id }));
+        if (phase === "plan") dispatch(setSelectedPlanId(null));
+        navigate(getProjectPhasePath(projectId, phase));
       }
       setOpen(false);
     },

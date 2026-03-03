@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Provider } from "react-redux";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { configureStore } from "@reduxjs/toolkit";
 import { DisplayPreferencesProvider } from "../contexts/DisplayPreferencesContext";
 import { GlobalActiveAgentsList } from "./GlobalActiveAgentsList";
@@ -219,6 +219,45 @@ describe("GlobalActiveAgentsList", () => {
 
     expect(screen.getByText(/Coder/)).toBeInTheDocument();
     expect(screen.queryByText(/Coder \(/)).not.toBeInTheDocument();
+  });
+
+  it("navigates to Sketch page when clicking Dreamer agent", async () => {
+    mockProjectsList.mockResolvedValue([{ id: "proj-1", name: "Project A" }]);
+    mockAgentsActive.mockResolvedValue([
+      {
+        id: "dreamer-session-1",
+        phase: "spec",
+        role: "dreamer",
+        label: "Refining PRD",
+        startedAt: "2026-02-16T12:00:00.000Z",
+      },
+    ]);
+
+    function LocationDisplay() {
+      const { pathname } = useLocation();
+      return <div data-testid="location">{pathname}</div>;
+    }
+
+    render(
+      <Provider store={createStore()}>
+        <DisplayPreferencesProvider>
+          <MemoryRouter initialEntries={["/projects/proj-1/execute"]}>
+            <GlobalActiveAgentsList />
+            <LocationDisplay />
+          </MemoryRouter>
+        </DisplayPreferencesProvider>
+      </Provider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("1 agent running")).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByTitle("Active agents"));
+    await user.click(screen.getByRole("button", { name: /Refining PRD/ }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/projects/proj-1/sketch");
   });
 
   it("dropdown agent items have visible hover background and cursor pointer for clickability feedback", async () => {
