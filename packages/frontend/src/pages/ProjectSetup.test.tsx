@@ -192,6 +192,71 @@ describe("ProjectSetup - Add Existing flow (no Delivery step)", () => {
 });
 
 describe("ProjectSetup - Agents step API key validation", () => {
+  it("shows no-API-keys warning when 0 providers have keys and Custom is not selected", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.globalSettings.get).mockResolvedValue({
+      databaseUrl: "",
+      apiKeys: {
+        ANTHROPIC_API_KEY: [],
+        CURSOR_API_KEY: [],
+        OPENAI_API_KEY: [],
+      },
+    });
+    vi.mocked(api.env.getKeys).mockResolvedValue({
+      anthropic: false,
+      cursor: false,
+      openai: false,
+      claudeCli: true,
+      useCustomCli: false,
+    });
+
+    renderProjectSetup();
+    await user.type(screen.getByLabelText(/project name/i), "My Project");
+    await user.type(screen.getByPlaceholderText("/Users/you/projects/my-app"), "/path/to/repo");
+    await user.click(screen.getByRole("button", { name: /next/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("no-api-keys-warning")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("no-api-keys-settings-link")).toHaveAttribute("href", "/settings");
+  });
+
+  it("does not show no-API-keys warning when Custom provider selected for both", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.globalSettings.get).mockResolvedValue({
+      databaseUrl: "",
+      apiKeys: {
+        ANTHROPIC_API_KEY: [],
+        CURSOR_API_KEY: [],
+        OPENAI_API_KEY: [],
+      },
+    });
+    vi.mocked(api.env.getKeys).mockResolvedValue({
+      anthropic: false,
+      cursor: false,
+      openai: false,
+      claudeCli: true,
+      useCustomCli: false,
+    });
+
+    renderProjectSetup();
+    await user.type(screen.getByLabelText(/project name/i), "My Project");
+    await user.type(screen.getByPlaceholderText("/Users/you/projects/my-app"), "/path/to/repo");
+    await user.click(screen.getByRole("button", { name: /next/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("agents-step")).toBeInTheDocument();
+    });
+
+    const selects = screen.getAllByRole("combobox");
+    await user.selectOptions(selects[0], "custom");
+    await user.selectOptions(selects[2], "custom");
+    await user.type(screen.getAllByPlaceholderText(/e\.g\. my-agent/)[0], "my-agent");
+    await user.type(screen.getAllByPlaceholderText(/e\.g\. my-agent/)[1], "my-agent");
+
+    expect(screen.queryByTestId("no-api-keys-warning")).not.toBeInTheDocument();
+  });
+
   it("disables Next when openai is selected and OPENAI_API_KEY is missing", async () => {
     const user = userEvent.setup();
     vi.mocked(api.globalSettings.get).mockResolvedValue({

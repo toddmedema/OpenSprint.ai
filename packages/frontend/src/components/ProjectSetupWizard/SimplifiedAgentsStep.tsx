@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { ModelSelect } from "../ModelSelect";
 import type { AgentType } from "@opensprint/shared";
 import type { AgentConfig, EnvKeys } from "./AgentsStep";
@@ -47,7 +48,10 @@ export function SimplifiedAgentsStep({
     <div className="space-y-6" data-testid="simplified-agents-step">
       {(needsAnthropic || needsCursor || needsOpenai) && (
         <>
-          <div className="p-3 rounded-lg bg-theme-warning-bg border border-theme-warning-border">
+          <div
+            className="p-3 rounded-lg bg-theme-warning-bg border border-theme-warning-border"
+            data-testid="no-api-keys-warning"
+          >
             <p className="text-sm text-theme-warning-text">
               <strong>API key required:</strong>{" "}
               {needsAnthropic && needsCursor && needsOpenai ? (
@@ -114,6 +118,15 @@ export function SimplifiedAgentsStep({
                   .
                 </>
               )}
+              {" Or "}
+              <Link
+                to="/settings"
+                className="underline hover:opacity-80 font-medium"
+                data-testid="no-api-keys-settings-link"
+              >
+                open Settings
+              </Link>{" "}
+              to add keys.
             </p>
           </div>
           <div className="space-y-3">

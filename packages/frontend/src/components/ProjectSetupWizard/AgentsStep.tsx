@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { ModelSelect } from "../ModelSelect";
 import { AgentReferenceModal } from "../AgentReferenceModal";
 import type {
@@ -103,10 +104,20 @@ export function AgentsStep({
       {agentReferenceOpen && <AgentReferenceModal onClose={() => setAgentReferenceOpen(false)} />}
 
       {(needsAnthropic || needsCursor || needsOpenai) && (
-        <div className="p-3 rounded-lg bg-theme-warning-bg border border-theme-warning-border">
+        <div
+          className="p-3 rounded-lg bg-theme-warning-bg border border-theme-warning-border"
+          data-testid="no-api-keys-warning"
+        >
           <p className="text-sm text-theme-warning-text">
-            <strong>API key required:</strong> Configure API keys in Settings (gear icon on the
-            homepage).
+            <strong>API key required:</strong> Add at least one API key to continue.{" "}
+            <Link
+              to="/settings"
+              className="underline hover:opacity-80 font-medium"
+              data-testid="no-api-keys-settings-link"
+            >
+              Open Settings
+            </Link>{" "}
+            to add your keys.
           </p>
         </div>
       )}

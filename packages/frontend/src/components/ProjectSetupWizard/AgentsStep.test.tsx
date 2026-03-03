@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { AgentsStep } from "./AgentsStep";
 
 vi.mock("../AgentReferenceModal", () => ({
@@ -34,7 +35,8 @@ const defaultHighComplexityAgent = {
 
 function renderAgentsStep(overrides: Partial<Parameters<typeof AgentsStep>[0]> = {}) {
   return render(
-    <AgentsStep
+    <MemoryRouter>
+      <AgentsStep
       simpleComplexityAgent={defaultLowComplexityAgent}
       complexComplexityAgent={defaultHighComplexityAgent}
       onSimpleComplexityAgentChange={() => {}}
@@ -49,6 +51,7 @@ function renderAgentsStep(overrides: Partial<Parameters<typeof AgentsStep>[0]> =
       onGitWorkingModeChange={() => {}}
       {...overrides}
     />
+    </MemoryRouter>
   );
 }
 
@@ -81,7 +84,8 @@ describe("AgentsStep", () => {
     });
 
     expect(screen.getByText(/API key required/)).toBeInTheDocument();
-    expect(screen.getByText(/Configure API keys in Settings/)).toBeInTheDocument();
+    expect(screen.getByTestId("no-api-keys-warning")).toBeInTheDocument();
+    expect(screen.getByTestId("no-api-keys-settings-link")).toHaveAttribute("href", "/settings");
   });
 
   it("does not show API key banner when no agent uses claude provider", () => {
@@ -99,7 +103,7 @@ describe("AgentsStep", () => {
     });
 
     expect(screen.getByText(/API key required/)).toBeInTheDocument();
-    expect(screen.getByText(/Configure API keys in Settings/)).toBeInTheDocument();
+    expect(screen.getByTestId("no-api-keys-settings-link")).toHaveAttribute("href", "/settings");
   });
 
   it("shows configure-in-settings message when both providers selected and both keys missing", () => {
@@ -109,7 +113,7 @@ describe("AgentsStep", () => {
     });
 
     expect(screen.getByText(/API key required/)).toBeInTheDocument();
-    expect(screen.getByText(/Configure API keys in Settings/)).toBeInTheDocument();
+    expect(screen.getByTestId("no-api-keys-settings-link")).toHaveAttribute("href", "/settings");
   });
 
   it("shows configure-in-settings message when both agents use cursor and both keys missing", () => {
@@ -118,7 +122,7 @@ describe("AgentsStep", () => {
     });
 
     expect(screen.getByText(/API key required/)).toBeInTheDocument();
-    expect(screen.getByText(/Configure API keys in Settings/)).toBeInTheDocument();
+    expect(screen.getByTestId("no-api-keys-settings-link")).toHaveAttribute("href", "/settings");
   });
 
   it("shows configure-in-settings message when openai is selected and key is missing", () => {
@@ -128,7 +132,7 @@ describe("AgentsStep", () => {
     });
 
     expect(screen.getByText(/API key required/)).toBeInTheDocument();
-    expect(screen.getByText(/Configure API keys in Settings/)).toBeInTheDocument();
+    expect(screen.getByTestId("no-api-keys-settings-link")).toHaveAttribute("href", "/settings");
   });
 
   it("OpenAI appears as provider option in Simple and Complex dropdowns", () => {

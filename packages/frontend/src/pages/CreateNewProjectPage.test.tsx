@@ -188,6 +188,68 @@ describe("CreateNewProjectPage", () => {
     expect(screen.queryByTestId("create-new-basics-step")).not.toBeInTheDocument();
   });
 
+  it("shows no-API-keys warning when 0 providers have keys and Custom is not selected", async () => {
+    const user = userEvent.setup();
+    mockGlobalSettingsGet.mockResolvedValue({
+      databaseUrl: "",
+      apiKeys: {
+        ANTHROPIC_API_KEY: [],
+        CURSOR_API_KEY: [],
+        OPENAI_API_KEY: [],
+      },
+    });
+    mockGetKeys.mockResolvedValue({
+      anthropic: false,
+      cursor: false,
+      openai: false,
+      claudeCli: true,
+      useCustomCli: false,
+    });
+
+    renderCreateNewProjectPage();
+    await user.type(screen.getByLabelText(/project name/i), "My App");
+    await user.type(screen.getByPlaceholderText("/Users/you/projects/my-app"), "/path/to/parent");
+    await user.click(screen.getByTestId("next-button"));
+
+    expect(await screen.findByTestId("no-api-keys-warning")).toBeInTheDocument();
+    expect(screen.getByTestId("no-api-keys-settings-link")).toHaveAttribute("href", "/settings");
+  });
+
+  it("does not show no-API-keys warning when Custom provider selected for both", async () => {
+    const user = userEvent.setup();
+    mockGlobalSettingsGet.mockResolvedValue({
+      databaseUrl: "",
+      apiKeys: {
+        ANTHROPIC_API_KEY: [],
+        CURSOR_API_KEY: [],
+        OPENAI_API_KEY: [],
+      },
+    });
+    mockGetKeys.mockResolvedValue({
+      anthropic: false,
+      cursor: false,
+      openai: false,
+      claudeCli: true,
+      useCustomCli: false,
+    });
+
+    renderCreateNewProjectPage();
+    await user.type(screen.getByLabelText(/project name/i), "My App");
+    await user.type(screen.getByPlaceholderText("/Users/you/projects/my-app"), "/path/to/parent");
+    await user.click(screen.getByTestId("next-button"));
+
+    await screen.findByTestId("simplified-agents-step");
+
+    const comboboxes = screen.getAllByRole("combobox");
+    await user.selectOptions(comboboxes[0], "custom");
+    await user.selectOptions(comboboxes[2], "custom");
+    const cliInputs = screen.getAllByPlaceholderText(/e\.g\. my-agent/);
+    await user.type(cliInputs[0], "my-agent");
+    await user.type(cliInputs[1], "my-agent");
+
+    expect(screen.queryByTestId("no-api-keys-warning")).not.toBeInTheDocument();
+  });
+
   it("Back from agents returns to basics", async () => {
     const user = userEvent.setup();
     renderCreateNewProjectPage();

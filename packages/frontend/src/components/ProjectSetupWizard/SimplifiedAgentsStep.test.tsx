@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { SimplifiedAgentsStep } from "./SimplifiedAgentsStep";
 
 vi.mock("../ModelSelect", () => ({
@@ -45,7 +46,8 @@ function renderSimplifiedAgentsStep(
   overrides: Partial<Parameters<typeof SimplifiedAgentsStep>[0]> = {}
 ) {
   return render(
-    <SimplifiedAgentsStep
+    <MemoryRouter>
+      <SimplifiedAgentsStep
       simpleComplexityAgent={defaultSimpleAgent}
       complexComplexityAgent={defaultComplexAgent}
       onSimpleComplexityAgentChange={() => {}}
@@ -58,6 +60,7 @@ function renderSimplifiedAgentsStep(
       modelRefreshTrigger={0}
       {...overrides}
     />
+    </MemoryRouter>
   );
 }
 
