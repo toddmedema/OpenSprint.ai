@@ -235,7 +235,7 @@ interface FeedbackCardProps {
   replyingToId: string | null;
   onStartReply: (id: string) => void;
   onCancelReply: () => void;
-  onSubmitReply: (parentId: string, text: string, images?: string[]) => void;
+  onSubmitReply: (parentId: string, text: string, images?: string[], priority?: number | null) => void;
   onResolve: (feedbackId: string) => void;
   onCancel: (feedbackId: string) => void;
   onRemoveAfterAnimation: (feedbackId: string) => void;
@@ -296,6 +296,9 @@ const FeedbackCard = memo(
     const { item, children } = node;
     const navigate = useNavigate();
     const [replyText, setReplyText] = useState("");
+    const [replyPriority, setReplyPriority] = useState<number | null>(null);
+    const [replyPriorityDropdownOpen, setReplyPriorityDropdownOpen] = useState(false);
+    const replyPriorityDropdownRef = useRef<HTMLDivElement>(null);
     const [answerText, setAnswerText] = useState("");
     const replyImages = useImageAttachment();
     const isReplying = replyingToId === item.id;
@@ -348,11 +351,37 @@ const FeedbackCard = memo(
       return () => clearTimeout(fallback);
     }, [isAnimatingOut]);
 
+    useEffect(() => {
+      if (!isReplying) setReplyPriority(null);
+    }, [isReplying]);
+
+    useEffect(() => {
+      if (!replyPriorityDropdownOpen) return;
+      const handleClickOutside = (e: MouseEvent) => {
+        if (
+          replyPriorityDropdownRef.current &&
+          !replyPriorityDropdownRef.current.contains(e.target as Node)
+        ) {
+          setReplyPriorityDropdownOpen(false);
+        }
+      };
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === "Escape") setReplyPriorityDropdownOpen(false);
+      };
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleKeyDown);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+        document.removeEventListener("keydown", handleKeyDown);
+      };
+    }, [replyPriorityDropdownOpen]);
+
     const handleSubmitReply = () => {
       if (!replyText.trim() || submitting) return;
       const imagePayload = replyImages.images.length > 0 ? replyImages.images : undefined;
-      onSubmitReply(item.id, replyText.trim(), imagePayload);
+      onSubmitReply(item.id, replyText.trim(), imagePayload, replyPriority);
       setReplyText("");
+      setReplyPriority(null);
       replyImages.reset();
       onCancelReply();
     };
@@ -409,16 +438,27 @@ const FeedbackCard = memo(
             {/* Category badge/spinner floats top-right */}
             <div className="mb-2 overflow-hidden">
               {isCategorizing(item) ? (
-                <span
-                  className="float-right ml-2 mb-1 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium bg-theme-border-subtle text-theme-muted flex-shrink-0"
-                  aria-label="Categorizing feedback"
-                >
-                  <div
-                    className="h-3 w-3 border-2 border-theme-ring border-t-transparent rounded-full animate-spin"
-                    aria-hidden="true"
-                  />
-                  Categorizing…
-                </span>
+                <>
+                  {item.userPriority != null && (
+                    <span
+                      className="float-right ml-2 mb-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-theme-border-subtle text-theme-muted flex-shrink-0"
+                      aria-label={`Priority: ${PRIORITY_LABELS[item.userPriority]}`}
+                    >
+                      <PriorityIcon priority={item.userPriority} size="sm" />
+                      {PRIORITY_LABELS[item.userPriority]}
+                    </span>
+                  )}
+                  <span
+                    className="float-right ml-2 mb-1 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium bg-theme-border-subtle text-theme-muted flex-shrink-0"
+                    aria-label="Categorizing feedback"
+                  >
+                    <div
+                      className="h-3 w-3 border-2 border-theme-ring border-t-transparent rounded-full animate-spin"
+                      aria-hidden="true"
+                    />
+                    Categorizing…
+                  </span>
+                </>
               ) : (
                 <>
                   {(item.status === "resolved" || item.status === "cancelled") && (
@@ -440,6 +480,15 @@ const FeedbackCard = memo(
                   >
                     {getFeedbackTypeLabel(item)}
                   </span>
+                  {item.userPriority != null && (
+                    <span
+                      className="float-right ml-2 mb-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-theme-border-subtle text-theme-muted flex-shrink-0"
+                      aria-label={`Priority: ${PRIORITY_LABELS[item.userPriority]}`}
+                    >
+                      <PriorityIcon priority={item.userPriority} size="sm" />
+                      {PRIORITY_LABELS[item.userPriority]}
+                    </span>
+                  )}
                 </>
               )}
               <p className="text-sm text-theme-text whitespace-pre-wrap break-words min-w-0">
@@ -669,6 +718,69 @@ const FeedbackCard = memo(
             />
             <ImageAttachmentThumbnails attachment={replyImages} className="mb-2" />
             <div className="flex justify-end items-stretch gap-2 flex-wrap">
+              <div ref={replyPriorityDropdownRef} className="relative shrink-0 flex">
+                <button
+                  type="button"
+                  onClick={() => !submitting && setReplyPriorityDropdownOpen((o) => !o)}
+                  disabled={submitting}
+                  className="input text-sm h-10 min-h-10 py-2.5 px-3 w-auto min-w-[10rem] inline-flex items-center gap-2 bg-theme-input-bg text-theme-input-text ring-theme-ring"
+                  aria-label="Priority (optional)"
+                  aria-haspopup="listbox"
+                  aria-expanded={replyPriorityDropdownOpen}
+                  data-testid="reply-priority-select"
+                >
+                  {replyPriority != null ? (
+                    <>
+                      <PriorityIcon priority={replyPriority} size="sm" />
+                      <span className="flex-1 text-left">{PRIORITY_LABELS[replyPriority]}</span>
+                    </>
+                  ) : (
+                    <span className="flex-1 text-left text-theme-muted">Priority (optional)</span>
+                  )}
+                  <span className="text-[10px] opacity-70 shrink-0">
+                    {replyPriorityDropdownOpen ? "▲" : "▼"}
+                  </span>
+                </button>
+                {replyPriorityDropdownOpen && (
+                  <ul
+                    role="listbox"
+                    className="absolute left-0 top-full mt-1 z-50 min-w-[10rem] rounded-lg border border-theme-border bg-theme-surface shadow-lg py-1"
+                    data-testid="reply-priority-dropdown"
+                  >
+                    <li role="option">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReplyPriority(null);
+                          setReplyPriorityDropdownOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2 text-left px-3 py-2 text-xs hover:bg-theme-border-subtle/50 transition-colors text-theme-muted"
+                        data-testid="reply-priority-option-clear"
+                      >
+                        No priority
+                      </button>
+                    </li>
+                    {([0, 1, 2, 3, 4] as const).map((p) => (
+                      <li key={p} role="option">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReplyPriority(p);
+                            setReplyPriorityDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-2 text-left px-3 py-2 text-xs hover:bg-theme-border-subtle/50 transition-colors ${
+                            replyPriority === p ? "text-brand-600 font-medium" : "text-theme-text"
+                          }`}
+                          data-testid={`reply-priority-option-${p}`}
+                        >
+                          <PriorityIcon priority={p} size="sm" />
+                          {PRIORITY_LABELS[p]}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
               <ImageAttachmentButton
                 attachment={replyImages}
                 variant="icon"
@@ -878,9 +990,10 @@ export function EvalPhase({
   });
 
   const handleSubmitReply = useCallback(
-    async (parentId: string, text: string, images?: string[]) => {
+    async (parentId: string, text: string, images?: string[], priority?: number | null) => {
       if (!text.trim() || submitting) return;
-      await dispatch(submitFeedback({ projectId, text, images, parentId }));
+      const priorityPayload = priority != null ? priority : undefined;
+      await dispatch(submitFeedback({ projectId, text, images, parentId, priority: priorityPayload }));
     },
     [dispatch, projectId, submitting]
   );

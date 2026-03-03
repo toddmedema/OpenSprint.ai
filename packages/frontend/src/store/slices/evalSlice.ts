@@ -169,10 +169,12 @@ const evalSlice = createSlice({
       state.async.submit.loading = true;
       state.async.submit.error = null;
       state.error = null;
-      const { text, images, parentId } = action.meta.arg;
+      const { text, images, parentId, priority } = action.meta.arg;
       const requestId = action.meta.requestId;
       const parent = parentId ? state.feedback.find((f) => f.id === parentId) : null;
       const depth = parent ? (parent.depth ?? 0) + 1 : 0;
+      const userPriority =
+        typeof priority === "number" && priority >= 0 && priority <= 4 ? priority : undefined;
       const optimistic: FeedbackItem = {
         id: `${OPTIMISTIC_ID_PREFIX}${requestId}`,
         text,
@@ -184,6 +186,7 @@ const evalSlice = createSlice({
         ...(images?.length ? { images } : {}),
         parent_id: parentId ?? null,
         depth,
+        ...(userPriority !== undefined && { userPriority }),
       };
       state.feedback.unshift(optimistic);
     });

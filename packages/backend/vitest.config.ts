@@ -21,6 +21,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
+    setupFiles: ["./src/__tests__/setup.ts"],
     include: ["src/__tests__/**/*.test.ts", "src/utils/__tests__/**/*.test.ts"],
     exclude: ["**/git-working-mode-branches.integration.test.ts"],
     pool: "forks",

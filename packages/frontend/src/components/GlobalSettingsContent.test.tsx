@@ -5,11 +5,15 @@ import { GlobalSettingsContent } from "./GlobalSettingsContent";
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
-function renderGlobalSettingsContent() {
+function renderWithProviders(ui: React.ReactElement) {
   return render(
-    <QueryClientProvider client={queryClient}>
-      <GlobalSettingsContent onSaveStateChange={vi.fn()} />
-    </QueryClientProvider>
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
+  );
+}
+
+function renderGlobalSettingsContent() {
+  return renderWithProviders(
+    <GlobalSettingsContent onSaveStateChange={vi.fn()} />
   );
 }
 

@@ -3077,6 +3077,112 @@ describe("EvalPhase feedback form", () => {
       expect(call[2]).toHaveLength(1);
       expect(call[2]![0]).toContain("data:image/png;base64,");
     });
+
+    it("shows priority dropdown in reply form matching main feedback style", async () => {
+      const store = createStore({ evalFeedback: mockFeedbackItems });
+      const queryClient = createQueryClientWithFeedbackPreloaded(mockFeedbackItems);
+      const user = userEvent.setup();
+      renderWithProviders(
+        <MemoryRouter>
+          <EvalPhase projectId="proj-1" />
+        </MemoryRouter>,
+        { store, queryClient }
+      );
+
+      await waitFor(() => expect(screen.getByText("Bug 1")).toBeInTheDocument());
+
+      const bug1Card = screen.getByText("Bug 1").closest(".card");
+      await user.click(within(bug1Card!).getByRole("button", { name: /^Reply$/ }));
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText("Write a reply...")).toBeInTheDocument();
+      });
+
+      expect(screen.getByTestId("reply-priority-select")).toBeInTheDocument();
+      expect(screen.getByTestId("reply-priority-select")).toHaveAttribute(
+        "aria-label",
+        "Priority (optional)"
+      );
+
+      await user.click(screen.getByTestId("reply-priority-select"));
+      expect(screen.getByTestId("reply-priority-dropdown")).toBeInTheDocument();
+      expect(screen.getByTestId("reply-priority-option-clear")).toHaveTextContent("No priority");
+      expect(screen.getByTestId("reply-priority-option-0")).toBeInTheDocument();
+      expect(screen.getByTestId("reply-priority-option-1")).toBeInTheDocument();
+    });
+
+    it("passes selected priority when submitting reply", async () => {
+      const { api } = await import("../../api/client");
+      const store = createStore({ evalFeedback: mockFeedbackItems });
+      const queryClient = createQueryClientWithFeedbackPreloaded(mockFeedbackItems);
+      const user = userEvent.setup();
+      renderWithProviders(
+        <MemoryRouter>
+          <EvalPhase projectId="proj-1" />
+        </MemoryRouter>,
+        { store, queryClient }
+      );
+
+      await waitFor(() => expect(screen.getByText("Bug 1")).toBeInTheDocument());
+
+      const bug1Card = screen.getByText("Bug 1").closest(".card");
+      await user.click(within(bug1Card!).getByRole("button", { name: /^Reply$/ }));
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText("Write a reply...")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByTestId("reply-priority-select"));
+      await user.click(screen.getByTestId("reply-priority-option-0"));
+      await user.type(screen.getByPlaceholderText("Write a reply..."), "Critical fix needed");
+      await user.click(screen.getByRole("button", { name: /^Submit$/ }));
+
+      await waitFor(() => {
+        expect(api.feedback.submit).toHaveBeenCalledWith(
+          "proj-1",
+          "Critical fix needed",
+          undefined,
+          "fb-1",
+          0
+        );
+      });
+    });
+
+    it("displays priority on reply card when userPriority is set", async () => {
+      const feedbackWithReply: FeedbackItem[] = [
+        {
+          id: "fb-parent",
+          text: "Parent feedback",
+          category: "bug",
+          mappedPlanId: null,
+          createdTaskIds: [],
+          status: "pending",
+          createdAt: "2024-01-01T00:00:01Z",
+        },
+        {
+          id: "fb-reply",
+          text: "Reply with priority",
+          category: "bug",
+          mappedPlanId: null,
+          createdTaskIds: [],
+          status: "pending",
+          createdAt: "2024-01-01T00:00:02Z",
+          parent_id: "fb-parent",
+          depth: 1,
+          userPriority: 0,
+        },
+      ];
+      const store = createStore({ evalFeedback: feedbackWithReply });
+      const queryClient = createQueryClientWithFeedbackPreloaded(feedbackWithReply);
+      renderWithProviders(
+        <MemoryRouter>
+          <EvalPhase projectId="proj-1" />
+        </MemoryRouter>,
+        { store, queryClient }
+      );
+
+      await waitFor(() => expect(screen.getByText("Reply with priority")).toBeInTheDocument());
+      expect(screen.getByText("Critical")).toBeInTheDocument();
+      expect(screen.getByLabelText("Priority: Critical")).toBeInTheDocument();
+    });
   });
 
   describe("image drag targets", () => {

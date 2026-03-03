@@ -731,7 +731,7 @@ describe("Navbar", () => {
     const createNewButton = screen.getByRole("button", { name: /Create New Project/i });
     await user.click(createNewButton);
 
-    expect(screen.getByTestId("settings-page")).toBeInTheDocument();
+    expect(await screen.findByTestId("settings-page")).toBeInTheDocument();
   });
 
   it("navigates to /settings when Add Existing Project clicked and no API keys", async () => {
