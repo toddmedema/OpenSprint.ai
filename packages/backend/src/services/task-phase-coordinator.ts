@@ -30,6 +30,13 @@ const DEFAULT_REVIEW_KEY = "__general_review__";
 
 export interface TaskPhaseCoordinatorOptions {
   reviewAngles?: string[];
+  /**
+   * When provided and multiple angles are used, the synthesizer runs before resolving.
+   * It receives all angle outcomes and returns a single synthesized ReviewOutcome.
+   */
+  synthesizeReviewResults?: (
+    outcomes: Map<string, ReviewOutcome>
+  ) => Promise<ReviewOutcome>;
 }
 
 export class TaskPhaseCoordinator {
@@ -37,6 +44,10 @@ export class TaskPhaseCoordinator {
   private readonly expectedReviewKeys: Set<string>;
   private readonly reviewOutcomes = new Map<string, ReviewOutcome>();
   private resolved = false;
+  private readonly synthesizeReviewResults?: (
+    outcomes: Map<string, ReviewOutcome>
+  ) => Promise<ReviewOutcome>;
+  private readonly useSynthesis: boolean;
 
   constructor(
     private readonly taskId: string,
@@ -45,6 +56,9 @@ export class TaskPhaseCoordinator {
   ) {
     const angles = options?.reviewAngles?.filter(Boolean) ?? [];
     this.expectedReviewKeys = new Set(angles.length > 0 ? angles : [DEFAULT_REVIEW_KEY]);
+    this.synthesizeReviewResults = options?.synthesizeReviewResults;
+    this.useSynthesis =
+      angles.length > 1 && typeof options?.synthesizeReviewResults === "function";
   }
 
   setTestOutcome(outcome: TestOutcome): void {
@@ -68,10 +82,55 @@ export class TaskPhaseCoordinator {
     this.tryResolve();
   }
 
+  private synthesizing = false;
+
   private tryResolve(): void {
-    if (this.resolved || !this.testOutcome) return;
+    if (this.resolved || !this.testOutcome || this.synthesizing) return;
     const reviewOutcome = this.getAggregatedReviewOutcome();
     if (!reviewOutcome) return;
+
+    // When any angle has no_result or error, resolve directly without synthesis.
+    // Otherwise the synthesizer (which filters to approved/rejected only) could
+    // return 'approved' and incorrectly override the no_result.
+    if (reviewOutcome.status === "no_result" || reviewOutcome.status === "error") {
+      this.resolved = true;
+      log.info("Review has no_result or error, resolving without synthesis", {
+        taskId: this.taskId,
+        test: this.testOutcome.status,
+        review: reviewOutcome.status,
+      });
+      this.resolve(this.testOutcome, reviewOutcome).catch((err) => {
+        log.error("Phase resolution failed", { taskId: this.taskId, err });
+      });
+      return;
+    }
+
+    if (this.useSynthesis && this.synthesizeReviewResults) {
+      this.synthesizing = true;
+      log.info("All angle outcomes ready, running lead synthesizer", {
+        taskId: this.taskId,
+        reviewCount: this.reviewOutcomes.size,
+      });
+      this.synthesizeReviewResults(new Map(this.reviewOutcomes))
+        .then((synthesized) => {
+          this.resolved = true;
+          log.info("Synthesis complete, resolving", {
+            taskId: this.taskId,
+            test: this.testOutcome!.status,
+            review: synthesized.status,
+          });
+          return this.resolve(this.testOutcome!, synthesized);
+        })
+        .catch((err) => {
+          log.error("Synthesis failed, using programmatic merge", {
+            taskId: this.taskId,
+            err,
+          });
+          this.resolved = true;
+          return this.resolve(this.testOutcome!, reviewOutcome);
+        });
+      return;
+    }
 
     this.resolved = true;
     log.info("Both outcomes ready, resolving", {

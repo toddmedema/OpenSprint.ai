@@ -200,9 +200,12 @@ describe.skipIf(!feedbackServicePostgresOk)("FeedbackService", () => {
     mockHilEvaluate.mockResolvedValue({ approved: false });
     mockSyncPrdFromScopeChange.mockResolvedValue(undefined);
     mockGeneratePlanFromDescription.mockResolvedValue({
-      metadata: { planId: "large-scope-plan", epicId: "os-large1" },
-      content: "# Large Scope Feature\n\nPlan content",
-      _createdTaskIds: ["os-large1.1", "os-large1.2"],
+      status: "created",
+      plan: {
+        metadata: { planId: "large-scope-plan", epicId: "os-large1" },
+        content: "# Large Scope Feature\n\nPlan content",
+        _createdTaskIds: ["os-large1.1", "os-large1.2"],
+      },
     });
     mockShipPlan.mockResolvedValue({
       metadata: { planId: "large-scope-plan", epicId: "os-large1" },

@@ -27,23 +27,37 @@ vi.mock("../services/plan.service.js", () => ({
   })),
 }));
 
+const useMultiAngle = { value: false };
 vi.mock("../services/project.service.js", () => ({
   ProjectService: vi.fn().mockImplementation(() => ({
-    getSettings: vi.fn().mockResolvedValue({
-      simpleComplexityAgent: { type: "claude", model: "claude-sonnet" },
-      complexComplexityAgent: { type: "claude", model: "claude-sonnet" },
-    }),
+    getSettings: vi.fn().mockImplementation(() =>
+      useMultiAngle.value
+        ? Promise.resolve({
+            simpleComplexityAgent: { type: "claude", model: "claude-sonnet" },
+            complexComplexityAgent: { type: "claude", model: "claude-sonnet" },
+            reviewAngles: ["security", "performance"],
+          })
+        : Promise.resolve({
+            simpleComplexityAgent: { type: "claude", model: "claude-sonnet" },
+            complexComplexityAgent: { type: "claude", model: "claude-sonnet" },
+            reviewAngles: undefined as string[] | undefined,
+          })
+    ),
   })),
 }));
 
-vi.mock("../services/context-assembler.js", () => ({
-  ContextAssembler: vi.fn().mockImplementation(() => ({
-    collectDependencyOutputs: vi
-      .fn()
-      .mockResolvedValue([{ taskId: "os-abc.1", diff: "", summary: "Task 1 done" }]),
-    extractPrdExcerpt: vi.fn().mockResolvedValue("# PRD\n\nExcerpt"),
-  })),
-}));
+vi.mock("../services/context-assembler.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/context-assembler.js")>();
+  return {
+    ...actual,
+    ContextAssembler: vi.fn().mockImplementation(() => ({
+      collectDependencyOutputs: vi
+        .fn()
+        .mockResolvedValue([{ taskId: "os-abc.1", diff: "", summary: "Task 1 done" }]),
+      extractPrdExcerpt: vi.fn().mockResolvedValue("# PRD\n\nExcerpt"),
+    })),
+  };
+});
 
 describe("FinalReviewService", () => {
   let service: FinalReviewService;
@@ -53,6 +67,7 @@ describe("FinalReviewService", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    useMultiAngle.value = false;
     const { taskStore } = await import("../services/task-store.service.js");
     vi.mocked(taskStore.planGetByEpicId).mockResolvedValue({
       plan_id: "test-plan",
@@ -151,5 +166,43 @@ describe("FinalReviewService", () => {
       priority: 0,
       parentId: epicId,
     });
+  });
+
+  it("runs multi-angle parallel reviewers and lead synthesizer when reviewAngles has 2+ items", async () => {
+    useMultiAngle.value = true;
+    const { agentService } = await import("../services/agent.service.js");
+
+    vi.mocked(agentService.invokePlanningAgent)
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          status: "pass",
+          assessment: "Security looks good",
+          proposedTasks: [],
+        }),
+      })
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          status: "issues",
+          assessment: "Performance concerns",
+          proposedTasks: [
+            { title: "Optimize query", description: "Add index", priority: 1 },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          status: "issues",
+          assessment: "One angle found issues",
+          proposedTasks: [
+            { title: "Optimize query", description: "Add index", priority: 1 },
+          ],
+        }),
+      });
+
+    const result = await service.runFinalReview(projectId, epicId, repoPath);
+
+    expect(result).not.toBeNull();
+    expect(result!.status).toBe("issues");
+    expect(agentService.invokePlanningAgent).toHaveBeenCalledTimes(3);
   });
 });

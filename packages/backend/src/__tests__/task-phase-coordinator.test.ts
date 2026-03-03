@@ -165,4 +165,74 @@ describe("TaskPhaseCoordinator", () => {
       })
     );
   });
+
+  it("runs lead synthesizer when synthesizeReviewResults provided and multiple angles", async () => {
+    const resolve = vi.fn().mockResolvedValue(undefined);
+    const synthesized: ReviewOutcome = {
+      status: "approved",
+      result: {
+        status: "approved",
+        summary: "Synthesized: all angles passed",
+        notes: "",
+      },
+      exitCode: 0,
+    };
+    const synthesizeReviewResults = vi.fn().mockResolvedValue(synthesized);
+    const coord = new TaskPhaseCoordinator("t1", resolve, {
+      reviewAngles: ["security", "performance"],
+      synthesizeReviewResults,
+    });
+
+    coord.setTestOutcome(testPassed);
+    coord.setReviewOutcome(reviewApproved, "security");
+    coord.setReviewOutcome(reviewApproved, "performance");
+
+    await new Promise((r) => setTimeout(r, 10));
+    expect(synthesizeReviewResults).toHaveBeenCalledTimes(1);
+    const outcomes = synthesizeReviewResults.mock.calls[0]![0];
+    expect(outcomes.size).toBe(2);
+    expect(outcomes.get("security")).toEqual(reviewApproved);
+    expect(outcomes.get("performance")).toEqual(reviewApproved);
+    expect(resolve).toHaveBeenCalledWith(testPassed, synthesized);
+  });
+
+  it("skips synthesis and resolves with no_result when any angle has no_result", () => {
+    const resolve = vi.fn().mockResolvedValue(undefined);
+    const synthesizeReviewResults = vi.fn();
+    const coord = new TaskPhaseCoordinator("t1", resolve, {
+      reviewAngles: ["security", "performance"],
+      synthesizeReviewResults,
+    });
+
+    coord.setTestOutcome(testPassed);
+    coord.setReviewOutcome(reviewApproved, "security");
+    coord.setReviewOutcome({ status: "no_result", result: null, exitCode: 1 }, "performance");
+
+    expect(synthesizeReviewResults).not.toHaveBeenCalled();
+    expect(resolve).toHaveBeenCalledTimes(1);
+    expect(resolve).toHaveBeenCalledWith(
+      testPassed,
+      expect.objectContaining({ status: "no_result" })
+    );
+  });
+
+  it("skips synthesis and resolves with no_result when any angle has error", () => {
+    const resolve = vi.fn().mockResolvedValue(undefined);
+    const synthesizeReviewResults = vi.fn();
+    const coord = new TaskPhaseCoordinator("t1", resolve, {
+      reviewAngles: ["security", "performance"],
+      synthesizeReviewResults,
+    });
+
+    coord.setTestOutcome(testPassed);
+    coord.setReviewOutcome(reviewApproved, "security");
+    coord.setReviewOutcome({ status: "error", result: null, exitCode: 1 }, "performance");
+
+    expect(synthesizeReviewResults).not.toHaveBeenCalled();
+    expect(resolve).toHaveBeenCalledTimes(1);
+    expect(resolve).toHaveBeenCalledWith(
+      testPassed,
+      expect.objectContaining({ status: "no_result" })
+    );
+  });
 });

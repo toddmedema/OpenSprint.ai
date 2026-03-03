@@ -59,6 +59,7 @@ import {
   type TestOutcome,
   type ReviewOutcome,
 } from "./task-phase-coordinator.js";
+import { reviewSynthesizerService } from "./review-synthesizer.service.js";
 import { validateTransition } from "./task-state-machine.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
 import { getNextKey } from "./api-key-resolver.service.js";
@@ -1953,6 +1954,7 @@ export class OrchestratorService {
     if (!slot) return;
     const wtPath = slot.worktreePath ?? repoPath;
     const testCommand = resolveTestCommand(settings) || undefined;
+    const angles = (settings.reviewAngles ?? []).filter(Boolean);
     const coordinator = new TaskPhaseCoordinator(
       task.id,
       (testOutcome, reviewOutcome) =>
@@ -1964,7 +1966,32 @@ export class OrchestratorService {
           testOutcome,
           reviewOutcome
         ),
-      { reviewAngles: settings.reviewAngles }
+      {
+        reviewAngles: settings.reviewAngles,
+        ...(angles.length > 1 && {
+          synthesizeReviewResults: async (outcomes) => {
+            const angleInputs = [...outcomes.entries()]
+              .filter(([, o]) => o.result && (o.status === "approved" || o.status === "rejected"))
+              .map(([angle, o]) => ({ angle, result: o.result! }));
+            if (angleInputs.length === 0) {
+              const first = outcomes.values().next().value;
+              return first ?? { status: "no_result" as const, result: null, exitCode: null };
+            }
+            const synthesized = await reviewSynthesizerService.synthesize(
+              projectId,
+              repoPath,
+              task,
+              angleInputs,
+              this.taskStore
+            );
+            return {
+              status: synthesized.status as "approved" | "rejected",
+              result: synthesized,
+              exitCode: 0,
+            };
+          },
+        }),
+      }
     );
     slot.phaseCoordinator = coordinator;
 

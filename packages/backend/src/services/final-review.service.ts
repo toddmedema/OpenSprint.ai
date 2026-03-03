@@ -3,15 +3,20 @@
  * The agent assesses: (1) missing/incorrect functionality vs plan scope; (2) code quality;
  * (3) test coverage; (4) failing tests. Creates new tasks for any issues found.
  * Epic closure is gated on review pass or user approval.
+ *
+ * When reviewAngles has 2+ items: spawns parallel reviewers (one per angle), then a lead
+ * synthesizer produces a single report. Same multi-angle workflow as ticket-level review.
  */
 
+import type { ReviewAngle } from "@opensprint/shared";
+import { REVIEW_ANGLE_OPTIONS } from "@opensprint/shared";
 import { taskStore as taskStoreSingleton } from "./task-store.service.js";
 import { agentService } from "./agent.service.js";
 import { getAgentForPlanningRole } from "@opensprint/shared";
 import { extractJsonFromAgentResponse } from "../utils/json-extract.js";
 import { PlanService } from "./plan.service.js";
 import { ProjectService } from "./project.service.js";
-import { ContextAssembler } from "./context-assembler.js";
+import { ContextAssembler, REVIEW_ANGLE_CHECKLISTS } from "./context-assembler.js";
 import { createLogger } from "../utils/logger.js";
 
 const log = createLogger("final-review");
@@ -105,7 +110,7 @@ export class FinalReviewService {
       })
       .join("\n\n");
 
-    const prompt = `## Plan scope
+    const basePrompt = `## Plan scope
 
 ${plan.content}
 
@@ -131,14 +136,28 @@ ${keyFilesContent.slice(0, 15000)}${keyFilesContent.length > 15000 ? "\n\n...(tr
 
 Assess the implementation against the plan scope. Return JSON with status, assessment, and proposedTasks.`;
 
-    const agentId = `final-review-${projectId}-${epicId}-${Date.now()}`;
     const settings = await this.projectService.getSettings(projectId);
+    const reviewAngles = [
+      ...new Set((settings.reviewAngles ?? []).filter(Boolean)),
+    ] as ReviewAngle[];
 
+    if (reviewAngles.length >= 2) {
+      return this.runMultiAngleEpicReview(
+        projectId,
+        epicId,
+        repoPath,
+        basePrompt,
+        reviewAngles,
+        settings
+      );
+    }
+
+    const agentId = `final-review-${projectId}-${epicId}-${Date.now()}`;
     try {
       const response = await agentService.invokePlanningAgent({
         projectId,
         config: getAgentForPlanningRole(settings, "auditor"),
-        messages: [{ role: "user", content: prompt }],
+        messages: [{ role: "user", content: basePrompt }],
         systemPrompt: FINAL_REVIEW_SYSTEM_PROMPT,
         cwd: repoPath,
         tracking: {
@@ -150,42 +169,191 @@ Assess the implementation against the plan scope. Return JSON with status, asses
         },
       });
 
+      return this.parseFinalReviewResponse(response.content, projectId, epicId);
+    } catch (err) {
+      log.error("Final review agent failed", { projectId, epicId, err });
+      return null;
+    }
+  }
+
+  /**
+   * Multi-angle epic review: parallel reviewers per angle, then lead synthesizer.
+   */
+  private async runMultiAngleEpicReview(
+    projectId: string,
+    epicId: string,
+    repoPath: string,
+    basePrompt: string,
+    reviewAngles: ReviewAngle[],
+    settings: import("@opensprint/shared").ProjectSettings
+  ): Promise<FinalReviewResult | null> {
+    const EPIC_ANGLE_SYSTEM = `You are a Final Review angle reviewer for OpenSprint. Focus ONLY on your assigned angle. Assess the epic implementation from that lens.
+
+Respond with ONLY valid JSON (no markdown):
+{"status":"pass"|"issues","assessment":"Brief summary for this angle","proposedTasks":[{"title":"...","description":"...","priority":0-4}]}
+- status "pass": This angle has no significant issues. proposedTasks must be [].
+- status "issues": You found issues. proposedTasks lists concrete tasks for this angle only.`;
+
+    const config = getAgentForPlanningRole(settings, "auditor");
+    const angleResults: Array<{ angle: string; status: string; assessment: string; proposedTasks: FinalReviewProposedTask[] }> = [];
+
+    const anglePromises = reviewAngles.map(async (angle) => {
+      const label = REVIEW_ANGLE_OPTIONS.find((o) => o.value === angle)?.label ?? angle;
+      const checklist = REVIEW_ANGLE_CHECKLISTS[angle] ?? [];
+      const checklistBlock = checklist.length > 0
+        ? `\n\n## Checklist for ${label}\n${checklist.map((c) => `- [ ] ${c}`).join("\n")}\n`
+        : "";
+      const prompt = `${basePrompt}${checklistBlock}\n\nFocus ONLY on the ${label} angle.`;
+      const agentId = `final-review-${angle}-${projectId}-${epicId}-${Date.now()}`;
+      try {
+        const response = await agentService.invokePlanningAgent({
+          projectId,
+          config,
+          messages: [{ role: "user", content: prompt }],
+          systemPrompt: EPIC_ANGLE_SYSTEM,
+          cwd: repoPath,
+          tracking: {
+            id: agentId,
+            projectId,
+            phase: "execute",
+            role: "auditor",
+            label: `Final review (${label})`,
+          },
+        });
+        const parsed = extractJsonFromAgentResponse<{
+          status?: string;
+          assessment?: string;
+          proposedTasks?: Array<{ title?: string; description?: string; priority?: number }>;
+        }>(response.content, "status");
+        const status = parsed?.status === "issues" ? "issues" : "pass";
+        const proposedTasks: FinalReviewProposedTask[] = (parsed?.proposedTasks ?? [])
+          .filter((t) => t.title && t.description)
+          .map((t) => ({
+            title: String(t.title),
+            description: String(t.description),
+            priority: typeof t.priority === "number" ? Math.min(4, Math.max(0, t.priority)) : 2,
+          }));
+        return { angle, status, assessment: parsed?.assessment ?? "", proposedTasks };
+      } catch (err) {
+        log.warn("Epic angle review failed", { projectId, epicId, angle, err });
+        return { angle, status: "pass", assessment: "Angle review failed; assuming pass.", proposedTasks: [] };
+      }
+    });
+
+    const results = await Promise.all(anglePromises);
+    for (const r of results) angleResults.push(r);
+
+    return this.synthesizeEpicReviewResults(angleResults, projectId, epicId, repoPath, settings);
+  }
+
+  private async synthesizeEpicReviewResults(
+    angleResults: Array<{ angle: string; status: string; assessment: string; proposedTasks: FinalReviewProposedTask[] }>,
+    projectId: string,
+    epicId: string,
+    repoPath: string,
+    settings: import("@opensprint/shared").ProjectSettings
+  ): Promise<FinalReviewResult> {
+    const EPIC_SYNTHESIZER_PROMPT = `You are the Final Review Lead for OpenSprint. Multiple angle reviewers have assessed an epic. Synthesize their findings into one report.
+
+Rules:
+- If ANY angle returned "issues", overall status MUST be "issues". Merge proposedTasks from all angles; deduplicate by title/description.
+- If ALL angles passed, status "pass", proposedTasks [].
+- Output ONLY valid JSON: {"status":"pass"|"issues","assessment":"Synthesis summary","proposedTasks":[{"title":"...","description":"...","priority":0-4}]}`;
+
+    const blocks = angleResults
+      .map((r) => {
+        const label = REVIEW_ANGLE_OPTIONS.find((o) => o.value === r.angle)?.label ?? r.angle;
+        return `### ${label}\nStatus: ${r.status}\nAssessment: ${r.assessment}\nProposed: ${r.proposedTasks.map((t) => t.title).join(", ") || "none"}`;
+      })
+      .join("\n\n");
+
+    const prompt = `## Angle review results\n\n${blocks}\n\n---\nSynthesize into one JSON with status, assessment, proposedTasks.`;
+
+    try {
+      const response = await agentService.invokePlanningAgent({
+        projectId,
+        config: getAgentForPlanningRole(settings, "auditor"),
+        messages: [{ role: "user", content: prompt }],
+        systemPrompt: EPIC_SYNTHESIZER_PROMPT,
+        cwd: repoPath,
+        tracking: {
+          id: `epic-synthesizer-${projectId}-${epicId}-${Date.now()}`,
+          projectId,
+          phase: "execute",
+          role: "auditor",
+          label: "Epic Review Synthesizer",
+        },
+      });
       const parsed = extractJsonFromAgentResponse<{
         status?: string;
         assessment?: string;
         proposedTasks?: Array<{ title?: string; description?: string; priority?: number }>;
       }>(response.content, "status");
-
-      if (!parsed || !parsed.status) {
-        log.warn("Final review agent did not return valid JSON, treating as pass", {
-          projectId,
-          epicId,
-        });
-        return {
-          status: "pass",
-          assessment: "Review agent did not return valid result; assuming pass.",
-          proposedTasks: [],
-        };
-      }
-
-      const status = parsed.status === "issues" ? "issues" : "pass";
-      const proposedTasks: FinalReviewProposedTask[] = (parsed.proposedTasks ?? [])
+      const status = parsed?.status === "issues" ? "issues" : "pass";
+      const proposedTasks: FinalReviewProposedTask[] = (parsed?.proposedTasks ?? [])
         .filter((t) => t.title && t.description)
         .map((t) => ({
           title: String(t.title),
           description: String(t.description),
           priority: typeof t.priority === "number" ? Math.min(4, Math.max(0, t.priority)) : 2,
         }));
-
-      return {
-        status,
-        assessment: parsed.assessment ?? "",
-        proposedTasks,
-      };
+      return { status, assessment: parsed?.assessment ?? "", proposedTasks };
     } catch (err) {
-      log.error("Final review agent failed", { projectId, epicId, err });
-      return null;
+      log.warn("Epic synthesizer failed, using programmatic merge", { projectId, epicId, err });
+      const hasIssues = angleResults.some((r) => r.status === "issues");
+      const proposedTasks = angleResults.flatMap((r) => r.proposedTasks);
+      const seen = new Set<string>();
+      const deduped = proposedTasks.filter((t) => {
+        const key = `${t.title}:${t.description}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      return {
+        status: hasIssues ? "issues" : "pass",
+        assessment: angleResults.map((r) => r.assessment).filter(Boolean).join(" | ") || "Epic review",
+        proposedTasks: deduped,
+      };
     }
+  }
+
+  private parseFinalReviewResponse(
+    content: string,
+    projectId: string,
+    epicId: string
+  ): FinalReviewResult {
+    const parsed = extractJsonFromAgentResponse<{
+      status?: string;
+      assessment?: string;
+      proposedTasks?: Array<{ title?: string; description?: string; priority?: number }>;
+    }>(content, "status");
+
+    if (!parsed || !parsed.status) {
+      log.warn("Final review agent did not return valid JSON, treating as pass", {
+        projectId,
+        epicId,
+      });
+      return {
+        status: "pass",
+        assessment: "Review agent did not return valid result; assuming pass.",
+        proposedTasks: [],
+      };
+    }
+
+    const status = parsed.status === "issues" ? "issues" : "pass";
+    const proposedTasks: FinalReviewProposedTask[] = (parsed.proposedTasks ?? [])
+      .filter((t) => t.title && t.description)
+      .map((t) => ({
+        title: String(t.title),
+        description: String(t.description),
+        priority: typeof t.priority === "number" ? Math.min(4, Math.max(0, t.priority)) : 2,
+      }));
+
+    return {
+      status,
+      assessment: parsed.assessment ?? "",
+      proposedTasks,
+    };
   }
 
   /**

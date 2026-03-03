@@ -14,8 +14,8 @@ import type { TaskStoreService } from "./task-store.service.js";
 import type { StoredTask } from "./task-store.service.js";
 import { getRuntimePath } from "../utils/runtime-dir.js";
 
-/** Short checklist items per review angle for angle-specific prompts */
-const REVIEW_ANGLE_CHECKLISTS: Record<ReviewAngle, string[]> = {
+/** Short checklist items per review angle for angle-specific prompts. Exported for epic final review. */
+export const REVIEW_ANGLE_CHECKLISTS: Record<ReviewAngle, string[]> = {
   security: [
     "No injection vulnerabilities (SQL, command, XSS)",
     "Sensitive data is not logged or exposed",
