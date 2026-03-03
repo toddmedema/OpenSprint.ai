@@ -241,6 +241,42 @@ describe("AgentService", () => {
 
       expect(result).toBe(false);
     });
+
+    it("uses baseBranch in merger prompt when provided", async () => {
+      mockSpawnWithTaskFile.mockImplementation(
+        (
+          _config: unknown,
+          _path: unknown,
+          _cwd: unknown,
+          _onOutput: unknown,
+          onExit: (code: number | null) => void
+        ) => {
+          setImmediate(() => onExit(0));
+          return { kill: vi.fn(), pid: 12345 };
+        }
+      );
+      mockShellExec.mockResolvedValue({ stdout: "", stderr: "" });
+
+      await service.runMergerAgentAndWait({
+        projectId: "proj-123",
+        cwd: "/tmp/repo",
+        config: { type: "cursor", model: null, cliCommand: null },
+        phase: "merge_to_main",
+        taskId: "os-1",
+        branchName: "opensprint/os-1",
+        conflictedFiles: ["src/a.ts"],
+        baseBranch: "develop",
+      });
+
+      const logCalls = mockShellExec.mock.calls.filter((c) =>
+        String(c[0]).includes("git log")
+      );
+      const diffCalls = mockShellExec.mock.calls.filter((c) =>
+        String(c[0]).includes("git diff")
+      );
+      expect(logCalls.some((c) => String(c[0]).includes("develop"))).toBe(true);
+      expect(diffCalls.some((c) => String(c[0]).includes("develop"))).toBe(true);
+    });
   });
 
   describe("invokePlanningAgent (Claude + ApiKeyResolver)", () => {

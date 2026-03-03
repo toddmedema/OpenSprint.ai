@@ -466,25 +466,28 @@ export class ContextAssembler {
   /**
    * Generate a prompt for the Merger agent to resolve conflicts.
    * Supports both rebase (push) and merge (merge-to-main) conflict resolution.
+   * @param opts.baseBranch - Base branch for merge/rebase context (default: "main")
    */
   generateMergeConflictPrompt(opts: {
     conflictedFiles: string[];
     conflictDiff: string;
     mode?: "rebase" | "merge";
     recentMerges?: Array<{ taskId: string; summary: string }>;
+    baseBranch?: string;
   }): string {
     const mode = opts.mode ?? "rebase";
     const isMerge = mode === "merge";
+    const baseBranch = opts.baseBranch ?? "main";
 
     let prompt = isMerge ? `# Resolve Merge Conflicts\n\n` : `# Resolve Rebase Conflicts\n\n`;
     prompt += `## Situation\n\n`;
     if (isMerge) {
-      prompt += `The orchestrator is merging a task branch into local \`main\`. The merge hit conflicts `;
+      prompt += `The orchestrator is merging a task branch into local \`${baseBranch}\`. The merge hit conflicts `;
       prompt += `that need manual resolution.\n\n`;
       prompt += `The repository is currently in a **merge-in-progress** state. Your job is to resolve all conflicts `;
       prompt += `and complete the merge.\n\n`;
     } else {
-      prompt += `The orchestrator merged a task branch into local \`main\`, then ran \`git rebase origin/main\` `;
+      prompt += `The orchestrator merged a task branch into local \`${baseBranch}\`, then ran \`git rebase origin/${baseBranch}\` `;
       prompt += `to incorporate remote changes before pushing. The rebase hit conflicts that need manual resolution.\n\n`;
       prompt += `The repository is currently in a **rebase-in-progress** state. Your job is to resolve all conflicts `;
       prompt += `and allow the rebase to complete.\n\n`;
@@ -492,7 +495,7 @@ export class ContextAssembler {
 
     if (opts.recentMerges && opts.recentMerges.length > 0) {
       prompt += `## Recently Merged Tasks\n\n`;
-      prompt += `These tasks were merged to main recently and may explain why conflicts arose:\n\n`;
+      prompt += `These tasks were merged to ${baseBranch} recently and may explain why conflicts arose:\n\n`;
       for (const m of opts.recentMerges) {
         prompt += `- **${m.taskId}**: ${m.summary}\n`;
       }

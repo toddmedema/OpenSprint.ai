@@ -561,6 +561,46 @@ Test product.
     expect(context.dependencyOutputs[0].summary).toBe("Implemented login endpoint");
   });
 
+  it("should pass baseBranch to getDiff when building context with custom base", async () => {
+    await fs.writeFile(
+      path.join(repoPath, SPEC_MD),
+      "# Product Specification\n\nTest product.",
+      "utf-8"
+    );
+    const getDiffSpy = vi.fn().mockResolvedValue("some diff");
+    const mockBranchManager = { getDiff: getDiffSpy };
+    const mockTasks = {
+      show: async () => ({
+        id: "bd-a3f8.2",
+        title: "Task",
+        description: "Desc",
+        dependencies: [{ type: "blocks", depends_on_id: "bd-a3f8.1" }],
+      }),
+      getParentId: () => "bd-a3f8",
+      getBlockers: async () => ["bd-a3f8.1"],
+      planGetByEpicId: async () => ({
+        content: "# Plan",
+        plan_id: "p",
+        metadata: {},
+        shipped_content: null,
+        updated_at: "",
+      }),
+    };
+
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    await assembler.buildContext(
+      "proj",
+      repoPath,
+      "bd-a3f8.2",
+      mockTasks as any,
+      mockBranchManager as any,
+      { baseBranch: "develop" }
+    );
+    /* eslint-enable @typescript-eslint/no-explicit-any */
+
+    expect(getDiffSpy).toHaveBeenCalledWith(repoPath, "opensprint/bd-a3f8.1", "develop");
+  });
+
   it("should generate review prompt per PRD §12.3 when phase is review", async () => {
     const plansDir = path.join(repoPath, OPENSPRINT_PATHS.plans);
     await fs.mkdir(plansDir, { recursive: true });
@@ -863,5 +903,25 @@ Test
     expect(prompt).toContain("## AI Autonomy Level");
     expect(prompt).toContain("Confirm all scope changes");
     expect(prompt).toContain("open_questions");
+  });
+
+  it("should use baseBranch in generateMergeConflictPrompt when provided", () => {
+    const mergePrompt = assembler.generateMergeConflictPrompt({
+      conflictedFiles: ["src/a.ts"],
+      conflictDiff: "",
+      mode: "merge",
+      baseBranch: "develop",
+    });
+    expect(mergePrompt).toContain("local `develop`");
+    expect(mergePrompt).not.toContain("local `main`");
+
+    const rebasePrompt = assembler.generateMergeConflictPrompt({
+      conflictedFiles: ["src/b.ts"],
+      conflictDiff: "",
+      mode: "rebase",
+      baseBranch: "develop",
+    });
+    expect(rebasePrompt).toContain("local `develop`");
+    expect(rebasePrompt).toContain("origin/develop");
   });
 });
