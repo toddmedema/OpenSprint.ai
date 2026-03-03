@@ -682,13 +682,14 @@ const FeedbackCard = memo(
                 )}
                 <button
                   type="button"
-                  onClick={() => (isReplying ? onCancelReply() : onStartReply(item.id))}
-                  className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs text-theme-muted hover:bg-theme-border-subtle hover:text-theme-text transition-colors"
+                  onClick={() => !isReplying && onStartReply(item.id)}
+                  disabled={isReplying}
+                  className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs text-theme-muted hover:bg-theme-border-subtle hover:text-theme-text transition-colors disabled:opacity-70 disabled:cursor-default"
                   title="Reply"
-                  aria-label={isReplying ? "Cancel reply" : "Reply"}
+                  aria-label="Reply"
                 >
                   <ReplyIcon className="w-4 h-4" />
-                  {isReplying ? "Cancel" : "Reply"}
+                  Reply
                 </button>
               </div>
             </div>
@@ -731,6 +732,15 @@ const FeedbackCard = memo(
             />
             <ImageAttachmentThumbnails attachment={replyImages} className="mb-2" />
             <div className="flex justify-end items-stretch gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={onCancelReply}
+                disabled={submitting}
+                className="inline-flex items-center h-10 px-3 text-sm text-theme-muted hover:bg-theme-border-subtle hover:text-theme-text transition-colors rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="Cancel reply"
+              >
+                Cancel
+              </button>
               <div ref={replyPriorityDropdownRef} className="relative shrink-0 flex">
                 <button
                   type="button"

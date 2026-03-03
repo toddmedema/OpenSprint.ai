@@ -1080,9 +1080,8 @@ describe("EvalPhase feedback form", () => {
       });
 
       const replyForm = screen.getByPlaceholderText("Write a reply...").closest(".card");
-      expect(
-        within(replyForm!).queryByRole("button", { name: /^Cancel$/ })
-      ).not.toBeInTheDocument();
+      const cancelButton = within(replyForm!).getByRole("button", { name: /Cancel reply/ });
+      expect(cancelButton).toBeInTheDocument();
       const attachButton = within(replyForm!).getByTestId("reply-attach-images");
       const submitButton = within(replyForm!).getByRole("button", { name: /^Submit$/ });
 
@@ -3138,6 +3137,37 @@ describe("EvalPhase feedback form", () => {
       expect(screen.getByTestId("reply-priority-option-clear")).toHaveTextContent("No priority");
       expect(screen.getByTestId("reply-priority-option-0")).toBeInTheDocument();
       expect(screen.getByTestId("reply-priority-option-1")).toBeInTheDocument();
+    });
+
+    it("shows Cancel as text button left of Priority in reply form", async () => {
+      const store = createStore({ evalFeedback: mockFeedbackItems });
+      const queryClient = createQueryClientWithFeedbackPreloaded(mockFeedbackItems);
+      const user = userEvent.setup();
+      renderWithProviders(
+        <MemoryRouter>
+          <EvalPhase projectId="proj-1" />
+        </MemoryRouter>,
+        { store, queryClient }
+      );
+
+      await waitFor(() => expect(screen.getByText("Bug 1")).toBeInTheDocument());
+      const bug1Card = screen.getByText("Bug 1").closest(".card");
+      await user.click(within(bug1Card!).getByRole("button", { name: /^Reply$/ }));
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText("Write a reply...")).toBeInTheDocument();
+      });
+
+      const replyForm = screen.getByPlaceholderText("Write a reply...").closest(".card");
+      const cancelBtn = within(replyForm!).getByRole("button", { name: /Cancel reply/ });
+      const priorityBtn = within(replyForm!).getByTestId("reply-priority-select");
+      expect(cancelBtn).toBeInTheDocument();
+      expect(cancelBtn).not.toHaveClass("btn-primary");
+      const actionsRow = cancelBtn.closest(".flex");
+      const buttons = actionsRow!.querySelectorAll("button");
+      const cancelIndex = Array.from(buttons).findIndex((b) => b === cancelBtn);
+      const priorityIndex = Array.from(buttons).findIndex((b) => b === priorityBtn);
+      expect(cancelIndex).toBeGreaterThanOrEqual(0);
+      expect(priorityIndex).toBeGreaterThan(cancelIndex);
     });
 
     it("passes selected priority when submitting reply", async () => {
