@@ -28,7 +28,7 @@ export function ViewToggle<T extends string>({ options, value, onChange }: ViewT
       aria-label="View mode"
       data-testid="view-toggle"
       tabIndex={0}
-      className="inline-flex rounded-lg border border-theme-border bg-theme-surface-muted p-0.5 mt-1.5"
+      className="inline-flex rounded-lg border border-theme-border bg-theme-surface-muted p-0.5"
       onKeyDown={handleKeyDown}
     >
       {options.map((option) => {
@@ -42,7 +42,7 @@ export function ViewToggle<T extends string>({ options, value, onChange }: ViewT
             aria-label={option.label}
             data-testid={`view-toggle-${option.value}`}
             onClick={() => onChange(option.value)}
-            className={`p-1.5 min-h-[44px] min-w-[44px] transition-colors rounded-md inline-flex items-center justify-center ${
+            className={`p-1 min-h-[35px] min-w-[35px] transition-colors rounded-md inline-flex items-center justify-center ${
               isActive
                 ? "bg-theme-surface shadow-sm ring-1 ring-theme-border text-theme-text"
                 : "text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle/50"

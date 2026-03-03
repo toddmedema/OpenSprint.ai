@@ -222,11 +222,11 @@ export function PlanFilterToolbar({
               </button>
             )
           ) : null}
-          <div className={handleSearchExpand ? "ml-2" : ""}>
+          <div>
             <ViewToggle
               options={[
-                { value: "card", icon: <CardIcon className="w-4 h-4" />, label: "Card view" },
-                { value: "graph", icon: <GraphIcon className="w-4 h-4" />, label: "Graph view" },
+                { value: "card", icon: <CardIcon className="w-3 h-3" />, label: "Card view" },
+                { value: "graph", icon: <GraphIcon className="w-3 h-3" />, label: "Graph view" },
               ]}
               value={viewMode}
               onChange={onViewModeChange}

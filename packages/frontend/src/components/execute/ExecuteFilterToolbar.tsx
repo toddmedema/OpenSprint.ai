@@ -109,7 +109,7 @@ export function ExecuteFilterToolbar({
             </span>
           )}
         </div>
-        <div className="flex items-center shrink-0">
+        <div className="flex items-center shrink-0 gap-2">
           {searchExpanded ? (
             <div
               className="flex items-center gap-1 animate-fade-in"
@@ -165,13 +165,13 @@ export function ExecuteFilterToolbar({
               </svg>
             </button>
           )}
-          <div className="ml-2">
+          <div>
             <ViewToggle
               options={[
-                { value: "kanban", icon: <GridIcon className="w-4 h-4" />, label: "Kanban view" },
+                { value: "kanban", icon: <GridIcon className="w-3 h-3" />, label: "Kanban view" },
                 {
                   value: "timeline",
-                  icon: <ListIcon className="w-4 h-4" />,
+                  icon: <ListIcon className="w-3 h-3" />,
                   label: "Timeline view",
                 },
               ]}
