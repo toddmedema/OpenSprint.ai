@@ -253,6 +253,14 @@ describe("parseSettings", () => {
     const parsed = parseSettings(raw);
     expect(parsed.reviewAngles).toBeUndefined();
   });
+
+  it("should preserve a valid aiAutonomyLevel", () => {
+    const parsed = parseSettings({
+      aiAutonomyLevel: "major_only",
+    });
+
+    expect(parsed.aiAutonomyLevel).toBe("major_only");
+  });
 });
 
 describe("getDefaultDeploymentTarget", () => {
@@ -626,6 +634,12 @@ describe("validateApiKeyEntry", () => {
   it("throws when value is not a string", () => {
     expect(() => validateApiKeyEntry({ id: "x", value: 123 })).toThrow("string value");
   });
+
+  it("throws when limitHitAt is present but not a string", () => {
+    expect(() =>
+      validateApiKeyEntry({ id: "x", value: "secret", limitHitAt: 123 })
+    ).toThrow("limitHitAt must be a string");
+  });
 });
 
 describe("mergeApiKeysWithCurrent", () => {
@@ -772,6 +786,16 @@ describe("isLimitHitExpired", () => {
   it("returns true for invalid ISO string", () => {
     expect(isLimitHitExpired("not-a-date")).toBe(true);
   });
+
+  it("returns true when date coercion throws", () => {
+    const throwingDate = {
+      [Symbol.toPrimitive]() {
+        throw new Error("boom");
+      },
+    };
+
+    expect(isLimitHitExpired(throwingDate as unknown as string)).toBe(true);
+  });
 });
 
 describe("parseSettings — apiKeys ignored (stored in global settings only)", () => {
@@ -887,6 +911,12 @@ describe("validateDatabaseUrl", () => {
 
   it("throws when URL is malformed (missing host)", () => {
     expect(() => validateDatabaseUrl("postgresql://")).toThrow("databaseUrl must have a host");
+  });
+
+  it("throws the generic parser error for malformed PostgreSQL URLs", () => {
+    expect(() => validateDatabaseUrl("postgresql://exa mple.com/db")).toThrow(
+      "databaseUrl must be a valid PostgreSQL connection URL"
+    );
   });
 });
 

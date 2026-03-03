@@ -1,116 +1,112 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  getTestCommandForFramework,
-  resolveTestCommand,
+  AGENT_NAMES_BY_ROLE,
+  AUTO_RETRY_BLOCKED_INTERVAL_MS,
+  TECHNICAL_BLOCK_REASONS,
   getAgentName,
   getAgentNameForRole,
-  AGENT_NAMES_BY_ROLE,
+  getTestCommandForFramework,
   isAgentAssignee,
   isBlockedByTechnicalError,
-  TECHNICAL_BLOCK_REASONS,
-  AUTO_RETRY_BLOCKED_INTERVAL_MS,
+  resolveTestCommand,
 } from "../constants/index.js";
 
 describe("getTestCommandForFramework", () => {
-  it("returns empty string for null", () => {
-    expect(getTestCommandForFramework(null)).toBe("");
-  });
-
-  it("returns empty string for none", () => {
-    expect(getTestCommandForFramework("none")).toBe("");
-  });
-
-  it("returns command for known framework", () => {
-    expect(getTestCommandForFramework("jest")).toBe("npm test");
-    expect(getTestCommandForFramework("vitest")).toBe("npx vitest run");
+  it.each([
+    { framework: null, expected: "" },
+    { framework: "none" as const, expected: "" },
+    { framework: "jest" as const, expected: "npm test" },
+    { framework: "vitest" as const, expected: "npx vitest run" },
+  ])("returns $expected for $framework", ({ framework, expected }) => {
+    expect(getTestCommandForFramework(framework)).toBe(expected);
   });
 });
 
 describe("resolveTestCommand", () => {
-  it("returns testCommand when set", () => {
-    expect(resolveTestCommand({ testCommand: "pytest", testFramework: null })).toBe("pytest");
-  });
-
-  it("returns framework command when testCommand not set", () => {
-    expect(resolveTestCommand({ testCommand: null, testFramework: "vitest" })).toBe(
-      "npx vitest run"
-    );
-  });
-
-  it("returns npm test when neither set", () => {
-    expect(resolveTestCommand({ testCommand: null, testFramework: null })).toBe("npm test");
-  });
-
-  it("returns npm test when framework is none", () => {
-    expect(resolveTestCommand({ testCommand: null, testFramework: "none" })).toBe("npm test");
-  });
-});
-
-describe("getAgentName", () => {
-  it("returns Frodo for slot 0", () => {
-    expect(getAgentName(0)).toBe("Frodo");
-  });
-  it("returns Samwise for slot 1", () => {
-    expect(getAgentName(1)).toBe("Samwise");
-  });
-  it("wraps with modulo (slot 13 → Frodo)", () => {
-    expect(getAgentName(13)).toBe("Frodo");
+  it.each([
+    {
+      project: { testCommand: "pytest", testFramework: null },
+      expected: "pytest",
+    },
+    {
+      project: { testCommand: null, testFramework: "vitest" as const },
+      expected: "npx vitest run",
+    },
+    {
+      project: { testCommand: null, testFramework: null },
+      expected: "npm test",
+    },
+    {
+      project: { testCommand: null, testFramework: "none" as const },
+      expected: "npm test",
+    },
+  ])("resolves $expected", ({ project, expected }) => {
+    expect(resolveTestCommand(project)).toBe(expected);
   });
 });
 
-describe("getAgentNameForRole", () => {
-  it("returns role-specific names", () => {
-    expect(getAgentNameForRole("coder", 0)).toBe("Frodo");
-    expect(getAgentNameForRole("reviewer", 0)).toBe("Boromir");
-    expect(getAgentNameForRole("dreamer", 0)).toBe("Gandalf");
+describe("agent naming", () => {
+  it.each([
+    { slot: 0, expected: "Frodo" },
+    { slot: 1, expected: "Samwise" },
+    { slot: 13, expected: "Frodo" },
+  ])("maps slot $slot to $expected", ({ slot, expected }) => {
+    expect(getAgentName(slot)).toBe(expected);
   });
-  it("wraps with modulo", () => {
+
+  it.each([
+    { role: "coder", slot: 0, expected: "Frodo" },
+    { role: "reviewer", slot: 0, expected: "Boromir" },
+    { role: "dreamer", slot: 0, expected: "Gandalf" },
+  ] as const)("maps $role slot $slot to $expected", ({ role, slot, expected }) => {
+    expect(getAgentNameForRole(role, slot)).toBe(expected);
+  });
+
+  it("wraps role-specific names by modulo", () => {
     const reviewerCount = AGENT_NAMES_BY_ROLE.reviewer.length;
     expect(getAgentNameForRole("reviewer", reviewerCount)).toBe(getAgentNameForRole("reviewer", 0));
   });
-  it("falls back to coder list for unknown role", () => {
+
+  it("falls back to the coder pool for unknown roles", () => {
     expect(getAgentNameForRole("unknown", 0)).toBe("Frodo");
   });
 });
 
 describe("isAgentAssignee", () => {
-  it("returns true for known agent names", () => {
-    expect(isAgentAssignee("Frodo")).toBe(true);
-    expect(isAgentAssignee("Boromir")).toBe(true);
-  });
-  it("returns false for agent-N pattern", () => {
-    expect(isAgentAssignee("agent-1")).toBe(false);
-  });
-  it("returns false for null/undefined/empty", () => {
-    expect(isAgentAssignee(null)).toBe(false);
-    expect(isAgentAssignee(undefined)).toBe(false);
-    expect(isAgentAssignee("")).toBe(false);
+  it.each([
+    { assignee: "Frodo", expected: true },
+    { assignee: "Boromir", expected: true },
+    { assignee: "agent-1", expected: false },
+    { assignee: null, expected: false },
+    { assignee: undefined, expected: false },
+    { assignee: "", expected: false },
+  ])("returns $expected for $assignee", ({ assignee, expected }) => {
+    expect(isAgentAssignee(assignee)).toBe(expected);
   });
 });
 
 describe("isBlockedByTechnicalError", () => {
-  it("returns true for Merge Failure and Coding Failure", () => {
-    expect(isBlockedByTechnicalError("Merge Failure")).toBe(true);
-    expect(isBlockedByTechnicalError("Coding Failure")).toBe(true);
-  });
-  it("returns false for human-feedback block reasons", () => {
-    expect(isBlockedByTechnicalError("Open Question")).toBe(false);
-    expect(isBlockedByTechnicalError("API Blocked")).toBe(false);
-    expect(isBlockedByTechnicalError("Waiting for Human")).toBe(false);
-  });
-  it("returns false for null/undefined/empty", () => {
-    expect(isBlockedByTechnicalError(null)).toBe(false);
-    expect(isBlockedByTechnicalError(undefined)).toBe(false);
-    expect(isBlockedByTechnicalError("")).toBe(false);
+  it.each([
+    { reason: "Merge Failure", expected: true },
+    { reason: "Coding Failure", expected: true },
+    { reason: "Open Question", expected: false },
+    { reason: "API Blocked", expected: false },
+    { reason: "Waiting for Human", expected: false },
+    { reason: null, expected: false },
+    { reason: undefined, expected: false },
+    { reason: "", expected: false },
+  ])("returns $expected for $reason", ({ reason, expected }) => {
+    expect(isBlockedByTechnicalError(reason)).toBe(expected);
   });
 });
 
-describe("TECHNICAL_BLOCK_REASONS and AUTO_RETRY_BLOCKED_INTERVAL_MS", () => {
-  it("TECHNICAL_BLOCK_REASONS includes Merge Failure and Coding Failure", () => {
+describe("technical block constants", () => {
+  it("keep the known technical reasons", () => {
     expect(TECHNICAL_BLOCK_REASONS).toContain("Merge Failure");
     expect(TECHNICAL_BLOCK_REASONS).toContain("Coding Failure");
   });
-  it("AUTO_RETRY_BLOCKED_INTERVAL_MS is 8 hours", () => {
+
+  it("uses an eight-hour blocked retry interval", () => {
     expect(AUTO_RETRY_BLOCKED_INTERVAL_MS).toBe(8 * 60 * 60 * 1000);
   });
 });

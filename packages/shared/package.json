@@ -30,6 +30,7 @@
     "clean": "rm -rf dist",
     "dev": "tsc --watch",
     "test": "node ../../node_modules/vitest/vitest.mjs run",
+    "test:coverage": "node ../../node_modules/vitest/vitest.mjs run --coverage",
     "lint": "eslint src/",
     "format": "prettier --write src/",
     "format:check": "prettier --check src/"

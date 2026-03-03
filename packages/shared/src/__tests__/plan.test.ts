@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { sortPlansByStatus } from "../types/plan.js";
 import type { Plan, PlanStatus } from "../types/plan.js";
 
@@ -19,39 +19,53 @@ function createPlan(id: string, status: PlanStatus): Plan {
 }
 
 describe("sortPlansByStatus", () => {
-  it("sorts plans by status order: planning → building → complete", () => {
-    const plans = [
-      createPlan("plan-done", "complete"),
-      createPlan("plan-planning", "planning"),
-      createPlan("plan-building", "building"),
-    ];
-    const sorted = sortPlansByStatus(plans);
-    expect(sorted.map((p) => p.status)).toEqual(["planning", "building", "complete"]);
-    expect(sorted.map((p) => p.metadata.planId)).toEqual([
-      "plan-planning",
-      "plan-building",
-      "plan-done",
-    ]);
+  it.each([
+    {
+      name: "orders planning before building before complete",
+      input: [
+        createPlan("plan-done", "complete"),
+        createPlan("plan-planning", "planning"),
+        createPlan("plan-building", "building"),
+      ],
+      expected: ["plan-planning", "plan-building", "plan-done"],
+    },
+    {
+      name: "preserves relative order inside the same status bucket",
+      input: [
+        createPlan("plan-a", "building"),
+        createPlan("plan-b", "building"),
+        createPlan("plan-c", "planning"),
+      ],
+      expected: ["plan-c", "plan-a", "plan-b"],
+    },
+  ])("$name", ({ input, expected }) => {
+    expect(sortPlansByStatus(input).map((plan) => plan.metadata.planId)).toEqual(expected);
   });
 
-  it("preserves relative order within same status", () => {
-    const plans = [
-      createPlan("plan-a", "building"),
-      createPlan("plan-b", "building"),
-      createPlan("plan-c", "planning"),
-    ];
-    const sorted = sortPlansByStatus(plans);
-    expect(sorted.map((p) => p.metadata.planId)).toEqual(["plan-c", "plan-a", "plan-b"]);
-  });
-
-  it("returns new array without mutating input", () => {
+  it("returns a new array without mutating the input order", () => {
     const plans = [createPlan("plan-done", "complete"), createPlan("plan-planning", "planning")];
+
     const sorted = sortPlansByStatus(plans);
+
     expect(sorted).not.toBe(plans);
-    expect(plans.map((p) => p.status)).toEqual(["complete", "planning"]);
+    expect(plans.map((plan) => plan.status)).toEqual(["complete", "planning"]);
   });
 
-  it("handles empty array", () => {
+  it("handles an empty array", () => {
     expect(sortPlansByStatus([])).toEqual([]);
+  });
+
+  it("sends unknown statuses to the end via the fallback order", () => {
+    const plans = [
+      createPlan("plan-unknown", "planning" as never),
+      createPlan("plan-planning", "planning"),
+      { ...createPlan("plan-custom", "planning"), status: "custom" as never },
+    ];
+
+    expect(sortPlansByStatus(plans).map((plan) => plan.metadata.planId)).toEqual([
+      "plan-unknown",
+      "plan-planning",
+      "plan-custom",
+    ]);
   });
 });

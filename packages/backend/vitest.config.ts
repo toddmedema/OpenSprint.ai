@@ -31,9 +31,30 @@ export default defineConfig({
     teardownTimeout: 25_000,
     hookTimeout: 60_000,
     coverage: {
+      all: true,
       provider: "v8",
-      include: ["src/services/**"],
-      exclude: ["src/__tests__/**"],
+      include: [
+        "src/services/**/*.ts",
+        "src/routes/**/*.ts",
+        "src/middleware/**/*.ts",
+        "src/db/**/*.ts",
+        "src/utils/**/*.ts",
+      ],
+      exclude: [
+        "src/__tests__/**",
+        "src/utils/__tests__/**",
+        "src/__tests__/mocks/**",
+        "src/index.ts",
+        "src/__tests__/setup.ts",
+        "src/__tests__/global-setup.ts",
+        "src/__tests__/global-teardown.ts",
+      ],
+      thresholds: {
+        statements: 75,
+        branches: 65,
+        functions: 75,
+        lines: 75,
+      },
     },
   },
 });

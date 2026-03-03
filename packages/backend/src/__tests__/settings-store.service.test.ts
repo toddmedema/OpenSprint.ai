@@ -1,0 +1,103 @@
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import fs from "fs/promises";
+import os from "os";
+import path from "path";
+import { DEFAULT_HIL_CONFIG, type ProjectSettings } from "@opensprint/shared";
+import {
+  getSettingsFromStore,
+  getSettingsWithMetaFromStore,
+  setSettingsInStore,
+  updateSettingsInStore,
+  deleteSettingsFromStore,
+} from "../services/settings-store.service.js";
+
+function makeSettings(overrides: Partial<ProjectSettings> = {}): ProjectSettings {
+  return {
+    simpleComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+    complexComplexityAgent: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
+    deployment: { mode: "custom" },
+    hilConfig: DEFAULT_HIL_CONFIG,
+    testFramework: "vitest",
+    gitWorkingMode: "worktree",
+    ...overrides,
+  };
+}
+
+describe("settings-store.service", () => {
+  let tempHome: string;
+  let originalHome: string | undefined;
+
+  beforeEach(async () => {
+    tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-settings-store-"));
+    originalHome = process.env.HOME;
+    process.env.HOME = tempHome;
+  });
+
+  afterEach(async () => {
+    process.env.HOME = originalHome;
+    await fs.rm(tempHome, { recursive: true, force: true });
+  });
+
+  it("normalizes legacy raw settings entries and strips project apiKeys", async () => {
+    const storePath = path.join(tempHome, ".opensprint", "settings.json");
+    await fs.mkdir(path.dirname(storePath), { recursive: true });
+    await fs.writeFile(
+      storePath,
+      JSON.stringify(
+        {
+          "proj-1": {
+            ...makeSettings(),
+            apiKeys: { ANTHROPIC_API_KEY: [{ id: "old", value: "secret" }] },
+          },
+        },
+        null,
+        2
+      )
+    );
+
+    const result = await getSettingsWithMetaFromStore("proj-1", makeSettings({ testFramework: null }));
+    expect(result.settings).not.toHaveProperty("apiKeys");
+    expect(result.settings.testFramework).toBe("vitest");
+    expect(result.updatedAt).toBeTruthy();
+  });
+
+  it("persists settings without apiKeys", async () => {
+    const settings = makeSettings({
+      apiKeys: { ANTHROPIC_API_KEY: [{ id: "k1", value: "secret" }] },
+    } as Partial<ProjectSettings>);
+
+    await setSettingsInStore("proj-1", settings);
+    const loaded = await getSettingsFromStore("proj-1", makeSettings({ testFramework: null }));
+
+    expect(loaded).not.toHaveProperty("apiKeys");
+  });
+
+  it("serializes concurrent updates for the same project", async () => {
+    await setSettingsInStore("proj-1", makeSettings());
+
+    const first = updateSettingsInStore("proj-1", makeSettings(), (current) => {
+      return { ...current, gitWorkingMode: "branches" };
+    });
+    const second = updateSettingsInStore("proj-1", makeSettings(), (current) => ({
+      ...current,
+      testFramework: null,
+    }));
+
+    await Promise.all([first, second]);
+
+    const loaded = await getSettingsFromStore("proj-1", makeSettings());
+    expect(loaded.gitWorkingMode).toBe("branches");
+    expect(loaded.testFramework).toBeNull();
+  });
+
+  it("deletes stored settings for a project", async () => {
+    await setSettingsInStore("proj-1", makeSettings());
+    await deleteSettingsFromStore("proj-1");
+
+    await expect(getSettingsWithMetaFromStore("proj-1", makeSettings({ testFramework: null }))).resolves
+      .toEqual({
+        settings: makeSettings({ testFramework: null }),
+        updatedAt: null,
+      });
+  });
+});

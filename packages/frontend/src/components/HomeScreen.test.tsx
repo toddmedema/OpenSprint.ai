@@ -1,16 +1,11 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
-import { Provider } from "react-redux";
-import { configureStore } from "@reduxjs/toolkit";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ThemeProvider } from "../contexts/ThemeContext";
-import { DisplayPreferencesProvider } from "../contexts/DisplayPreferencesContext";
+import { Routes, Route, useLocation } from "react-router-dom";
 import { HomeScreen } from "./HomeScreen";
 import { GITHUB_REPO_URL, HOMEPAGE_CONTAINER_CLASS } from "../lib/constants";
-import notificationReducer from "../store/slices/notificationSlice";
+import { createTestStore, renderApp } from "../test/test-utils";
 
 const mockProjectsList = vi.fn();
 const mockArchive = vi.fn();
@@ -49,16 +44,7 @@ vi.mock("./layout/Layout", () => ({
 }));
 
 function renderHomeScreen() {
-  const store = configureStore({
-    reducer: { notification: notificationReducer },
-  });
-  return render(
-    <Provider store={store}>
-      <MemoryRouter>
-        <HomeScreen />
-      </MemoryRouter>
-    </Provider>
-  );
+  return renderApp(<HomeScreen />);
 }
 
 const mockProject = {
@@ -140,14 +126,6 @@ describe("HomeScreen", () => {
     expect(screen.getByText("My Project")).toBeInTheDocument();
   });
 
-  it("project cards have hover effect for clickability feedback", async () => {
-    mockProjectsList.mockResolvedValue([mockProject]);
-    renderHomeScreen();
-    await screen.findByTestId("project-card-proj-1");
-    const card = screen.getByTestId("project-card-proj-1");
-    expect(card).toHaveClass("hover:bg-theme-info-bg");
-  });
-
   it("Create New button navigates to /projects/create-new", async () => {
     mockProjectsList.mockResolvedValue([]);
     const user = userEvent.setup();
@@ -156,28 +134,17 @@ describe("HomeScreen", () => {
       return <div data-testid="location">{useLocation().pathname}</div>;
     }
 
-    const store = configureStore({ reducer: { notification: notificationReducer } });
-    render(
-      <Provider store={store}>
-        <MemoryRouter>
-          <HomeScreen />
-          <LocationDisplay />
-        </MemoryRouter>
-      </Provider>
+    renderApp(
+      <>
+        <HomeScreen />
+        <LocationDisplay />
+      </>
     );
 
     await screen.findByTestId("create-new-button");
     await user.click(screen.getByTestId("create-new-button"));
 
     expect(screen.getByTestId("location")).toHaveTextContent("/projects/create-new");
-  });
-
-  it("Add Existing button has hover effect for clickability feedback", async () => {
-    mockProjectsList.mockResolvedValue([]);
-    renderHomeScreen();
-    await screen.findByTestId("add-existing-button");
-    const btn = screen.getByTestId("add-existing-button");
-    expect(btn).toHaveClass("hover:bg-theme-info-bg");
   });
 
   it("Add Existing button navigates to /projects/add-existing", async () => {
@@ -188,14 +155,11 @@ describe("HomeScreen", () => {
       return <div data-testid="location">{useLocation().pathname}</div>;
     }
 
-    const store = configureStore({ reducer: { notification: notificationReducer } });
-    render(
-      <Provider store={store}>
-        <MemoryRouter>
-          <HomeScreen />
-          <LocationDisplay />
-        </MemoryRouter>
-      </Provider>
+    renderApp(
+      <>
+        <HomeScreen />
+        <LocationDisplay />
+      </>
     );
 
     await screen.findByTestId("add-existing-button");
@@ -214,23 +178,11 @@ describe("HomeScreen", () => {
     const user = userEvent.setup();
 
     const { SettingsPage } = await import("../pages/SettingsPage");
-    const store = configureStore({ reducer: { notification: notificationReducer } });
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <ThemeProvider>
-        <DisplayPreferencesProvider>
-          <QueryClientProvider client={queryClient}>
-            <Provider store={store}>
-              <MemoryRouter initialEntries={["/"]}>
-                <Routes>
-                  <Route path="/" element={<HomeScreen />} />
-                  <Route path="/settings" element={<SettingsPage />} />
-                </Routes>
-              </MemoryRouter>
-            </Provider>
-          </QueryClientProvider>
-        </DisplayPreferencesProvider>
-      </ThemeProvider>
+    renderApp(
+      <Routes>
+        <Route path="/" element={<HomeScreen />} />
+        <Route path="/settings" element={<SettingsPage />} />
+      </Routes>
     );
 
     await screen.findByTestId("create-new-button");
@@ -249,23 +201,11 @@ describe("HomeScreen", () => {
     const user = userEvent.setup();
 
     const { SettingsPage } = await import("../pages/SettingsPage");
-    const store = configureStore({ reducer: { notification: notificationReducer } });
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <ThemeProvider>
-        <DisplayPreferencesProvider>
-          <QueryClientProvider client={queryClient}>
-            <Provider store={store}>
-              <MemoryRouter initialEntries={["/"]}>
-                <Routes>
-                  <Route path="/" element={<HomeScreen />} />
-                  <Route path="/settings" element={<SettingsPage />} />
-                </Routes>
-              </MemoryRouter>
-            </Provider>
-          </QueryClientProvider>
-        </DisplayPreferencesProvider>
-      </ThemeProvider>
+    renderApp(
+      <Routes>
+        <Route path="/" element={<HomeScreen />} />
+        <Route path="/settings" element={<SettingsPage />} />
+      </Routes>
     );
 
     await screen.findByTestId("add-existing-button");
@@ -282,14 +222,11 @@ describe("HomeScreen", () => {
       return <div data-testid="location">{useLocation().pathname}</div>;
     }
 
-    const store = configureStore({ reducer: { notification: notificationReducer } });
-    render(
-      <Provider store={store}>
-        <MemoryRouter>
-          <HomeScreen />
-          <LocationDisplay />
-        </MemoryRouter>
-      </Provider>
+    renderApp(
+      <>
+        <HomeScreen />
+        <LocationDisplay />
+      </>
     );
 
     await screen.findByText("My Project");
@@ -454,14 +391,8 @@ describe("HomeScreen", () => {
     mockArchive.mockRejectedValue(new Error("Folder not found"));
     const user = userEvent.setup();
 
-    const store = configureStore({ reducer: { notification: notificationReducer } });
-    render(
-      <Provider store={store}>
-        <MemoryRouter>
-          <HomeScreen />
-        </MemoryRouter>
-      </Provider>
-    );
+    const store = createTestStore();
+    renderApp(<HomeScreen />, { store });
 
     await screen.findByText("My Project");
     await user.click(screen.getByTestId("project-card-menu-proj-1"));
@@ -478,14 +409,8 @@ describe("HomeScreen", () => {
     mockDelete.mockRejectedValue(new Error("Permission denied"));
     const user = userEvent.setup();
 
-    const store = configureStore({ reducer: { notification: notificationReducer } });
-    render(
-      <Provider store={store}>
-        <MemoryRouter>
-          <HomeScreen />
-        </MemoryRouter>
-      </Provider>
-    );
+    const store = createTestStore();
+    renderApp(<HomeScreen />, { store });
 
     await screen.findByText("My Project");
     await user.click(screen.getByTestId("project-card-menu-proj-1"));

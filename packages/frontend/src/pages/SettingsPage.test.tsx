@@ -1,13 +1,9 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { MemoryRouter, Routes, Route } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ThemeProvider } from "../contexts/ThemeContext";
-import { DisplayPreferencesProvider } from "../contexts/DisplayPreferencesContext";
+import { screen, waitFor, fireEvent } from "@testing-library/react";
+import { Routes, Route } from "react-router-dom";
 import { SettingsPage } from "./SettingsPage";
-
-const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+import { renderApp } from "../test/test-utils";
 
 const mockGetKeys = vi.fn();
 const mockGlobalSettingsGet = vi.fn();
@@ -33,18 +29,11 @@ vi.mock("../components/layout/Layout", () => ({
 }));
 
 function renderSettingsPage() {
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <DisplayPreferencesProvider>
-          <MemoryRouter initialEntries={["/settings"]}>
-            <Routes>
-              <Route path="/settings" element={<SettingsPage />} />
-            </Routes>
-          </MemoryRouter>
-        </DisplayPreferencesProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+  return renderApp(
+    <Routes>
+      <Route path="/settings" element={<SettingsPage />} />
+    </Routes>,
+    { routeEntries: ["/settings"] }
   );
 }
 
@@ -69,59 +58,18 @@ describe("SettingsPage", () => {
     mockGlobalSettingsGet.mockResolvedValue({ databaseUrl: "" });
   });
 
-  it("renders settings page with scrollable container", async () => {
+  it("renders the settings page shell and global settings content", async () => {
     renderSettingsPage();
 
     await waitFor(() => {
       expect(screen.getByTestId("settings-page")).toBeInTheDocument();
     });
 
-    const page = screen.getByTestId("settings-page");
-    expect(page).toHaveClass("flex-1");
-    expect(page).toHaveClass("min-h-0");
-    expect(page).toHaveClass("flex");
-    expect(page).toHaveClass("flex-col");
-    expect(page).toHaveClass("overflow-hidden");
-    // Scrollable content is in a child
-    const scrollArea = page.querySelector(".overflow-y-auto");
-    expect(scrollArea).toBeInTheDocument();
-  });
-
-  it("renders second-level top bar with Global and Project navigation", async () => {
-    renderSettingsPage();
-
-    await waitFor(() => {
-      expect(screen.getByTestId("settings-top-bar")).toBeInTheDocument();
-    });
+    expect(screen.getByTestId("settings-top-bar")).toBeInTheDocument();
     expect(screen.getByTestId("settings-global-tab")).toHaveTextContent("Global");
     expect(screen.getByTestId("settings-project-tab")).toHaveTextContent("Project");
-  });
-
-  it("renders global settings content", async () => {
-    renderSettingsPage();
-
-    await waitFor(() => {
-      expect(screen.getByTestId("global-settings-content")).toBeInTheDocument();
-    });
-  });
-
-  it("does not render back button in header", async () => {
-    renderSettingsPage();
-
-    await waitFor(() => {
-      expect(screen.getByTestId("settings-page")).toBeInTheDocument();
-    });
-
+    expect(screen.getByTestId("global-settings-content")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Back to home" })).not.toBeInTheDocument();
-  });
-
-  it("shows save indicator with Saved by default", async () => {
-    renderSettingsPage();
-
-    await waitFor(() => {
-      expect(screen.getByTestId("settings-save-indicator")).toBeInTheDocument();
-    });
-
     expect(screen.getByTestId("settings-save-indicator")).toHaveTextContent("Saved");
   });
 

@@ -1,35 +1,35 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { GlobalSettingsContent } from "./GlobalSettingsContent";
-
-const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-
-function renderWithProviders(ui: React.ReactElement) {
-  return render(
-    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
-  );
-}
+import { renderApp } from "../test/test-utils";
 
 function renderGlobalSettingsContent() {
-  return renderWithProviders(
-    <GlobalSettingsContent onSaveStateChange={vi.fn()} />
-  );
+  return renderApp(<GlobalSettingsContent onSaveStateChange={vi.fn()} />);
 }
 
-vi.mock("../contexts/ThemeContext", () => ({
-  useTheme: () => ({
-    preference: "light",
-    setTheme: vi.fn(),
-  }),
-}));
+vi.mock("../contexts/ThemeContext", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../contexts/ThemeContext")>();
+  return {
+    ...actual,
+    useTheme: () => ({
+      preference: "light",
+      resolved: "light",
+      setTheme: vi.fn(),
+      setForceLightMode: vi.fn(),
+    }),
+  };
+});
 
-vi.mock("../contexts/DisplayPreferencesContext", () => ({
-  useDisplayPreferences: () => ({
-    runningAgentsDisplayMode: "count",
-    setRunningAgentsDisplayMode: vi.fn(),
-  }),
-}));
+vi.mock("../contexts/DisplayPreferencesContext", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../contexts/DisplayPreferencesContext")>();
+  return {
+    ...actual,
+    useDisplayPreferences: () => ({
+      runningAgentsDisplayMode: "count",
+      setRunningAgentsDisplayMode: vi.fn(),
+    }),
+  };
+});
 
 const mockGlobalSettingsGet = vi.fn();
 const mockGlobalSettingsPut = vi.fn();

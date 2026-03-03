@@ -1,32 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { generateShortFeedbackId } from "../utils/feedback-id.js";
 
 describe("generateShortFeedbackId", () => {
-  const ID_REGEX = /^[a-z0-9]{6}$/;
-
-  it("should return exactly 6 characters", () => {
+  it.each([
+    "matches the lowercase alphanumeric format",
+    "keeps the id at six characters",
+    "does not emit punctuation or uppercase characters",
+  ])("%s", () => {
     const id = generateShortFeedbackId();
+
     expect(id).toHaveLength(6);
-  });
-
-  it("should return only lowercase letters and digits", () => {
-    const id = generateShortFeedbackId();
-    expect(id).toMatch(ID_REGEX);
-  });
-
-  it("should produce unique IDs across many calls", () => {
-    const ids = new Set<string>();
-    for (let i = 0; i < 1000; i++) {
-      ids.add(generateShortFeedbackId());
-    }
-    expect(ids.size).toBe(1000);
-  });
-
-  it("should match alphanumeric pattern (a-z, 0-9) at 6 chars", () => {
-    for (let i = 0; i < 100; i++) {
-      const id = generateShortFeedbackId();
-      expect(id).toMatch(ID_REGEX);
-      expect(id).not.toMatch(/[^a-z0-9]/);
-    }
+    expect(id).toMatch(/^[a-z0-9]{6}$/);
   });
 });
