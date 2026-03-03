@@ -14,8 +14,10 @@ interface NavButtonBaseProps {
   "data-testid"?: string;
   "aria-label"?: string;
   "aria-selected"?: boolean;
+  "aria-controls"?: string;
   "aria-current"?: "page" | undefined;
   role?: string;
+  id?: string;
 }
 
 interface NavButtonAsLinkProps extends NavButtonBaseProps {
@@ -49,8 +51,10 @@ export function NavButton({
   "data-testid": dataTestId,
   "aria-label": ariaLabel,
   "aria-selected": ariaSelected,
+  "aria-controls": ariaControls,
   "aria-current": ariaCurrent,
   role,
+  id,
   ...rest
 }: NavButtonProps) {
   const stateClasses = active ? activeClasses : inactiveClasses;
@@ -71,7 +75,9 @@ export function NavButton({
     "data-testid": dataTestId,
     "data-active": active,
     "aria-label": ariaLabel,
+    "aria-controls": ariaControls,
     "aria-current": ariaCurrent,
+    id,
   };
 
   if ("to" in rest && rest.to) {

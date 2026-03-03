@@ -3449,8 +3449,8 @@ describe("ExecutePhase Source feedback section", () => {
       expect(mockFeedbackGet).toHaveBeenCalledWith("proj-1", "fb-xyz");
     });
 
-    expect(screen.getByTestId("source-feedback-card")).toBeInTheDocument();
-    expect(screen.getByText("Please add dark mode support")).toBeInTheDocument();
+    expect(await screen.findByTestId("source-feedback-card")).toBeInTheDocument();
+    expect(await screen.findByText("Please add dark mode support")).toBeInTheDocument();
     // Category chip and Mapped plan are not shown in Execute sidebar (reduced clutter)
     expect(screen.queryByText("Feature")).not.toBeInTheDocument();
     expect(screen.queryByText(/mapped plan:/i)).not.toBeInTheDocument();

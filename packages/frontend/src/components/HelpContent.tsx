@@ -9,6 +9,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ChatInput } from "./ChatInput";
+import { NavButton } from "./layout/NavButton";
 import { api } from "../api/client";
 import { ASSET_BASE } from "../lib/constants";
 
@@ -37,37 +38,27 @@ export function HelpContent({ project, onClose }: HelpContentProps) {
         aria-label="Help sections"
       >
         <div className="flex-1 min-w-0" aria-hidden="true" />
-        <div className="flex flex-wrap items-center justify-center gap-2 shrink-0">
-          <button
-            type="button"
+        <div className="flex flex-wrap items-center justify-center gap-1 bg-theme-border-subtle rounded-lg p-1 shrink-0">
+          <NavButton
+            active={activeTab === "ask"}
+            onClick={() => setActiveTab("ask")}
             role="tab"
             aria-selected={activeTab === "ask"}
             aria-controls="help-tabpanel-ask"
             id="help-tab-ask"
-            onClick={() => setActiveTab("ask")}
-            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 min-h-[44px] text-sm font-medium transition-colors ${
-              activeTab === "ask"
-                ? "bg-brand-600 text-white ring-2 ring-brand-500 ring-offset-2 ring-offset-theme-bg"
-                : "bg-theme-surface-muted text-theme-text hover:bg-theme-border-subtle"
-            }`}
           >
             Ask a Question
-          </button>
-          <button
-            type="button"
+          </NavButton>
+          <NavButton
+            active={activeTab === "meet"}
+            onClick={() => setActiveTab("meet")}
             role="tab"
             aria-selected={activeTab === "meet"}
             aria-controls="help-tabpanel-meet"
             id="help-tab-meet"
-            onClick={() => setActiveTab("meet")}
-            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 min-h-[44px] text-sm font-medium transition-colors ${
-              activeTab === "meet"
-                ? "bg-brand-600 text-white ring-2 ring-brand-500 ring-offset-2 ring-offset-theme-bg"
-                : "bg-theme-surface-muted text-theme-text hover:bg-theme-border-subtle"
-            }`}
           >
             Meet your Team
-          </button>
+          </NavButton>
         </div>
         <div className="flex-1 min-w-0 flex justify-end items-center">
           {onClose && (
