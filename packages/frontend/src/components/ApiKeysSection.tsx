@@ -235,7 +235,6 @@ export function ApiKeysSection({
 
   return (
     <div data-testid="api-keys-section" className="space-y-4">
-      <hr className="border-theme-border" />
       <div>
         <h3 className="text-sm font-semibold text-theme-text mb-1">API Keys</h3>
         <p className="text-xs text-theme-muted mb-3">
