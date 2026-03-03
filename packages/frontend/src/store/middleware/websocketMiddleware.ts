@@ -269,12 +269,14 @@ export const websocketMiddleware: Middleware = (storeApi) => {
 
       case "agent.started":
         void qc.invalidateQueries({ queryKey: queryKeys.tasks.list(projectId) });
+        void qc.invalidateQueries({ queryKey: ["agents", "active", projectId] });
         break;
 
       case "agent.activity":
         void qc.invalidateQueries({
           queryKey: queryKeys.execute.diagnostics(projectId, event.taskId),
         });
+        void qc.invalidateQueries({ queryKey: ["agents", "active", projectId] });
         break;
 
       case "agent.completed": {
@@ -283,6 +285,7 @@ export const websocketMiddleware: Middleware = (storeApi) => {
         void qc.invalidateQueries({
           queryKey: queryKeys.execute.diagnostics(projectId, completed.taskId),
         });
+        void qc.invalidateQueries({ queryKey: ["agents", "active", projectId] });
         d(
           setCompletionState({
             taskId: completed.taskId,

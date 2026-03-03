@@ -104,6 +104,7 @@ function defaultNextAction(outcome: TaskExecutionOutcome): string | null {
 
 function titleForOutcome(phase: TaskExecutionPhase, outcome: TaskExecutionOutcome): string {
   if (outcome === "running") return `${labelForPhase(phase)} started`;
+  if (outcome === "suspended") return `${labelForPhase(phase)} suspended`;
   if (outcome === "failed") return `${labelForPhase(phase)} failed`;
   if (outcome === "rejected") return "Review rejected";
   if (outcome === "requeued") return phase === "merge" ? "Merge failed" : "Task requeued";
@@ -186,6 +187,46 @@ function summarizeEvent(event: OrchestratorEvent): TaskExecutionEventItem | null
         240
       ),
       nextAction: waiting ? "Awaiting tool completion" : "Agent resuming after tool output",
+    };
+  }
+
+  if (event.event === "agent.suspended") {
+    const phase = phaseFromUnknown(data.phase, "coding");
+    const reason = asString(data.reason);
+    return {
+      at: event.timestamp,
+      attempt,
+      phase,
+      outcome: "suspended",
+      title: titleForOutcome(phase, "suspended"),
+      summary:
+        asString(data.summary) ??
+        compactExecutionText(
+          `${labelForPhase(phase)} suspended: ${
+            reason === "heartbeat_gap"
+              ? "heartbeat gap after host sleep or backend pause"
+              : reason === "backend_restart"
+                ? "backend restarted while agent was still running"
+                : "no agent output within inactivity window"
+          }`,
+          240
+        ),
+      nextAction: "Waiting for reconnect or new output",
+    };
+  }
+
+  if (event.event === "agent.resumed") {
+    const phase = phaseFromUnknown(data.phase, "coding");
+    return {
+      at: event.timestamp,
+      attempt,
+      phase,
+      outcome: "running",
+      title: `${labelForPhase(phase)} resumed`,
+      summary:
+        asString(data.summary) ??
+        compactExecutionText(`${labelForPhase(phase)} resumed after reconnect`, 240),
+      nextAction: "Agent running",
     };
   }
 

@@ -221,9 +221,11 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
   /* ── Fetch sketch-context when in empty state (for "Generate from codebase" visibility) ── */
   useEffect(() => {
     if (!hasPrdContent && projectId) {
-      api.projects
-        .getSketchContext(projectId)
-        .then((data) => setSketchContext({ hasExistingCode: data.hasExistingCode }))
+      Promise.resolve()
+        .then(() => api.projects.getSketchContext(projectId))
+        .then((data) =>
+          setSketchContext({ hasExistingCode: Boolean(data?.hasExistingCode) })
+        )
         .catch(() => setSketchContext({ hasExistingCode: false }));
     } else {
       setSketchContext(null);

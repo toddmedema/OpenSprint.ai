@@ -9,7 +9,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { configureStore } from "@reduxjs/toolkit";
 import { PlanPhase, getPlanChatMessageDisplay } from "./PlanPhase";
 import { api } from "../../api/client";
-import { queryKeys } from "../../api/queryKeys";
 import projectReducer from "../../store/slices/projectSlice";
 import planReducer, { setPlansAndGraph, setSelectedPlanId } from "../../store/slices/planSlice";
 import executeReducer, {
@@ -17,24 +16,23 @@ import executeReducer, {
   taskUpdated,
   toTasksByIdAndOrder,
 } from "../../store/slices/executeSlice";
+import openQuestionsReducer, {
+  addNotification as addOpenQuestionNotification,
+} from "../../store/slices/openQuestionsSlice";
 import notificationReducer from "../../store/slices/notificationSlice";
 
-const planPhaseQueryClient = new QueryClient({
-  defaultOptions: {
-    queries: { retry: false, staleTime: Infinity },
-  },
-});
-
-const planPhaseWrapper = ({ children }: { children: React.ReactNode }) => (
-  <QueryClientProvider client={planPhaseQueryClient}>{children}</QueryClientProvider>
-);
-
-beforeEach(() => {
-  planPhaseQueryClient.setQueryData(queryKeys.plans.list("proj-1"), {
-    plans: [],
-    edges: [],
+function createPlanPhaseQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, staleTime: Infinity },
+    },
   });
-});
+}
+
+const planPhaseWrapper = ({ children }: { children: React.ReactNode }) => {
+  const [client] = React.useState(() => createPlanPhaseQueryClient());
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+};
 
 beforeAll(() => {
   global.ResizeObserver = class {
@@ -194,6 +192,19 @@ const defaultExecuteTasks = [
   },
 ];
 
+function syncSinglePlanMock(plans: (typeof basePlan)[]) {
+  const planById = new Map(plans.map((plan) => [plan.metadata.planId, plan]));
+  mockPlansGet.mockImplementation(async (_projectId: string, planId: string) => {
+    return planById.get(planId) ?? {
+      ...basePlan,
+      metadata: {
+        ...basePlan.metadata,
+        planId,
+      },
+    };
+  });
+}
+
 function createStore(
   plansOverride?: (typeof basePlan)[],
   planError?: string | null,
@@ -206,12 +217,14 @@ function createStore(
 ) {
   const plans = plansOverride ?? [basePlan];
   const executeTasks = executeTasksOverride ?? defaultExecuteTasks;
+  syncSinglePlanMock(plans);
 
   return configureStore({
     reducer: {
       project: projectReducer,
       plan: planReducer,
       execute: executeReducer,
+      openQuestions: openQuestionsReducer,
       notification: notificationReducer,
     },
     preloadedState: {
@@ -251,6 +264,14 @@ function createStore(
         statusLoading: false,
         loading: false,
         error: null,
+      },
+      openQuestions: {
+        byProject: {},
+        global: [],
+        async: {
+          project: {},
+          global: { loading: false },
+        },
       },
     },
   });
@@ -1019,26 +1040,31 @@ describe("PlanPhase dynamic plan button label", () => {
     };
     const planWithTasks = { ...planningPlan, taskCount: 2 };
     mockPlansList.mockResolvedValue({ plans: [planningPlan], edges: [] });
-    const store = createStore([planningPlan], undefined, []);
-    const { rerender } = render(
+    const initialStore = createStore([planningPlan], undefined, [], { selectedPlanId: null });
+    const initialRender = render(
       <MemoryRouter>
-        <Provider store={store}>
+        <Provider store={initialStore}>
           <PlanPhase projectId="proj-1" />
         </Provider>
       </MemoryRouter>,
-  { wrapper: planPhaseWrapper }
-);
+      { wrapper: planPhaseWrapper }
+    );
     expect(await screen.findByTestId("plan-tasks-button")).toBeInTheDocument();
     expect(screen.queryByTestId("execute-button")).not.toBeInTheDocument();
 
-    store.dispatch(fetchTasks.fulfilled(defaultExecuteTasks as never, "test", "proj-1"));
-    store.dispatch(setPlansAndGraph({ plans: [planWithTasks], dependencyGraph: null }));
-    rerender(
+    initialRender.unmount();
+
+    mockPlansList.mockResolvedValue({ plans: [planWithTasks], edges: [] });
+    const updatedStore = createStore([planWithTasks], undefined, defaultExecuteTasks, {
+      selectedPlanId: null,
+    });
+    render(
       <MemoryRouter>
-        <Provider store={store}>
+        <Provider store={updatedStore}>
           <PlanPhase projectId="proj-1" />
         </Provider>
-      </MemoryRouter>
+      </MemoryRouter>,
+      { wrapper: planPhaseWrapper }
     );
     expect(await screen.findByTestId("execute-button")).toBeInTheDocument();
     expect(screen.queryByTestId("plan-tasks-button")).not.toBeInTheDocument();
@@ -1053,25 +1079,29 @@ describe("PlanPhase dynamic plan button label", () => {
       metadata: { ...basePlan.metadata },
     };
     mockPlansList.mockResolvedValue({ plans: [planningPlan], edges: [] });
-    const store = createStore([planningPlan]);
-    const { rerender } = render(
+    const initialStore = createStore([planningPlan], undefined, undefined, { selectedPlanId: null });
+    const initialRender = render(
       <MemoryRouter>
-        <Provider store={store}>
+        <Provider store={initialStore}>
           <PlanPhase projectId="proj-1" />
         </Provider>
       </MemoryRouter>,
-  { wrapper: planPhaseWrapper }
-);
+      { wrapper: planPhaseWrapper }
+    );
     expect(await screen.findByTestId("execute-button")).toBeInTheDocument();
 
+    initialRender.unmount();
+
     const buildingPlan = { ...planningPlan, status: "building" as const };
-    store.dispatch(setPlansAndGraph({ plans: [buildingPlan], dependencyGraph: null }));
-    rerender(
+    mockPlansList.mockResolvedValue({ plans: [buildingPlan], edges: [] });
+    const updatedStore = createStore([buildingPlan], undefined, undefined, { selectedPlanId: null });
+    render(
       <MemoryRouter>
-        <Provider store={store}>
+        <Provider store={updatedStore}>
           <PlanPhase projectId="proj-1" />
         </Provider>
-      </MemoryRouter>
+      </MemoryRouter>,
+      { wrapper: planPhaseWrapper }
     );
     expect(screen.queryByTestId("plan-tasks-button")).not.toBeInTheDocument();
     expect(screen.queryByTestId("execute-button")).not.toBeInTheDocument();
@@ -2409,6 +2439,9 @@ describe("PlanPhase open questions", () => {
 
     const store = createStore(undefined, null, defaultExecuteTasks, {
       selectedPlanId: "archive-test-feature",
+    });
+    act(() => {
+      store.dispatch(addOpenQuestionNotification(planNotification as never));
     });
 
     render(

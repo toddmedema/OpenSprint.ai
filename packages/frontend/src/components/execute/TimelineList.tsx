@@ -16,6 +16,7 @@ import type { StatusFilter } from "../../lib/executeTaskFilter";
 
 const ROW_HEIGHT = 44;
 const HEADER_HEIGHT = 52;
+const VIRTUALIZE_THRESHOLD = 25;
 
 export interface TimelineListProps {
   tasks: Task[];
@@ -194,7 +195,7 @@ export function TimelineList({
     return m;
   }, [items]);
 
-  const useVirtualization = Boolean(scrollRef);
+  const useVirtualization = Boolean(scrollRef) && items.length > VIRTUALIZE_THRESHOLD;
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollRef?.current ?? null,

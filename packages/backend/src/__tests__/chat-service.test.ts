@@ -213,13 +213,11 @@ describe("ChatService - Plan phase agent registry", () => {
 
       const specPath = path.join(repoPath, SPEC_MD);
       const specBefore = await fs.readFile(specPath, "utf-8");
-      const prdBefore = specMarkdownToPrd(specBefore);
 
       await chatService.syncPrdFromPlanShip(projectId, "auth-plan", "# Auth Plan\n\nContent.");
 
       const specAfter = await fs.readFile(specPath, "utf-8");
-      const prdAfter = specMarkdownToPrd(specAfter);
-      expect(prdAfter).toEqual(prdBefore);
+      expect(specAfter).toBe(specBefore);
       expect(mockBroadcast).not.toHaveBeenCalled();
     });
 
@@ -259,13 +257,11 @@ describe("ChatService - Plan phase agent registry", () => {
 
       const specPath = path.join(repoPath, SPEC_MD);
       const specBefore = await fs.readFile(specPath, "utf-8");
-      const prdBefore = specMarkdownToPrd(specBefore);
 
       await chatService.syncPrdFromScopeChangeFeedback(projectId, "Minor feedback");
 
       const specAfter = await fs.readFile(specPath, "utf-8");
-      const prdAfter = specMarkdownToPrd(specAfter);
-      expect(prdAfter.sections).toEqual(prdBefore.sections);
+      expect(specAfter).toBe(specBefore);
     });
 
     it("should do nothing when agent returns no_changes_needed JSON", async () => {
@@ -275,13 +271,11 @@ describe("ChatService - Plan phase agent registry", () => {
 
       const specPath = path.join(repoPath, SPEC_MD);
       const specBefore = await fs.readFile(specPath, "utf-8");
-      const prdBefore = specMarkdownToPrd(specBefore);
 
       await chatService.syncPrdFromScopeChangeFeedback(projectId, "Minor feedback");
 
       const specAfter = await fs.readFile(specPath, "utf-8");
-      const prdAfter = specMarkdownToPrd(specAfter);
-      expect(prdAfter.sections).toEqual(prdBefore.sections);
+      expect(specAfter).toBe(specBefore);
       expect(mockBroadcast).not.toHaveBeenCalled();
     });
 

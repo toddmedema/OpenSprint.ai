@@ -10,6 +10,7 @@ const mockKill = vi.fn();
 const mockReadHeartbeat = vi.fn();
 const mockFindOrphanedAssignments = vi.fn();
 const mockFindOrphanedAssignmentsFromWorktrees = vi.fn();
+const mockReadAssignmentAt = vi.fn();
 
 vi.mock("../services/heartbeat.service.js", () => ({
   heartbeatService: {
@@ -40,6 +41,7 @@ vi.mock("../services/crash-recovery.service.js", () => ({
     findOrphanedAssignments: (...args: unknown[]) => mockFindOrphanedAssignments(...args),
     findOrphanedAssignmentsFromWorktrees: (...args: unknown[]) =>
       mockFindOrphanedAssignmentsFromWorktrees(...args),
+    readAssignmentAt: (...args: unknown[]) => mockReadAssignmentAt(...args),
     deleteAssignmentAt: vi.fn().mockResolvedValue(undefined),
   })),
 }));
@@ -84,6 +86,7 @@ describe("RecoveryService — stale heartbeat recovery", () => {
     mockReadHeartbeat.mockResolvedValue(null);
     mockFindOrphanedAssignments.mockResolvedValue([]);
     mockFindOrphanedAssignmentsFromWorktrees.mockResolvedValue([]);
+    mockReadAssignmentAt.mockResolvedValue(null);
     vi.mocked(taskStore.show).mockResolvedValue({
       id: "task-stale",
       status: "in_progress",
@@ -242,5 +245,52 @@ describe("RecoveryService — stale heartbeat recovery", () => {
       "task-stale",
       expect.objectContaining({ status: "open" })
     );
+  });
+
+  it("reattaches a stale heartbeat with live PID when assignment is present", async () => {
+    const recoverableHost = {
+      ...host,
+      handleRecoverableHeartbeatGap: vi.fn().mockResolvedValue(true),
+    };
+
+    mockFindStaleHeartbeats.mockResolvedValue([
+      {
+        taskId: "task-stale",
+        heartbeat: {
+          pid: TEST_PID,
+          lastOutputTimestamp: Date.now() - 3 * 60 * 1000,
+          heartbeatTimestamp: Date.now() - 3 * 60 * 1000,
+        },
+      },
+    ]);
+    mockReadAssignmentAt.mockResolvedValue({
+      taskId: "task-stale",
+      projectId: "proj-1",
+      phase: "coding",
+      branchName: "opensprint/task-stale",
+      worktreePath: "/tmp/wt",
+      promptPath: "/tmp/wt/.opensprint/active/task-stale/prompt.md",
+      agentConfig: { type: "cursor", model: "gpt-5", cliCommand: null },
+      attempt: 2,
+      createdAt: new Date().toISOString(),
+    });
+
+    process.kill = mockKill as unknown as typeof process.kill;
+    mockKill.mockImplementation((pid: number, signal: number | string) => {
+      if (signal === 0 && pid === TEST_PID) return;
+      throw new Error("Should not send kill signals for recoverable heartbeat gaps");
+    });
+
+    const result = await service.runFullRecovery("proj-1", tmpDir, recoverableHost);
+
+    expect(recoverableHost.handleRecoverableHeartbeatGap).toHaveBeenCalledWith(
+      "proj-1",
+      tmpDir,
+      expect.objectContaining({ id: "task-stale" }),
+      expect.objectContaining({ phase: "coding", attempt: 2 })
+    );
+    expect(result.reattached).toEqual(["task-stale"]);
+    expect(result.requeued).toEqual([]);
+    expect(vi.mocked(taskStore.update)).not.toHaveBeenCalled();
   });
 });

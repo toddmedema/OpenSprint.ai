@@ -69,6 +69,7 @@ export interface PhaseExecutorHost {
   getCachedSummarizerContext(projectId: string, taskId: string): TaskContext | undefined;
   setCachedSummarizerContext(projectId: string, taskId: string, context: TaskContext): void;
   buildReviewHistory(repoPath: string, taskId: string): Promise<string>;
+  onAgentStateChange(projectId: string): () => void;
 }
 
 export class PhaseExecutorService {
@@ -81,6 +82,7 @@ export class PhaseExecutorService {
     return {
       activeProcess: null,
       lastOutputTime: 0,
+      lastOutputAtIso: undefined,
       outputLog: [],
       outputLogBytes: 0,
       outputParseBuffer: "",
@@ -89,6 +91,10 @@ export class PhaseExecutorService {
       startedAt,
       exitHandled: false,
       killedDueToTimeout: false,
+      lifecycleState: "running",
+      suspendedAtIso: undefined,
+      suspendReason: undefined,
+      suspendDeadlineMs: undefined,
     };
   }
 
@@ -283,6 +289,7 @@ export class PhaseExecutorService {
           role: "coder",
           onDone: (code) =>
             this.callbacks.handleCodingDone(projectId, repoPath, task, branchName, code),
+          onStateChange: this.host.onAgentStateChange(projectId),
         },
         slot.agent,
         slot.timers
@@ -471,6 +478,7 @@ export class PhaseExecutorService {
                 role: "reviewer",
                 onDone: (code) =>
                   this.callbacks.handleReviewDone(projectId, repoPath, task, branchName, code, angle),
+                onStateChange: this.host.onAgentStateChange(projectId),
               },
               angleAgent,
               angleTimers
@@ -504,6 +512,7 @@ export class PhaseExecutorService {
             role: "reviewer",
             onDone: (code) =>
               this.callbacks.handleReviewDone(projectId, repoPath, task, branchName, code),
+            onStateChange: this.host.onAgentStateChange(projectId),
           },
           slot.agent,
           slot.timers

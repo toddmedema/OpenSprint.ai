@@ -68,6 +68,7 @@ const AgentDropdownItem = memo(function AgentDropdownItem({
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const roleForDesc = getAgentRoleForDescription(agent);
   const description = roleForDesc ? AGENT_ROLE_DESCRIPTIONS[roleForDesc] : undefined;
+  const statusLabel = agent.state === "suspended" ? "Suspended" : null;
 
   const performKill = useCallback(() => {
     setKilling(true);
@@ -120,7 +121,8 @@ const AgentDropdownItem = memo(function AgentDropdownItem({
         <div className="min-w-0 flex-1">
           <div className="font-medium text-theme-text">{agent.label || agent.id}</div>
           <div className="text-theme-muted mt-0.5">
-            {getRoleDisplayLabel(agent)} &middot; <UptimeDisplay startedAt={agent.startedAt} />
+            {getRoleDisplayLabel(agent)} &middot;{" "}
+            {statusLabel ? statusLabel : <UptimeDisplay startedAt={agent.startedAt} />}
           </div>
         </div>
       </button>

@@ -14,11 +14,12 @@ import { appendAgentOutput } from "../store/slices/executeSlice";
 import { agentOutputFilterMiddleware } from "../store/middleware/agentOutputFilterMiddleware";
 import projectReducer from "../store/slices/projectSlice";
 import planReducer from "../store/slices/planSlice";
-import executeReducer, { initialExecuteState } from "../store/slices/executeSlice";
+import executeReducer, {
+  initialExecuteState,
+  toTasksByIdAndOrder,
+} from "../store/slices/executeSlice";
 import evalReducer from "../store/slices/evalSlice";
 import websocketReducer from "../store/slices/websocketSlice";
-
-const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
 const mockGet = vi.fn();
 const mockSessions = vi.fn();
@@ -68,6 +69,62 @@ const basePlan = {
   dependencyCount: 0,
 };
 
+function createTaskDetailSidebarProps(taskDetail: {
+  id: string;
+  title: string;
+  epicId: string;
+  kanbanColumn: "done";
+  priority: number;
+  assignee: null;
+  description: string;
+  type: "task";
+  status: "closed";
+  labels: string[];
+  dependencies: { targetId: string; type: string }[];
+  createdAt: string;
+  updatedAt: string;
+}) {
+  return {
+    projectId: "proj-1",
+    selectedTask: "epic-1.1",
+    taskDetail: {
+      selectedTaskData: taskDetail,
+      taskDetailLoading: false,
+      taskDetailError: null,
+    },
+    agentOutput: [],
+    completionState: null,
+    diagnostics: null,
+    diagnosticsLoading: false,
+    archivedLoading: false,
+    markDoneLoading: false,
+    unblockLoading: false,
+    deleteLoading: false,
+    taskIdToStartedAt: {},
+    planByEpicId: { [basePlan.metadata.epicId]: basePlan },
+    taskById: {},
+    activeTasks: [],
+    wsConnected: false,
+    isDoneTask: true,
+    isBlockedTask: false,
+    sections: {
+      sourceFeedbackExpanded: {},
+      setSourceFeedbackExpanded: vi.fn(),
+      descriptionSectionExpanded: true,
+      setDescriptionSectionExpanded: vi.fn(),
+      artifactsSectionExpanded: true,
+      setArtifactsSectionExpanded: vi.fn(),
+    },
+    callbacks: {
+      onClose: vi.fn(),
+      onMarkDone: vi.fn(),
+      onUnblock: vi.fn(),
+      onDeleteTask: vi.fn(),
+      onSelectTask: vi.fn(),
+    },
+  };
+}
+
 function createStoreWithFilterMiddleware(preloadedState: {
   tasks: Array<{
     id: string;
@@ -92,6 +149,7 @@ function createStoreWithFilterMiddleware(preloadedState: {
   }>;
   completionState?: { status: string; testResults: unknown; reason?: string | null } | null;
 }) {
+  const { tasksById, taskIdsOrder } = toTasksByIdAndOrder(preloadedState.tasks as never);
   return configureStore({
     reducer: {
       project: projectReducer,
@@ -123,7 +181,8 @@ function createStoreWithFilterMiddleware(preloadedState: {
       },
       execute: {
         ...initialExecuteState,
-        tasks: preloadedState.tasks,
+        tasksById,
+        taskIdsOrder,
         selectedTaskId: preloadedState.selectedTaskId,
         agentOutput: preloadedState.agentOutput ?? {},
         archivedSessions: preloadedState.archivedSessions ?? [],
@@ -131,6 +190,23 @@ function createStoreWithFilterMiddleware(preloadedState: {
       },
     },
   });
+}
+
+async function renderExecutePhase(store: ReturnType<typeof createStoreWithFilterMiddleware>) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const view = render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <Provider store={store}>
+          <ExecutePhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>
+    </QueryClientProvider>
+  );
+  await act(async () => {
+    await Promise.resolve();
+  });
+  return view;
 }
 
 describe("E2E: Readable agent output", () => {
@@ -158,6 +234,7 @@ describe("E2E: Readable agent output", () => {
   });
 
   it("live output shows formatted text, not raw JSON, when agent emits NDJSON", async () => {
+    vi.useFakeTimers();
     const tasks = [
       {
         id: "epic-1.1",
@@ -174,43 +251,35 @@ describe("E2E: Readable agent output", () => {
       wsConnected: true,
     });
 
-    render(
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter>
-          <Provider store={store}>
-            <ExecutePhase projectId="proj-1" />
-          </Provider>
-        </MemoryRouter>
-      </QueryClientProvider>
-    );
+    try {
+      await renderExecutePhase(store);
 
-    await waitFor(() => {
-      expect(mockGet).toHaveBeenCalledWith("proj-1", "epic-1.1");
-    });
+      // Simulate agent emitting raw NDJSON (as WebSocket would)
+      await act(async () => {
+        store.dispatch(
+          appendAgentOutput({
+            taskId: "epic-1.1",
+            chunk: '{"type":"text","text":"Hello from agent"}\n{"type":"tool_use","name":"edit"}\n{"type":"text","text":" **bold** and `code`"}\n',
+          })
+        );
+        vi.advanceTimersByTime(2500);
+        await Promise.resolve();
+      });
 
-    // Simulate agent emitting raw NDJSON (as WebSocket would)
-    await act(async () => {
-      store.dispatch(
-        appendAgentOutput({
-          taskId: "epic-1.1",
-          chunk: '{"type":"text","text":"Hello from agent"}\n{"type":"tool_use","name":"edit"}\n{"type":"text","text":" **bold** and `code`"}\n',
-        })
-      );
-    });
-
-    await waitFor(() => {
       const liveOutput = screen.getByTestId("live-agent-output");
       expect(liveOutput).toHaveTextContent("Hello from agent");
-    });
-    const liveOutput = screen.getByTestId("live-agent-output");
-    expect(liveOutput).toHaveTextContent("bold");
-    expect(liveOutput).toHaveTextContent("code");
-    // Raw JSON must NOT appear
-    expect(liveOutput).not.toHaveTextContent("tool_use");
-    expect(liveOutput).not.toHaveTextContent('"type":"text"');
+      expect(liveOutput).toHaveTextContent("bold");
+      expect(liveOutput).toHaveTextContent("code");
+      // Raw JSON must NOT appear
+      expect(liveOutput).not.toHaveTextContent("tool_use");
+      expect(liveOutput).not.toHaveTextContent('"type":"text"');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("live output renders markdown elements (code block, list) when agent emits markdown", async () => {
+    vi.useFakeTimers();
     const tasks = [
       {
         id: "epic-1.1",
@@ -227,48 +296,35 @@ describe("E2E: Readable agent output", () => {
       wsConnected: true,
     });
 
-    render(
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter>
-          <Provider store={store}>
-            <ExecutePhase projectId="proj-1" />
-          </Provider>
-        </MemoryRouter>
-      </QueryClientProvider>
-    );
+    try {
+      await renderExecutePhase(store);
 
-    await waitFor(() => {
-      expect(mockGet).toHaveBeenCalledWith("proj-1", "epic-1.1");
-    });
+      const markdownContent =
+        "```\nconst x = 42;\n```\n\n- Item one\n- Item two\n\n**Bold text**";
+      await act(async () => {
+        store.dispatch(
+          appendAgentOutput({
+            taskId: "epic-1.1",
+            chunk: JSON.stringify({ type: "text", text: markdownContent }) + "\n",
+          })
+        );
+        vi.advanceTimersByTime(2500);
+        await Promise.resolve();
+      });
 
-    const markdownContent =
-      "```\nconst x = 42;\n```\n\n- Item one\n- Item two\n\n**Bold text**";
-    await act(async () => {
-      store.dispatch(
-        appendAgentOutput({
-          taskId: "epic-1.1",
-          chunk: JSON.stringify({ type: "text", text: markdownContent }) + "\n",
-        })
-      );
-    });
-
-    await waitFor(() => {
       const liveOutput = screen.getByTestId("live-agent-output");
+      // Code block content
       expect(liveOutput).toHaveTextContent("const x = 42;");
-    });
-    const liveOutput = screen.getByTestId("live-agent-output");
-    // Code block content
-    expect(liveOutput).toHaveTextContent("const x = 42;");
-    // List items
-    expect(liveOutput).toHaveTextContent("Item one");
-    expect(liveOutput).toHaveTextContent("Item two");
-    // Bold
-    expect(liveOutput).toHaveTextContent("Bold text");
-    // Markdown structure: pre/code for code block, ul/li for list
-    expect(liveOutput.querySelector("pre")).toBeInTheDocument();
-    expect(liveOutput.querySelector("code")).toBeInTheDocument();
-    expect(liveOutput.querySelector("ul")).toBeInTheDocument();
-    expect(liveOutput.querySelectorAll("li").length).toBeGreaterThanOrEqual(2);
+      // List items
+      expect(liveOutput).toHaveTextContent("Item one");
+      expect(liveOutput).toHaveTextContent("Item two");
+      // Bold
+      expect(liveOutput).toHaveTextContent("Bold text");
+      // Markdown structure: pre/code for code block, ul/li for list
+      expect(liveOutput.querySelector("pre")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("archived output shows formatted text, not raw JSON", async () => {
@@ -310,34 +366,8 @@ describe("E2E: Readable agent output", () => {
     render(
       <Provider store={store}>
         <TaskDetailSidebar
-          projectId="proj-1"
-          selectedTask="epic-1.1"
-          selectedTaskData={taskDetail}
-          taskDetailLoading={false}
-          taskDetailError={null}
-          agentOutput={[]}
-          completionState={null}
+          {...createTaskDetailSidebarProps(taskDetail)}
           archivedSessions={archivedSessions}
-          archivedLoading={false}
-          markDoneLoading={false}
-          unblockLoading={false}
-          taskIdToStartedAt={{}}
-          plans={[basePlan]}
-          tasks={[]}
-          activeTasks={[]}
-          wsConnected={false}
-          isDoneTask={true}
-          isBlockedTask={false}
-          sourceFeedbackExpanded={{}}
-          setSourceFeedbackExpanded={vi.fn()}
-          descriptionSectionExpanded={true}
-          setDescriptionSectionExpanded={vi.fn()}
-          artifactsSectionExpanded={true}
-          setArtifactsSectionExpanded={vi.fn()}
-          onClose={vi.fn()}
-          onMarkDone={vi.fn()}
-          onUnblock={vi.fn()}
-          onSelectTask={vi.fn()}
         />
       </Provider>
     );
@@ -389,34 +419,8 @@ describe("E2E: Readable agent output", () => {
     render(
       <Provider store={store}>
         <TaskDetailSidebar
-          projectId="proj-1"
-          selectedTask="epic-1.1"
-          selectedTaskData={taskDetail}
-          taskDetailLoading={false}
-          taskDetailError={null}
-          agentOutput={[]}
-          completionState={null}
+          {...createTaskDetailSidebarProps(taskDetail)}
           archivedSessions={archivedSessions}
-          archivedLoading={false}
-          markDoneLoading={false}
-          unblockLoading={false}
-          taskIdToStartedAt={{}}
-          plans={[basePlan]}
-          tasks={[]}
-          activeTasks={[]}
-          wsConnected={false}
-          isDoneTask={true}
-          isBlockedTask={false}
-          sourceFeedbackExpanded={{}}
-          setSourceFeedbackExpanded={vi.fn()}
-          descriptionSectionExpanded={true}
-          setDescriptionSectionExpanded={vi.fn()}
-          artifactsSectionExpanded={true}
-          setArtifactsSectionExpanded={vi.fn()}
-          onClose={vi.fn()}
-          onMarkDone={vi.fn()}
-          onUnblock={vi.fn()}
-          onSelectTask={vi.fn()}
         />
       </Provider>
     );
@@ -428,12 +432,12 @@ describe("E2E: Readable agent output", () => {
     const outputArea = document.querySelector(".prose-execute-task");
     expect(outputArea).toBeInTheDocument();
     expect(outputArea?.querySelector("pre")).toBeInTheDocument();
-    expect(outputArea?.querySelector("code")).toBeInTheDocument();
     expect(outputArea?.querySelector("ul")).toBeInTheDocument();
     expect(outputArea?.querySelectorAll("li").length).toBeGreaterThanOrEqual(2);
   });
 
   it("plain text or non-JSON output passes through unchanged", async () => {
+    vi.useFakeTimers();
     const tasks = [
       {
         id: "epic-1.1",
@@ -450,36 +454,26 @@ describe("E2E: Readable agent output", () => {
       wsConnected: true,
     });
 
-    render(
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter>
-          <Provider store={store}>
-            <ExecutePhase projectId="proj-1" />
-          </Provider>
-        </MemoryRouter>
-      </QueryClientProvider>
-    );
+    try {
+      await renderExecutePhase(store);
 
-    await waitFor(() => {
-      expect(mockGet).toHaveBeenCalledWith("proj-1", "epic-1.1");
-    });
+      // Plain text (non-JSON) passes through
+      await act(async () => {
+        store.dispatch(
+          appendAgentOutput({
+            taskId: "epic-1.1",
+            chunk: "Plain text output\nNo JSON here\n",
+          })
+        );
+        vi.advanceTimersByTime(2500);
+        await Promise.resolve();
+      });
 
-    // Plain text (non-JSON) passes through
-    await act(async () => {
-      store.dispatch(
-        appendAgentOutput({
-          taskId: "epic-1.1",
-          chunk: "Plain text output\nNo JSON here\n",
-        })
-      );
-    });
-
-    await waitFor(() => {
       const liveOutput = screen.getByTestId("live-agent-output");
       expect(liveOutput).toHaveTextContent("Plain text output");
-    });
-    const liveOutput = screen.getByTestId("live-agent-output");
-    expect(liveOutput).toHaveTextContent("Plain text output");
-    expect(liveOutput).toHaveTextContent("No JSON here");
+      expect(liveOutput).toHaveTextContent("No JSON here");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

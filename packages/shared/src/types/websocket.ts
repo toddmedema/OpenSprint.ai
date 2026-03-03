@@ -1,4 +1,9 @@
-import type { AgentPhase, TestResults } from "./agent.js";
+import type {
+  AgentPhase,
+  AgentRuntimeState,
+  AgentSuspendReason,
+  TestResults,
+} from "./agent.js";
 import type { FeedbackItem } from "./feedback.js";
 import type {
   ScopeChangeMetadata,
@@ -85,7 +90,7 @@ export interface AgentActivityEvent {
   type: "agent.activity";
   taskId: string;
   phase: AgentPhase;
-  activity: "waiting_on_tool" | "tool_completed";
+  activity: "waiting_on_tool" | "tool_completed" | "suspended" | "resumed";
   summary?: string;
 }
 
@@ -97,7 +102,15 @@ export interface PrdUpdatedEvent {
 
 export interface ExecuteStatusEvent {
   type: "execute.status";
-  activeTasks: Array<{ taskId: string; phase: AgentPhase; startedAt: string }>;
+  activeTasks: Array<{
+    taskId: string;
+    phase: AgentPhase;
+    startedAt: string;
+    state: AgentRuntimeState;
+    lastOutputAt?: string;
+    suspendedAt?: string;
+    suspendReason?: AgentSuspendReason;
+  }>;
   queueDepth: number;
   /** True when orchestrator is paused waiting for HIL approval (PRD §6.5) */
   awaitingApproval?: boolean;

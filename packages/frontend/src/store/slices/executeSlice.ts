@@ -6,6 +6,8 @@ import {
 } from "@reduxjs/toolkit";
 import type {
   ActiveAgent,
+  AgentRuntimeState,
+  AgentSuspendReason,
   AgentSession,
   KanbanColumn,
   Task,
@@ -35,6 +37,10 @@ export interface ActiveTaskInfo {
   taskId: string;
   phase: string;
   startedAt: string;
+  state: AgentRuntimeState;
+  lastOutputAt?: string;
+  suspendedAt?: string;
+  suspendReason?: AgentSuspendReason;
 }
 
 const TASKS_IN_FLIGHT_KEY = "tasksInFlightCount" as const;
@@ -234,7 +240,7 @@ export const addTaskDependency = createAsyncThunk(
       parentTaskId: string;
       type?: "blocks" | "parent-child" | "related";
     },
-    { dispatch }
+    { dispatch: _dispatch }
   ) => {
     await api.tasks.addDependency(projectId, taskId, parentTaskId, type);
     const task = await api.tasks.get(projectId, taskId);

@@ -78,7 +78,7 @@ export function specMarkdownToPrd(
       const content = normalizeContent(markdown.slice(lastIndex, match.index));
       sections[lastKey] = {
         content,
-        version: 1,
+        version: content ? 1 : 0,
         updatedAt: now,
       };
     }
@@ -89,7 +89,7 @@ export function specMarkdownToPrd(
     const content = normalizeContent(markdown.slice(lastIndex));
     sections[lastKey] = {
       content,
-      version: 1,
+      version: content ? 1 : 0,
       updatedAt: now,
     };
   }

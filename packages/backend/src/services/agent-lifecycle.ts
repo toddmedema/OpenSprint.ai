@@ -1,8 +1,14 @@
 import fs from "fs/promises";
 import path from "path";
-import type { AgentPhase, AgentConfig } from "@opensprint/shared";
+import type {
+  AgentConfig,
+  AgentPhase,
+  AgentRuntimeState,
+  AgentSuspendReason,
+} from "@opensprint/shared";
 import {
   AGENT_INACTIVITY_TIMEOUT_MS,
+  AGENT_SUSPEND_GRACE_MS,
   HEARTBEAT_INTERVAL_MS,
   OPENSPRINT_PATHS,
 } from "@opensprint/shared";
@@ -21,6 +27,7 @@ const log = createLogger("agent-lifecycle");
 const OUTPUT_POLL_MS = 150;
 /** Allow long-running shell/tool execution (e.g. npm test) to finish and report back before inactivity kills the agent. */
 const ACTIVE_TOOL_CALL_TIMEOUT_MS = 15 * 60 * 1000;
+const RECOVERY_TAIL_BYTES = 256 * 1024;
 
 /** Check whether a PID is still running */
 function isPidAlive(pid: number): boolean {
@@ -43,6 +50,7 @@ const MAX_OUTPUT_LOG_BYTES = 5 * 1024 * 1024; // 5 MB
 export interface AgentRunState {
   activeProcess: CodingAgentHandle | null;
   lastOutputTime: number;
+  lastOutputAtIso?: string;
   outputLog: string[];
   outputLogBytes: number;
   /** Buffer for NDJSON-style agent output so tool-call lifecycle can be parsed across chunk boundaries. */
@@ -54,6 +62,10 @@ export interface AgentRunState {
   startedAt: string;
   exitHandled: boolean;
   killedDueToTimeout: boolean;
+  lifecycleState: AgentRuntimeState;
+  suspendedAtIso?: string;
+  suspendReason?: AgentSuspendReason;
+  suspendDeadlineMs?: number;
   /** Stop output file tail (used after GUPP recovery); cleared when tail is stopped */
   outputTailStop?: () => void;
 }
@@ -73,6 +85,8 @@ export interface AgentRunParams {
   role: "coder" | "reviewer";
   /** Called when agent exits (normally or via dead-process detection) */
   onDone: (exitCode: number | null) => Promise<void>;
+  /** Called when runtime state changes (running <-> suspended). */
+  onStateChange?: () => void | Promise<void>;
 }
 
 /**
@@ -111,7 +125,8 @@ export class AgentLifecycleManager {
     runState.outputParseBuffer = "";
     runState.activeToolCallIds.clear();
     runState.activeToolCallSummaries.clear();
-    runState.lastOutputTime = Date.now();
+    this.setRunningState(runState, Date.now());
+    runState.lastOutputAtIso = undefined;
 
     const outputLogPath = path.join(
       wtPath,
@@ -141,7 +156,7 @@ export class AgentLifecycleManager {
       onOutput: (chunk: string) => {
         const toolEvents = ingestOutputChunk(runState, chunk);
         this.recordToolActivity(params, toolEvents);
-        runState.lastOutputTime = Date.now();
+        void this.recordOutputActivity(params, runState, Date.now());
         sendAgentOutputToProject(projectId, taskId, chunk);
       },
       onExit: async (code: number | null) => {
@@ -159,7 +174,7 @@ export class AgentLifecycleManager {
     });
 
     this.startHeartbeat(runState, wtPath, taskId, timers);
-    this.startInactivityMonitor(runState, wtPath, taskId, branchName, timers, onDone);
+    this.startInactivityMonitor(runState, wtPath, taskId, branchName, timers, onDone, params);
   }
 
   /**
@@ -168,26 +183,40 @@ export class AgentLifecycleManager {
    * and tails the agent output file so live output continues to stream to subscribed clients.
    * When the process exits (detected via isPidAlive), onDone is invoked and the tail is stopped.
    */
-  resumeMonitoring(
+  async resumeMonitoring(
     handle: CodingAgentHandle,
     params: AgentRunParams,
     runState: AgentRunState,
-    timers: TimerRegistry
-  ): void {
+    timers: TimerRegistry,
+    options?: {
+      initialSuspendReason?: AgentSuspendReason;
+      recoveredLastOutputTimeMs?: number;
+    }
+  ): Promise<void> {
     const { projectId, wtPath, taskId, branchName, onDone } = params;
     runState.activeProcess = handle;
+    runState.outputLog = [];
+    runState.outputLogBytes = 0;
     runState.outputParseBuffer = "";
     runState.activeToolCallIds.clear();
     runState.activeToolCallSummaries.clear();
-    runState.lastOutputTime = Date.now();
     runState.exitHandled = false;
     runState.killedDueToTimeout = false;
+    runState.lifecycleState = "running";
+    runState.suspendedAtIso = undefined;
+    runState.suspendReason = undefined;
+    runState.suspendDeadlineMs = undefined;
 
     const outputLogPath = path.join(
       wtPath,
       OPENSPRINT_PATHS.active,
       taskId,
       OPENSPRINT_PATHS.agentOutputLog
+    );
+    await this.primeRecoveredRunState(
+      outputLogPath,
+      runState,
+      options?.recoveredLastOutputTimeMs
     );
     const outputTailStop = this.startOutputTail(
       outputLogPath,
@@ -206,7 +235,59 @@ export class AgentLifecycleManager {
     };
 
     this.startHeartbeat(runState, wtPath, taskId, timers);
-    this.startInactivityMonitor(runState, wtPath, taskId, branchName, timers, wrappedOnDone);
+    this.startInactivityMonitor(
+      runState,
+      wtPath,
+      taskId,
+      branchName,
+      timers,
+      wrappedOnDone,
+      params
+    );
+    if (options?.initialSuspendReason) {
+      await this.markSuspended(params, runState, options.initialSuspendReason);
+    }
+  }
+
+  async markSuspended(
+    params: AgentRunParams,
+    runState: AgentRunState,
+    reason: AgentSuspendReason
+  ): Promise<void> {
+    if (runState.lifecycleState === "suspended" && runState.suspendReason === reason) {
+      return;
+    }
+    const now = Date.now();
+    const suspendedAtIso = new Date(now).toISOString();
+    runState.lifecycleState = "suspended";
+    runState.suspendedAtIso = suspendedAtIso;
+    runState.suspendReason = reason;
+    runState.suspendDeadlineMs = now + AGENT_SUSPEND_GRACE_MS;
+    const summary = describeSuspendReason(reason);
+
+    eventLogService
+      .append(params.repoPath, {
+        timestamp: suspendedAtIso,
+        projectId: params.projectId,
+        taskId: params.taskId,
+        event: "agent.suspended",
+        data: {
+          attempt: params.attempt,
+          phase: params.phase,
+          reason,
+          summary,
+        },
+      })
+      .catch(() => {});
+
+    broadcastToProject(params.projectId, {
+      type: "agent.activity",
+      taskId: params.taskId,
+      phase: params.phase,
+      activity: "suspended",
+      summary,
+    });
+    await params.onStateChange?.();
   }
 
   /**
@@ -246,7 +327,7 @@ export class AgentLifecycleManager {
             const chunk = buf.subarray(0, bytesRead).toString();
             const toolEvents = ingestOutputChunk(runState, chunk);
             this.recordToolActivity(params, toolEvents);
-            runState.lastOutputTime = Date.now();
+            void this.recordOutputActivity(params, runState, s.mtimeMs || Date.now());
             sendAgentOutputToProject(projectId, taskId, chunk);
           }
         } finally {
@@ -300,7 +381,8 @@ export class AgentLifecycleManager {
     taskId: string,
     branchName: string,
     timers: TimerRegistry,
-    onDone: (exitCode: number | null) => Promise<void>
+    onDone: (exitCode: number | null) => Promise<void>,
+    params?: AgentRunParams
   ): void {
     timers.setInterval(
       "inactivity",
@@ -335,11 +417,30 @@ export class AgentLifecycleManager {
         }
 
         if (elapsed > effectiveTimeout) {
+          const beyondSuspendGrace = elapsed > AGENT_SUSPEND_GRACE_MS;
+          if (!beyondSuspendGrace && runState.lifecycleState !== "suspended" && params) {
+            log.warn("Agent suspended due to inactivity", {
+              taskId,
+              elapsedMs: elapsed,
+              effectiveTimeoutMs: effectiveTimeout,
+              activeToolCallCount: runState.activeToolCallIds.size,
+            });
+            void this.markSuspended(params, runState, "output_gap");
+            return;
+          }
+          if (
+            runState.lifecycleState === "suspended" &&
+            runState.suspendDeadlineMs != null &&
+            Date.now() < runState.suspendDeadlineMs
+          ) {
+            return;
+          }
           log.warn("Agent timeout", {
             taskId,
             elapsedMs: elapsed,
             effectiveTimeoutMs: effectiveTimeout,
             activeToolCallCount: runState.activeToolCallIds.size,
+            suspendedAtIso: runState.suspendedAtIso,
           });
           if (runState.activeProcess) {
             runState.killedDueToTimeout = true;
@@ -360,6 +461,79 @@ export class AgentLifecycleManager {
   private cleanupTimers(timers: TimerRegistry): void {
     timers.clear("heartbeat");
     timers.clear("inactivity");
+  }
+
+  private setRunningState(runState: AgentRunState, atMs: number): void {
+    runState.lastOutputTime = atMs;
+    runState.lastOutputAtIso = new Date(atMs).toISOString();
+    runState.lifecycleState = "running";
+    runState.suspendedAtIso = undefined;
+    runState.suspendReason = undefined;
+    runState.suspendDeadlineMs = undefined;
+  }
+
+  private async recordOutputActivity(
+    params: AgentRunParams,
+    runState: AgentRunState,
+    atMs: number
+  ): Promise<void> {
+    const previousReason = runState.suspendReason;
+    const wasSuspended = runState.lifecycleState === "suspended";
+    this.setRunningState(runState, atMs);
+    if (!wasSuspended) return;
+    const summary = describeResumeReason(previousReason);
+
+    eventLogService
+      .append(params.repoPath, {
+        timestamp: new Date(atMs).toISOString(),
+        projectId: params.projectId,
+        taskId: params.taskId,
+        event: "agent.resumed",
+        data: {
+          attempt: params.attempt,
+          phase: params.phase,
+          reason: previousReason ?? "output_gap",
+          summary,
+        },
+      })
+      .catch(() => {});
+
+    broadcastToProject(params.projectId, {
+      type: "agent.activity",
+      taskId: params.taskId,
+      phase: params.phase,
+      activity: "resumed",
+      summary,
+    });
+    await params.onStateChange?.();
+  }
+
+  private async primeRecoveredRunState(
+    outputLogPath: string,
+    runState: AgentRunState,
+    fallbackLastOutputTimeMs?: number
+  ): Promise<void> {
+    let primedTime = fallbackLastOutputTimeMs ?? Date.now();
+    try {
+      const stat = await fs.stat(outputLogPath);
+      primedTime = Math.max(primedTime, stat.mtimeMs || 0);
+      if (stat.size > 0) {
+        const start = Math.max(0, stat.size - RECOVERY_TAIL_BYTES);
+        const fh = await fs.open(outputLogPath, "r");
+        try {
+          const buf = Buffer.alloc(stat.size - start);
+          const { bytesRead } = await fh.read(buf, 0, buf.length, start);
+          if (bytesRead > 0) {
+            ingestOutputChunk(runState, buf.subarray(0, bytesRead).toString());
+          }
+        } finally {
+          await fh.close();
+        }
+      }
+    } catch {
+      // File may not exist yet; fall back to heartbeat timestamp when available.
+    }
+    this.setRunningState(runState, primedTime);
   }
 
   private recordToolActivity(
@@ -485,4 +659,28 @@ function extractToolCallSummary(toolCall: Record<string, unknown> | undefined): 
 function formatToolSummary(summary: string | null): string | undefined {
   if (!summary) return undefined;
   return summary.length > 160 ? `${summary.slice(0, 157)}...` : summary;
+}
+
+function describeSuspendReason(reason: AgentSuspendReason): string {
+  switch (reason) {
+    case "heartbeat_gap":
+      return "Heartbeat gap after host sleep or backend pause";
+    case "backend_restart":
+      return "Backend restarted while agent was still running";
+    case "output_gap":
+    default:
+      return "No agent output within inactivity window";
+  }
+}
+
+function describeResumeReason(reason?: AgentSuspendReason): string {
+  switch (reason) {
+    case "heartbeat_gap":
+      return "Agent output resumed after reconnect";
+    case "backend_restart":
+      return "Monitoring resumed after backend restart";
+    case "output_gap":
+    default:
+      return "Agent output resumed";
+  }
 }

@@ -10,6 +10,7 @@ import type {
   AgentConfig,
 } from "@opensprint/shared";
 import {
+  AGENT_INACTIVITY_TIMEOUT_MS,
   OPENSPRINT_PATHS,
   resolveTestCommand,
   DEFAULT_REVIEW_MODE,
@@ -24,6 +25,7 @@ import {
   OPEN_QUESTION_BLOCK_REASON,
   REVIEW_ANGLE_OPTIONS,
   type PlanComplexity,
+  type AgentSuspendReason,
 } from "@opensprint/shared";
 import { taskStore as taskStoreSingleton, type StoredTask } from "./task-store.service.js";
 import { ProjectService } from "./project.service.js";
@@ -284,6 +286,7 @@ export class OrchestratorService {
       agent: {
         activeProcess: null,
         lastOutputTime: 0,
+        lastOutputAtIso: undefined,
         outputLog: [],
         outputLogBytes: 0,
         outputParseBuffer: "",
@@ -292,6 +295,10 @@ export class OrchestratorService {
         startedAt: new Date().toISOString(),
         exitHandled: false,
         killedDueToTimeout: false,
+        lifecycleState: "running",
+        suspendedAtIso: undefined,
+        suspendReason: undefined,
+        suspendDeadlineMs: undefined,
       },
       phase: "coding",
       attempt,
@@ -312,6 +319,16 @@ export class OrchestratorService {
             taskId: slot.taskId,
             phase: slot.phase,
             startedAt: reviewAgent.agent.startedAt || new Date().toISOString(),
+            state: reviewAgent.agent.lifecycleState,
+            ...(reviewAgent.agent.lastOutputAtIso
+              ? { lastOutputAt: reviewAgent.agent.lastOutputAtIso }
+              : {}),
+            ...(reviewAgent.agent.suspendedAtIso
+              ? { suspendedAt: reviewAgent.agent.suspendedAtIso }
+              : {}),
+            ...(reviewAgent.agent.suspendReason
+              ? { suspendReason: reviewAgent.agent.suspendReason }
+              : {}),
           });
         }
         continue;
@@ -320,6 +337,10 @@ export class OrchestratorService {
         taskId: slot.taskId,
         phase: slot.phase,
         startedAt: slot.agent.startedAt || new Date().toISOString(),
+        state: slot.agent.lifecycleState,
+        ...(slot.agent.lastOutputAtIso ? { lastOutputAt: slot.agent.lastOutputAtIso } : {}),
+        ...(slot.agent.suspendedAtIso ? { suspendedAt: slot.agent.suspendedAtIso } : {}),
+        ...(slot.agent.suspendReason ? { suspendReason: slot.agent.suspendReason } : {}),
       });
     }
     return tasks;
@@ -725,6 +746,298 @@ export class OrchestratorService {
     }
   }
 
+  private emitExecuteStatus(projectId: string): void {
+    const state = this.getState(projectId);
+    broadcastToProject(projectId, {
+      type: "execute.status",
+      activeTasks: this.buildActiveTasks(state),
+      queueDepth: state.status.queueDepth,
+    });
+  }
+
+  private onAgentStateChange(projectId: string): () => void {
+    return () => {
+      this.emitExecuteStatus(projectId);
+    };
+  }
+
+  private shouldStartRecoveredAgentSuspended(
+    lastOutputTimestamp: number | undefined,
+    fallbackReason: AgentSuspendReason = "backend_restart"
+  ): AgentSuspendReason | undefined {
+    if (
+      typeof lastOutputTimestamp !== "number" ||
+      Date.now() - lastOutputTimestamp <= AGENT_INACTIVITY_TIMEOUT_MS
+    ) {
+      return undefined;
+    }
+    return fallbackReason;
+  }
+
+  private async reattachRecoveredCodingTask(
+    projectId: string,
+    repoPath: string,
+    task: StoredTask,
+    assignment: GuppAssignment,
+    options?: { suspendReason?: AgentSuspendReason }
+  ): Promise<boolean> {
+    const state = this.getState(projectId);
+    const existingSlot = state.slots.get(task.id);
+    if (existingSlot) {
+      if (options?.suspendReason) {
+        await this.lifecycleManager.markSuspended(
+          {
+            projectId,
+            taskId: task.id,
+            repoPath,
+            phase: "coding",
+            wtPath: assignment.worktreePath,
+            branchName: assignment.branchName,
+            promptPath: assignment.promptPath,
+            agentConfig: assignment.agentConfig as AgentConfig,
+            attempt: assignment.attempt,
+            agentLabel: existingSlot.taskTitle ?? task.id,
+            role: "coder",
+            onDone: (code) =>
+              this.handleCodingDone(projectId, repoPath, task, assignment.branchName, code),
+            onStateChange: this.onAgentStateChange(projectId),
+          },
+          existingSlot.agent,
+          options.suspendReason
+        );
+      }
+      return true;
+    }
+
+    log.info("Recovery: re-attaching to running agent", { taskId: task.id });
+    const assignee = task.assignee ?? getAgentName(0);
+    const slot = this.createSlot(
+      task.id,
+      task.title ?? null,
+      assignment.branchName,
+      assignment.attempt,
+      assignee
+    );
+    slot.worktreePath = assignment.worktreePath;
+    slot.agent.startedAt = assignment.createdAt;
+
+    broadcastToProject(projectId, {
+      type: "agent.started",
+      taskId: task.id,
+      phase: "coding",
+      branchName: assignment.branchName,
+      startedAt: assignment.createdAt,
+    });
+    this.transition(projectId, {
+      to: "start_task",
+      taskId: task.id,
+      taskTitle: slot.taskTitle,
+      branchName: assignment.branchName,
+      attempt: assignment.attempt,
+      queueDepth: state.status.queueDepth,
+      slot,
+    });
+
+    const coderIdx = AGENT_NAMES.indexOf(task.assignee as (typeof AGENT_NAMES)[number]);
+    if (coderIdx >= 0) state.nextCoderIndex = Math.max(state.nextCoderIndex, coderIdx + 1);
+
+    const heartbeat = await heartbeatService.readHeartbeat(assignment.worktreePath, task.id);
+    if (!heartbeat?.pid) return false;
+    const handle = createPidHandle(heartbeat.pid);
+    const initialSuspendReason =
+      options?.suspendReason ??
+      this.shouldStartRecoveredAgentSuspended(heartbeat.lastOutputTimestamp);
+
+    await this.lifecycleManager.resumeMonitoring(
+      handle,
+      {
+        projectId,
+        taskId: task.id,
+        repoPath,
+        phase: "coding",
+        wtPath: assignment.worktreePath,
+        branchName: assignment.branchName,
+        promptPath: assignment.promptPath,
+        agentConfig: assignment.agentConfig as AgentConfig,
+        attempt: assignment.attempt,
+        agentLabel: slot.taskTitle ?? task.id,
+        role: "coder",
+        onDone: (code) =>
+          this.handleCodingDone(projectId, repoPath, task, assignment.branchName, code),
+        onStateChange: this.onAgentStateChange(projectId),
+      },
+      slot.agent,
+      slot.timers,
+      {
+        initialSuspendReason,
+        recoveredLastOutputTimeMs: heartbeat.lastOutputTimestamp,
+      }
+    );
+    return true;
+  }
+
+  private async resumeRecoveredReviewPhase(
+    projectId: string,
+    repoPath: string,
+    task: StoredTask,
+    assignment: GuppAssignment,
+    options: { pidAlive: boolean; suspendReason?: AgentSuspendReason }
+  ): Promise<boolean> {
+    const state = this.getState(projectId);
+    const settings = await this.projectService.getSettings(projectId);
+    const reviewMode = settings.reviewMode ?? DEFAULT_REVIEW_MODE;
+    if (reviewMode === "never") return false;
+
+    try {
+      await fs.access(assignment.worktreePath);
+    } catch {
+      return false;
+    }
+
+    const reviewAngles = [...new Set((settings.reviewAngles ?? []).filter(Boolean))] as ReviewAngle[];
+    if (options.pidAlive && reviewAngles.length > 0) {
+      log.warn("Recovery: cannot safely reattach multi-angle review with live reviewer PID", {
+        taskId: task.id,
+        reviewAngles,
+      });
+      return false;
+    }
+
+    const heartbeat = options.pidAlive
+      ? await heartbeatService.readHeartbeat(assignment.worktreePath, task.id)
+      : null;
+    const handle = heartbeat?.pid ? createPidHandle(heartbeat.pid) : null;
+    if (options.pidAlive && !handle) return false;
+
+    const existingSlot = state.slots.get(task.id);
+    if (existingSlot) {
+      if (options.suspendReason) {
+        await this.lifecycleManager.markSuspended(
+          {
+            projectId,
+            taskId: task.id,
+            repoPath,
+            phase: "review",
+            wtPath: assignment.worktreePath,
+            branchName: assignment.branchName,
+            promptPath: assignment.promptPath,
+            agentConfig: assignment.agentConfig as AgentConfig,
+            attempt: assignment.attempt,
+            agentLabel: existingSlot.taskTitle ?? task.id,
+            role: "reviewer",
+            onDone: (code) =>
+              this.handleReviewDone(projectId, repoPath, task, assignment.branchName, code),
+            onStateChange: this.onAgentStateChange(projectId),
+          },
+          existingSlot.agent,
+          options.suspendReason
+        );
+      }
+      return true;
+    }
+
+    let changedFiles: string[] = [];
+    try {
+      changedFiles = await this.branchManager.getChangedFiles(repoPath, assignment.branchName);
+    } catch {
+      // Fall back to the configured/full suite
+    }
+
+    const reviewerList = AGENT_NAMES_BY_ROLE.reviewer ?? [];
+    const reviewerAssignee =
+      typeof task.assignee === "string" && reviewerList.includes(task.assignee)
+        ? task.assignee
+        : getAgentNameForRole("reviewer", state.nextReviewerIndex);
+    const reviewerIdx = reviewerList.indexOf(reviewerAssignee);
+    if (reviewerIdx >= 0) state.nextReviewerIndex = Math.max(state.nextReviewerIndex, reviewerIdx + 1);
+    else state.nextReviewerIndex += 1;
+
+    const slot = this.createSlot(
+      task.id,
+      task.title ?? null,
+      assignment.branchName,
+      assignment.attempt,
+      reviewerAssignee
+    );
+    slot.worktreePath = assignment.worktreePath;
+    slot.agent.startedAt = assignment.createdAt;
+    state.slots.set(task.id, slot);
+    this.transition(projectId, {
+      to: "enter_review",
+      taskId: task.id,
+      queueDepth: state.status.queueDepth,
+      assignee: reviewerAssignee,
+    });
+    await this.persistCounters(projectId, repoPath);
+
+    this.startReviewCoordinatorAndTests(
+      projectId,
+      repoPath,
+      task,
+      assignment.branchName,
+      settings,
+      changedFiles
+    );
+
+    eventLogService
+      .append(repoPath, {
+        timestamp: new Date().toISOString(),
+        projectId,
+        taskId: task.id,
+        event: "recovery.review_resumed",
+        data: {
+          attempt: assignment.attempt,
+          mode: handle ? "reattach" : "respawn",
+          reviewAngles,
+        },
+      })
+      .catch(() => {});
+
+    await this.clearRateLimitNotifications(projectId);
+
+    if (handle) {
+      broadcastToProject(projectId, {
+        type: "agent.started",
+        taskId: task.id,
+        phase: "review",
+        branchName: assignment.branchName,
+        startedAt: assignment.createdAt,
+      });
+      const initialSuspendReason =
+        options.suspendReason ??
+        this.shouldStartRecoveredAgentSuspended(heartbeat?.lastOutputTimestamp);
+      await this.lifecycleManager.resumeMonitoring(
+        handle,
+        {
+          projectId,
+          taskId: task.id,
+          repoPath,
+          phase: "review",
+          wtPath: assignment.worktreePath,
+          branchName: assignment.branchName,
+          promptPath: assignment.promptPath,
+          agentConfig: assignment.agentConfig as AgentConfig,
+          attempt: assignment.attempt,
+          agentLabel: slot.taskTitle ?? task.id,
+          role: "reviewer",
+          onDone: (code) =>
+            this.handleReviewDone(projectId, repoPath, task, assignment.branchName, code),
+          onStateChange: this.onAgentStateChange(projectId),
+        },
+        slot.agent,
+        slot.timers,
+        {
+          initialSuspendReason,
+          recoveredLastOutputTimeMs: heartbeat?.lastOutputTimestamp,
+        }
+      );
+      return true;
+    }
+
+    await this.executeReviewPhase(projectId, repoPath, task, assignment.branchName);
+    return true;
+  }
+
   /** Build a RecoveryHost for the unified RecoveryService */
   private buildRecoveryHost(): RecoveryHost {
     return {
@@ -736,204 +1049,31 @@ export class OrchestratorService {
         repoPath: string,
         task: StoredTask,
         assignment: GuppAssignment
-      ): Promise<boolean> => {
-        const state = this.getState(projectId);
-        log.info("Recovery: re-attaching to running agent", { taskId: task.id });
-        const assignee = task.assignee ?? getAgentName(0);
-        const slot = this.createSlot(
-          task.id,
-          task.title ?? null,
-          assignment.branchName,
-          assignment.attempt,
-          assignee
-        );
-        (slot as { worktreePath: string | null }).worktreePath = assignment.worktreePath;
-        slot.agent.startedAt = assignment.createdAt;
-        if (assignment.phase === "review") {
-          slot.phase = "review";
-          slot.assignee = task.assignee ?? getAgentNameForRole("reviewer", 0);
-        }
-
-        broadcastToProject(projectId, {
-          type: "agent.started",
-          taskId: task.id,
-          phase: assignment.phase,
-          branchName: assignment.branchName,
-          startedAt: assignment.createdAt,
-        });
-        this.transition(projectId, {
-          to: "start_task",
-          taskId: task.id,
-          taskTitle: slot.taskTitle,
-          branchName: assignment.branchName,
-          attempt: assignment.attempt,
-          queueDepth: state.status.queueDepth,
-          slot,
-        });
-        // Advance coder index so the next new task does not reuse this assignee's name
-        const coderIdx = AGENT_NAMES.indexOf(task.assignee as (typeof AGENT_NAMES)[number]);
-        if (coderIdx >= 0) state.nextCoderIndex = Math.max(state.nextCoderIndex, coderIdx + 1);
-        const reviewerList = AGENT_NAMES_BY_ROLE.reviewer ?? [];
-        if (
-          assignment.phase === "review" &&
-          typeof task.assignee === "string" &&
-          reviewerList.includes(task.assignee)
-        ) {
-          const reviewerIdx = reviewerList.indexOf(task.assignee);
-          if (reviewerIdx >= 0)
-            state.nextReviewerIndex = Math.max(state.nextReviewerIndex, reviewerIdx + 1);
-        }
-
-        const heartbeat = await heartbeatService.readHeartbeat(assignment.worktreePath, task.id);
-        if (!heartbeat?.pid) return false;
-        const handle = createPidHandle(heartbeat.pid);
-        this.lifecycleManager.resumeMonitoring(
-          handle,
-          {
-            projectId,
-            taskId: task.id,
-            repoPath,
-            phase: "coding",
-            wtPath: assignment.worktreePath,
-            branchName: assignment.branchName,
-            promptPath: assignment.promptPath,
-            agentConfig: assignment.agentConfig as AgentConfig,
-            attempt: assignment.attempt,
-            agentLabel: slot.taskTitle ?? task.id,
-            role: "coder",
-            onDone: (code) =>
-              this.handleCodingDone(projectId, repoPath, task, assignment.branchName, code),
-          },
-          slot.agent,
-          slot.timers
-        );
-        return true;
-      },
+      ): Promise<boolean> =>
+        this.reattachRecoveredCodingTask(projectId, repoPath, task, assignment),
       resumeReviewPhase: async (
         projectId: string,
         repoPath: string,
         task: StoredTask,
         assignment: GuppAssignment,
         options: { pidAlive: boolean }
+      ): Promise<boolean> =>
+        this.resumeRecoveredReviewPhase(projectId, repoPath, task, assignment, options),
+      handleRecoverableHeartbeatGap: async (
+        projectId: string,
+        repoPath: string,
+        task: StoredTask,
+        assignment: GuppAssignment
       ): Promise<boolean> => {
-        const state = this.getState(projectId);
-        const settings = await this.projectService.getSettings(projectId);
-        const reviewMode = settings.reviewMode ?? DEFAULT_REVIEW_MODE;
-        if (reviewMode === "never") return false;
-
-        try {
-          await fs.access(assignment.worktreePath);
-        } catch {
-          return false;
-        }
-
-        const reviewAngles = [...new Set((settings.reviewAngles ?? []).filter(Boolean))] as ReviewAngle[];
-        if (options.pidAlive && reviewAngles.length > 0) {
-          log.warn("Recovery: cannot safely reattach multi-angle review with live reviewer PID", {
-            taskId: task.id,
-            reviewAngles,
+        if (assignment.phase === "review") {
+          return this.resumeRecoveredReviewPhase(projectId, repoPath, task, assignment, {
+            pidAlive: true,
+            suspendReason: "heartbeat_gap",
           });
-          return false;
         }
-
-        const heartbeat = options.pidAlive
-          ? await heartbeatService.readHeartbeat(assignment.worktreePath, task.id)
-          : null;
-        const handle = heartbeat?.pid ? createPidHandle(heartbeat.pid) : null;
-        if (options.pidAlive && !handle) return false;
-
-        let changedFiles: string[] = [];
-        try {
-          changedFiles = await this.branchManager.getChangedFiles(repoPath, assignment.branchName);
-        } catch {
-          // Fall back to the configured/full suite
-        }
-
-        const reviewerList = AGENT_NAMES_BY_ROLE.reviewer ?? [];
-        const reviewerAssignee =
-          typeof task.assignee === "string" && reviewerList.includes(task.assignee)
-            ? task.assignee
-            : getAgentNameForRole("reviewer", state.nextReviewerIndex);
-        const reviewerIdx = reviewerList.indexOf(reviewerAssignee);
-        if (reviewerIdx >= 0) state.nextReviewerIndex = Math.max(state.nextReviewerIndex, reviewerIdx + 1);
-        else state.nextReviewerIndex += 1;
-
-        const slot = this.createSlot(
-          task.id,
-          task.title ?? null,
-          assignment.branchName,
-          assignment.attempt,
-          reviewerAssignee
-        );
-        slot.worktreePath = assignment.worktreePath;
-        slot.agent.startedAt = assignment.createdAt;
-        state.slots.set(task.id, slot);
-        this.transition(projectId, {
-          to: "enter_review",
-          taskId: task.id,
-          queueDepth: state.status.queueDepth,
-          assignee: reviewerAssignee,
+        return this.reattachRecoveredCodingTask(projectId, repoPath, task, assignment, {
+          suspendReason: "heartbeat_gap",
         });
-        await this.persistCounters(projectId, repoPath);
-
-        this.startReviewCoordinatorAndTests(
-          projectId,
-          repoPath,
-          task,
-          assignment.branchName,
-          settings,
-          changedFiles
-        );
-
-        eventLogService
-          .append(repoPath, {
-            timestamp: new Date().toISOString(),
-            projectId,
-            taskId: task.id,
-            event: "recovery.review_resumed",
-            data: {
-              attempt: assignment.attempt,
-              mode: handle ? "reattach" : "respawn",
-              reviewAngles,
-            },
-          })
-          .catch(() => {});
-
-        await this.clearRateLimitNotifications(projectId);
-
-        if (handle) {
-          broadcastToProject(projectId, {
-            type: "agent.started",
-            taskId: task.id,
-            phase: "review",
-            branchName: assignment.branchName,
-            startedAt: assignment.createdAt,
-          });
-          this.lifecycleManager.resumeMonitoring(
-            handle,
-            {
-              projectId,
-              taskId: task.id,
-              repoPath,
-              phase: "review",
-              wtPath: assignment.worktreePath,
-              branchName: assignment.branchName,
-              promptPath: assignment.promptPath,
-              agentConfig: assignment.agentConfig as AgentConfig,
-              attempt: assignment.attempt,
-              agentLabel: slot.taskTitle ?? task.id,
-              role: "reviewer",
-              onDone: (code) =>
-                this.handleReviewDone(projectId, repoPath, task, assignment.branchName, code),
-            },
-            slot.agent,
-            slot.timers
-          );
-          return true;
-        }
-
-        await this.executeReviewPhase(projectId, repoPath, task, assignment.branchName);
-        return true;
       },
       removeStaleSlot: async (
         projectId: string,
@@ -965,6 +1105,10 @@ export class OrchestratorService {
         this.removeSlot(state, taskId);
       },
     };
+  }
+
+  getRecoveryHost(): RecoveryHost {
+    return this.buildRecoveryHost();
   }
 
   async ensureRunning(projectId: string): Promise<OrchestratorStatus> {
@@ -1162,6 +1306,16 @@ export class OrchestratorService {
             startedAt: reviewAgent.agent.startedAt || new Date().toISOString(),
             branchName: slot.branchName,
             name: angleLabel,
+            state: reviewAgent.agent.lifecycleState,
+            ...(reviewAgent.agent.lastOutputAtIso
+              ? { lastOutputAt: reviewAgent.agent.lastOutputAtIso }
+              : {}),
+            ...(reviewAgent.agent.suspendedAtIso
+              ? { suspendedAt: reviewAgent.agent.suspendedAtIso }
+              : {}),
+            ...(reviewAgent.agent.suspendReason
+              ? { suspendReason: reviewAgent.agent.suspendReason }
+              : {}),
           });
         }
         continue;
@@ -1175,6 +1329,10 @@ export class OrchestratorService {
         startedAt: slot.agent.startedAt || new Date().toISOString(),
         branchName: slot.branchName,
         ...(slot.assignee != null && slot.assignee.trim() !== "" && { name: slot.assignee.trim() }),
+        state: slot.agent.lifecycleState,
+        ...(slot.agent.lastOutputAtIso ? { lastOutputAt: slot.agent.lastOutputAtIso } : {}),
+        ...(slot.agent.suspendedAtIso ? { suspendedAt: slot.agent.suspendedAtIso } : {}),
+        ...(slot.agent.suspendReason ? { suspendReason: slot.agent.suspendReason } : {}),
       });
     }
 

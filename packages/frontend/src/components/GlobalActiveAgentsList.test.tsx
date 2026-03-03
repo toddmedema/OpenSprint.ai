@@ -320,6 +320,32 @@ describe("GlobalActiveAgentsList", () => {
     ]);
   });
 
+  it("shows Suspended instead of elapsed time for suspended agents", async () => {
+    mockProjectsList.mockResolvedValue([{ id: "proj-1", name: "Project A" }]);
+    mockAgentsActive.mockResolvedValue([
+      {
+        id: "task-1",
+        phase: "coding",
+        role: "coder",
+        label: "Task 1",
+        startedAt: "2026-02-16T12:00:00.000Z",
+        state: "suspended",
+      },
+    ]);
+
+    renderGlobalActiveAgentsList();
+    await waitFor(() => {
+      expect(screen.getByText("1 agent running")).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByTitle("Active agents"));
+
+    const listbox = screen.getByRole("listbox");
+    expect(listbox).toHaveTextContent("Suspended");
+    expect(listbox).not.toHaveTextContent("0s");
+  });
+
   it("shows confirmation dialog when Kill button is clicked", async () => {
     mockProjectsList.mockResolvedValue([{ id: "proj-1", name: "Project A" }]);
     mockAgentsActive.mockResolvedValue([

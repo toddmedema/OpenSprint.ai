@@ -132,7 +132,7 @@ describe("Layout", () => {
     expect(main).toHaveClass("overflow-hidden");
   });
 
-  it("shows SPEED nav buttons when project, currentPhase, and onPhaseChange are provided", () => {
+  it("shows SPEED nav tabs when project, currentPhase, and onPhaseChange are provided", () => {
     const mockProject = {
       id: "proj-1",
       name: "Test",
@@ -146,10 +146,10 @@ describe("Layout", () => {
         <span>Settings or Help content</span>
       </Layout>
     );
-    expect(screen.getByRole("button", { name: "Sketch" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Plan" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Execute" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Evaluate" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Deliver" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Switch to Sketch phase" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Switch to Plan phase" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Switch to Execute phase" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Switch to Evaluate phase" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Switch to Deliver phase" })).toBeInTheDocument();
   });
 });

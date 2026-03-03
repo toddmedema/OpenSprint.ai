@@ -30,6 +30,9 @@ export const HEARTBEAT_STALE_MS = 2 * 60 * 1000;
 /** Agent timeout in milliseconds (10 minutes of inactivity) */
 export const AGENT_INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000;
 
+/** How long a silent but still-live Execute agent may remain suspended before it is terminated. */
+export const AGENT_SUSPEND_GRACE_MS = 60 * 60 * 1000;
+
 /** Number of consecutive failures before priority demotion (PRDv2 §9.1) */
 export const BACKOFF_FAILURE_THRESHOLD = 3;
 

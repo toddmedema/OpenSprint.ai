@@ -693,6 +693,31 @@ describe("TaskDetailSidebar", () => {
     });
   });
 
+  it("shows suspended placeholder when the selected task is suspended with no live output", () => {
+    const props = createMinimalProps({
+      activeTasks: [
+        {
+          taskId: "epic-1.1",
+          phase: "coding",
+          startedAt: "2026-02-16T12:00:00.000Z",
+          state: "suspended",
+        },
+      ],
+      archivedSessions: [],
+      agentOutput: [],
+      wsConnected: true,
+      isDoneTask: false,
+    });
+
+    renderWithProviders(<TaskDetailSidebar {...props} />, {
+      preloadedState: defaultPreloadedState,
+    });
+
+    expect(screen.getByTestId("live-agent-output")).toHaveTextContent(
+      "Agent suspended; waiting for reconnect or new output..."
+    );
+  });
+
   it("shows connecting state when wsConnected is false and task is not done", () => {
     const props = createMinimalProps({ wsConnected: false, isDoneTask: false });
 

@@ -215,4 +215,73 @@ describe("TaskExecutionDiagnosticsService", () => {
       })
     );
   });
+
+  it("surfaces suspended and resumed diagnostics for recoverable interruptions", async () => {
+    taskStore.show.mockResolvedValue({
+      id: taskId,
+      status: "in_progress",
+      labels: ["attempts:6"],
+      block_reason: null,
+      last_execution_summary: null,
+    });
+    sessionManager.listSessions.mockResolvedValue([]);
+    mockReadForTask.mockResolvedValue([
+      {
+        timestamp: "2026-03-02T10:00:00.000Z",
+        projectId,
+        taskId,
+        event: "transition.start_task",
+        data: { attempt: 6 },
+      },
+      {
+        timestamp: "2026-03-02T10:10:00.000Z",
+        projectId,
+        taskId,
+        event: "agent.suspended",
+        data: {
+          attempt: 6,
+          phase: "coding",
+          reason: "heartbeat_gap",
+          summary: "Heartbeat gap after host sleep or backend pause",
+        },
+      },
+      {
+        timestamp: "2026-03-02T10:12:00.000Z",
+        projectId,
+        taskId,
+        event: "agent.resumed",
+        data: {
+          attempt: 6,
+          phase: "coding",
+          reason: "heartbeat_gap",
+          summary: "Agent output resumed after reconnect",
+        },
+      },
+    ]);
+
+    const service = new TaskExecutionDiagnosticsService(
+      projectService as never,
+      taskStore as never,
+      sessionManager as never
+    );
+
+    const diagnostics = await service.getDiagnostics(projectId, taskId);
+
+    expect(diagnostics.timeline).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          phase: "coding",
+          outcome: "suspended",
+          title: "Coding suspended",
+        }),
+        expect.objectContaining({
+          phase: "coding",
+          outcome: "running",
+          title: "Coding resumed",
+        }),
+      ])
+    );
+    expect(diagnostics.latestOutcome).toBe("running");
+    expect(diagnostics.latestSummary).toContain("resumed after reconnect");
+  });
 });

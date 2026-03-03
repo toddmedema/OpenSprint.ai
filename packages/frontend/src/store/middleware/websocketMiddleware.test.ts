@@ -569,6 +569,30 @@ describe("websocketMiddleware", () => {
       });
     });
 
+    it("invalidates diagnostics and active-agent lists on suspended activity events", async () => {
+      const store = createStore();
+      store.dispatch(wsConnect({ projectId: "proj-1" }));
+      wsInstance!.simulateOpen();
+      await vi.waitFor(() => store.getState().websocket.connected);
+
+      wsInstance!.simulateMessage({
+        type: "agent.activity",
+        taskId: "task-1",
+        phase: "coding",
+        activity: "suspended",
+        summary: "Heartbeat gap after host sleep or backend pause",
+      });
+
+      await vi.waitFor(() => {
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.execute.diagnostics("proj-1", "task-1"),
+        });
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: ["agents", "active", "proj-1"],
+        });
+      });
+    });
+
     it("dispatches setCompletionState on agent.completed", async () => {
       const store = createStore();
       store.dispatch(wsConnect({ projectId: "proj-1" }));

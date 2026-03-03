@@ -6,9 +6,12 @@ import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { configureStore } from "@reduxjs/toolkit";
 
-const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function createExecutePhaseQueryClient() {
+  return new QueryClient({ defaultOptions: { queries: { retry: false } } });
+}
 
 function render(ui: React.ReactElement) {
+  const queryClient = createExecutePhaseQueryClient();
   return rtlRender(ui, {
     wrapper: ({ children }) => (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -27,6 +30,9 @@ import projectReducer from "../../store/slices/projectSlice";
 import planReducer from "../../store/slices/planSlice";
 import executeReducer from "../../store/slices/executeSlice";
 import evalReducer from "../../store/slices/evalSlice";
+import openQuestionsReducer, {
+  addNotification as addOpenQuestionNotification,
+} from "../../store/slices/openQuestionsSlice";
 import websocketReducer, { setConnected } from "../../store/slices/websocketSlice";
 const mockGet = vi.fn().mockResolvedValue({});
 const mockMarkDone = vi.fn().mockResolvedValue(undefined);
@@ -36,6 +42,7 @@ const mockFeedbackGet = vi.fn().mockResolvedValue(null);
 const mockAgentsActive = vi.fn().mockResolvedValue([]);
 const mockLiveOutput = vi.fn().mockResolvedValue({ output: "" });
 const mockTaskDiagnostics = vi.fn().mockResolvedValue(null);
+let currentTaskGetImpl = mockGet.getMockImplementation();
 
 vi.mock("../../api/client", () => ({
   api: {
@@ -69,6 +76,7 @@ vi.mock("../../api/client", () => ({
 
 beforeEach(() => {
   localStorage.removeItem("opensprint.executeStatusFilter");
+  localStorage.removeItem("opensprint.executeView");
 });
 
 const basePlan = {
@@ -84,15 +92,47 @@ const basePlan = {
   dependencyCount: 0,
 };
 
+function syncTaskMocks(tasks: Parameters<typeof toTasksByIdAndOrder>[0]) {
+  const tasksList = tasks.map((task) => ({
+    description: "",
+    type: "task" as const,
+    status: task.kanbanColumn === "done" ? ("closed" as const) : ("open" as const),
+    labels: [],
+    dependencies: [],
+    createdAt: "",
+    updatedAt: "",
+    ...task,
+  }));
+  const taskById = new Map(tasksList.map((task) => [task.id, task]));
+  vi.mocked(api.tasks.list).mockResolvedValue(tasksList as never);
+  const existingGetImpl = mockGet.getMockImplementation();
+  const defaultGetImpl = async (_projectId: string, taskId: string) => {
+    return taskById.get(taskId) ?? {
+      id: taskId,
+      title: taskId,
+      epicId: "epic-1",
+      kanbanColumn: "in_progress",
+      priority: 0,
+      assignee: null,
+      description: "",
+      type: "task",
+      status: "open",
+      labels: [],
+      dependencies: [],
+      createdAt: "",
+      updatedAt: "",
+    };
+  };
+  if (!existingGetImpl || existingGetImpl === currentTaskGetImpl) {
+    mockGet.mockImplementation(defaultGetImpl);
+    currentTaskGetImpl = defaultGetImpl;
+  } else {
+    currentTaskGetImpl = existingGetImpl;
+  }
+}
+
 function createStore(
-  tasks: {
-    id: string;
-    kanbanColumn: string;
-    epicId: string;
-    title: string;
-    priority: number;
-    assignee: string | null;
-  }[],
+  tasks: Parameters<typeof toTasksByIdAndOrder>[0],
   buildOverrides?: Partial<{
     orchestratorRunning: boolean;
     selectedTaskId: string | null;
@@ -104,12 +144,14 @@ function createStore(
   }>,
   websocketOverrides?: Partial<{ connected: boolean }>
 ) {
+  syncTaskMocks(tasks);
   return configureStore({
     reducer: {
       project: projectReducer,
       plan: planReducer,
       execute: executeReducer,
       eval: evalReducer,
+      openQuestions: openQuestionsReducer,
       websocket: websocketReducer,
     },
     preloadedState: {
@@ -146,6 +188,14 @@ function createStore(
         }
         return execute;
       })(),
+      openQuestions: {
+        byProject: {},
+        global: [],
+        async: {
+          project: {},
+          global: { loading: false },
+        },
+      },
     },
   });
 }
@@ -156,7 +206,7 @@ describe("ExecutePhase epic card task order", () => {
     mockAgentsActive.mockResolvedValue([]);
   });
 
-  it("sorts epic card tasks by status: In Progress → In Review → Ready → Backlog → Done", () => {
+  it("All filter shows Ready and In Line swimlanes instead of active and completed tasks", () => {
     const tasks = [
       {
         id: "epic-1.1",
@@ -182,6 +232,14 @@ describe("ExecutePhase epic card task order", () => {
         priority: 0,
         assignee: null,
       },
+      {
+        id: "epic-1.4",
+        title: "Planning task",
+        epicId: "epic-1",
+        kanbanColumn: "planning",
+        priority: 0,
+        assignee: null,
+      },
     ];
     const store = createStore(tasks);
     const { container } = render(
@@ -192,16 +250,16 @@ describe("ExecutePhase epic card task order", () => {
       </MemoryRouter>
     );
 
-    const epicCard = container.querySelector('[data-testid="epic-card-epic-1"]');
-    expect(epicCard).toBeInTheDocument();
-    const listItems = epicCard!.querySelectorAll("ul li");
-    expect(listItems).toHaveLength(3);
-    expect(listItems[0].textContent).toContain("In progress task");
-    expect(listItems[1].textContent).toContain("Ready task");
-    expect(listItems[2].textContent).toContain("Done task");
+    expect(screen.getByTestId("execute-section-ready")).toBeInTheDocument();
+    expect(screen.getByTestId("execute-section-in_line")).toBeInTheDocument();
+    expect(container).toHaveTextContent("Ready task");
+    expect(container).toHaveTextContent("Planning task");
+    expect(container).not.toHaveTextContent("In progress task");
+    expect(container).not.toHaveTextContent("Done task");
   });
 
-  it("renders task rows with status left and assignee right (no duplicate indicators)", () => {
+  it("renders task rows with status before title and assignee on the right", async () => {
+    const user = userEvent.setup();
     const tasks = [
       {
         id: "epic-1.1",
@@ -215,7 +273,7 @@ describe("ExecutePhase epic card task order", () => {
         id: "epic-1.2",
         title: "Unassigned task",
         epicId: "epic-1",
-        kanbanColumn: "ready",
+        kanbanColumn: "in_progress",
         priority: 1,
         assignee: null,
       },
@@ -229,25 +287,27 @@ describe("ExecutePhase epic card task order", () => {
       </MemoryRouter>
     );
 
+    await user.click(screen.getByTestId("filter-chip-in_progress"));
     const epicCard = container.querySelector('[data-testid="epic-card-epic-1"]');
     expect(epicCard).toBeInTheDocument();
 
-    // Assigned task: status left, assignee right
-    const assignedRow = epicCard!.querySelector("li");
+    const rows = epicCard!.querySelectorAll("ul li");
+    expect(rows).toHaveLength(2);
+
+    const assignedRow = rows[0];
     expect(assignedRow).toBeTruthy();
     const assignedButton = assignedRow!.querySelector("button");
-    const assignedChildren = Array.from(assignedButton!.children);
-    const titleIdx = assignedChildren.findIndex((el) => el.textContent?.includes("Assigned task"));
-    const statusIdx = assignedChildren.findIndex(
-      (el) => el.getAttribute("title") === "In Progress"
-    );
+    const statusEl = assignedButton!.querySelector('[title="In Progress"]');
+    const titleEl = assignedButton!.querySelector('[title="Assigned task"]');
     const assigneeEl = assignedRow!.querySelector('[data-testid="task-row-right"]');
-    expect(statusIdx).toBeGreaterThanOrEqual(0);
-    expect(statusIdx).toBeLessThan(titleIdx);
+    expect(statusEl).toBeInTheDocument();
+    expect(titleEl).toBeInTheDocument();
+    expect(
+      statusEl!.compareDocumentPosition(titleEl!) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
     expect(assigneeEl).toHaveTextContent("Frodo");
 
-    // Unassigned task: no assignee element on right (no empty dot or placeholder)
-    const unassignedRow = epicCard!.querySelectorAll("li")[1];
+    const unassignedRow = rows[1];
     expect(unassignedRow!.querySelector('[data-testid="task-row-right"]')).toBeNull();
   });
 
@@ -369,6 +429,7 @@ describe("ExecutePhase epic completed checkmark", () => {
       </MemoryRouter>
     );
 
+    fireEvent.click(screen.getByTestId("filter-chip-in_progress"));
     const epicCard = screen.getByTestId("epic-card-epic-1");
     expect(
       epicCard.querySelector('[data-testid="epic-completed-checkmark"]')
@@ -403,6 +464,7 @@ describe("ExecutePhase epic completed checkmark", () => {
       </MemoryRouter>
     );
 
+    fireEvent.click(screen.getByTestId("filter-chip-in_progress"));
     const epicCard = () => screen.getByTestId("epic-card-epic-1");
     expect(
       epicCard().querySelector('[data-testid="epic-completed-checkmark"]')
@@ -697,21 +759,26 @@ describe("ExecutePhase top bar", () => {
       </MemoryRouter>
     );
 
-    const epicCard = container.querySelector('[data-testid="epic-card-epic-1"]');
-    expect(epicCard).toBeInTheDocument();
-    expect(epicCard!.querySelectorAll("ul li")).toHaveLength(3);
+    expect(container).toHaveTextContent("Ready task");
+    expect(container).not.toHaveTextContent("Done task");
+    expect(container).not.toHaveTextContent("In progress task");
 
     await user.click(screen.getByTestId("filter-chip-done"));
+    let epicCard = container.querySelector('[data-testid="epic-card-epic-1"]');
     const doneList = epicCard!.querySelectorAll("ul li");
     expect(doneList).toHaveLength(1);
     expect(doneList[0].textContent).toContain("Done task");
 
     await user.click(screen.getByTestId("filter-chip-ready"));
+    epicCard = container.querySelector('[data-testid="epic-card-epic-1"]');
     expect(epicCard!.querySelectorAll("ul li")).toHaveLength(1);
     expect(epicCard!.textContent).toContain("Ready task");
 
     await user.click(screen.getByTestId("filter-chip-all"));
-    expect(epicCard!.querySelectorAll("ul li")).toHaveLength(3);
+    expect(screen.getByTestId("filter-chip-all")).toHaveAttribute("aria-pressed", "true");
+    expect(container).toHaveTextContent("Ready task");
+    expect(container).not.toHaveTextContent("Done task");
+    expect(container).not.toHaveTextContent("In progress task");
   });
 
   it("re-clicking active chip (non-All) resets to All", async () => {
@@ -744,14 +811,13 @@ describe("ExecutePhase top bar", () => {
     );
 
     await user.click(screen.getByTestId("filter-chip-done"));
-    expect(
-      container.querySelector('[data-testid="epic-card-epic-1"]')!.querySelectorAll("ul li")
-    ).toHaveLength(1);
+    expect(container).toHaveTextContent("Done task");
+    expect(container).not.toHaveTextContent("Ready task");
 
     await user.click(screen.getByTestId("filter-chip-done"));
-    expect(
-      container.querySelector('[data-testid="epic-card-epic-1"]')!.querySelectorAll("ul li")
-    ).toHaveLength(2);
+    expect(screen.getByTestId("filter-chip-all")).toHaveAttribute("aria-pressed", "true");
+    expect(container).toHaveTextContent("Ready task");
+    expect(container).not.toHaveTextContent("Done task");
   });
 
   it("All chip is active by default", () => {
@@ -1735,8 +1801,6 @@ describe("ExecutePhase Redux integration", () => {
       createdAt: "2025-01-01T00:00:00Z",
       resolvedAt: null,
     };
-    vi.mocked(api.notifications.listByProject).mockResolvedValue([taskNotification]);
-    mockGet.mockResolvedValue({ id: "epic-1.1", title: "Task A", kanbanColumn: "in_progress" });
     const tasks = [
       {
         id: "epic-1.1",
@@ -1748,6 +1812,7 @@ describe("ExecutePhase Redux integration", () => {
       },
     ];
     const store = createStore(tasks, { selectedTaskId: "epic-1.1" });
+    store.dispatch(addOpenQuestionNotification(taskNotification));
     render(
       <MemoryRouter>
         <Provider store={store}>
@@ -2292,56 +2357,46 @@ describe("ExecutePhase Redux integration", () => {
   });
 
   it("backfills live output once on mount and once after websocket reconnect", async () => {
-    vi.useFakeTimers();
-    try {
-      mockGet.mockResolvedValue({
+    const tasks = [
+      {
         id: "epic-1.1",
         title: "Task A",
+        epicId: "epic-1",
         kanbanColumn: "in_progress",
-      });
-      mockLiveOutput.mockResolvedValue({ output: "Agent output" });
-      const tasks = [
-        {
-          id: "epic-1.1",
-          title: "Task A",
-          epicId: "epic-1",
-          kanbanColumn: "in_progress",
-          priority: 0,
-          assignee: null,
-        },
-      ];
-      const store = createStore(
-        tasks,
-        { selectedTaskId: "epic-1.1", agentOutput: { "epic-1.1": ["Initial"] } },
-        { connected: true }
-      );
-      render(
-        <MemoryRouter>
-          <Provider store={store}>
-            <ExecutePhase projectId="proj-1" />
-          </Provider>
-        </MemoryRouter>
-      );
+        priority: 0,
+        assignee: null,
+      },
+    ];
+    const store = createStore(
+      tasks,
+      { selectedTaskId: "epic-1.1", agentOutput: { "epic-1.1": ["Initial"] } },
+      { connected: false }
+    );
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <ExecutePhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>
+    );
 
-      await vi.waitFor(() => {
-        expect(mockLiveOutput).toHaveBeenCalledWith("proj-1", "epic-1.1");
-      });
-      const initialCalls = mockLiveOutput.mock.calls.length;
+    await vi.waitFor(() => {
+      expect(mockLiveOutput).toHaveBeenCalledWith("proj-1", "epic-1.1");
+    });
+    const initialCalls = mockLiveOutput.mock.calls.length;
 
-      await vi.advanceTimersByTimeAsync(2500);
-      expect(mockLiveOutput.mock.calls.length).toBe(initialCalls);
+    await act(async () => {
+      await Promise.resolve();
+    });
 
-      act(() => {
-        store.dispatch(setConnected(false));
-        store.dispatch(setConnected(true));
-      });
+    await act(async () => {
+      store.dispatch(setConnected(true));
+      await Promise.resolve();
+    });
 
-      await vi.waitFor(() => {
-        expect(mockLiveOutput.mock.calls.length).toBe(initialCalls + 1);
-      });
-    } finally {
-      vi.useRealTimers();
-    }
+    await vi.waitFor(() => {
+      expect(mockLiveOutput.mock.calls.length).toBe(initialCalls + 1);
+    });
   });
 
   it("task detail sidebar header shows only task title, not redundant Task label", async () => {
@@ -3098,6 +3153,7 @@ describe("ExecutePhase epic card plan navigation", () => {
       </MemoryRouter>
     );
 
+    await user.click(screen.getByTestId("filter-chip-in_progress"));
     const epicTitleButton = await screen.findByRole("button", { name: "Build Test" });
     await user.click(epicTitleButton);
 
@@ -3124,6 +3180,7 @@ describe("ExecutePhase epic card plan navigation", () => {
       </MemoryRouter>
     );
 
+    fireEvent.click(screen.getByTestId("filter-chip-in_progress"));
     await screen.findByText("Build Test");
     expect(screen.queryByRole("button", { name: "Build Test" })).not.toBeInTheDocument();
   });
@@ -3366,7 +3423,7 @@ describe("ExecutePhase Source feedback section", () => {
     );
 
     const toggleBtn = await screen.findByRole("button", { name: /source feedback/i });
-    expect(screen.getByTestId("source-feedback-card")).toBeInTheDocument();
+    expect(await screen.findByTestId("source-feedback-card")).toBeInTheDocument();
 
     await userEvent.click(toggleBtn);
     expect(screen.queryByTestId("source-feedback-card")).not.toBeInTheDocument();
@@ -3644,9 +3701,6 @@ describe("ExecutePhase task detail cached state", () => {
   it("shows running time in active-agent section when task has active agent", async () => {
     mockGet.mockImplementation(() => new Promise(() => {}));
     const startedAt = new Date(Date.now() - 125000).toISOString(); // 2m 5s ago
-    mockAgentsActive.mockResolvedValue([
-      { id: "epic-1.1", phase: "coding", role: "coder", label: "Task A", startedAt },
-    ]);
     const tasks = [
       {
         id: "epic-1.1",
@@ -3660,6 +3714,7 @@ describe("ExecutePhase task detail cached state", () => {
     const store = createStore(tasks, {
       selectedTaskId: "epic-1.1",
       activeTasks: [{ taskId: "epic-1.1", phase: "coding", startedAt }],
+      taskIdToStartedAt: { "epic-1.1": startedAt },
     });
     render(
       <MemoryRouter>

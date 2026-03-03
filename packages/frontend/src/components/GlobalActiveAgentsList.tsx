@@ -86,6 +86,7 @@ const GlobalAgentDropdownItem = memo(function GlobalAgentDropdownItem({
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const roleForDesc = getAgentRoleForDescription(agent);
   const description = roleForDesc ? AGENT_ROLE_DESCRIPTIONS[roleForDesc] : undefined;
+  const statusLabel = agent.state === "suspended" ? "Suspended" : null;
 
   const performKill = useCallback(() => {
     setKilling(true);
@@ -139,7 +140,7 @@ const GlobalAgentDropdownItem = memo(function GlobalAgentDropdownItem({
           <div className="font-medium text-theme-text">{agent.label || agent.id}</div>
           <div className="text-theme-muted mt-0.5">
             {project.name} · {getRoleDisplayLabel(agent)} ·{" "}
-            <UptimeDisplay startedAt={agent.startedAt} />
+            {statusLabel ? statusLabel : <UptimeDisplay startedAt={agent.startedAt} />}
           </div>
         </div>
       </button>

@@ -61,6 +61,7 @@ const EXECUTION_PHASE_LABELS: Record<TaskExecutionPhase, string> = {
 
 const EXECUTION_OUTCOME_LABELS: Record<TaskExecutionOutcome, string> = {
   running: "Running",
+  suspended: "Suspended",
   failed: "Failed",
   rejected: "Rejected",
   requeued: "Requeued",
@@ -245,17 +246,26 @@ function TaskDetailSidebarInner({
   const [showLoadingPlaceholder, setShowLoadingPlaceholder] = useState(false);
 
   const agentOutputText = useMemo(() => agentOutput.join(""), [agentOutput]);
+  const activeTaskState = useMemo(
+    () => activeTasks.find((task) => task.taskId === selectedTask) ?? null,
+    [activeTasks, selectedTask]
+  );
 
   const liveOutputContent = useMemo(() => {
     if (agentOutputText.length > 0) return agentOutputText;
     if (archivedSessions.length > 0) {
       return (
         filterAgentOutput(archivedSessions[archivedSessions.length - 1]?.outputLog ?? "") ||
-        "Waiting for agent output..."
+        (activeTaskState?.state === "suspended"
+          ? "Agent suspended; waiting for reconnect or new output..."
+          : "Waiting for agent output...")
       );
     }
+    if (activeTaskState?.state === "suspended") {
+      return "Agent suspended; waiting for reconnect or new output...";
+    }
     return showLoadingPlaceholder ? "Loading output…" : "Waiting for agent output...";
-  }, [agentOutputText, archivedSessions, showLoadingPlaceholder]);
+  }, [activeTaskState?.state, agentOutputText, archivedSessions, showLoadingPlaceholder]);
 
   const {
     containerRef: liveOutputRef,

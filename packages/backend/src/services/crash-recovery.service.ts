@@ -106,6 +106,25 @@ export class CrashRecoveryService {
   }
 
   /**
+   * Read assignment.json at a given base path (main repo or worktree).
+   * Returns null when the file is missing or invalid.
+   */
+  async readAssignmentAt(basePath: string, taskId: string): Promise<TaskAssignment | null> {
+    const assignmentPath = path.join(
+      basePath,
+      OPENSPRINT_PATHS.active,
+      taskId,
+      OPENSPRINT_PATHS.assignment
+    );
+    try {
+      const raw = await readFile(assignmentPath, "utf-8");
+      return JSON.parse(raw) as TaskAssignment;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Read up to maxBytes from the end of an output log file.
    * Returns the data and the file offset after reading (for subsequent reads).
    */

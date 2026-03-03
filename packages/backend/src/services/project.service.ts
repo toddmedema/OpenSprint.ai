@@ -142,6 +142,21 @@ function toCanonicalSettings(s: ProjectSettings): ProjectSettings {
   };
 }
 
+function buildSectionVersions(version = 0): Record<string, number> {
+  return {
+    executive_summary: version,
+    problem_statement: version,
+    user_personas: version,
+    goals_and_metrics: version,
+    feature_list: version,
+    technical_architecture: version,
+    data_model: version,
+    api_contracts: version,
+    non_functional_requirements: version,
+    open_questions: version,
+  };
+}
+
 export class ProjectService {
   private taskStore = taskStoreSingleton;
   /** In-memory cache for listProjects() so GET /projects returns instantly when the event loop is busy (e.g. orchestrator). Invalidated on create/update/delete. */
@@ -323,7 +338,7 @@ export class ProjectService {
     await fs.mkdir(path.dirname(metaPath), { recursive: true });
     await fs.writeFile(
       metaPath,
-      JSON.stringify({ version: 0, changeLog: [] }, null, 2),
+      JSON.stringify({ version: 0, changeLog: [], sectionVersions: buildSectionVersions() }, null, 2),
       "utf-8"
     );
 
@@ -761,10 +776,10 @@ export class ProjectService {
     }
 
     // Validate API keys in global store when agent config requires them (Claude API or Cursor)
-    const requiredProviders = getProvidersRequiringApiKeys([
-      simpleComplexityAgent,
-      complexComplexityAgent,
-    ]);
+    const agentConfigChanged = simpleUpdate !== undefined || complexUpdate !== undefined;
+    const requiredProviders = agentConfigChanged
+      ? getProvidersRequiringApiKeys([simpleComplexityAgent, complexComplexityAgent])
+      : [];
     if (requiredProviders.length > 0) {
       const gs = await getGlobalSettings();
       const missing: ApiKeyProvider[] = [];

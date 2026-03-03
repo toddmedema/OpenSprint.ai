@@ -13,7 +13,7 @@
 
 import fs from "fs/promises";
 import path from "path";
-import { HEARTBEAT_STALE_MS } from "@opensprint/shared";
+import { AGENT_SUSPEND_GRACE_MS, HEARTBEAT_STALE_MS } from "@opensprint/shared";
 import type { StoredTask } from "./task-store.service.js";
 import { taskStore as taskStoreSingleton } from "./task-store.service.js";
 import { BranchManager } from "./branch-manager.js";
@@ -50,6 +50,13 @@ export interface RecoveryHost {
     task: StoredTask,
     assignment: GuppAssignment,
     options: { pidAlive: boolean }
+  ): Promise<boolean>;
+  /** Called when a stale heartbeat still has a live PID and an assignment to reattach from. */
+  handleRecoverableHeartbeatGap?(
+    projectId: string,
+    repoPath: string,
+    task: StoredTask,
+    assignment: GuppAssignment
   ): Promise<boolean>;
   /** Called to remove a slot whose task no longer exists in task store */
   removeStaleSlot?(projectId: string, taskId: string, repoPath: string): Promise<void>;
@@ -130,8 +137,12 @@ export class RecoveryService {
     ]);
 
     // 2. Stale heartbeat recovery
-    const staleResult = await this.recoverFromStaleHeartbeats(projectId, repoPath, excludeIds);
-    result.requeued.push(...staleResult);
+    const staleResult = await this.recoverFromStaleHeartbeats(projectId, repoPath, excludeIds, host);
+    result.reattached.push(...staleResult.reattached);
+    result.requeued.push(...staleResult.requeued);
+
+    staleResult.reattached.forEach((taskId) => excludeIds.add(taskId));
+    staleResult.requeued.forEach((taskId) => excludeIds.add(taskId));
 
     // 3. Orphaned in_progress tasks
     const orphanResult = await this.recoverOrphanedTasks(projectId, repoPath, excludeIds);
@@ -251,11 +262,13 @@ export class RecoveryService {
   private async recoverFromStaleHeartbeats(
     projectId: string,
     repoPath: string,
-    excludeIds: Set<string>
-  ): Promise<string[]> {
+    excludeIds: Set<string>,
+    host: RecoveryHost
+  ): Promise<{ reattached: string[]; requeued: string[] }> {
     const worktreeBase = this.branchManager.getWorktreeBasePath();
     const stale = await heartbeatService.findStaleHeartbeats(worktreeBase);
-    const recovered: string[] = [];
+    const reattached: string[] = [];
+    const requeued: string[] = [];
 
     for (const { taskId, heartbeat } of stale) {
       if (excludeIds.has(taskId)) continue;
@@ -279,16 +292,43 @@ export class RecoveryService {
       try {
         const task = await this.taskStore.show(projectId, taskId);
         if (task.status === "in_progress") {
-          if (
+          const pidAlive =
             typeof heartbeat.pid === "number" &&
             heartbeat.pid > 0 &&
-            isPidAlive(heartbeat.pid)
+            isPidAlive(heartbeat.pid);
+          const exceededSuspendGrace =
+            Date.now() - heartbeat.lastOutputTimestamp > AGENT_SUSPEND_GRACE_MS;
+          const assignment = await this.readAssignment(repoPath, taskId);
+
+          if (
+            pidAlive &&
+            !exceededSuspendGrace &&
+            assignment &&
+            host.handleRecoverableHeartbeatGap
           ) {
-            log.info("Terminating orphaned agent process", { taskId, pid: heartbeat.pid });
+            const handled = await host.handleRecoverableHeartbeatGap(
+              projectId,
+              repoPath,
+              task,
+              assignment
+            );
+            if (handled) {
+              reattached.push(taskId);
+              continue;
+            }
+          }
+
+          if (pidAlive) {
+            log.info("Terminating orphaned agent process", {
+              taskId,
+              pid: heartbeat.pid,
+              exceededSuspendGrace,
+              hasAssignment: Boolean(assignment),
+            });
             await terminateAgentProcess(heartbeat.pid);
           }
           await this.recoverTask(projectId, repoPath, task);
-          recovered.push(taskId);
+          requeued.push(taskId);
         }
       } catch {
         // Task may not exist — clean up worktree only in Worktree mode (Branches: no worktree)
@@ -303,7 +343,7 @@ export class RecoveryService {
       }
     }
 
-    return recovered;
+    return { reattached, requeued };
   }
 
   // ─── Orphaned in_progress tasks ───
@@ -447,6 +487,24 @@ export class RecoveryService {
       status: "open",
       assignee: "",
     });
+  }
+
+  private async readAssignment(
+    repoPath: string,
+    taskId: string
+  ): Promise<GuppAssignment | null> {
+    try {
+      const readAssignmentAt = (
+        this.crashRecovery as {
+          readAssignmentAt?: (basePath: string, assignmentTaskId: string) => Promise<GuppAssignment | null>;
+        }
+      ).readAssignmentAt;
+      if (typeof readAssignmentAt !== "function") return null;
+      const worktreePath = this.branchManager.getWorktreePath(taskId);
+      return (await readAssignmentAt(worktreePath, taskId)) ?? (await readAssignmentAt(repoPath, taskId));
+    } catch {
+      return null;
+    }
   }
 
   /**

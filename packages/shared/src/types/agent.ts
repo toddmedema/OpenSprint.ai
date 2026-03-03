@@ -145,6 +145,12 @@ export const AGENT_ROLE_DESCRIPTIONS: Record<AgentRole, string> = {
 /** Agent execution phase (coding vs review sub-phase within Execute) */
 export type AgentPhase = "coding" | "review";
 
+/** Runtime state for an active Execute agent. */
+export type AgentRuntimeState = "running" | "suspended";
+
+/** Why an active Execute agent is currently suspended. */
+export type AgentSuspendReason = "heartbeat_gap" | "output_gap" | "backend_restart";
+
 /** Agent session status */
 export type AgentSessionStatus =
   | "success"
@@ -270,6 +276,14 @@ export interface ActiveAgent {
   name?: string;
   /** Feedback ID when Analyst is categorizing a specific feedback item; use for deep link to Evaluate page */
   feedbackId?: string;
+  /** Runtime status for Execute agents. Planning agents remain "running". */
+  state?: AgentRuntimeState;
+  /** ISO timestamp of the last observed output chunk. */
+  lastOutputAt?: string;
+  /** ISO timestamp when the agent entered suspended state. */
+  suspendedAt?: string;
+  /** Why the agent is currently suspended. */
+  suspendReason?: AgentSuspendReason;
 }
 
 /** Feedback item awaiting categorization (PRDv2 §5.8) */
@@ -283,6 +297,10 @@ export interface ActiveTaskEntry {
   taskId: string;
   phase: AgentPhase;
   startedAt: string;
+  state: AgentRuntimeState;
+  lastOutputAt?: string;
+  suspendedAt?: string;
+  suspendReason?: AgentSuspendReason;
 }
 
 /** Build orchestrator status (always-on per PRDv2 §5.7, v2 multi-slot model) */

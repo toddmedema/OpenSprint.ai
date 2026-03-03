@@ -53,12 +53,7 @@ export class WatchdogService {
     const targets = await getTargets();
     for (const target of targets) {
       try {
-        const host: RecoveryHost = {
-          getSlottedTaskIds: (projectId: string) =>
-            orchestratorService.getSlottedTaskIds(projectId),
-          getActiveAgentIds: (projectId: string) =>
-            activeAgentsService.list(projectId).map((a) => a.id),
-        };
+        const host: RecoveryHost = orchestratorService.getRecoveryHost();
         const result = await recoveryService.runFullRecovery(
           target.projectId,
           target.repoPath,

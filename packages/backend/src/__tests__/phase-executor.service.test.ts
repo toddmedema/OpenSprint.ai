@@ -23,6 +23,7 @@ const mockLifecycleRun = vi.fn();
 const mockPersistCounters = vi.fn();
 const mockGetState = vi.fn();
 const mockHandleReviewDone = vi.fn();
+const mockGetNextKey = vi.fn();
 
 vi.mock("../services/project.service.js", () => ({
   ProjectService: vi.fn(),
@@ -78,6 +79,10 @@ vi.mock("../services/event-log.service.js", () => ({
 
 vi.mock("../services/agent-identity.service.js", () => ({
   agentIdentityService: { getRecentAttempts: vi.fn().mockResolvedValue([]) },
+}));
+
+vi.mock("../services/api-key-resolver.service.js", () => ({
+  getNextKey: (...args: unknown[]) => mockGetNextKey(...args),
 }));
 
 describe("PhaseExecutorService", () => {
@@ -151,6 +156,7 @@ describe("PhaseExecutorService", () => {
     mockWriteJsonAtomic.mockResolvedValue(undefined);
     mockLifecycleRun.mockResolvedValue(undefined);
     mockPersistCounters.mockResolvedValue(undefined);
+    mockGetNextKey.mockResolvedValue({ key: "test-key" });
 
     const slots = new Map<string, ReturnType<typeof makeSlot>>();
     mockGetState.mockReturnValue({
@@ -185,6 +191,7 @@ describe("PhaseExecutorService", () => {
       getCachedSummarizerContext: vi.fn().mockReturnValue(undefined),
       setCachedSummarizerContext: vi.fn(),
       buildReviewHistory: vi.fn().mockResolvedValue(""),
+      onAgentStateChange: vi.fn().mockReturnValue(() => {}),
     };
 
     phaseExecutor = new PhaseExecutorService(mockHost, {

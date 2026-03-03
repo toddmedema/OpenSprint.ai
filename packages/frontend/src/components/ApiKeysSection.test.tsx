@@ -88,16 +88,20 @@ describe("ApiKeysSection", () => {
 
   it("shows a retry action for exhausted keys and clears limitHitAt when clicked", async () => {
     const user = userEvent.setup();
-    render(<ApiKeysSection settings={mockSettingsWithKeys} onApiKeysChange={onApiKeysChange} />);
+    const onClearLimitHit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ApiKeysSection
+        settings={mockSettingsWithKeys}
+        onApiKeysChange={onApiKeysChange}
+        onClearLimitHit={onClearLimitHit}
+      />
+    );
 
     await user.click(screen.getByTestId("api-key-retry-ANTHROPIC_API_KEY-k1"));
 
-    expect(onApiKeysChange).toHaveBeenCalled();
-    const lastCall = onApiKeysChange.mock.calls[onApiKeysChange.mock.calls.length - 1][0];
-    expect(lastCall.ANTHROPIC_API_KEY).toEqual([
-      { id: "k1", value: "sk-ant-secret" },
-      { id: "k2", value: "sk-ant-other" },
-    ]);
+    await waitFor(() => {
+      expect(onClearLimitHit).toHaveBeenCalledWith("ANTHROPIC_API_KEY", "k1");
+    });
   });
 
   it("adds a new key when Add key is clicked", async () => {

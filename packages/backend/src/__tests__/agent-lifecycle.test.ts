@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AgentLifecycleManager } from "../services/agent-lifecycle.js";
 import type { AgentRunState, AgentRunParams } from "../services/agent-lifecycle.js";
 import { TimerRegistry } from "../services/timer-registry.js";
-import { AGENT_INACTIVITY_TIMEOUT_MS } from "@opensprint/shared";
+import { AGENT_INACTIVITY_TIMEOUT_MS, AGENT_SUSPEND_GRACE_MS } from "@opensprint/shared";
 
 const mockInvokeCodingAgent = vi.fn();
 const mockInvokeReviewAgent = vi.fn();
@@ -71,6 +71,7 @@ describe("AgentLifecycleManager", () => {
     runState = {
       activeProcess: null,
       lastOutputTime: 0,
+      lastOutputAtIso: undefined,
       outputLog: [],
       outputLogBytes: 0,
       outputParseBuffer: "",
@@ -79,6 +80,10 @@ describe("AgentLifecycleManager", () => {
       startedAt: "",
       exitHandled: false,
       killedDueToTimeout: false,
+      lifecycleState: "running",
+      suspendedAtIso: undefined,
+      suspendReason: undefined,
+      suspendDeadlineMs: undefined,
     };
 
     const mockHandle = {
@@ -234,7 +239,7 @@ describe("AgentLifecycleManager", () => {
       vi.useRealTimers();
     });
 
-    it("times out eventually when a shell tool call stays silent past the extended window", async () => {
+    it("suspends when a shell tool call stays silent past the extended window", async () => {
       vi.useFakeTimers();
       const handle = {
         kill: vi.fn(() => {
@@ -264,10 +269,89 @@ describe("AgentLifecycleManager", () => {
       await vi.advanceTimersByTimeAsync(15 * 60 * 1000 + 30_000);
       await Promise.resolve();
 
+      expect(runState.lifecycleState).toBe("suspended");
+      expect(runState.suspendReason).toBe("output_gap");
+      expect(runState.killedDueToTimeout).toBe(false);
+      expect(handle.kill).not.toHaveBeenCalled();
+
+      killSpy.mockRestore();
+      vi.useRealTimers();
+    });
+
+    it("kills after the suspend grace expires", async () => {
+      vi.useFakeTimers();
+      const handle = {
+        kill: vi.fn(() => {
+          runState.activeProcess = null;
+        }),
+        pid: 9999,
+      };
+      let capturedOnOutput: ((chunk: string) => void) | undefined;
+
+      mockInvokeCodingAgent.mockImplementation(
+        (_path: string, _config: unknown, options: { onOutput?: (chunk: string) => void }) => {
+          capturedOnOutput = options.onOutput;
+          return handle;
+        }
+      );
+
+      const killSpy = vi.spyOn(process, "kill").mockImplementation((pid: number, sig?: number) => {
+        if (sig === 0 && pid === 9999) return true;
+        return true;
+      });
+
+      manager.run(baseParams, runState, timers);
+      capturedOnOutput?.(
+        '{"type":"tool_call","subtype":"started","call_id":"call-1","tool_call":{"shellToolCall":{"args":{"command":"npm test"}}}}\n'
+      );
+
+      await vi.advanceTimersByTimeAsync(15 * 60 * 1000 + 30_000);
+      expect(runState.lifecycleState).toBe("suspended");
+
+      await vi.advanceTimersByTimeAsync(AGENT_SUSPEND_GRACE_MS + 30_000);
+      await Promise.resolve();
+
       expect(runState.killedDueToTimeout).toBe(true);
       expect(handle.kill).toHaveBeenCalled();
 
       killSpy.mockRestore();
+      vi.useRealTimers();
+    });
+
+    it("resumes from suspended when new output arrives", async () => {
+      vi.useFakeTimers();
+      let capturedOnOutput: ((chunk: string) => void) | undefined;
+
+      mockInvokeCodingAgent.mockImplementation(
+        (_path: string, _config: unknown, options: { onOutput?: (chunk: string) => void }) => {
+          capturedOnOutput = options.onOutput;
+          return { kill: vi.fn(), pid: 9999 };
+        }
+      );
+
+      vi.spyOn(process, "kill").mockImplementation((pid: number, sig?: number) => {
+        if (sig === 0 && pid === 9999) return true;
+        return true;
+      });
+
+      manager.run(baseParams, runState, timers);
+      await vi.advanceTimersByTimeAsync(AGENT_INACTIVITY_TIMEOUT_MS + 30_000);
+
+      expect(runState.lifecycleState).toBe("suspended");
+
+      capturedOnOutput?.("agent resumed\n");
+      await Promise.resolve();
+
+      expect(runState.lifecycleState).toBe("running");
+      expect(runState.suspendReason).toBeUndefined();
+      expect(mockBroadcastToProject).toHaveBeenCalledWith(
+        "proj-1",
+        expect.objectContaining({
+          type: "agent.activity",
+          activity: "resumed",
+        })
+      );
+
       vi.useRealTimers();
     });
 
@@ -334,10 +418,10 @@ describe("AgentLifecycleManager", () => {
   });
 
   describe("resumeMonitoring", () => {
-    it("starts output tail and sets outputTailStop so live output streams after GUPP recovery", () => {
+    it("starts output tail and sets outputTailStop so live output streams after GUPP recovery", async () => {
       const handle = { kill: vi.fn(), pid: 9999 };
 
-      manager.resumeMonitoring(handle, baseParams, runState, timers);
+      await manager.resumeMonitoring(handle, baseParams, runState, timers);
 
       expect(runState.activeProcess).toBe(handle);
       expect(runState.exitHandled).toBe(false);
@@ -347,10 +431,10 @@ describe("AgentLifecycleManager", () => {
       expect(timers.has("inactivity")).toBe(true);
     });
 
-    it("outputTailStop clears the tail timer", () => {
+    it("outputTailStop clears the tail timer", async () => {
       const handle = { kill: vi.fn(), pid: 9999 };
 
-      manager.resumeMonitoring(handle, baseParams, runState, timers);
+      await manager.resumeMonitoring(handle, baseParams, runState, timers);
       expect(timers.has("outputTail")).toBe(true);
 
       runState.outputTailStop!();
@@ -365,7 +449,7 @@ describe("AgentLifecycleManager", () => {
       const onDone = vi.fn().mockResolvedValue(undefined);
       const params = { ...baseParams, onDone };
 
-      manager.resumeMonitoring(handle, params, runState, timers);
+      await manager.resumeMonitoring(handle, params, runState, timers);
       expect(timers.has("outputTail")).toBe(true);
 
       // Simulate process-dead path: inactivity monitor will call the wrapped onDone

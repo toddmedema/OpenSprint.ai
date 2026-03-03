@@ -665,7 +665,7 @@ describe("ProjectView upfront loading and mount-all", () => {
     expect(tasksCallCountBefore).toBeGreaterThanOrEqual(1);
 
     // Switch to sketch (execute unmounts, tasks query disabled)
-    const sketchButton = screen.getByRole("button", { name: /^sketch$/i });
+    const sketchButton = screen.getByRole("tab", { name: /switch to sketch phase/i });
     sketchButton.click();
     await waitFor(() => {
       expect(screen.getByTestId("phase-sketch")).toBeInTheDocument();
@@ -675,7 +675,7 @@ describe("ProjectView upfront loading and mount-all", () => {
     expect(store.getState().execute.tasksById["opensprint.dev-xyz.1"]).toBeDefined();
 
     // Switch back to execute
-    const executeButton = screen.getByRole("button", { name: /^execute$/i });
+    const executeButton = screen.getByRole("tab", { name: /switch to execute phase/i });
     executeButton.click();
     await waitFor(() => {
       expect(screen.getByTestId("phase-execute")).toBeInTheDocument();
@@ -783,8 +783,8 @@ describe("ProjectView URL deep linking for Plan and Build detail panes", () => {
     });
 
     // User clicks Plan in navbar — selection is preserved (phase tab)
-    const planButton = within(screen.getByRole("navigation")).getByRole("button", {
-      name: /^plan$/i,
+    const planButton = within(screen.getByRole("navigation")).getByRole("tab", {
+      name: /switch to plan phase/i,
     });
     planButton.click();
 
@@ -797,8 +797,8 @@ describe("ProjectView URL deep linking for Plan and Build detail panes", () => {
     expect(store.getState().execute.selectedTaskId).toBe("opensprint.dev-xyz.1");
 
     // User clicks Build in navbar — should land with task param (phase tab, not plan Execute button)
-    const executeButton = within(screen.getByRole("navigation")).getByRole("button", {
-      name: /^execute$/i,
+    const executeButton = within(screen.getByRole("navigation")).getByRole("tab", {
+      name: /switch to execute phase/i,
     });
     executeButton.click();
 
@@ -855,8 +855,8 @@ describe("ProjectView URL deep linking for Plan and Build detail panes", () => {
     });
 
     // User clicks Build in navbar — selection is preserved (phase tab, not plan Execute button)
-    const executeButton = within(screen.getByRole("navigation")).getByRole("button", {
-      name: /^execute$/i,
+    const executeButton = within(screen.getByRole("navigation")).getByRole("tab", {
+      name: /switch to execute phase/i,
     });
     executeButton.click();
 
@@ -869,8 +869,8 @@ describe("ProjectView URL deep linking for Plan and Build detail panes", () => {
     expect(store.getState().plan.selectedPlanId).toBe("opensprint.dev-abc");
 
     // User clicks Plan in navbar — should land with plan param (phase tab)
-    const planButton = within(screen.getByRole("navigation")).getByRole("button", {
-      name: /^plan$/i,
+    const planButton = within(screen.getByRole("navigation")).getByRole("tab", {
+      name: /switch to plan phase/i,
     });
     planButton.click();
 

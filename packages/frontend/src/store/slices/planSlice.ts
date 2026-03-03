@@ -362,7 +362,7 @@ const planSlice = createSlice({
         state.error = action.error.message || "Failed to decompose PRD";
       })
       // generatePlan — optimistic UX: no longer blocks input; optimistic plans replaced in place
-      .addCase(generatePlan.pending, (state, action) => {
+      .addCase(generatePlan.pending, (state, _action) => {
         state.generating = true;
         state.error = null;
       })

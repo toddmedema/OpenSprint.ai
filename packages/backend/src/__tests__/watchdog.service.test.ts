@@ -18,12 +18,14 @@ vi.mock("../services/active-agents.service.js", () => ({
 
 vi.mock("../services/orchestrator.service.js", () => ({
   orchestratorService: {
-    getSlottedTaskIds: vi.fn().mockReturnValue([]),
+    getRecoveryHost: vi.fn().mockReturnValue({
+      getSlottedTaskIds: vi.fn().mockReturnValue([]),
+      getActiveAgentIds: vi.fn().mockReturnValue([]),
+    }),
   },
 }));
 
 import { recoveryService } from "../services/recovery.service.js";
-import { activeAgentsService } from "../services/active-agents.service.js";
 import { orchestratorService } from "../services/orchestrator.service.js";
 
 describe("WatchdogService", () => {
@@ -72,16 +74,10 @@ describe("WatchdogService", () => {
   });
 
   it("should pass host that delegates to orchestrator and activeAgents services", async () => {
-    vi.mocked(activeAgentsService.list).mockReturnValue([
-      {
-        id: "task-active",
-        phase: "coding",
-        role: "coder",
-        label: "Active task",
-        startedAt: new Date().toISOString(),
-      },
-    ]);
-    vi.mocked(orchestratorService.getSlottedTaskIds).mockReturnValue(["task-slotted"]);
+    vi.mocked(orchestratorService.getRecoveryHost).mockReturnValue({
+      getSlottedTaskIds: vi.fn().mockReturnValue(["task-slotted"]),
+      getActiveAgentIds: vi.fn().mockReturnValue(["task-active"]),
+    });
 
     watchdog.start(getTargets);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

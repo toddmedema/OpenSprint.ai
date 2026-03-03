@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import { AgentDashboard } from "./AgentDashboard";
@@ -34,11 +35,21 @@ function createStore() {
   });
 }
 
-function renderAgentDashboard() {
+function renderAgentDashboard(
+  store = createStore(),
+  queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  })
+) {
   return render(
-    <Provider store={createStore()}>
-      <AgentDashboard projectId="proj-1" />
-    </Provider>
+    <QueryClientProvider client={queryClient}>
+      <Provider store={store}>
+        <AgentDashboard projectId="proj-1" />
+      </Provider>
+    </QueryClientProvider>
   );
 }
 
@@ -117,9 +128,20 @@ describe("AgentDashboard", () => {
       },
     });
     render(
-      <Provider store={store}>
-        <AgentDashboard projectId="proj-1" />
-      </Provider>
+      <QueryClientProvider
+        client={
+          new QueryClient({
+            defaultOptions: {
+              queries: { retry: false },
+              mutations: { retry: false },
+            },
+          })
+        }
+      >
+        <Provider store={store}>
+          <AgentDashboard projectId="proj-1" />
+        </Provider>
+      </QueryClientProvider>
     );
 
     await waitFor(() => {
@@ -164,12 +186,26 @@ describe("AgentDashboard", () => {
       },
     });
     const { container } = render(
-      <Provider store={store}>
-        <AgentDashboard projectId="proj-1" />
-      </Provider>
+      <QueryClientProvider
+        client={
+          new QueryClient({
+            defaultOptions: {
+              queries: { retry: false },
+              mutations: { retry: false },
+            },
+          })
+        }
+      >
+        <Provider store={store}>
+          <AgentDashboard projectId="proj-1" />
+        </Provider>
+      </QueryClientProvider>
     );
 
     const user = userEvent.setup();
+    await waitFor(() => {
+      expect(screen.getByText("task-1")).toBeInTheDocument();
+    });
     await user.click(screen.getByText("task-1"));
 
     const outputDiv = container.querySelector('[data-testid="agent-output"]');
@@ -209,9 +245,20 @@ describe("AgentDashboard", () => {
     });
     const user = userEvent.setup();
     render(
-      <Provider store={store}>
-        <AgentDashboard projectId="proj-1" />
-      </Provider>
+      <QueryClientProvider
+        client={
+          new QueryClient({
+            defaultOptions: {
+              queries: { retry: false },
+              mutations: { retry: false },
+            },
+          })
+        }
+      >
+        <Provider store={store}>
+          <AgentDashboard projectId="proj-1" />
+        </Provider>
+      </QueryClientProvider>
     );
 
     await waitFor(() => {

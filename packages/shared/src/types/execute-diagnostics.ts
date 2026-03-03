@@ -2,6 +2,7 @@ export type TaskExecutionPhase = "coding" | "review" | "merge" | "orchestrator";
 
 export type TaskExecutionOutcome =
   | "running"
+  | "suspended"
   | "failed"
   | "rejected"
   | "requeued"

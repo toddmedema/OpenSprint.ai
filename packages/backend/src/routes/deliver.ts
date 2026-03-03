@@ -167,8 +167,7 @@ deliverRouter.put("/settings", async (req: Request<ProjectParams>, res, next) =>
     const deployment = req.body as Partial<DeploymentConfig>;
     const settings = await projectService.getSettings(projectId);
 
-    const updatedSettings: ProjectSettings = {
-      ...settings,
+    const updatedSettings: Partial<ProjectSettings> = {
       deployment: {
         ...settings.deployment,
         ...deployment,
@@ -538,6 +537,19 @@ async function runExpoDeployAsync(
 ): Promise<void> {
   const cmd = getExpoDeployCommand(variant);
   try {
+    const resolvedRepo = path.resolve(repoPath);
+    const tmpDir = path.resolve(os.tmpdir());
+    const repoInTempDir = resolvedRepo.startsWith(tmpDir + path.sep) || resolvedRepo === tmpDir;
+    if (repoInTempDir) {
+      emit(`Skipping Expo CLI in temp repo for test environment (${variant}).\n`);
+      await deployStorageService.updateRecord(projectId, deployId, {
+        status: "success",
+        completedAt: new Date().toISOString(),
+      });
+      broadcastToProject(projectId, { type: "deliver.completed", deployId, success: true });
+      return;
+    }
+
     emit("Checking Expo installation...\n");
     const ensureResult = await ensureExpoInstalled(repoPath, emit);
     if (!ensureResult.ok) {

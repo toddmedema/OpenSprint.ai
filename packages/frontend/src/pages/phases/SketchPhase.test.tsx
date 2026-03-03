@@ -2,12 +2,14 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Provider } from "react-redux";
 import { MemoryRouter } from "react-router-dom";
 import { configureStore } from "@reduxjs/toolkit";
 import { SketchPhase } from "./SketchPhase";
+import { queryKeys } from "../../api/queryKeys";
 import sketchReducer from "../../store/slices/sketchSlice";
-import planReducer, { decomposePlans } from "../../store/slices/planSlice";
+import planReducer from "../../store/slices/planSlice";
 
 beforeAll(() => {
   Element.prototype.scrollIntoView = vi.fn();
@@ -37,6 +39,12 @@ const mockPlansDecompose = vi.fn();
 
 vi.mock("../../hooks/useOpenQuestionNotifications", () => ({
   useOpenQuestionNotifications: () => ({ notifications: [], refetch: () => {} }),
+}));
+vi.mock("../../hooks/usePhaseLoadingState", () => ({
+  usePhaseLoadingState: (isLoading: boolean, isEmpty: boolean) => ({
+    showSpinner: isLoading,
+    showEmptyState: !isLoading && isEmpty,
+  }),
 }));
 vi.mock("../../components/prd/PrdSectionEditor", () => ({
   PrdSectionEditor: ({
@@ -127,13 +135,43 @@ function createStore(preloadedState?: {
 }
 
 function renderSketchPhase(store = createStore()) {
-  return render(
-    <MemoryRouter>
-      <Provider store={store}>
-        <SketchPhase projectId="proj-1" />
-      </Provider>
-    </MemoryRouter>
+  const state = store.getState() as {
+    sketch: {
+      messages: { role: "user" | "assistant"; content: string; timestamp: string }[];
+      prdContent: Record<string, string>;
+      prdHistory: unknown[];
+    };
+    plan: {
+      plans: unknown[];
+      planStatus: { action: "plan" | "replan" | "none" } | null;
+    };
+  };
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      mutations: { retry: false },
+    },
+  });
+  queryClient.setQueryData(queryKeys.prd.detail("proj-1"), state.sketch.prdContent);
+  queryClient.setQueryData(queryKeys.prd.history("proj-1"), state.sketch.prdHistory);
+
+  const wrappedUi = (
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <Provider store={store}>
+          <SketchPhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>
+    </QueryClientProvider>
   );
+
+  const rendered = render(wrappedUi);
+
+  return {
+    ...rendered,
+    rerender: () => rendered.rerender(wrappedUi),
+    queryClient,
+  };
 }
 
 describe("SketchPhase with sketchSlice", () => {
@@ -426,9 +464,9 @@ describe("SketchPhase with sketchSlice", () => {
 
       await waitFor(() => {
         expect(mockChatHistory).toHaveBeenCalledWith("proj-1", "sketch");
+        expect(screen.getByText("Hello")).toBeInTheDocument();
+        expect(screen.getByText("Hi there!")).toBeInTheDocument();
       });
-      expect(screen.getByText("Hello")).toBeInTheDocument();
-      expect(screen.getByText("Hi there!")).toBeInTheDocument();
     });
 
     it("displays split-pane with theme-aware layout (PRD left, Discuss right)", () => {
@@ -509,13 +547,7 @@ describe("SketchPhase with sketchSlice", () => {
       Object.defineProperty(scrollEl, "scrollHeight", { value: 200, configurable: true });
       Object.defineProperty(scrollEl, "clientHeight", { value: 100, configurable: true });
 
-      rerender(
-        <MemoryRouter>
-          <Provider store={store}>
-            <SketchPhase projectId="proj-1" />
-          </Provider>
-        </MemoryRouter>
-      );
+      rerender();
 
       await new Promise((r) => requestAnimationFrame(r));
 
@@ -964,7 +996,7 @@ describe("SketchPhase with sketchSlice", () => {
         expect(screen.getByRole("button", { name: /Plan it/i })).toBeInTheDocument();
       });
 
-      store.dispatch(decomposePlans("proj-1"));
+      await userEvent.click(screen.getByRole("button", { name: /Plan it/i }));
       await waitFor(() => {
         expect(screen.getByRole("button", { name: /Planning/i })).toBeDisabled();
       });
