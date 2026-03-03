@@ -277,6 +277,32 @@ describe("PhaseExecutorService", () => {
       expect(mockCreateTaskWorktree).toHaveBeenCalledWith(repoPath, task.id, "main");
       expect(mockCreateOrCheckoutBranch).not.toHaveBeenCalled();
     });
+
+    it("passes worktreeBaseBranch to createTaskWorktree, syncMainWithOrigin when worktree mode", async () => {
+      mockGetSettings.mockResolvedValue({
+        testFramework: "vitest",
+        simpleComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+        complexComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+        reviewMode: "never",
+        deployment: {
+          mode: "custom",
+          autoResolveFeedbackOnTaskCompletion: false,
+        },
+        maxConcurrentCoders: 1,
+        gitWorkingMode: "worktree",
+        worktreeBaseBranch: "develop",
+      });
+      const task = makeTask();
+      const slot = makeSlot();
+      const slots = new Map([[task.id, slot]]);
+      mockGetState.mockReturnValue({ slots, status: { queueDepth: 0 } });
+
+      await phaseExecutor.executeCodingPhase(projectId, repoPath, task, slot);
+
+      expect(mockSyncMainWithOrigin).toHaveBeenCalledWith(repoPath, "develop");
+      expect(mockCreateTaskWorktree).toHaveBeenCalledWith(repoPath, task.id, "develop");
+      expect(mockCreateOrCheckoutBranch).not.toHaveBeenCalled();
+    });
   });
 
   describe("executeReviewPhase", () => {
