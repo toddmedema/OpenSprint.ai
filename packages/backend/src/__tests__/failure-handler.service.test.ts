@@ -187,6 +187,57 @@ describe("FailureHandlerService", () => {
       expect(mockDeleteBranch).not.toHaveBeenCalled(); // revertAndReturnToMain does it
     });
 
+    it("passes worktreeBaseBranch from settings to captureBranchDiff when worktree mode", async () => {
+      const mockCaptureBranchDiff = vi.fn().mockResolvedValue("");
+      mockHost.branchManager = {
+        ...mockHost.branchManager,
+        captureBranchDiff: mockCaptureBranchDiff,
+      };
+      mockGetSettings.mockResolvedValue({
+        simpleComplexityAgent: { type: "cursor", model: null },
+        complexComplexityAgent: { type: "cursor", model: null },
+        gitWorkingMode: "worktree",
+        worktreeBaseBranch: "develop",
+      });
+
+      await handler.handleTaskFailure(
+        projectId,
+        repoPath,
+        makeTask(),
+        branchName,
+        "Tests failed",
+        null,
+        "coding_failure"
+      );
+
+      expect(mockCaptureBranchDiff).toHaveBeenCalledWith(repoPath, branchName, "develop");
+    });
+
+    it("branches mode always passes main to revertAndReturnToMain (ignores worktreeBaseBranch)", async () => {
+      mockGetSettings.mockResolvedValue({
+        simpleComplexityAgent: { type: "cursor", model: null },
+        complexComplexityAgent: { type: "cursor", model: null },
+        gitWorkingMode: "branches",
+        worktreeBaseBranch: "develop",
+      });
+      mockHost.getState = vi.fn().mockReturnValue({
+        slots: new Map([[taskId, makeSlot(repoPath)]]),
+        status: { totalFailed: 0, queueDepth: 0 },
+      });
+
+      await handler.handleTaskFailure(
+        projectId,
+        repoPath,
+        makeTask(),
+        branchName,
+        "Agent crashed",
+        null,
+        "agent_crash"
+      );
+
+      expect(mockRevertAndReturnToMain).toHaveBeenCalledWith(repoPath, branchName, "main");
+    });
+
     it("calls removeTaskWorktree when gitWorkingMode is worktree (infra retry)", async () => {
       mockGetSettings.mockResolvedValue({
         simpleComplexityAgent: { type: "cursor", model: null },
