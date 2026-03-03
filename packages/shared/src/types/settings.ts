@@ -525,7 +525,8 @@ const VALID_AI_AUTONOMY_LEVELS: AiAutonomyLevel[] = ["confirm_all", "major_only"
 /** Valid branch name: alphanumeric, slash, underscore, hyphen, dot */
 const BRANCH_NAME_REGEX = /^[a-zA-Z0-9/_.-]+$/;
 
-function normalizeWorktreeBaseBranch(raw: unknown): string {
+/** Normalize worktree base branch: empty/invalid → "main"; valid names trimmed. */
+export function normalizeWorktreeBaseBranch(raw: unknown): string {
   if (typeof raw !== "string" || !raw.trim()) return "main";
   const trimmed = raw.trim();
   if (!BRANCH_NAME_REGEX.test(trimmed)) return "main";

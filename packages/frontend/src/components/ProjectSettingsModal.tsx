@@ -34,6 +34,7 @@ import {
   getDeploymentTargetsForUi,
   AUTO_DEPLOY_TRIGGER_OPTIONS,
   REVIEW_ANGLE_OPTIONS,
+  normalizeWorktreeBaseBranch,
   type AutoDeployTrigger,
 } from "@opensprint/shared";
 
@@ -819,12 +820,15 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                                 s ? { ...s, worktreeBaseBranch: e.target.value || "main" } : null
                               )
                             }
-                            onBlur={() =>
-                              void persistSettings(undefined, {
-                                worktreeBaseBranch:
-                                  settings?.worktreeBaseBranch?.trim() || "main",
-                              })
-                            }
+                            onBlur={() => {
+                              const normalized = normalizeWorktreeBaseBranch(
+                                settings?.worktreeBaseBranch
+                              );
+                              setSettings((s) =>
+                                s ? { ...s, worktreeBaseBranch: normalized } : null
+                              );
+                              void persistSettings(undefined, { worktreeBaseBranch: normalized });
+                            }}
                             placeholder="main"
                             data-testid="worktree-base-branch-input"
                           />

@@ -738,4 +738,58 @@ describe("ProjectSettingsModal", () => {
       )
     );
   });
+
+  it("persists worktreeBaseBranch when changed and blurred", async () => {
+    renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} onSaved={onSaved} />);
+    await waitForModalReady();
+
+    const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
+    await userEvent.click(agentConfigTab);
+
+    const baseBranchInput = screen.getByTestId("worktree-base-branch-input");
+    fireEvent.change(baseBranchInput, { target: { value: "develop" } });
+    fireEvent.blur(baseBranchInput);
+
+    await waitFor(() => {
+      const calls = mockUpdateSettings.mock.calls;
+      const lastCall = calls[calls.length - 1];
+      expect(lastCall[0]).toBe("proj-1");
+      expect(lastCall[1]).toMatchObject({ worktreeBaseBranch: "develop" });
+    });
+  });
+
+  it("normalizes invalid worktreeBaseBranch to main on blur", async () => {
+    renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
+    await waitForModalReady();
+
+    const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
+    await userEvent.click(agentConfigTab);
+
+    const baseBranchInput = screen.getByTestId("worktree-base-branch-input");
+    fireEvent.change(baseBranchInput, { target: { value: "my branch" } });
+    fireEvent.blur(baseBranchInput);
+
+    await waitFor(() => {
+      const calls = mockUpdateSettings.mock.calls;
+      const lastCall = calls[calls.length - 1];
+      expect(lastCall[0]).toBe("proj-1");
+      expect(lastCall[1]).toMatchObject({ worktreeBaseBranch: "main" });
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("worktree-base-branch-input")).toHaveValue("main");
+    });
+  });
+
+  it("hides Base branch input when Branches mode selected", async () => {
+    renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
+    await waitForModalReady();
+
+    const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
+    await userEvent.click(agentConfigTab);
+
+    const select = screen.getByTestId("git-working-mode-select");
+    await userEvent.selectOptions(select, "branches");
+
+    expect(screen.queryByTestId("worktree-base-branch-input")).not.toBeInTheDocument();
+  });
 });
