@@ -90,4 +90,19 @@ describe("dev config (source-direct imports)", () => {
     expect(postgresLoginIndex).toBeGreaterThan(appLoginIndex);
     expect(createRoleIndex).toBeGreaterThan(postgresLoginIndex);
   });
+
+  it("setup script runs local credential bootstrap even when WSL skips service management", () => {
+    const setupScriptPath = resolve(repoRoot, "scripts/setup.sh");
+    expect(existsSync(setupScriptPath)).toBe(true);
+    const content = readFileSync(setupScriptPath, "utf-8");
+    const wslMessageIndex = content.indexOf(
+      'echo "==> WSL detected. Skipping package-manager and service-manager PostgreSQL setup."'
+    );
+    const wslBootstrapIndex = content.indexOf(
+      "bootstrap_wsl_local_postgres_if_possible",
+      wslMessageIndex
+    );
+    expect(wslMessageIndex).toBeGreaterThanOrEqual(0);
+    expect(wslBootstrapIndex).toBeGreaterThan(wslMessageIndex);
+  });
 });

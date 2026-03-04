@@ -100,6 +100,16 @@ SQL
   can_connect_with_url "$APP_MAIN_DB_URL" && can_connect_with_url "$APP_TEST_DB_URL"
 }
 
+bootstrap_wsl_local_postgres_if_possible() {
+  if ! command -v psql >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if ensure_local_postgres_role_and_databases_via_password; then
+    echo "==> PostgreSQL ready (user ${OS_USER}, databases ${OS_DB} and ${OS_TEST_DB})"
+  fi
+}
+
 install_and_start_postgres_mac() {
   if ! command -v brew >/dev/null 2>&1; then
     echo "==> Homebrew not found. Install from https://brew.sh or use a remote Postgres and set databaseUrl in ~/.opensprint/global-settings.json"
@@ -198,6 +208,7 @@ case "$UNAME" in
   Linux)
     if [ "$IS_WSL" -eq 1 ]; then
       echo "==> WSL detected. Skipping package-manager and service-manager PostgreSQL setup."
+      bootstrap_wsl_local_postgres_if_possible
     else
       install_and_start_postgres_linux || true
     fi
