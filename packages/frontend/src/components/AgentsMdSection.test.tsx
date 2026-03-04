@@ -70,6 +70,8 @@ describe("AgentsMdSection", () => {
       content: "# Agent Instructions\n\nUse bd for tasks.",
     });
     mockUpdateAgentsInstructions.mockResolvedValue({ saved: true });
+    mockGetAgentsInstructionsForRole.mockResolvedValue({ content: "" });
+    mockUpdateAgentsInstructionsForRole.mockResolvedValue({ saved: true });
   });
 
   function renderSection(opts?: { testMode?: boolean }) {
@@ -238,6 +240,129 @@ describe("AgentsMdSection", () => {
       expect(mockGetAgentsInstructionsForRole).toHaveBeenCalledWith(projectId, "coder")
     );
     expect(screen.getByText("Prefer TypeScript.")).toBeInTheDocument();
+  });
+
+  it("switches tabs and loads correct content per tab (General, Coder, Reviewer)", async () => {
+    mockGetAgentsInstructionsForRole
+      .mockResolvedValueOnce({ content: "# Coder\n\nPrefer TypeScript." })
+      .mockResolvedValueOnce({ content: "# Reviewer\n\nCheck for security issues." });
+    const user = userEvent.setup();
+    renderSection({ testMode: true });
+
+    await screen.findByTestId("agents-md-view");
+    expect(mockGetAgentsInstructions).toHaveBeenCalledWith(projectId);
+    expect(mockGetAgentsInstructionsForRole).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTestId("agents-tab-coder"));
+    await waitFor(() =>
+      expect(mockGetAgentsInstructionsForRole).toHaveBeenCalledWith(projectId, "coder")
+    );
+    expect(screen.getByText("Prefer TypeScript.")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("agents-tab-reviewer"));
+    await waitFor(() =>
+      expect(mockGetAgentsInstructionsForRole).toHaveBeenCalledWith(projectId, "reviewer")
+    );
+    expect(screen.getByText("Check for security issues.")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("agents-tab-general"));
+    await waitFor(() => expect(screen.getByText("Use bd for tasks.")).toBeInTheDocument());
+  });
+
+  it("saves role content via API when on Coder tab (testMode, on blur)", async () => {
+    mockGetAgentsInstructionsForRole.mockResolvedValue({ content: "" });
+    const user = userEvent.setup();
+    renderSection({ testMode: true });
+
+    await screen.findByTestId("agents-md-view");
+    await user.click(screen.getByTestId("agents-tab-coder"));
+    await waitFor(() =>
+      expect(mockGetAgentsInstructionsForRole).toHaveBeenCalledWith(projectId, "coder")
+    );
+
+    await user.click(screen.getByTestId("agents-md-edit"));
+    const textarea = screen.getByTestId("agents-md-textarea");
+    await user.clear(textarea);
+    await user.type(textarea, "# Coder rules\n\nUse strict mode.");
+    fireEvent.blur(textarea);
+
+    await waitFor(() =>
+      expect(mockUpdateAgentsInstructionsForRole).toHaveBeenCalledWith(
+        projectId,
+        "coder",
+        "# Coder rules\n\nUse strict mode."
+      )
+    );
+    expect(mockUpdateAgentsInstructions).not.toHaveBeenCalled();
+    expect(screen.getByTestId("agents-md-saved")).toHaveTextContent("Saved");
+  });
+
+  it("saves role content via API when on Reviewer tab (testMode, Save button)", async () => {
+    mockGetAgentsInstructionsForRole.mockResolvedValue({ content: "" });
+    const user = userEvent.setup();
+    renderSection({ testMode: true });
+
+    await screen.findByTestId("agents-md-view");
+    await user.click(screen.getByTestId("agents-tab-reviewer"));
+    await waitFor(() =>
+      expect(mockGetAgentsInstructionsForRole).toHaveBeenCalledWith(projectId, "reviewer")
+    );
+
+    await user.click(screen.getByTestId("agents-md-edit"));
+    const textarea = screen.getByTestId("agents-md-textarea");
+    await user.clear(textarea);
+    await user.type(textarea, "# Reviewer rules\n\nCheck tests.");
+    await user.click(screen.getByTestId("agents-md-save"));
+
+    await waitFor(() =>
+      expect(mockUpdateAgentsInstructionsForRole).toHaveBeenCalledWith(
+        projectId,
+        "reviewer",
+        "# Reviewer rules\n\nCheck tests."
+      )
+    );
+    expect(mockUpdateAgentsInstructions).not.toHaveBeenCalled();
+    expect(screen.getByTestId("agents-md-saved")).toHaveTextContent("Saved");
+  });
+
+  it("General tab uses updateAgentsInstructions, role tab uses updateAgentsInstructionsForRole", async () => {
+    const user = userEvent.setup();
+    renderSection({ testMode: true });
+
+    await screen.findByTestId("agents-md-view");
+    await user.click(screen.getByTestId("agents-md-edit"));
+    const textarea = screen.getByTestId("agents-md-textarea");
+    await user.clear(textarea);
+    await user.type(textarea, "General content");
+    await user.click(screen.getByTestId("agents-md-save"));
+
+    await waitFor(() =>
+      expect(mockUpdateAgentsInstructions).toHaveBeenCalledWith(projectId, "General content")
+    );
+    expect(mockUpdateAgentsInstructionsForRole).not.toHaveBeenCalled();
+
+    vi.clearAllMocks();
+    mockGetAgentsInstructionsForRole.mockResolvedValue({ content: "" });
+    mockUpdateAgentsInstructionsForRole.mockResolvedValue({ saved: true });
+    await user.click(screen.getByTestId("agents-tab-coder"));
+    await waitFor(() =>
+      expect(mockGetAgentsInstructionsForRole).toHaveBeenCalledWith(projectId, "coder")
+    );
+
+    await user.click(screen.getByTestId("agents-md-edit"));
+    const coderTextarea = screen.getByTestId("agents-md-textarea");
+    await user.clear(coderTextarea);
+    await user.type(coderTextarea, "Coder content");
+    await user.click(screen.getByTestId("agents-md-save"));
+
+    await waitFor(() =>
+      expect(mockUpdateAgentsInstructionsForRole).toHaveBeenCalledWith(
+        projectId,
+        "coder",
+        "Coder content"
+      )
+    );
+    expect(mockUpdateAgentsInstructions).not.toHaveBeenCalled();
   });
 
   it("shows role placeholder when role tab content is empty", async () => {
