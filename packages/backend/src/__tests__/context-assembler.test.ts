@@ -180,7 +180,7 @@ User authentication.
     expect(prompt).not.toContain("when the task is complete");
   });
 
-  it("should inject agent instructions (AGENTS.md + role-specific) into coding prompt", async () => {
+  it("should inject agent instructions (AGENTS.md + role-specific) into coding prompt when both exist", async () => {
     await fs.writeFile(
       path.join(repoPath, SPEC_MD),
       "# Product Specification\n\nTest product.",
@@ -234,6 +234,61 @@ User authentication.
     expect(prompt).toContain("Always run tests before committing");
     expect(prompt).toContain("## Role-specific Instructions");
     expect(prompt).toContain("Prefer TypeScript. Use strict mode.");
+    expect(prompt).toContain("# Task: Implement login");
+    // Agent instructions appear after title/objective
+    const agentIdx = prompt.indexOf("## Agent Instructions");
+    const objectiveIdx = prompt.indexOf("## Objective");
+    expect(agentIdx).toBeGreaterThan(objectiveIdx);
+    expect(agentIdx).toBeLessThan(prompt.indexOf("## Context"));
+  });
+
+  it("should include general-only agent instructions when coder role file is missing", async () => {
+    await fs.writeFile(
+      path.join(repoPath, SPEC_MD),
+      "# Product Specification\n\nTest product.",
+      "utf-8"
+    );
+    await fs.writeFile(
+      path.join(repoPath, "AGENTS.md"),
+      "# General Rules\n\nShared instructions for all agents.",
+      "utf-8"
+    );
+    const plansDir = path.join(repoPath, OPENSPRINT_PATHS.plans);
+    await fs.mkdir(plansDir, { recursive: true });
+    await fs.writeFile(
+      path.join(plansDir, "auth.md"),
+      "# Feature\n\n## Acceptance Criteria\n- Login\n\n## Technical Approach\n- bcrypt",
+      "utf-8"
+    );
+    // No .opensprint/agents/ or coder.md — role file missing
+
+    const config = {
+      invocation_id: "bd-a3f8.1",
+      agent_role: "coder" as const,
+      taskId: "bd-a3f8.1",
+      repoPath,
+      branch: "opensprint/bd-a3f8.1",
+      testCommand: "npm test",
+      attempt: 1,
+      phase: "coding" as const,
+      previousFailure: null as string | null,
+      reviewFeedback: null as string | null,
+    };
+
+    const taskDir = await assembler.assembleTaskDirectory(repoPath, config.taskId, config, {
+      taskId: config.taskId,
+      title: "Implement login",
+      description: "Add login",
+      planContent: "# Feature\n\n## Acceptance Criteria\n- Login\n\n## Technical Approach\n- bcrypt",
+      prdExcerpt: "# Product\n\nTest.",
+      dependencyOutputs: [],
+    });
+
+    const prompt = await fs.readFile(path.join(taskDir, "prompt.md"), "utf-8");
+    expect(prompt).toContain("## Agent Instructions");
+    expect(prompt).toContain("General Rules");
+    expect(prompt).toContain("Shared instructions for all agents");
+    expect(prompt).not.toContain("## Role-specific Instructions");
     expect(prompt).toContain("# Task: Implement login");
   });
 

@@ -137,8 +137,10 @@ export class ContextAssembler {
     }
 
     // Generate prompt(s) — inject agent instructions (AGENTS.md + role-specific) per acceptance criteria
+    // agentRole from config (phase 'coding' maps to coder, 'review' to reviewer)
+    const agentRole = config.agent_role;
+    const agentInstructions = await getCombinedInstructions(repoPath, agentRole);
     if (config.phase === "coding") {
-      const agentInstructions = await getCombinedInstructions(repoPath, "coder");
       const prompt = this.buildPromptWithInstructions(
         agentInstructions,
         this.generateCodingPrompt(config, context)
@@ -318,10 +320,15 @@ export class ContextAssembler {
     return outputs;
   }
 
-  /** Prepend agent instructions to prompt when present. */
+  /** Insert agent instructions after title/objective section when present. */
   private buildPromptWithInstructions(agentInstructions: string, basePrompt: string): string {
     if (!agentInstructions.trim()) return basePrompt;
-    return `${agentInstructions}\n\n${basePrompt}`;
+    const match = basePrompt.match(/(## Objective\n\n[\s\S]*?)(\n## )/);
+    if (!match) return `${agentInstructions}\n\n${basePrompt}`;
+    const endOfObjective = match.index! + match[1].length;
+    return (
+      basePrompt.slice(0, endOfObjective) + "\n\n" + agentInstructions + basePrompt.slice(endOfObjective)
+    );
   }
 
   /**
