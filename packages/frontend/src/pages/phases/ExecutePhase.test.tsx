@@ -1876,6 +1876,44 @@ describe("ExecutePhase view toggle", () => {
     expect(screen.queryByTestId("timeline-section-blocked")).not.toBeInTheDocument();
   });
 
+  it("Failures filter shows only failed tickets in Timeline view", async () => {
+    const user = userEvent.setup();
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Blocked task",
+        epicId: "epic-1",
+        kanbanColumn: "blocked",
+        priority: 0,
+        assignee: null,
+      },
+      {
+        id: "epic-1.2",
+        title: "Ready task",
+        epicId: "epic-1",
+        kanbanColumn: "ready",
+        priority: 1,
+        assignee: null,
+      },
+    ];
+    const store = createStore(tasks);
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <ExecutePhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>
+    );
+
+    await user.click(screen.getByTestId("filter-chip-blocked"));
+
+    expect(screen.getByTestId("filter-chip-blocked")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("timeline-section-blocked")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Failures" })).toBeInTheDocument();
+    expect(screen.getByText("Blocked task")).toBeInTheDocument();
+    expect(screen.queryByText("Ready task")).not.toBeInTheDocument();
+  });
+
   it("sidebar opens from Timeline row click", async () => {
     const user = userEvent.setup();
     mockGet.mockResolvedValue({ id: "epic-1.1", title: "Task A", kanbanColumn: "in_progress" });

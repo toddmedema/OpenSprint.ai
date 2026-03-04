@@ -260,6 +260,24 @@ describe("TimelineList", () => {
     expect(readySection).toContainElement(screen.getByTestId("timeline-row-ready-1"));
   });
 
+  it("shows only failed tickets when statusFilter is blocked (Failures filter)", () => {
+    const tasks = [
+      createMockTask({ id: "blocked-1", title: "Blocked task", kanbanColumn: "blocked" }),
+      createMockTask({ id: "blocked-2", title: "Another blocked", kanbanColumn: "blocked" }),
+    ];
+    const plans = [createMockPlan("epic-1", "Auth")];
+
+    render(
+      <TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} statusFilter="blocked" />
+    );
+
+    expect(screen.getByTestId("timeline-section-blocked")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Failures" })).toBeInTheDocument();
+    expect(screen.getByText("Blocked task")).toBeInTheDocument();
+    expect(screen.getByText("Another blocked")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^timeline-row-/)).toHaveLength(2);
+  });
+
   it("falls back to sectioned rendering when virtualization has no scroll element yet", () => {
     const tasks = Array.from({ length: 30 }, (_, index) =>
       createMockTask({

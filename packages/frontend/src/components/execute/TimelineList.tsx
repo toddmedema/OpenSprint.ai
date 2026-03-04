@@ -126,7 +126,11 @@ export function TimelineList({
 
   const sorted = useMemo(() => sortTasksForTimeline(tasks), [tasks]);
   const blockedTasks =
-    statusFilter === "all" ? sorted.filter((t) => t.kanbanColumn === "blocked") : [];
+    statusFilter === "all"
+      ? sorted.filter((t) => t.kanbanColumn === "blocked")
+      : statusFilter === "blocked"
+        ? sorted
+        : [];
   const showBlockedSection = blockedTasks.length > 0;
 
   const bySection = useMemo(
