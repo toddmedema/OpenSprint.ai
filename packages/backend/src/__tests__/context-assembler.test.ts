@@ -354,6 +354,70 @@ User authentication.
     expect(prompt).toContain("Missing error handling for invalid input.");
   });
 
+  it("should include highlighted test failures in coding prompt when previousTestFailures are provided", async () => {
+    await fs.writeFile(
+      path.join(repoPath, SPEC_MD),
+      `# Product Specification
+
+## Executive Summary
+
+Test product.
+`,
+      "utf-8"
+    );
+
+    const plansDir = path.join(repoPath, OPENSPRINT_PATHS.plans);
+    await fs.mkdir(plansDir, { recursive: true });
+    const planContent = `# Feature: Auth
+
+## Overview
+User authentication.
+
+## Acceptance Criteria
+
+- User can log in with email/password
+
+## Technical Approach
+
+- Use bcrypt for password hashing
+`;
+    await fs.writeFile(path.join(plansDir, "auth.md"), planContent);
+
+    const config = {
+      invocation_id: "bd-a3f8.1",
+      agent_role: "coder" as const,
+      taskId: "bd-a3f8.1",
+      repoPath,
+      branch: "opensprint/bd-a3f8.1",
+      testCommand: "npm test",
+      attempt: 2,
+      phase: "coding" as const,
+      previousFailure: "Tests failed: 2 failed, 0 passed",
+      reviewFeedback: null as string | null,
+      previousTestFailures:
+        "- src/foo.test.ts > auth > rejects invalid token — AssertionError: expected 401 to be 403\n" +
+        "- src/bar.test.ts > auth > allows valid token — TypeError: Cannot read properties of undefined",
+      previousTestOutput:
+        "FAIL src/foo.test.ts > auth > rejects invalid token\nAssertionError: expected 401 to be 403",
+    };
+
+    const taskDir = await assembler.assembleTaskDirectory(repoPath, config.taskId, config, {
+      taskId: config.taskId,
+      title: "Implement login endpoint",
+      description: "Add POST /auth/login",
+      planContent,
+      prdExcerpt: "# Product Requirements\n\nTest product.",
+      dependencyOutputs: [],
+    });
+
+    const prompt = await fs.readFile(path.join(taskDir, "prompt.md"), "utf-8");
+    expect(prompt).toContain("## Previous Attempt");
+    expect(prompt).toContain("### Highlighted Test Failures");
+    expect(prompt).toContain("src/foo.test.ts > auth > rejects invalid token");
+    expect(prompt).toContain("AssertionError: expected 401 to be 403");
+    expect(prompt).toContain("### Test Output");
+  });
+
   it("should include User clarification section in coding prompt when userClarification is provided", async () => {
     await fs.writeFile(
       path.join(repoPath, SPEC_MD),

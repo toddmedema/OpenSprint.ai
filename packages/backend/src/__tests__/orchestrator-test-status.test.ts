@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildOrchestratorTestStatusContent,
+  buildTestFailureRetrySummary,
   getOrchestratorTestStatusPromptPath,
 } from "../services/orchestrator-test-status.js";
 
@@ -78,5 +79,42 @@ describe("orchestrator-test-status", () => {
 
     expect(content).toContain("auth middleware › rejects missing token");
     expect(content).toContain("expect(received).toBe(expected)");
+  });
+
+  it("builds a concise retry summary for coder retries", () => {
+    const summary = buildTestFailureRetrySummary(
+      {
+        passed: 0,
+        failed: 2,
+        skipped: 0,
+        total: 2,
+        details: [
+          {
+            name: "src/foo.test.ts > auth > rejects invalid token",
+            status: "failed",
+            duration: 7,
+          },
+          {
+            name: "src/bar.test.ts > auth > allows valid token",
+            status: "failed",
+            duration: 5,
+          },
+        ],
+      },
+      [
+        " FAIL  src/foo.test.ts > auth > rejects invalid token",
+        "AssertionError: expected 401 to be 403 // Object.is equality",
+        "",
+        " FAIL  src/bar.test.ts > auth > allows valid token",
+        "TypeError: Cannot read properties of undefined (reading 'id')",
+      ].join("\n")
+    );
+
+    expect(summary).toContain(
+      "- src/foo.test.ts > auth > rejects invalid token — AssertionError: expected 401 to be 403"
+    );
+    expect(summary).toContain(
+      "- src/bar.test.ts > auth > allows valid token — TypeError: Cannot read properties of undefined"
+    );
   });
 });

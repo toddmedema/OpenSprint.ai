@@ -226,6 +226,7 @@ export class PhaseExecutorService {
         previousFailure: retryContext?.previousFailure ?? null,
         reviewFeedback: retryContext?.reviewFeedback ?? null,
         previousTestOutput: retryContext?.previousTestOutput ?? null,
+        previousTestFailures: retryContext?.previousTestFailures ?? null,
         previousDiff: retryContext?.previousDiff ?? null,
         useExistingBranch: retryContext?.useExistingBranch ?? false,
         hilConfig: settings.hilConfig,

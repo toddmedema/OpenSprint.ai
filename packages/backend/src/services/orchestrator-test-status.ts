@@ -77,6 +77,23 @@ export function buildOrchestratorTestStatusContent(status: OrchestratorTestStatu
   return content;
 }
 
+export function buildTestFailureRetrySummary(
+  results?: TestResults | null,
+  rawOutput?: string | null
+): string | undefined {
+  const highlights = mergeFailureHighlights(results, rawOutput);
+  if (highlights.length === 0) return undefined;
+
+  return highlights
+    .slice(0, MAX_HIGHLIGHTED_FAILURES)
+    .map((highlight) => {
+      const name = highlight.name.trim();
+      const error = highlight.error?.trim();
+      return `- ${name}${error ? ` — ${error}` : ""}`;
+    })
+    .join("\n");
+}
+
 function buildResultsSummary(results?: TestResults | null): string {
   if (!results) {
     return "No structured test summary was available.\n";

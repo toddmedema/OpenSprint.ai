@@ -26,6 +26,7 @@ import {
   persistTaskLastExecutionSummary,
 } from "./task-execution-summary.js";
 import { resolveBaseBranch } from "../utils/git-repo-state.js";
+import { buildTestFailureRetrySummary } from "./orchestrator-test-status.js";
 
 const log = createLogger("failure-handler");
 
@@ -467,12 +468,17 @@ export class FailureHandlerService {
       });
 
       await this.host.persistCounters(projectId, repoPath);
+      const previousTestFailures = buildTestFailureRetrySummary(
+        slot.phaseResult.testResults,
+        slot.phaseResult.testOutput || undefined
+      );
       await this.host.executeCodingPhase(projectId, repoPath, task, slot, {
         previousFailure: effectiveReason,
         reviewFeedback,
         useExistingBranch: true,
         previousDiff,
         previousTestOutput: slot.phaseResult.testOutput || undefined,
+        previousTestFailures,
         failureType,
       });
       return;
@@ -521,6 +527,10 @@ export class FailureHandlerService {
       log.info(`Retrying ${task.id} (attempt ${slot.attempt}), preserving branch`);
 
       await this.host.persistCounters(projectId, repoPath);
+      const previousTestFailures = buildTestFailureRetrySummary(
+        slot.phaseResult.testResults,
+        slot.phaseResult.testOutput || undefined
+      );
 
       await this.host.executeCodingPhase(projectId, repoPath, task, slot, {
         previousFailure: effectiveReason,
@@ -528,6 +538,7 @@ export class FailureHandlerService {
         useExistingBranch: true,
         previousDiff,
         previousTestOutput: slot.phaseResult.testOutput || undefined,
+        previousTestFailures,
         failureType,
       });
     } else {

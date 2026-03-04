@@ -21,6 +21,7 @@ export interface RetryContext {
   reviewFeedback?: string;
   useExistingBranch?: boolean;
   previousTestOutput?: string;
+  previousTestFailures?: string;
   previousDiff?: string;
   failureType?: FailureType;
 }

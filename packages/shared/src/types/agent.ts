@@ -176,6 +176,8 @@ export interface ActiveTaskConfig {
   reviewFeedback: string | null;
   /** Full test runner output from the previous failed attempt */
   previousTestOutput?: string | null;
+  /** Concise highlighted failures from the previous orchestrator-owned test run */
+  previousTestFailures?: string | null;
   /** Git diff from the previous attempt (when branch was preserved) */
   previousDiff?: string | null;
   /** Whether this retry reuses an existing branch with prior commits */

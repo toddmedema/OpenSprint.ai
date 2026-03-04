@@ -473,6 +473,9 @@ export class ContextAssembler {
       prompt += `This is attempt ${config.attempt}. The previous attempt failed:\n${config.previousFailure}\n\n`;
 
       if (config.previousTestOutput) {
+        if (config.previousTestFailures?.trim()) {
+          prompt += `### Highlighted Test Failures\n\n${config.previousTestFailures.trim()}\n\n`;
+        }
         prompt += `### Test Output\n\n\`\`\`\n${config.previousTestOutput.slice(0, 5000)}\n\`\`\`\n\n`;
         prompt += `Focus fixes on the specific failing assertions. Avoid broad refactors unless the failure indicates a design flaw. Fix the failing tests without breaking the passing ones.\n\n`;
       }

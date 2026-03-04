@@ -292,6 +292,52 @@ describe("FailureHandlerService", () => {
     });
   });
 
+  it("passes highlighted test failures into coder retry context", async () => {
+    const slot = makeSlot("/tmp/worktree");
+    slot.phaseResult.testResults = {
+      passed: 0,
+      failed: 1,
+      skipped: 0,
+      total: 1,
+      details: [
+        {
+          name: "src/foo.test.ts > auth > rejects invalid token",
+          status: "failed",
+          duration: 7,
+        },
+      ],
+    };
+    slot.phaseResult.testOutput = [
+      " FAIL  src/foo.test.ts > auth > rejects invalid token",
+      "AssertionError: expected 401 to be 403 // Object.is equality",
+    ].join("\n");
+    mockHost.getState = vi.fn().mockReturnValue({
+      slots: new Map([[taskId, slot]]),
+      status: { totalFailed: 0, queueDepth: 0 },
+    });
+
+    await handler.handleTaskFailure(
+      projectId,
+      repoPath,
+      makeTask(),
+      branchName,
+      "Tests failed: 1 failed, 0 passed",
+      slot.phaseResult.testResults,
+      "test_failure"
+    );
+
+    expect(mockExecuteCodingPhase).toHaveBeenCalledWith(
+      projectId,
+      repoPath,
+      expect.objectContaining({ id: taskId }),
+      expect.objectContaining({ taskId }),
+      expect.objectContaining({
+        previousTestFailures:
+          "- src/foo.test.ts > auth > rejects invalid token — AssertionError: expected 401 to be 403 // Object.is equality",
+      })
+    );
+  });
+
   describe("failure comment", () => {
     it("includes explicit inactivity message for timeout failures", async () => {
       const mockComment = vi.fn().mockResolvedValue(undefined);
