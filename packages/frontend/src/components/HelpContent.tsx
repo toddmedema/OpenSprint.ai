@@ -380,6 +380,84 @@ function AnalyticsContent({ projectId }: { projectId: string | null }) {
 }
 
 type AgentLogSortKey = "model" | "role" | "durationMs" | "endTime" | "projectName";
+
+function SessionLogModal({
+  sessionId,
+  onClose,
+}: {
+  sessionId: number;
+  onClose: () => void;
+}) {
+  const [content, setContent] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    api.help
+      .sessionLog(sessionId)
+      .then((res) => {
+        if (!cancelled) setContent(res.content);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load session log");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="session-log-modal-title"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="flex flex-col max-w-4xl w-full mx-4 max-h-[80vh] rounded-lg border border-theme-border bg-theme-surface shadow-xl">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-theme-border shrink-0">
+          <h2 id="session-log-modal-title" className="text-lg font-medium text-theme-text">
+            Session log
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-md text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle transition-colors"
+            aria-label="Close"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="flex-1 min-h-0 overflow-hidden p-4">
+          {loading && (
+            <div className="text-theme-muted text-sm">Loading…</div>
+          )}
+          {error && (
+            <p className="text-theme-error text-sm" role="alert">
+              {error}
+            </p>
+          )}
+          {!loading && !error && content != null && (
+            <pre
+              className="h-full overflow-auto text-xs font-mono text-theme-text whitespace-pre-wrap break-words rounded border border-theme-border bg-theme-surface-muted p-3"
+              style={{ maxHeight: "calc(80vh - 120px)" }}
+            >
+              {content}
+            </pre>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 type SortDir = "asc" | "desc";
 
 function AgentLogContent({
@@ -394,6 +472,7 @@ function AgentLogContent({
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<AgentLogSortKey>("endTime");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [logModalSessionId, setLogModalSessionId] = useState<number | null>(null);
 
   const fetchLog = useCallback(async () => {
     setLoading(true);
@@ -545,13 +624,14 @@ function AgentLogContent({
                   <SortHeader label="Project" columnKey="projectName" />
                 </th>
               )}
+              <th className="px-4 py-2 text-left w-12">Log</th>
             </tr>
           </thead>
           <tbody>
             {sortedEntries.length === 0 ? (
               <tr>
                 <td
-                  colSpan={showProjectColumn ? 5 : 4}
+                  colSpan={showProjectColumn ? 6 : 5}
                   className="px-4 py-8 text-center text-theme-muted"
                 >
                   No agent runs yet.
@@ -570,12 +650,42 @@ function AgentLogContent({
                   {showProjectColumn && (
                     <td className="px-4 py-2 text-theme-text">{e.projectName ?? "—"}</td>
                   )}
+                  <td className="px-4 py-2">
+                    {e.sessionId != null ? (
+                      <button
+                        type="button"
+                        onClick={() => setLogModalSessionId(e.sessionId!)}
+                        className="p-1.5 rounded-md text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle transition-colors"
+                        aria-label="View session log"
+                        title="View session log"
+                      >
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <circle cx="11" cy="11" r="8" />
+                          <path d="m21 21-4.35-4.35" />
+                        </svg>
+                      </button>
+                    ) : null}
+                  </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
+      {logModalSessionId != null && (
+        <SessionLogModal
+          sessionId={logModalSessionId}
+          onClose={() => setLogModalSessionId(null)}
+        />
+      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@ vi.mock("../api/client", () => ({
       chat: vi.fn(),
       analytics: vi.fn(),
       agentLog: vi.fn(),
+      sessionLog: vi.fn(),
     },
   },
 }));
@@ -133,6 +134,37 @@ describe("HelpContent", () => {
     await user.click(screen.getByRole("tab", { name: "Agent log" }));
 
     expect(api.help.agentLog).toHaveBeenCalledWith("proj-1");
+  });
+
+  it("Agent log shows Log column and magnifying glass only for rows with sessionId", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.help.agentLog).mockResolvedValue([
+      { model: "claude-sonnet-4", role: "Coder", durationMs: 45000, endTime: "2025-03-01T12:00:00Z", sessionId: 1 },
+      { model: "claude-sonnet-4", role: "Reviewer", durationMs: 120000, endTime: "2025-03-01T11:00:00Z" },
+    ]);
+    render(<HelpContent />);
+
+    await user.click(screen.getByRole("tab", { name: "Agent log" }));
+
+    expect(screen.getByText("Log")).toBeInTheDocument();
+    const viewButtons = screen.getAllByRole("button", { name: "View session log" });
+    expect(viewButtons).toHaveLength(1);
+  });
+
+  it("Agent log opens modal with session content when magnifying glass clicked", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.help.agentLog).mockResolvedValue([
+      { model: "claude-sonnet-4", role: "Coder", durationMs: 45000, endTime: "2025-03-01T12:00:00Z", sessionId: 1 },
+    ]);
+    vi.mocked(api.help.sessionLog).mockResolvedValue({ content: "Raw session output line 1\nLine 2" });
+    render(<HelpContent />);
+
+    await user.click(screen.getByRole("tab", { name: "Agent log" }));
+    await user.click(screen.getByRole("button", { name: "View session log" }));
+
+    expect(api.help.sessionLog).toHaveBeenCalledWith(1);
+    expect(await screen.findByText(/Raw session output line 1/)).toBeInTheDocument();
+    expect(screen.getByText(/Line 2/)).toBeInTheDocument();
   });
 
   it("keeps chat input pinned at bottom with scrollable messages above", async () => {

@@ -331,6 +331,65 @@ describe.skipIf(!helpPostgresOk)("Help chat API", () => {
     });
   });
 
+  it("GET /help/agent-log includes sessionId when agent_sessions has output_log", async () => {
+    await taskStore.runWrite(async (client) => {
+      await client.execute(
+        `INSERT INTO agent_stats (project_id, task_id, agent_id, model, attempt, started_at, completed_at, outcome, duration_ms)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          projectId,
+          "os-sess.1",
+          "coder",
+          "claude-sonnet-4",
+          1,
+          "2025-03-01T12:00:00Z",
+          "2025-03-01T12:01:00Z",
+          "success",
+          60000,
+        ]
+      );
+      await client.execute(
+        `INSERT INTO agent_sessions (project_id, task_id, attempt, agent_type, agent_model, started_at, completed_at, status, output_log, git_branch)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [
+          projectId,
+          "os-sess.1",
+          1,
+          "coder",
+          "claude-sonnet-4",
+          "2025-03-01T12:00:00Z",
+          "2025-03-01T12:01:00Z",
+          "completed",
+          "Agent output line 1\nAgent output line 2\n",
+          "main",
+        ]
+      );
+    });
+
+    const logRes = await request(app).get(`${API_PREFIX}/help/agent-log?projectId=${projectId}`);
+    expect(logRes.status).toBe(200);
+    const entry = logRes.body.data.find((e: { role: string; durationMs: number }) => e.role === "Coder" && e.durationMs === 60000);
+    expect(entry).toBeDefined();
+    expect(entry.sessionId).toBeDefined();
+    expect(typeof entry.sessionId).toBe("number");
+
+    const sessionRes = await request(app).get(`${API_PREFIX}/help/session-log/${entry.sessionId}`);
+    expect(sessionRes.status).toBe(200);
+    expect(sessionRes.body.data).toMatchObject({
+      content: "Agent output line 1\nAgent output line 2\n",
+    });
+  });
+
+  it("GET /help/session-log/:sessionId returns 400 for invalid session ID", async () => {
+    const res = await request(app).get(`${API_PREFIX}/help/session-log/0`);
+    expect(res.status).toBe(400);
+  });
+
+  it("GET /help/session-log/:sessionId returns 404 when session not found", async () => {
+    const res = await request(app).get(`${API_PREFIX}/help/session-log/999999`);
+    expect(res.status).toBe(404);
+  });
+
   it.skip("project and homepage help histories are stored separately", async () => {
     await request(app).post(`${API_PREFIX}/help/chat`).send({ message: "Homepage question" });
     await request(app)

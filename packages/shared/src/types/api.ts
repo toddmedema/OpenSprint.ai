@@ -120,6 +120,8 @@ export interface AgentLogEntry {
   endTime: string;
   /** Project name (only present in global context) */
   projectName?: string;
+  /** Session ID when full session log is available (agent_sessions.id); enables log viewer modal */
+  sessionId?: number;
 }
 
 /** Feedback submission */

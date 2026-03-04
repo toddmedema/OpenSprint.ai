@@ -24,14 +24,28 @@ export async function getAgentLog(projectId: string | null): Promise<AgentLogEnt
 
   const sql =
     projectId != null
-      ? `SELECT agent_id, model, duration_ms, completed_at
-         FROM agent_stats
-         WHERE project_id = $1
-         ORDER BY completed_at DESC
+      ? `SELECT s.agent_id, s.model, s.duration_ms, s.completed_at,
+                sess.id AS session_id
+         FROM agent_stats s
+         LEFT JOIN agent_sessions sess ON s.project_id = sess.project_id
+           AND s.task_id = sess.task_id
+           AND s.attempt = sess.attempt
+           AND s.agent_id = sess.agent_type
+           AND sess.output_log IS NOT NULL
+           AND sess.output_log != ''
+         WHERE s.project_id = $1
+         ORDER BY s.completed_at DESC
          LIMIT $2`
-      : `SELECT agent_id, model, duration_ms, completed_at, project_id
-         FROM agent_stats
-         ORDER BY completed_at DESC
+      : `SELECT s.agent_id, s.model, s.duration_ms, s.completed_at, s.project_id,
+                sess.id AS session_id
+         FROM agent_stats s
+         LEFT JOIN agent_sessions sess ON s.project_id = sess.project_id
+           AND s.task_id = sess.task_id
+           AND s.attempt = sess.attempt
+           AND s.agent_id = sess.agent_type
+           AND sess.output_log IS NOT NULL
+           AND sess.output_log != ''
+         ORDER BY s.completed_at DESC
          LIMIT $1`;
 
   const params = projectId != null ? [projectId, DEFAULT_LIMIT] : [DEFAULT_LIMIT];
@@ -58,6 +72,10 @@ export async function getAgentLog(projectId: string | null): Promise<AgentLogEnt
       const pid = r.project_id as string;
       entry.projectName = projectNameMap.get(pid) ?? pid;
     }
+    const sessionId = r.session_id as number | null | undefined;
+    if (sessionId != null && sessionId > 0) {
+      entry.sessionId = sessionId;
+    }
     return entry;
   });
 }
@@ -68,4 +86,20 @@ function formatRoleName(agentId: string): string {
     return AGENT_ROLE_LABELS[agentId as AgentRole];
   }
   return agentId;
+}
+
+/**
+ * Get raw session log by agent_sessions.id. Returns null when session not found or has no output_log.
+ */
+export async function getSessionLog(sessionId: number): Promise<string | null> {
+  const client = await taskStore.getDb();
+  const rows = await client.query(
+    "SELECT output_log FROM agent_sessions WHERE id = $1",
+    [sessionId]
+  );
+  const row = rows[0];
+  if (!row || row.output_log == null || row.output_log === "") {
+    return null;
+  }
+  return row.output_log as string;
 }

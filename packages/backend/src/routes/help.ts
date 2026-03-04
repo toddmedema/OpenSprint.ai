@@ -9,7 +9,7 @@ import type {
 } from "@opensprint/shared";
 import { HelpChatService } from "../services/help-chat.service.js";
 import { getTaskAnalytics } from "../services/help-analytics.service.js";
-import { getAgentLog } from "../services/help-agent-log.service.js";
+import { getAgentLog, getSessionLog } from "../services/help-agent-log.service.js";
 import { createLogger } from "../utils/logger.js";
 
 const log = createLogger("help-route");
@@ -24,6 +24,27 @@ helpRouter.get("/agent-log", async (req: Request, res, next) => {
     log.info("GET /help/agent-log", { projectId: projectId ?? "all" });
     const entries = await getAgentLog(projectId);
     const result: ApiResponse<AgentLogEntry[]> = { data: entries };
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /help/session-log/:sessionId — Raw session output log for log viewer modal
+helpRouter.get("/session-log/:sessionId", async (req: Request, res, next) => {
+  try {
+    const sessionId = parseInt(req.params.sessionId ?? "", 10);
+    if (!Number.isFinite(sessionId) || sessionId < 1) {
+      res.status(400).json({ error: "Invalid session ID" });
+      return;
+    }
+    log.info("GET /help/session-log/:sessionId", { sessionId });
+    const content = await getSessionLog(sessionId);
+    if (content === null) {
+      res.status(404).json({ error: "Session log not found" });
+      return;
+    }
+    const result: ApiResponse<{ content: string }> = { data: { content } };
     res.json(result);
   } catch (err) {
     next(err);

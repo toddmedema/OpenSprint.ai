@@ -546,6 +546,8 @@ export const api = {
       request<AgentLogEntry[]>(
         `/help/agent-log${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ""}`
       ),
+    sessionLog: (sessionId: number) =>
+      request<{ content: string }>(`/help/session-log/${sessionId}`),
   },
 
   // ─── Chat ───
