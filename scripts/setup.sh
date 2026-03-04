@@ -56,10 +56,29 @@ run_psql_with_url() {
   psql "$db_url" "$@"
 }
 
+can_connect_as_postgres_os_user() {
+  if ! command -v sudo >/dev/null 2>&1; then
+    return 1
+  fi
+  sudo -u postgres psql -d postgres -tAc "SELECT 1" >/dev/null 2>&1
+}
+
+run_psql_as_postgres_os_user() {
+  if ! command -v sudo >/dev/null 2>&1; then
+    return 1
+  fi
+  sudo -u postgres psql "$@"
+}
+
 database_exists_with_url() {
   local db_url="$1"
   local db_name="$2"
   [ "$(psql "$db_url" -tAc "SELECT 1 FROM pg_database WHERE datname = '${db_name}'" 2>/dev/null | tr -d '[:space:]')" = "1" ]
+}
+
+database_exists_as_postgres_os_user() {
+  local db_name="$1"
+  [ "$(sudo -u postgres psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '${db_name}'" 2>/dev/null | tr -d '[:space:]')" = "1" ]
 }
 
 ensure_local_postgres_role_and_databases_via_password() {
@@ -100,12 +119,42 @@ SQL
   can_connect_with_url "$APP_MAIN_DB_URL" && can_connect_with_url "$APP_TEST_DB_URL"
 }
 
+ensure_local_postgres_role_and_databases_via_peer_auth() {
+  if ! can_connect_as_postgres_os_user; then
+    return 1
+  fi
+
+  echo "==> opensprint login failed. Bootstrapping with sudo -u postgres psql..."
+
+  run_psql_as_postgres_os_user -d postgres -v ON_ERROR_STOP=1 <<SQL
+DO \$\$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${OS_USER}') THEN
+    CREATE ROLE ${OS_USER} WITH LOGIN PASSWORD '${OS_PASSWORD}';
+  ELSE
+    ALTER ROLE ${OS_USER} WITH PASSWORD '${OS_PASSWORD}';
+  END IF;
+END
+\$\$;
+SQL
+
+  if ! database_exists_as_postgres_os_user "$OS_DB"; then
+    run_psql_as_postgres_os_user -d postgres -c "CREATE DATABASE ${OS_DB} OWNER ${OS_USER};" >/dev/null
+  fi
+  if ! database_exists_as_postgres_os_user "$OS_TEST_DB"; then
+    run_psql_as_postgres_os_user -d postgres -c "CREATE DATABASE ${OS_TEST_DB} OWNER ${OS_USER};" >/dev/null
+  fi
+
+  can_connect_with_url "$APP_MAIN_DB_URL" && can_connect_with_url "$APP_TEST_DB_URL"
+}
+
 bootstrap_wsl_local_postgres_if_possible() {
   if ! command -v psql >/dev/null 2>&1; then
     return 0
   fi
 
-  if ensure_local_postgres_role_and_databases_via_password; then
+  if ensure_local_postgres_role_and_databases_via_password || \
+     ensure_local_postgres_role_and_databases_via_peer_auth; then
     echo "==> PostgreSQL ready (user ${OS_USER}, databases ${OS_DB} and ${OS_TEST_DB})"
   fi
 }

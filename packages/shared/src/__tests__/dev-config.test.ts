@@ -105,4 +105,19 @@ describe("dev config (source-direct imports)", () => {
     expect(wslMessageIndex).toBeGreaterThanOrEqual(0);
     expect(wslBootstrapIndex).toBeGreaterThan(wslMessageIndex);
   });
+
+  it("setup script supports sudo-based peer auth bootstrap for WSL postgres installs", () => {
+    const setupScriptPath = resolve(repoRoot, "scripts/setup.sh");
+    expect(existsSync(setupScriptPath)).toBe(true);
+    const content = readFileSync(setupScriptPath, "utf-8");
+    const peerHelperIndex = content.indexOf("ensure_local_postgres_role_and_databases_via_peer_auth()");
+    const sudoPsqlIndex = content.indexOf("sudo -u postgres psql", peerHelperIndex);
+    const wslBootstrapCallIndex = content.indexOf(
+      "ensure_local_postgres_role_and_databases_via_peer_auth",
+      content.indexOf("bootstrap_wsl_local_postgres_if_possible")
+    );
+    expect(peerHelperIndex).toBeGreaterThanOrEqual(0);
+    expect(sudoPsqlIndex).toBeGreaterThan(peerHelperIndex);
+    expect(wslBootstrapCallIndex).toBeGreaterThanOrEqual(0);
+  });
 });

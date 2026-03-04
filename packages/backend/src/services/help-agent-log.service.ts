@@ -30,7 +30,6 @@ export async function getAgentLog(projectId: string | null): Promise<AgentLogEnt
          LEFT JOIN agent_sessions sess ON s.project_id = sess.project_id
            AND s.task_id = sess.task_id
            AND s.attempt = sess.attempt
-           AND s.agent_id = sess.agent_type
            AND sess.output_log IS NOT NULL
            AND sess.output_log != ''
          WHERE s.project_id = $1
@@ -42,7 +41,6 @@ export async function getAgentLog(projectId: string | null): Promise<AgentLogEnt
          LEFT JOIN agent_sessions sess ON s.project_id = sess.project_id
            AND s.task_id = sess.task_id
            AND s.attempt = sess.attempt
-           AND s.agent_id = sess.agent_type
            AND sess.output_log IS NOT NULL
            AND sess.output_log != ''
          ORDER BY s.completed_at DESC
