@@ -15,6 +15,7 @@ import {
   cancelFeedback,
   removeFeedbackItem,
   recategorizeFeedback,
+  fetchFeedback,
 } from "../../store/slices/evalSlice";
 import { selectTaskSummariesForFeedback } from "../../store/slices/executeSlice";
 import { useTasks, useFeedback } from "../../api/hooks";
@@ -65,6 +66,8 @@ export const EVALUATE_FEEDBACK_FILTER_KEY = "opensprint.evaluateFeedbackFilter";
 
 /** Debounce before showing loading spinner or empty state (avoids flicker on fast responses) */
 export const FEEDBACK_LOADING_DEBOUNCE_MS = 300;
+/** Reconcile feedback list while Analyst categorization is still in flight. */
+export const FEEDBACK_CATEGORIZATION_POLL_INTERVAL_MS = 2000;
 
 function getFeedbackCollapsedKey(projectId: string): string {
   return `${FEEDBACK_COLLAPSED_KEY_PREFIX}-${projectId}`;
@@ -931,10 +934,10 @@ export function EvalPhase({
   const viewportWidth = useViewportWidth();
   const isMobile = viewportWidth < MOBILE_BREAKPOINT;
   const { data: tasksList = [] } = useTasks(projectId);
-  const feedbackQuery = useFeedback(projectId);
 
   /* ── Redux state ── */
   const feedback = useAppSelector((s) => s.eval.feedback);
+  const feedbackQuery = useFeedback(projectId);
   const taskSummaries = useAppSelector(selectTaskSummariesForFeedback);
   const taskSummaryById = useMemo(() => {
     if (taskSummaries.length === 0) return EMPTY_TASK_SUMMARY_BY_ID;
@@ -1029,6 +1032,8 @@ export function EvalPhase({
   /** On mobile: feedback ID shown in detail overlay (null = no overlay) */
   const [selectedFeedbackIdForOverlay, setSelectedFeedbackIdForOverlay] =
     useState<string | null>(null);
+  /** Feedback items submitted/requeued here that still need reconciliation if a WS event is missed. */
+  const [reconcilingFeedbackIds, setReconcilingFeedbackIds] = useState<Set<string>>(new Set());
 
   // Reset filter when "cancelled" is selected but no feedback has status cancelled (option no longer shown)
   const hasCancelled = feedback.some((f) => f.status === "cancelled");
@@ -1051,6 +1056,7 @@ export function EvalPhase({
       submitFeedback({ projectId, text, images: imagePayload, priority: priorityPayload })
     );
     if (submitFeedback.fulfilled.match(result)) {
+      setReconcilingFeedbackIds((prev) => new Set(prev).add(result.payload.id));
       clearFeedbackFormDraft(projectId);
       feedbackInputRef.current?.focus();
     }
@@ -1065,7 +1071,12 @@ export function EvalPhase({
     async (parentId: string, text: string, images?: string[], priority?: number | null) => {
       if (!text.trim() || submitting) return;
       const priorityPayload = priority != null ? priority : undefined;
-      await dispatch(submitFeedback({ projectId, text, images, parentId, priority: priorityPayload }));
+      const result = await dispatch(
+        submitFeedback({ projectId, text, images, parentId, priority: priorityPayload })
+      );
+      if (submitFeedback.fulfilled.match(result)) {
+        setReconcilingFeedbackIds((prev) => new Set(prev).add(result.payload.id));
+      }
     },
     [dispatch, projectId, submitting]
   );
@@ -1225,6 +1236,49 @@ export function EvalPhase({
   );
   const feedbackTree = useMemo(() => buildFeedbackTree(filteredFeedback), [filteredFeedback]);
 
+  useEffect(() => {
+    if (reconcilingFeedbackIds.size === 0) return;
+
+    setReconcilingFeedbackIds((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const id of prev) {
+        const item = feedback.find((candidate) => candidate.id === id);
+        if (!item || !isCategorizing(item)) {
+          next.delete(id);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [feedback, reconcilingFeedbackIds]);
+
+  const hasReconcilingFeedback = useMemo(
+    () =>
+      feedback.some((item) => reconcilingFeedbackIds.has(item.id) && isCategorizing(item)),
+    [feedback, reconcilingFeedbackIds]
+  );
+
+  useEffect(() => {
+    if (!projectId || !hasReconcilingFeedback) return;
+
+    let cancelled = false;
+    const syncFeedback = async () => {
+      const result = await dispatch(fetchFeedback(projectId));
+      if (cancelled || !fetchFeedback.fulfilled.match(result)) return;
+      queryClient.setQueryData(queryKeys.feedback.list(projectId), result.payload);
+    };
+
+    const intervalId = window.setInterval(() => {
+      void syncFeedback();
+    }, FEEDBACK_CATEGORIZATION_POLL_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [dispatch, hasReconcilingFeedback, projectId, queryClient]);
+
   useScrollToQuestion();
   const { notifications: openQuestionNotifications, refetch: refetchNotifications } =
     useOpenQuestionNotifications(projectId);
@@ -1256,9 +1310,10 @@ export function EvalPhase({
       setAnswerNotificationId(notificationId);
       try {
         await api.notifications.resolve(projectId, notificationId);
-        await dispatch(
+        const updated = await dispatch(
           recategorizeFeedback({ projectId, feedbackId, answer: answer.trim() })
         ).unwrap();
+        setReconcilingFeedbackIds((prev) => new Set(prev).add(updated.id));
         refetchNotifications();
       } finally {
         setAnswerNotificationId(null);

@@ -9,7 +9,12 @@ import {
   createTestStore,
   type RootState,
 } from "../../test/test-utils";
-import { EvalPhase, EVALUATE_FEEDBACK_FILTER_KEY, FEEDBACK_LOADING_DEBOUNCE_MS } from "./EvalPhase";
+import {
+  EvalPhase,
+  EVALUATE_FEEDBACK_FILTER_KEY,
+  FEEDBACK_LOADING_DEBOUNCE_MS,
+  FEEDBACK_CATEGORIZATION_POLL_INTERVAL_MS,
+} from "./EvalPhase";
 import { FEEDBACK_FORM_DRAFT_KEY_PREFIX } from "../../lib/feedbackFormStorage";
 import { CONTENT_CONTAINER_CLASS, MOBILE_BREAKPOINT } from "../../lib/constants";
 import {
@@ -2501,6 +2506,67 @@ describe("EvalPhase feedback form", () => {
       expect(screen.getByText("Add dark mode")).toBeInTheDocument();
       // No full page refresh — feedback.list not called
       expect(api.feedback.list).not.toHaveBeenCalled();
+    });
+
+    it("reconciles categorization state without a websocket event while Analyst is still running", async () => {
+      vi.useFakeTimers();
+      try {
+        const pendingItem: FeedbackItem = {
+          id: "fb-new",
+          text: "Add dark mode",
+          category: "bug",
+          mappedPlanId: null,
+          createdTaskIds: [],
+          status: "pending",
+          createdAt: "2024-01-01T00:00:01Z",
+        };
+        const updatedItem: FeedbackItem = {
+          ...pendingItem,
+          category: "feature",
+          mappedPlanId: "plan-1",
+          createdTaskIds: ["task-dark-mode"],
+        };
+        const store = createStore({
+          executeTasks: [createMockTask({ id: "task-dark-mode", title: "Implement dark mode" })],
+        });
+        const queryClient = createQueryClientWithFeedbackPreloaded();
+
+        const { api } = await import("../../api/client");
+        vi.mocked(api.feedback.submit).mockResolvedValue(pendingItem);
+        vi.mocked(api.feedback.list).mockResolvedValueOnce([updatedItem]);
+
+        renderWithProviders(
+          <MemoryRouter>
+            <EvalPhase projectId="proj-1" />
+          </MemoryRouter>,
+          { store, queryClient }
+        );
+
+        fireEvent.change(screen.getByTestId("eval-feedback-input"), {
+          target: { value: "Add dark mode" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: /Submit Feedback/i }));
+
+        await act(async () => {
+          await Promise.resolve();
+        });
+        expect(screen.getByText("Add dark mode")).toBeInTheDocument();
+        expect(screen.getByLabelText("Categorizing feedback")).toBeInTheDocument();
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(FEEDBACK_CATEGORIZATION_POLL_INTERVAL_MS);
+        });
+
+        await act(async () => {
+          await Promise.resolve();
+        });
+        expect(screen.getByText("Feature")).toBeInTheDocument();
+        expect(screen.getByText("Implement dark mode")).toBeInTheDocument();
+        expect(screen.queryByLabelText("Categorizing feedback")).not.toBeInTheDocument();
+        expect(api.feedback.list).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("preserves scroll position when clicking Resolve", async () => {

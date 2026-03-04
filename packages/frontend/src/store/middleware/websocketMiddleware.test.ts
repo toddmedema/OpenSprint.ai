@@ -1243,7 +1243,7 @@ describe("websocketMiddleware", () => {
       vi.useRealTimers();
     });
 
-    it("invalidates tasks and plans on reconnect for Execute page live-update", async () => {
+    it("invalidates tasks, plans, and feedback on reconnect for project live-update recovery", async () => {
       vi.useFakeTimers();
       const store = createStore();
       store.dispatch(wsConnect({ projectId: "proj-1" }));
@@ -1266,6 +1266,9 @@ describe("websocketMiddleware", () => {
         });
         expect(mockInvalidateQueries).toHaveBeenCalledWith({
           queryKey: queryKeys.plans.list("proj-1"),
+        });
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.feedback.list("proj-1"),
         });
       });
       vi.useRealTimers();

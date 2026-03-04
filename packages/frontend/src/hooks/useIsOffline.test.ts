@@ -64,8 +64,9 @@ describe("useIsOffline", () => {
     });
     expect(result.current).toBe(true);
 
-    store.dispatch(setConnected(true));
-    await act(async () => {});
+    await act(async () => {
+      store.dispatch(setConnected(true));
+    });
     expect(result.current).toBe(false);
   });
 });

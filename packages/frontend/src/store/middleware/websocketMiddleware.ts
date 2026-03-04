@@ -106,6 +106,7 @@ export const websocketMiddleware: Middleware = (storeApi) => {
           const qc = getQueryClient();
           void qc.invalidateQueries({ queryKey: queryKeys.tasks.list(projectId) });
           void qc.invalidateQueries({ queryKey: queryKeys.plans.list(projectId) });
+          void qc.invalidateQueries({ queryKey: queryKeys.feedback.list(projectId) });
         } catch {
           // QueryClient may not be set in tests
         }
