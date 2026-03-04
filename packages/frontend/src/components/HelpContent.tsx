@@ -1,5 +1,5 @@
-import { useState, useRef, useLayoutEffect, useCallback, useEffect } from "react";
-import type { AgentRole, TaskAnalytics } from "@opensprint/shared";
+import { useState, useRef, useLayoutEffect, useCallback, useEffect, useMemo } from "react";
+import type { AgentRole, TaskAnalytics, AgentLogEntry } from "@opensprint/shared";
 import {
   AGENT_ROLE_CANONICAL_ORDER,
   AGENT_ROLE_LABELS,
@@ -21,10 +21,10 @@ export interface HelpContentProps {
   onClose?: () => void;
 }
 
-type TabId = "ask" | "meet" | "analytics";
+type TabId = "ask" | "meet" | "analytics" | "agentLog";
 
 /**
- * Shared Help content with three tabs: Ask a Question, Meet your Team, and Analytics.
+ * Shared Help content with four tabs: Ask a Question, Meet your Team, Analytics, and Agent log.
  * Used by HelpModal (legacy) and HelpPage (full-screen).
  */
 export function HelpContent({ project, onClose }: HelpContentProps) {
@@ -70,6 +70,16 @@ export function HelpContent({ project, onClose }: HelpContentProps) {
             id="help-tab-analytics"
           >
             Analytics
+          </NavButton>
+          <NavButton
+            active={activeTab === "agentLog"}
+            onClick={() => setActiveTab("agentLog")}
+            role="tab"
+            aria-selected={activeTab === "agentLog"}
+            aria-controls="help-tabpanel-agent-log"
+            id="help-tab-agent-log"
+          >
+            Agent log
           </NavButton>
         </div>
         <div className="flex-1 min-w-0 flex justify-end items-center">
@@ -123,6 +133,16 @@ export function HelpContent({ project, onClose }: HelpContentProps) {
             className="flex-1 overflow-y-auto min-h-0 px-4 sm:px-6 py-4 max-w-[1800px] mx-auto w-full"
           >
             <AnalyticsContent projectId={project?.id ?? null} />
+          </div>
+        )}
+        {activeTab === "agentLog" && (
+          <div
+            id="help-tabpanel-agent-log"
+            role="tabpanel"
+            aria-labelledby="help-tab-agent-log"
+            className="flex-1 overflow-y-auto min-h-0 px-4 sm:px-6 py-4 max-w-[1800px] mx-auto w-full"
+          >
+            <AgentLogContent projectId={project?.id ?? null} showProjectColumn={!project} />
           </div>
         )}
       </div>
@@ -355,6 +375,201 @@ function AnalyticsContent({ projectId }: { projectId: string | null }) {
           : "Task completion analytics across all projects (100 most recent completed tasks)."}
       </p>
       <HelpAnalyticsChart data={data.byComplexity} totalTasks={data.totalTasks} />
+    </div>
+  );
+}
+
+type AgentLogSortKey = "roleName" | "durationMs" | "endTime" | "projectName";
+type SortDir = "asc" | "desc";
+
+function AgentLogContent({
+  projectId,
+  showProjectColumn,
+}: {
+  projectId: string | null;
+  showProjectColumn: boolean;
+}) {
+  const [entries, setEntries] = useState<AgentLogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<AgentLogSortKey>("endTime");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  const fetchLog = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.help.agentLog(projectId);
+      setEntries(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load agent log");
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    fetchLog();
+  }, [fetchLog]);
+
+  const sortedEntries = useMemo(() => {
+    const arr = [...entries];
+    return arr.sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === "roleName") {
+        cmp = (a.roleName ?? "").localeCompare(b.roleName ?? "");
+      } else if (sortKey === "durationMs") {
+        cmp = (a.durationMs ?? 0) - (b.durationMs ?? 0);
+      } else if (sortKey === "endTime") {
+        cmp = (a.endTime ?? "").localeCompare(b.endTime ?? "");
+      } else if (sortKey === "projectName" && showProjectColumn) {
+        cmp = (a.projectName ?? "").localeCompare(b.projectName ?? "");
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [entries, sortKey, sortDir, showProjectColumn]);
+
+  const toggleSort = (key: AgentLogSortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir(key === "endTime" ? "desc" : "asc");
+    }
+  };
+
+  const SortHeader = ({
+    label,
+    columnKey,
+  }: {
+    label: string;
+    columnKey: AgentLogSortKey;
+  }) => (
+    <button
+      type="button"
+      onClick={() => toggleSort(columnKey)}
+      className="text-left font-medium text-theme-text hover:text-theme-muted transition-colors flex items-center gap-1"
+    >
+      {label}
+      {sortKey === columnKey && (
+        <span className="text-theme-muted text-xs" aria-hidden>
+          {sortDir === "asc" ? "↑" : "↓"}
+        </span>
+      )}
+    </button>
+  );
+
+  const formatDuration = (ms: number) => {
+    if (ms < 1000) return `${ms}ms`;
+    if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+    const m = Math.floor(ms / 60_000);
+    const s = Math.floor((ms % 60_000) / 1000);
+    return `${m}m ${s}s`;
+  };
+
+  const formatEndTime = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString();
+    } catch {
+      return iso;
+    }
+  };
+
+  if (loading && entries.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-12 text-theme-muted text-sm">
+        Loading agent log…
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="py-6 text-theme-error text-sm" role="alert">
+        {error}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-theme-muted text-sm">
+          {projectId
+            ? "Past agent runs for this project (most recent first)."
+            : "Past agent runs across all projects (most recent first)."}
+        </p>
+        <button
+          type="button"
+          onClick={fetchLog}
+          disabled={loading}
+          className="p-1.5 rounded-md text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle transition-colors shrink-0 disabled:opacity-50"
+          aria-label="Refresh agent log"
+          title="Refresh"
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+        </button>
+      </div>
+      <div className="overflow-x-auto rounded-lg border border-theme-border">
+        <table className="w-full text-sm" role="table">
+          <thead>
+            <tr className="border-b border-theme-border bg-theme-surface-muted">
+              <th className="px-4 py-2 text-left">
+                <SortHeader label="Role / Name" columnKey="roleName" />
+              </th>
+              <th className="px-4 py-2 text-left">
+                <SortHeader label="Running time" columnKey="durationMs" />
+              </th>
+              <th className="px-4 py-2 text-left">
+                <SortHeader label="End time" columnKey="endTime" />
+              </th>
+              {showProjectColumn && (
+                <th className="px-4 py-2 text-left">
+                  <SortHeader label="Project" columnKey="projectName" />
+                </th>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {sortedEntries.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={showProjectColumn ? 4 : 3}
+                  className="px-4 py-8 text-center text-theme-muted"
+                >
+                  No agent runs yet.
+                </td>
+              </tr>
+            ) : (
+              sortedEntries.map((e, i) => (
+                <tr
+                  key={i}
+                  className="border-b border-theme-border last:border-b-0 hover:bg-theme-border-subtle/50"
+                >
+                  <td className="px-4 py-2 text-theme-text">{e.roleName}</td>
+                  <td className="px-4 py-2 text-theme-text">{formatDuration(e.durationMs)}</td>
+                  <td className="px-4 py-2 text-theme-text">{formatEndTime(e.endTime)}</td>
+                  {showProjectColumn && (
+                    <td className="px-4 py-2 text-theme-text">{e.projectName ?? "—"}</td>
+                  )}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

@@ -5,15 +5,30 @@ import type {
   HelpChatResponse,
   HelpChatHistory,
   TaskAnalytics,
+  AgentLogEntry,
 } from "@opensprint/shared";
 import { HelpChatService } from "../services/help-chat.service.js";
 import { getTaskAnalytics } from "../services/help-analytics.service.js";
+import { getAgentLog } from "../services/help-agent-log.service.js";
 import { createLogger } from "../utils/logger.js";
 
 const log = createLogger("help-route");
 export const helpChatService = new HelpChatService();
 
 export const helpRouter = Router();
+
+// GET /help/agent-log — Past agent runs from agent_stats (projectId query = per-project; omit = all projects)
+helpRouter.get("/agent-log", async (req: Request, res, next) => {
+  try {
+    const projectId = (req.query.projectId as string)?.trim() || null;
+    log.info("GET /help/agent-log", { projectId: projectId ?? "all" });
+    const entries = await getAgentLog(projectId);
+    const result: ApiResponse<AgentLogEntry[]> = { data: entries };
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
 
 // GET /help/analytics — Task analytics by complexity (projectId query = per-project; omit = all projects)
 helpRouter.get("/analytics", async (req: Request, res, next) => {

@@ -19,7 +19,7 @@ describe("HelpModal", () => {
     vi.mocked(api.help.chat).mockReset();
     vi.mocked(api.help.history).mockResolvedValue({ messages: [] });
   });
-  it("renders Help modal with two tabs, Ask a Question default", () => {
+  it("renders Help modal with four tabs, Ask a Question default", () => {
     renderWithProviders(<HelpModal onClose={vi.fn()} />);
 
     expect(screen.getByRole("dialog", { name: /help/i })).toBeInTheDocument();

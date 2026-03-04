@@ -38,6 +38,7 @@ import type {
   HelpChatResponse,
   HelpChatHistory,
   TaskAnalytics,
+  AgentLogEntry,
   ExecuteTaskContext,
   EnvRuntimeResponse,
 } from "@opensprint/shared";
@@ -533,6 +534,10 @@ export const api = {
     analytics: (projectId: string | null) =>
       request<TaskAnalytics>(
         `/help/analytics${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ""}`
+      ),
+    agentLog: (projectId: string | null) =>
+      request<AgentLogEntry[]>(
+        `/help/agent-log${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ""}`
       ),
   },
 

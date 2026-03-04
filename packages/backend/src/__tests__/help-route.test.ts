@@ -262,6 +262,73 @@ describe.skipIf(!helpPostgresOk)("Help chat API", () => {
     expect(res.body.data.totalTasks).toBeGreaterThanOrEqual(0);
   });
 
+  it("GET /help/agent-log returns entries for project scope", async () => {
+    await taskStore.runWrite(async (client) => {
+      await client.execute(
+        `INSERT INTO agent_stats (project_id, task_id, agent_id, model, attempt, started_at, completed_at, outcome, duration_ms)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          projectId,
+          "os-abc.1",
+          "coder",
+          "claude-sonnet-4",
+          1,
+          "2025-03-01T10:00:00Z",
+          "2025-03-01T10:01:30Z",
+          "success",
+          90000,
+        ]
+      );
+    });
+
+    const res = await request(app).get(`${API_PREFIX}/help/agent-log?projectId=${projectId}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toBeDefined();
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data).toHaveLength(1);
+    expect(res.body.data[0]).toMatchObject({
+      roleName: "Coder",
+      durationMs: 90000,
+      endTime: "2025-03-01T10:01:30Z",
+    });
+    expect(res.body.data[0]).not.toHaveProperty("projectName");
+  });
+
+  it("GET /help/agent-log returns entries with project names for global scope", async () => {
+    await taskStore.runWrite(async (client) => {
+      await client.execute(
+        `INSERT INTO agent_stats (project_id, task_id, agent_id, model, attempt, started_at, completed_at, outcome, duration_ms)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          projectId,
+          "os-xyz.1",
+          "claude-sonnet",
+          "claude-sonnet-4",
+          1,
+          "2025-03-01T11:00:00Z",
+          "2025-03-01T11:02:00Z",
+          "success",
+          120000,
+        ]
+      );
+    });
+
+    const res = await request(app).get(`${API_PREFIX}/help/agent-log`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toBeDefined();
+    expect(Array.isArray(res.body.data)).toBe(true);
+    const entry = res.body.data.find((e: { roleName: string }) => e.roleName === "claude-sonnet");
+    expect(entry).toBeDefined();
+    expect(entry).toMatchObject({
+      roleName: "claude-sonnet",
+      durationMs: 120000,
+      endTime: "2025-03-01T11:02:00Z",
+      projectName: "Test Project",
+    });
+  });
+
   it.skip("project and homepage help histories are stored separately", async () => {
     await request(app).post(`${API_PREFIX}/help/chat`).send({ message: "Homepage question" });
     await request(app)

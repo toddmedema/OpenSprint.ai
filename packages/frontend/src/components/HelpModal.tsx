@@ -8,7 +8,7 @@ export interface HelpModalProps {
 }
 
 /**
- * Help modal with two tabs: Ask a Question (default) and Meet your Team.
+ * Help modal with four tabs: Ask a Question (default), Meet your Team, Analytics, and Agent log.
  * Kept for backward compatibility; prefer HelpPage for full-screen experience.
  * No standalone title or back arrow; tabs appear as second title bar with close in bar.
  */

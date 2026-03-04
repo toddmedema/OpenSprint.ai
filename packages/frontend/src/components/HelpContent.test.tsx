@@ -10,6 +10,7 @@ vi.mock("../api/client", () => ({
       history: vi.fn(),
       chat: vi.fn(),
       analytics: vi.fn(),
+      agentLog: vi.fn(),
     },
   },
 }));
@@ -25,14 +26,16 @@ describe("HelpContent", () => {
       })),
       totalTasks: 3,
     });
+    vi.mocked(api.help.agentLog).mockResolvedValue([]);
   });
 
-  it("renders three tabs: Ask a Question (default), Meet your Team, and Analytics", () => {
+  it("renders four tabs: Ask a Question (default), Meet your Team, Analytics, and Agent log", () => {
     render(<HelpContent />);
 
     expect(screen.getByRole("tab", { name: "Ask a Question" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Meet your Team" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Analytics" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Agent log" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Ask a Question" })).toHaveAttribute(
       "aria-selected",
       "true"
@@ -95,6 +98,36 @@ describe("HelpContent", () => {
     await user.click(screen.getByRole("tab", { name: "Analytics" }));
 
     expect(api.help.analytics).toHaveBeenCalledWith("proj-1");
+  });
+
+  it("Agent log tab shows table and calls agentLog API", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.help.agentLog).mockResolvedValue([
+      { roleName: "Coder", durationMs: 45000, endTime: "2025-03-01T12:00:00Z" },
+      { roleName: "claude-sonnet", durationMs: 120000, endTime: "2025-03-01T11:00:00Z" },
+    ]);
+    render(<HelpContent />);
+
+    await user.click(screen.getByRole("tab", { name: "Agent log" }));
+
+    expect(screen.getByRole("tab", { name: "Agent log" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    expect(api.help.agentLog).toHaveBeenCalledWith(null);
+    expect(screen.getByText("Coder")).toBeInTheDocument();
+    expect(screen.getByText("claude-sonnet")).toBeInTheDocument();
+    expect(screen.getByText("45.0s")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Refresh agent log" })).toBeInTheDocument();
+  });
+
+  it("Agent log tab scopes to project when project provided", async () => {
+    const user = userEvent.setup();
+    render(<HelpContent project={{ id: "proj-1", name: "My Project" }} />);
+
+    await user.click(screen.getByRole("tab", { name: "Agent log" }));
+
+    expect(api.help.agentLog).toHaveBeenCalledWith("proj-1");
   });
 
   it("keeps chat input pinned at bottom with scrollable messages above", async () => {

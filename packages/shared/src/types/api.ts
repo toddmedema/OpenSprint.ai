@@ -108,6 +108,18 @@ export interface TaskAnalytics {
   totalTasks: number;
 }
 
+/** Agent log entry (past agent runs from agent_stats) */
+export interface AgentLogEntry {
+  /** Agent role/name (e.g. coder, claude-sonnet) */
+  roleName: string;
+  /** Running time in milliseconds */
+  durationMs: number;
+  /** End time (ISO string) */
+  endTime: string;
+  /** Project name (only present in global context) */
+  projectName?: string;
+}
+
 /** Feedback submission */
 export interface FeedbackSubmitRequest {
   text: string;
