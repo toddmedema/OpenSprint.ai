@@ -13,11 +13,6 @@ const AgentsMdPreview = lazy(() =>
   import("./AgentsMdPreview").then((module) => ({ default: module.AgentsMdPreview }))
 );
 
-let markdownFormatterPromise: Promise<{
-  prettier: typeof import("prettier");
-  parserMarkdown: typeof import("prettier/plugins/markdown");
-}> | null = null;
-
 function EditorLoadingFallback() {
   return (
     <div className="flex items-center gap-2 py-4" data-testid="agents-md-editor-loading">
@@ -50,21 +45,6 @@ interface AgentsMdSectionProps {
   projectId: string;
   /** When true, renders a plain textarea for simpler testing. */
   testMode?: boolean;
-}
-
-async function prettifyMarkdown(content: string): Promise<string> {
-  if (!markdownFormatterPromise) {
-    markdownFormatterPromise = Promise.all([
-      import("prettier"),
-      import("prettier/plugins/markdown"),
-    ]).then(([prettier, parserMarkdown]) => ({ prettier, parserMarkdown }));
-  }
-  const { prettier, parserMarkdown } = await markdownFormatterPromise;
-  return prettier.format(content, {
-    parser: "markdown",
-    plugins: [parserMarkdown],
-    proseWrap: "preserve",
-  });
 }
 
 export function AgentsMdSection({ projectId, testMode = false }: AgentsMdSectionProps) {
@@ -113,7 +93,7 @@ export function AgentsMdSection({ projectId, testMode = false }: AgentsMdSection
     setSaving(true);
     setSaveFeedback(null);
     try {
-      const toSave = await prettifyMarkdown(value);
+      const toSave = value;
       if (activeTab === "general") {
         await api.projects.updateAgentsInstructions(projectId, toSave);
       } else {

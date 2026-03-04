@@ -1,8 +1,14 @@
+import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
 import { defineConfig } from "vitest/config";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const parallelism =
+  typeof os.availableParallelism === "function"
+    ? os.availableParallelism()
+    : os.cpus().length;
 
 export default defineConfig({
   resolve: {
@@ -25,6 +31,8 @@ export default defineConfig({
     include: ["src/__tests__/**/*.test.ts", "src/utils/__tests__/**/*.test.ts"],
     exclude: ["**/git-working-mode-branches.integration.test.ts"],
     pool: "forks",
+    minWorkers: 1,
+    maxWorkers: Math.max(1, Math.ceil(parallelism * 0.75)),
     globalSetup: ["./src/__tests__/global-setup.ts"],
     globalTeardown: ["./src/__tests__/global-teardown.ts"],
     testTimeout: 30_000,

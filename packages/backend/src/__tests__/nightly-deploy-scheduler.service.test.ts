@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   runNightlyTick,
   startNightlyDeployScheduler,
@@ -46,6 +46,11 @@ describe("nightly-deploy-scheduler.service", () => {
     vi.clearAllMocks();
     stopNightlyDeployScheduler();
     mockGetLastSuccessfulDeployForTarget.mockResolvedValue(null); // First deployment by default
+  });
+
+  afterEach(() => {
+    stopNightlyDeployScheduler();
+    vi.useRealTimers();
   });
 
   describe("runNightlyTick", () => {
@@ -310,14 +315,30 @@ describe("nightly-deploy-scheduler.service", () => {
 
   describe("startNightlyDeployScheduler / stopNightlyDeployScheduler", () => {
     it("starts and stops without error", () => {
+      vi.useFakeTimers();
       expect(() => startNightlyDeployScheduler()).not.toThrow();
       expect(() => stopNightlyDeployScheduler()).not.toThrow();
     });
 
-    it("can stop after double start (idempotent)", () => {
+    it("does not schedule multiple timers on double start", () => {
+      vi.useFakeTimers();
+      const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+
       startNightlyDeployScheduler();
       startNightlyDeployScheduler();
+
+      expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
       expect(() => stopNightlyDeployScheduler()).not.toThrow();
+    });
+
+    it("clears the pending timer on stop", () => {
+      vi.useFakeTimers();
+      const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
+
+      startNightlyDeployScheduler();
+      stopNightlyDeployScheduler();
+
+      expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
     });
   });
 });

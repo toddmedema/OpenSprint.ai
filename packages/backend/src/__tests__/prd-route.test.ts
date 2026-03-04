@@ -16,7 +16,7 @@ import {
 // Mock TaskStoreService so tests don't require bd CLI or shell
 vi.mock("../services/task-store.service.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/task-store.service.js")>();
-  const { createTestPostgresClient } = await import("./test-db-helper.js");
+  const { createTestPostgresClient, truncateTestDbTables } = await import("./test-db-helper.js");
   const dbResult = await createTestPostgresClient();
   if (!dbResult) {
     return {
@@ -33,8 +33,7 @@ vi.mock("../services/task-store.service.js", async (importOriginal) => {
   const store = new actual.TaskStoreService(dbResult.client);
   await store.init();
   const resetSharedDb = async () => {
-    await dbResult.client.execute("DELETE FROM task_dependencies");
-    await dbResult.client.execute("DELETE FROM tasks");
+    await truncateTestDbTables(dbResult.client);
   };
   return {
     ...actual,
@@ -46,6 +45,7 @@ vi.mock("../services/task-store.service.js", async (importOriginal) => {
     taskStore: store,
     _resetSharedDb: resetSharedDb,
     _postgresAvailable: true,
+    _testPool: dbResult.pool,
   };
 });
 
@@ -70,6 +70,11 @@ describe.skipIf(!prdPostgresOk)("PRD REST API", () => {
   let tempDir: string;
   let projectId: string;
   let originalHome: string | undefined;
+
+  afterAll(async () => {
+    const mod = (await import("../services/task-store.service.js")) as { _testPool?: { end: () => Promise<void> } };
+    if (mod._testPool) await mod._testPool.end();
+  });
 
   beforeEach(async () => {
     app = createApp();

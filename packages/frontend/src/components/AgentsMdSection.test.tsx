@@ -9,11 +9,6 @@ const mockUpdateAgentsInstructions = vi.fn();
 const mockGetAgentsInstructionsForRole = vi.fn();
 const mockUpdateAgentsInstructionsForRole = vi.fn();
 
-vi.mock("prettier", () => ({
-  format: (content: string) => Promise.resolve(content),
-}));
-vi.mock("prettier/plugins/markdown", () => ({ default: {} }));
-
 vi.mock("@uiw/react-md-editor", () => ({
   default: function MockMDEditor({
     value,

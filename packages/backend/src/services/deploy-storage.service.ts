@@ -1,4 +1,4 @@
-import { v4 as uuid } from "uuid";
+import { randomUUID } from "node:crypto";
 import type { DeploymentRecord } from "@opensprint/shared";
 import { ProjectService } from "./project.service.js";
 import { taskStore } from "./task-store.service.js";
@@ -31,7 +31,7 @@ export class DeployStorageService {
     options?: { commitHash?: string | null; target?: string; mode?: "expo" | "custom" }
   ): Promise<DeploymentRecord> {
     const record: DeploymentRecord = {
-      id: uuid(),
+      id: randomUUID(),
       projectId,
       status: "pending",
       startedAt: new Date().toISOString(),

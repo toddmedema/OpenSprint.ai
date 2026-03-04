@@ -18,7 +18,7 @@ const execAsync = promisify(exec);
 
 vi.mock("../services/task-store.service.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/task-store.service.js")>();
-  const { createTestPostgresClient } = await import("./test-db-helper.js");
+  const { createTestPostgresClient, truncateTestDbTables } = await import("./test-db-helper.js");
   const dbResult = await createTestPostgresClient();
   if (!dbResult) {
     return {
@@ -36,8 +36,7 @@ vi.mock("../services/task-store.service.js", async (importOriginal) => {
   const store = new actual.TaskStoreService(dbResult.client);
   await store.init();
   const resetSharedDb = async () => {
-    await dbResult.client.execute("DELETE FROM task_dependencies");
-    await dbResult.client.execute("DELETE FROM tasks");
+    await truncateTestDbTables(dbResult.client);
   };
   return {
     ...actual,
@@ -49,6 +48,7 @@ vi.mock("../services/task-store.service.js", async (importOriginal) => {
     taskStore: store,
     _resetSharedDb: resetSharedDb,
     _postgresAvailable: true,
+    _testPool: dbResult.pool,
   };
 });
 
@@ -88,6 +88,11 @@ async function createMergeConflict(repoPath: string): Promise<string> {
 
 describe.skipIf(!gitQueuePostgresOk)("GitCommitQueue", () => {
   let repoPath: string;
+
+  afterAll(async () => {
+    const mod = (await import("../services/task-store.service.js")) as { _testPool?: { end: () => Promise<void> } };
+    if (mod._testPool) await mod._testPool.end();
+  });
 
   beforeEach(async () => {
     const mod = (await import("../services/task-store.service.js")) as unknown as {

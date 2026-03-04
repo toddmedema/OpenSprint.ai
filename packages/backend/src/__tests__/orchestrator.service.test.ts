@@ -69,6 +69,10 @@ const {
   mockDeleteAssignmentAt,
   mockListSessions,
   mockRunFullRecovery,
+  mockInspectGitRepoState,
+  mockEnsureBaseBranchExists,
+  mockAssertGitIdentityConfigured,
+  mockResolveBaseBranch,
 } = vi.hoisted(() => ({
   mockBroadcastToProject: vi.fn(),
   mockSendAgentOutputToProject: vi.fn(),
@@ -130,6 +134,10 @@ const {
   mockDeleteAssignmentAt: vi.fn().mockResolvedValue(undefined),
   mockListSessions: vi.fn(),
   mockRunFullRecovery: vi.fn(),
+  mockInspectGitRepoState: vi.fn(),
+  mockEnsureBaseBranchExists: vi.fn(),
+  mockAssertGitIdentityConfigured: vi.fn(),
+  mockResolveBaseBranch: vi.fn(),
 }));
 
 vi.mock("../websocket/index.js", () => ({
@@ -333,6 +341,17 @@ vi.mock("../services/api-key-exhausted.service.js", () => ({
   markExhausted: vi.fn(),
 }));
 
+vi.mock("../utils/git-repo-state.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../utils/git-repo-state.js")>();
+  return {
+    ...actual,
+    inspectGitRepoState: (...args: unknown[]) => mockInspectGitRepoState(...args),
+    ensureBaseBranchExists: (...args: unknown[]) => mockEnsureBaseBranchExists(...args),
+    assertGitIdentityConfigured: (...args: unknown[]) => mockAssertGitIdentityConfigured(...args),
+    resolveBaseBranch: (...args: unknown[]) => mockResolveBaseBranch(...args),
+  };
+});
+
 vi.mock("../services/crash-recovery.service.js", () => ({
   CrashRecoveryService: vi.fn().mockImplementation(() => ({
     findOrphanedAssignments: mockFindOrphanedAssignments,
@@ -428,6 +447,17 @@ describe("OrchestratorService (slot-based model)", () => {
     mockRecoverFromStaleHeartbeats.mockResolvedValue({ recovered: [] });
     mockFindOrphanedAssignments.mockResolvedValue([]);
     mockRunFullRecovery.mockResolvedValue({ reattached: [], requeued: [], cleaned: [] });
+    mockInspectGitRepoState.mockResolvedValue({
+      baseBranch: "main",
+      currentBranch: "main",
+      hasHead: true,
+      hasCommits: true,
+      branches: ["main"],
+      identity: { name: "Test User", email: "test@example.com" },
+    });
+    mockEnsureBaseBranchExists.mockResolvedValue(undefined);
+    mockAssertGitIdentityConfigured.mockReturnValue(undefined);
+    mockResolveBaseBranch.mockResolvedValue("main");
     mockTaskStoreGetStatusMap.mockResolvedValue(new Map());
     mockTaskStoreListAll.mockResolvedValue([]);
     mockTaskStoreGetBlockersFromIssue.mockReturnValue([]);

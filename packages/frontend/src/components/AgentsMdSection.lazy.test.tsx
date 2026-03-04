@@ -7,11 +7,6 @@ import { AgentsMdSection } from "./AgentsMdSection";
 const mockGetAgentsInstructions = vi.fn();
 const mockUpdateAgentsInstructions = vi.fn();
 
-vi.mock("prettier", () => ({
-  format: (content: string) => Promise.resolve(content),
-}));
-vi.mock("prettier/plugins/markdown", () => ({ default: {} }));
-
 const mockGetAgentsInstructionsForRole = vi.fn();
 const mockUpdateAgentsInstructionsForRole = vi.fn();
 

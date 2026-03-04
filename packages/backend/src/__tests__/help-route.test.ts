@@ -64,6 +64,7 @@ describe.skipIf(!helpPostgresOk)("Help chat API", () => {
   let projectId: string;
   let repoPath: string;
   let originalHome: string | undefined;
+  let originalOpenSprintHome: string | undefined;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -73,7 +74,9 @@ describe.skipIf(!helpPostgresOk)("Help chat API", () => {
 
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-help-route-test-"));
     originalHome = process.env.HOME;
+    originalOpenSprintHome = process.env.OPENSPRINT_HOME;
     process.env.HOME = tempDir;
+    process.env.OPENSPRINT_HOME = tempDir;
     repoPath = path.join(tempDir, "my-project");
 
     app = createApp();
@@ -87,10 +90,16 @@ describe.skipIf(!helpPostgresOk)("Help chat API", () => {
       hilConfig: DEFAULT_HIL_CONFIG,
     });
     projectId = project.id;
+    helpChatService.clearProjectListCacheForTesting();
   });
 
   afterEach(async () => {
     process.env.HOME = originalHome;
+    if (originalOpenSprintHome !== undefined) {
+      process.env.OPENSPRINT_HOME = originalOpenSprintHome;
+    } else {
+      delete process.env.OPENSPRINT_HOME;
+    }
     try {
       await fs.rm(tempDir, { recursive: true, force: true });
     } catch {
@@ -219,10 +228,19 @@ describe.skipIf(!helpPostgresOk)("Help chat API", () => {
     expect(res.body.data.messages[1].content).toContain("I'd be happy to help!");
   });
 
-  it.skip("POST /help/chat persists messages; GET /help/chat/history returns them (homepage)", async () => {
-    await request(app)
+  it("POST /help/chat persists messages; GET /help/chat/history returns them (homepage)", async () => {
+    const postRes = await request(app)
       .post(`${API_PREFIX}/help/chat`)
       .send({ message: "What projects do I have?" });
+    expect(postRes.status).toBe(200);
+
+    const history = await helpChatService.getHistory(null);
+    expect(history.messages).toHaveLength(2);
+    expect(history.messages[0]).toEqual({
+      role: "user",
+      content: "What projects do I have?",
+    });
+    expect(history.messages[1].role).toBe("assistant");
 
     const res = await request(app).get(`${API_PREFIX}/help/chat/history`);
     expect(res.status).toBe(200);
@@ -393,17 +411,21 @@ describe.skipIf(!helpPostgresOk)("Help chat API", () => {
     expect(res.status).toBe(404);
   });
 
-  it.skip("project and homepage help histories are stored separately", async () => {
+  it("project and homepage help histories are stored separately", async () => {
     await request(app).post(`${API_PREFIX}/help/chat`).send({ message: "Homepage question" });
     await request(app)
       .post(`${API_PREFIX}/help/chat`)
       .send({ message: "Project question", projectId });
 
+    const homepageHistory = await helpChatService.getHistory(null);
+    const projectHistory = await helpChatService.getHistory(projectId);
+    expect(homepageHistory.messages[0].content).toBe("Homepage question");
+    expect(projectHistory.messages[0].content).toBe("Project question");
+
     const homepageRes = await request(app).get(`${API_PREFIX}/help/chat/history`);
     const projectRes = await request(app).get(
       `${API_PREFIX}/help/chat/history?projectId=${projectId}`
     );
-
     expect(homepageRes.body.data.messages[0].content).toBe("Homepage question");
     expect(projectRes.body.data.messages[0].content).toBe("Project question");
   });

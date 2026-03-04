@@ -11,7 +11,7 @@ import { DEFAULT_HIL_CONFIG } from "@opensprint/shared";
 
 vi.mock("../services/task-store.service.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/task-store.service.js")>();
-  const { createTestPostgresClient } = await import("./test-db-helper.js");
+  const { createTestPostgresClient, truncateTestDbTables } = await import("./test-db-helper.js");
   const dbResult = await createTestPostgresClient();
   if (!dbResult) {
     return {
@@ -26,13 +26,11 @@ vi.mock("../services/task-store.service.js", async (importOriginal) => {
       _postgresAvailable: false,
     };
   }
-  const { client } = dbResult;
+  const { client, pool } = dbResult;
   const store = new actual.TaskStoreService(client);
   await store.init();
   const resetSharedDb = async () => {
-    await client.execute("DELETE FROM task_dependencies");
-    await client.execute("DELETE FROM tasks");
-    await client.execute("DELETE FROM plans");
+    await truncateTestDbTables(client);
   };
   return {
     ...actual,
@@ -44,6 +42,7 @@ vi.mock("../services/task-store.service.js", async (importOriginal) => {
     taskStore: store,
     _resetSharedDb: resetSharedDb,
     _postgresAvailable: true,
+    _testPool: pool,
   };
 });
 
@@ -58,6 +57,11 @@ describe.skipIf(!postgresAvailable)("Tasks REST - task-to-kanban-column mapping"
   let projectId: string;
   let projectService: ProjectService;
   let taskStore: TaskStoreService;
+
+  afterAll(async () => {
+    const mod = (await import("../services/task-store.service.js")) as { _testPool?: { end: () => Promise<void> } };
+    if (mod._testPool) await mod._testPool.end();
+  });
 
   beforeEach(async () => {
     const mod = (await import("../services/task-store.service.js")) as unknown as {

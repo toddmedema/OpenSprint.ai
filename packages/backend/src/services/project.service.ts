@@ -1,8 +1,8 @@
 import fs from "fs/promises";
 import path from "path";
 import { exec } from "child_process";
+import { randomUUID } from "node:crypto";
 import { promisify } from "util";
-import { v4 as uuid } from "uuid";
 import type {
   Project,
   CreateProjectRequest,
@@ -302,7 +302,7 @@ export class ProjectService {
       throw new AppError(400, ErrorCodes.INVALID_AGENT_CONFIG, msg);
     }
 
-    const id = uuid();
+    const id = randomUUID();
     const now = new Date().toISOString();
 
     // If path already has OpenSprint, return the existing project instead of creating
@@ -316,7 +316,7 @@ export class ProjectService {
         return this.getProject(existing.id);
       }
       // Repo has .opensprint but no index entry (e.g. index from another machine or cleared). Adopt it.
-      const adoptId = uuid();
+      const adoptId = randomUUID();
       const adoptName = name || "Existing project";
       await projectIndex.addProject({
         id: adoptId,

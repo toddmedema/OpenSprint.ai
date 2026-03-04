@@ -86,9 +86,13 @@ export class HelpChatService {
     return path.join(project.repoPath, OPENSPRINT_PATHS.conversations, HELP_CHAT_FILENAME);
   }
 
-  /** Path for homepage help chat (in ~/.opensprint/) */
+  /** Path for homepage help chat (in ~/.opensprint/). Use OPENSPRINT_HOME in tests to pin the path. */
   private getHomepageHelpChatPath(): string {
-    const home = process.env.HOME ?? process.env.USERPROFILE ?? os.tmpdir();
+    const home =
+      process.env.OPENSPRINT_HOME ??
+      process.env.HOME ??
+      process.env.USERPROFILE ??
+      os.tmpdir();
     return path.join(home, ".opensprint", "help-chat.json");
   }
 

@@ -1,6 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
-import { v4 as uuid } from "uuid";
+import { randomUUID } from "node:crypto";
 import type {
   Conversation,
   ConversationMessage,
@@ -235,7 +235,7 @@ export class ChatService {
     }
 
     const conversation: Conversation = {
-      id: uuid(),
+      id: randomUUID(),
       context: context as Conversation["context"],
       messages: [],
     };

@@ -1,5 +1,4 @@
 import { execSync } from "child_process";
-import cron from "node-cron";
 import { ProjectService } from "./project.service.js";
 import { triggerDeploy } from "./deploy-trigger.service.js";
 import { deployStorageService } from "./deploy-storage.service.js";
@@ -39,7 +38,8 @@ function parseTime(hhmm: string): { hour: number; minute: number } | null {
 /** Last run date (YYYY-MM-DD) per project to avoid duplicate runs in same day. */
 const lastRunByProject = new Map<string, string>();
 
-let cronTask: cron.ScheduledTask | null = null;
+let schedulerTimer: ReturnType<typeof setTimeout> | null = null;
+let schedulerRunning = false;
 const projectService = new ProjectService();
 
 /**
@@ -119,13 +119,30 @@ export async function runNightlyTick(
   return results;
 }
 
-/**
- * Build cron expression for a given HH:mm. Cron: minute hour day month weekday.
- * We schedule to run every minute and let runNightlyTick filter by time.
- * This allows per-project nightlyDeployTime without multiple cron jobs.
- */
-function getCronExpression(): string {
-  return "* * * * *"; // Every minute
+function getDelayUntilNextMinute(now: Date = new Date()): number {
+  const nextMinute = new Date(now);
+  nextMinute.setSeconds(0, 0);
+  nextMinute.setMinutes(nextMinute.getMinutes() + 1);
+  return nextMinute.getTime() - now.getTime();
+}
+
+function scheduleNextTick(): void {
+  if (!schedulerRunning) return;
+
+  schedulerTimer = setTimeout(async () => {
+    schedulerTimer = null;
+    if (!schedulerRunning) return;
+
+    try {
+      await runNightlyTick();
+    } catch (err) {
+      log.error("Nightly deploy tick error", { err: (err as Error).message });
+    } finally {
+      if (schedulerRunning) {
+        scheduleNextTick();
+      }
+    }
+  }, getDelayUntilNextMinute());
 }
 
 /**
@@ -133,17 +150,13 @@ function getCronExpression(): string {
  * triggers deploys for projects whose nightlyDeployTime matches current time.
  */
 export function startNightlyDeployScheduler(): void {
-  if (cronTask) {
+  if (schedulerRunning) {
     log.warn("Nightly deploy scheduler already started");
     return;
   }
 
-  cronTask = cron.schedule(getCronExpression(), () => {
-    runNightlyTick().catch((err) => {
-      log.error("Nightly deploy tick error", { err: (err as Error).message });
-    });
-  });
-
+  schedulerRunning = true;
+  scheduleNextTick();
   log.info("Nightly deploy scheduler started");
 }
 
@@ -151,9 +164,15 @@ export function startNightlyDeployScheduler(): void {
  * Stop the nightly deploy scheduler.
  */
 export function stopNightlyDeployScheduler(): void {
-  if (cronTask) {
-    cronTask.stop();
-    cronTask = null;
+  const hadActiveScheduler = schedulerRunning || schedulerTimer !== null;
+  schedulerRunning = false;
+
+  if (schedulerTimer !== null) {
+    clearTimeout(schedulerTimer);
+    schedulerTimer = null;
+  }
+
+  if (hadActiveScheduler) {
     log.info("Nightly deploy scheduler stopped");
   }
 }

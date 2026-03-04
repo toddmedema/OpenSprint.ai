@@ -75,6 +75,9 @@ function getVitestRunId(): string | null {
   return runId || null;
 }
 
+/** Schema names that have already had runSchema applied in this process (per worker). */
+const initializedSchemas = new Set<string>();
+
 /** Keep schema names safe for SQL identifiers and reasonably short. */
 function sanitizeSchemaPart(value: string, maxLen = 32): string {
   const sanitized = value.replace(/[^a-zA-Z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
@@ -98,6 +101,7 @@ function quoteIdent(ident: string): string {
 /**
  * Isolate each Vitest worker to its own schema so parallel workers do not race
  * on DELETE/TRUNCATE setup hooks against shared tables.
+ * Returns the schema name when worker-scoped (for schema-init caching).
  */
 function withWorkerScopedSchema(url: string): { url: string; schema: string | null } {
   const runId = getVitestRunId();
@@ -184,12 +188,27 @@ export async function createTestPostgresClient(): Promise<{
       const scope = schema ? ` schema=${schema}` : "";
       console.warn(`[test-db-helper] Tests using database: ${dbName}${scope}`);
     }
-    await runSchema(result.client);
+    // Run schema only once per worker so multiple test files in the same worker don't re-run DDL.
+    const schemaKey = schema ?? `default_${dbName}`;
+    if (!initializedSchemas.has(schemaKey)) {
+      await runSchema(result.client);
+      initializedSchemas.add(schemaKey);
+    }
     return { client: result.client, pool: result.pool };
   } catch (err) {
     if (err instanceof TestDatabaseRefusedError) throw err;
     return null;
   }
+}
+
+/**
+ * Truncate task/plan tables used by test reset. Faster than DELETE.
+ * Clears task_dependencies (via CASCADE), tasks, plans, auditor_runs.
+ */
+export async function truncateTestDbTables(client: DbClient): Promise<void> {
+  await client.execute(
+    "TRUNCATE tasks, plans, auditor_runs RESTART IDENTITY CASCADE"
+  );
 }
 
 /** Create a mock DbClient for tests that don't need real DB. */

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { runSchema, toPgParams } from "../db/index.js";
+import { toPgParams } from "../db/index.js";
 import { TaskStoreService } from "../services/task-store.service.js";
 import { createTestPostgresClient, createTestProjectId } from "./test-db-helper.js";
 
@@ -18,7 +18,6 @@ suite("TaskStoreService", () => {
   });
 
   beforeEach(async () => {
-    await runSchema(client);
     store = new TaskStoreService(client);
     await store.init();
     await store.deleteByProjectId(TEST_PROJECT_ID);
