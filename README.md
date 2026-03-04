@@ -27,15 +27,18 @@ Then open [http://localhost:5173](http://localhost:5173) and get building!
 
 You will need to install WSL2 ([Windows Subsystem for Linux](https://learn.microsoft.com/en-us/windows/wsl/install)) by opening PowerShell as an admin, running `wsl --install`, rebooting your computer, then running `wsl.exe --install` in PowerShell.
 
-Then, open the `WSL` application, [install node.js](https://stackoverflow.com/a/75739322),
+Then, open the `WSL` application, [install node.js](https://stackoverflow.com/a/75739322), [install postgres](https://dev.to/sfpear/install-and-use-postgres-in-wsl-423d) and set the default postgres user's password to `opensprint`.
 
-Once installed, run the remaining installation steps inside the WSL prompt by running `WSL` from the start menu. _Do not run OpenSprint from `/mnt/c/...` or any other Windows-mounted filesystem._
+Then, from the default ~ directory, run:
 
-(TODO how to install node and postgres in WSL?)
+```bash
+git clone https://github.com/toddmedema/opensprint.git
+cd opensprint
+npm run setup
+npm run dev
+```
 
-- Clone OpenSprint into your Linux home directory, for example `/home/<user>/src/opensprint`.
-
-_Native Windows Node, PowerShell, and `cmd.exe` execution are unsupported because the orchestration and process-management stack assumes Linux/Unix process behavior._
+_Native Windows Node, PowerShell, and `cmd.exe` execution are unsupported because the orchestration and process-management stack assumes Linux/Unix process behavior. Do not run OpenSprint from `/mnt/c/...` or any other Windows-mounted filesystem._
 
 #### If PostgreSQL Setup Fails
 

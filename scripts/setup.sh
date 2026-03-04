@@ -40,6 +40,65 @@ OS_USER="opensprint"
 OS_PASSWORD="opensprint"
 OS_DB="opensprint"
 OS_TEST_DB="opensprint_test"
+APP_POSTGRES_DB_URL="postgresql://${OS_USER}:${OS_PASSWORD}@localhost:5432/postgres"
+APP_MAIN_DB_URL="postgresql://${OS_USER}:${OS_PASSWORD}@localhost:5432/${OS_DB}"
+APP_TEST_DB_URL="postgresql://${OS_USER}:${OS_PASSWORD}@localhost:5432/${OS_TEST_DB}"
+POSTGRES_SUPERUSER_DB_URL="postgresql://postgres:${OS_PASSWORD}@localhost:5432/postgres"
+
+can_connect_with_url() {
+  local db_url="$1"
+  psql "$db_url" -tAc "SELECT 1" >/dev/null 2>&1
+}
+
+run_psql_with_url() {
+  local db_url="$1"
+  shift
+  psql "$db_url" "$@"
+}
+
+database_exists_with_url() {
+  local db_url="$1"
+  local db_name="$2"
+  [ "$(psql "$db_url" -tAc "SELECT 1 FROM pg_database WHERE datname = '${db_name}'" 2>/dev/null | tr -d '[:space:]')" = "1" ]
+}
+
+ensure_local_postgres_role_and_databases_via_password() {
+  local bootstrap_url=""
+
+  if can_connect_with_url "$APP_POSTGRES_DB_URL" && \
+     can_connect_with_url "$APP_MAIN_DB_URL" && \
+     can_connect_with_url "$APP_TEST_DB_URL"; then
+    return 0
+  fi
+
+  if ! can_connect_with_url "$POSTGRES_SUPERUSER_DB_URL"; then
+    return 1
+  fi
+
+  echo "==> opensprint login failed or local databases are missing. Bootstrapping with postgres/opensprint..."
+  bootstrap_url="$POSTGRES_SUPERUSER_DB_URL"
+
+  run_psql_with_url "$bootstrap_url" -v ON_ERROR_STOP=1 <<SQL
+DO \$\$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${OS_USER}') THEN
+    CREATE ROLE ${OS_USER} WITH LOGIN PASSWORD '${OS_PASSWORD}';
+  ELSE
+    ALTER ROLE ${OS_USER} WITH PASSWORD '${OS_PASSWORD}';
+  END IF;
+END
+\$\$;
+SQL
+
+  if ! database_exists_with_url "$bootstrap_url" "$OS_DB"; then
+    run_psql_with_url "$bootstrap_url" -c "CREATE DATABASE ${OS_DB} OWNER ${OS_USER};" >/dev/null
+  fi
+  if ! database_exists_with_url "$bootstrap_url" "$OS_TEST_DB"; then
+    run_psql_with_url "$bootstrap_url" -c "CREATE DATABASE ${OS_TEST_DB} OWNER ${OS_USER};" >/dev/null
+  fi
+
+  can_connect_with_url "$APP_MAIN_DB_URL" && can_connect_with_url "$APP_TEST_DB_URL"
+}
 
 install_and_start_postgres_mac() {
   if ! command -v brew >/dev/null 2>&1; then
@@ -70,6 +129,10 @@ install_and_start_postgres_mac() {
   if ! psql -d postgres -tAc "SELECT 1" >/dev/null 2>&1; then
     echo "==> PostgreSQL did not become ready. Check: brew services list"
     return 1
+  fi
+  if ensure_local_postgres_role_and_databases_via_password; then
+    echo "==> PostgreSQL ready (user ${OS_USER}, databases ${OS_DB} and ${OS_TEST_DB})"
+    return 0
   fi
   # Create role and database (idempotent; ignore errors if already exist)
   psql -d postgres -c "CREATE ROLE ${OS_USER} WITH LOGIN PASSWORD '${OS_PASSWORD}';" 2>/dev/null || \
@@ -109,6 +172,10 @@ install_and_start_postgres_linux() {
   if ! sudo -u postgres psql -d postgres -tAc "SELECT 1" >/dev/null 2>&1; then
     echo "==> PostgreSQL did not become ready. Check: sudo systemctl status postgresql"
     return 1
+  fi
+  if ensure_local_postgres_role_and_databases_via_password; then
+    echo "==> PostgreSQL ready (user ${OS_USER}, databases ${OS_DB} and ${OS_TEST_DB})"
+    return 0
   fi
   sudo -u postgres psql -d postgres -c "CREATE ROLE ${OS_USER} WITH LOGIN PASSWORD '${OS_PASSWORD}';" 2>/dev/null || \
     sudo -u postgres psql -d postgres -c "ALTER ROLE ${OS_USER} WITH PASSWORD '${OS_PASSWORD}';" 2>/dev/null || true

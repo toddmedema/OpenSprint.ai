@@ -78,4 +78,16 @@ describe("dev config (source-direct imports)", () => {
     expect(buildIndex).toBeGreaterThanOrEqual(0);
     expect(schemaIndex).toBeGreaterThan(buildIndex);
   });
+
+  it("setup script falls back from opensprint login to postgres login for local bootstrap", () => {
+    const setupScriptPath = resolve(repoRoot, "scripts/setup.sh");
+    expect(existsSync(setupScriptPath)).toBe(true);
+    const content = readFileSync(setupScriptPath, "utf-8");
+    const appLoginIndex = content.indexOf('can_connect_with_url "$APP_POSTGRES_DB_URL"');
+    const postgresLoginIndex = content.indexOf('can_connect_with_url "$POSTGRES_SUPERUSER_DB_URL"');
+    const createRoleIndex = content.indexOf("CREATE ROLE ${OS_USER} WITH LOGIN PASSWORD '${OS_PASSWORD}';");
+    expect(appLoginIndex).toBeGreaterThanOrEqual(0);
+    expect(postgresLoginIndex).toBeGreaterThan(appLoginIndex);
+    expect(createRoleIndex).toBeGreaterThan(postgresLoginIndex);
+  });
 });
