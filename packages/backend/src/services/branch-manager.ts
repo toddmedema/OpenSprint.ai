@@ -5,7 +5,7 @@ import { OPENSPRINT_PATHS } from "@opensprint/shared";
 import { createLogger } from "../utils/logger.js";
 import { waitForGitReady as waitForGitReadyUtil } from "../utils/git-lock.js";
 import { shellExec } from "../utils/shell-exec.js";
-import { getOriginUrl } from "../utils/git-repo-state.js";
+import { ensureRepoHasInitialCommit, getOriginUrl } from "../utils/git-repo-state.js";
 import { formatClosedCommitMessage, parseClosedCommitMessage } from "../utils/commit-message.js";
 import { assertSafeTaskWorktreePath } from "../utils/path-safety.js";
 import { taskStore as taskStoreSingleton } from "./task-store.service.js";
@@ -141,6 +141,7 @@ export class BranchManager {
     branchName: string,
     baseBranch: string = "main"
   ): Promise<void> {
+    await ensureRepoHasInitialCommit(repoPath, baseBranch);
     await this.git(repoPath, `checkout ${baseBranch}`);
     await this.git(repoPath, `checkout -b ${branchName}`);
   }
@@ -846,6 +847,8 @@ export class BranchManager {
         repoPath
       );
     }
+
+    await ensureRepoHasInitialCommit(repoPath, baseBranch);
 
     // Create branch from base branch if it doesn't exist
     try {

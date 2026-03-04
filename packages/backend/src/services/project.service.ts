@@ -50,6 +50,7 @@ import { shellExec } from "../utils/shell-exec.js";
 import {
   assertGitIdentityConfigured,
   ensureBaseBranchExists,
+  ensureRepoHasInitialCommit,
   inspectGitRepoState,
   hasWorkingTreeChanges,
 } from "../utils/git-repo-state.js";
@@ -341,12 +342,18 @@ export class ProjectService {
       await execAsync("git rev-parse --is-inside-work-tree", { cwd: repoPath });
     } catch {
       await execAsync("git init", { cwd: repoPath });
+      await ensureRepoHasInitialCommit(repoPath, input.worktreeBaseBranch);
     }
 
     const { hadHead, baseBranch } = await this.prepareRepoForProject(
       repoPath,
       input.worktreeBaseBranch
     );
+
+    // Ensure an initial commit exists (e.g. repo was inited elsewhere with no commits)
+    if (!hadHead) {
+      await ensureRepoHasInitialCommit(repoPath, baseBranch);
+    }
 
     // Task store uses global server only. No per-repo data.
 

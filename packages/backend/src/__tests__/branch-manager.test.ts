@@ -316,6 +316,31 @@ describe("BranchManager", () => {
       expect(mainBranch.trim()).toBe("main");
     });
 
+    it("bootstraps an initial commit before creating a worktree for a legacy repo with no HEAD", async () => {
+      await execAsync("git init", { cwd: repoPath });
+      await execAsync("git branch -M main", { cwd: repoPath });
+      await execAsync('git config user.email "test@test.com"', { cwd: repoPath });
+      await execAsync('git config user.name "Test"', { cwd: repoPath });
+      await fs.writeFile(path.join(repoPath, "README"), "legacy repo without commit");
+
+      const taskId = `wt-bootstrap-${Date.now()}`;
+      const wtPath = await branchManager.createTaskWorktree(repoPath, taskId);
+      worktreePaths.push(wtPath);
+
+      const { stdout: headSha } = await execAsync("git rev-parse HEAD", { cwd: repoPath });
+      expect(headSha.trim()).toMatch(/^[0-9a-f]{40}$/);
+
+      const { stdout: headMessage } = await execAsync("git log -1 --pretty=%s", { cwd: repoPath });
+      expect(headMessage.trim()).toBe("chore: initialize OpenSprint project");
+
+      const { stdout: wtBranch } = await execAsync("git rev-parse --abbrev-ref HEAD", { cwd: wtPath });
+      expect(wtBranch.trim()).toBe(`opensprint/${taskId}`);
+
+      await expect(fs.readFile(path.join(wtPath, "README"), "utf-8")).resolves.toBe(
+        "legacy repo without commit"
+      );
+    });
+
     it("refuses to treat the main repo checkout as a disposable worktree", async () => {
       await execAsync("git init", { cwd: repoPath });
       await execAsync("git branch -M main", { cwd: repoPath });

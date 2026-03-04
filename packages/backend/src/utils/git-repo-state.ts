@@ -4,6 +4,9 @@ import { ErrorCodes } from "../middleware/error-codes.js";
 import { shellExec } from "./shell-exec.js";
 
 const GIT_TIMEOUT_MS = 5_000;
+const GIT_COMMIT_TIMEOUT_MS = 30_000;
+
+export const OPENSPRINT_BOOTSTRAP_COMMIT_MESSAGE = "chore: initialize OpenSprint project";
 
 export type GitRemoteMode = "publishable" | "local_only" | "remote_error";
 
@@ -275,6 +278,31 @@ export async function ensureBaseBranchExists(repoPath: string, baseBranch: strin
     cwd: repoPath,
     timeout: GIT_TIMEOUT_MS,
   });
+}
+
+export async function ensureRepoHasInitialCommit(
+  repoPath: string,
+  preferredBaseBranch?: string | null
+): Promise<string> {
+  const repoState = await inspectGitRepoState(repoPath, preferredBaseBranch);
+  assertGitIdentityConfigured(repoState.identity, { appError: false });
+  await ensureBaseBranchExists(repoPath, repoState.baseBranch);
+  if (repoState.hasHead) {
+    return repoState.baseBranch;
+  }
+
+  await shellExec("git add -A", {
+    cwd: repoPath,
+    timeout: GIT_TIMEOUT_MS,
+  });
+  await shellExec(
+    `git -c core.hooksPath=/dev/null commit --allow-empty -m "${OPENSPRINT_BOOTSTRAP_COMMIT_MESSAGE}"`,
+    {
+      cwd: repoPath,
+      timeout: GIT_COMMIT_TIMEOUT_MS,
+    }
+  );
+  return repoState.baseBranch;
 }
 
 export async function hasWorkingTreeChanges(repoPath: string): Promise<boolean> {
