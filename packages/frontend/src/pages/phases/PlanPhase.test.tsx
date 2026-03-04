@@ -344,7 +344,7 @@ describe("PlanPhase Redux integration", () => {
     expect(screen.queryByText("Failed to load plans")).not.toBeInTheDocument();
   });
 
-  it("renders Add Plan button in topbar; modal has textarea and Generate Plan button", async () => {
+  it("renders New Plan button in topbar; modal has textarea and Generate Plan button", async () => {
     const store = createStore();
     const user = userEvent.setup();
     render(
@@ -358,7 +358,7 @@ describe("PlanPhase Redux integration", () => {
 
     const addPlanBtn = screen.getByTestId("add-plan-button");
     expect(addPlanBtn).toBeInTheDocument();
-    expect(addPlanBtn).toHaveTextContent("Add Plan");
+    expect(addPlanBtn).toHaveTextContent("New Plan");
     expect(addPlanBtn).toHaveClass("btn-primary");
     expect(addPlanBtn).toHaveClass("hover:bg-brand-800");
     expect(screen.queryByTestId("add-plan-modal")).not.toBeInTheDocument();

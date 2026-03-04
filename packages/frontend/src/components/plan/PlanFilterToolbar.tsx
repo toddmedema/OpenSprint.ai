@@ -148,7 +148,7 @@ export function PlanFilterToolbar({
             className="btn-primary text-sm py-1.5 px-2.5 min-h-[44px] min-w-[44px] hover:bg-brand-800 inline-flex items-center justify-center"
             data-testid="add-plan-button"
           >
-            Add Plan
+            New Plan
           </button>
           {plansReadyToExecuteCount >= 2 && (
             <button

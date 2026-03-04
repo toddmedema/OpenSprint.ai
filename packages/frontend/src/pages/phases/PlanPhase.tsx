@@ -848,7 +848,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
               {showPlansEmptyState ? (
                 <div className="text-center py-10">
                   <p className="text-theme-muted">
-                    No plans yet. Click &ldquo;Add Plan&rdquo; in the topbar to generate a plan, or
+                    No plans yet. Click &ldquo;New Plan&rdquo; in the topbar to generate a plan, or
                     use &ldquo;Plan it&rdquo; from the Sketch phase.
                   </p>
                 </div>
