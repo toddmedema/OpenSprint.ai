@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { Task } from "@opensprint/shared";
 import type { Plan } from "@opensprint/shared";
+import { isAgentAssignee } from "@opensprint/shared";
 import {
   sortTasksForTimeline,
   getTimelineSection,
@@ -13,6 +14,7 @@ import { formatUptime, formatTimestamp } from "../../lib/formatting";
 import { TaskStatusBadge, COLUMN_LABELS } from "../kanban";
 import { PriorityIcon } from "../PriorityIcon";
 import { ComplexityIcon } from "../ComplexityIcon";
+import { AssigneeSelector } from "./AssigneeSelector";
 import type { StatusFilter } from "../../lib/executeTaskFilter";
 
 const ROW_HEIGHT = 44;
@@ -31,6 +33,10 @@ export interface TimelineListProps {
   scrollRef?: React.RefObject<HTMLDivElement | null>;
   /** When provided, scrolls the selected task into view. */
   selectedTaskId?: string | null;
+  /** Project ID for assignee updates. */
+  projectId: string;
+  /** Team members for assignee dropdown. */
+  teamMembers: Array<{ id: string; name: string }>;
 }
 
 const SECTION_LABELS: Record<string, string> = {
@@ -49,15 +55,19 @@ function TimelineRow({
   relativeTime,
   onTaskSelect,
   onUnblock,
+  projectId,
+  teamMembers,
 }: {
   task: Task;
   epicName: string;
   relativeTime: string;
   onTaskSelect: (taskId: string) => void;
   onUnblock?: (taskId: string) => void;
+  projectId: string;
+  teamMembers: Array<{ id: string; name: string }>;
 }) {
   const isBlocked = task.kanbanColumn === "blocked";
-  const assignee = task.assignee ?? "—";
+  const isDone = task.kanbanColumn === "done";
 
   return (
     <li data-testid={`timeline-row-${task.id}`}>
@@ -80,9 +90,22 @@ function TimelineRow({
           <span className="hidden md:inline text-xs text-theme-muted shrink-0 truncate max-w-[120px]">
             {epicName}
           </span>
-          <span className="text-xs text-theme-muted shrink-0 tabular-nums">{assignee}</span>
           <span className="text-xs text-theme-muted shrink-0 tabular-nums">{relativeTime}</span>
         </button>
+        <span
+          className="shrink-0 tabular-nums"
+          data-testid="task-row-assignee"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <AssigneeSelector
+            projectId={projectId}
+            taskId={task.id}
+            currentAssignee={task.assignee ?? null}
+            teamMembers={teamMembers}
+            readOnly={isDone}
+            isAgentAssignee={!!task.assignee && isAgentAssignee(task.assignee)}
+          />
+        </span>
         {isBlocked && onUnblock && (
           <button
             type="button"
@@ -108,6 +131,8 @@ type TimelineItem =
       epicName: string;
       relativeTime: string;
       onUnblock?: (taskId: string) => void;
+      projectId: string;
+      teamMembers: Array<{ id: string; name: string }>;
     };
 
 export function TimelineList({
@@ -119,6 +144,8 @@ export function TimelineList({
   statusFilter = "all",
   scrollRef,
   selectedTaskId,
+  projectId,
+  teamMembers,
 }: TimelineListProps) {
   const epicIdToTitle = useMemo(() => {
     const m = new Map<string, string>();
@@ -202,11 +229,13 @@ export function TimelineList({
           epicName: task.epicId ? (epicIdToTitle.get(task.epicId) ?? task.epicId) : "",
           relativeTime: getRelativeTime(task),
           onUnblock: task.kanbanColumn === "blocked" ? onUnblock : undefined,
+          projectId,
+          teamMembers,
         });
       }
     }
     return result;
-  }, [sections, epicIdToTitle, onUnblock, taskIdToStartedAt]);
+  }, [sections, epicIdToTitle, onUnblock, taskIdToStartedAt, projectId, teamMembers]);
 
   const taskIdToIndex = useMemo(() => {
     const m = new Map<string, number>();
@@ -264,6 +293,8 @@ export function TimelineList({
                     relativeTime={getRelativeTime(task)}
                     onTaskSelect={onTaskSelect}
                     onUnblock={task.kanbanColumn === "blocked" ? onUnblock : undefined}
+                    projectId={projectId}
+                    teamMembers={teamMembers}
                   />
                 ))}
               </ul>
@@ -330,6 +361,8 @@ export function TimelineList({
                   relativeTime={item.relativeTime}
                   onTaskSelect={onTaskSelect}
                   onUnblock={item.onUnblock}
+                  projectId={item.projectId}
+                  teamMembers={item.teamMembers}
                 />
               </ul>
             </div>

@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TimelineList } from "./TimelineList";
+import { renderWithProviders } from "../../test/test-utils";
 import type { Task } from "@opensprint/shared";
 import type { Plan } from "@opensprint/shared";
 
@@ -9,6 +10,23 @@ vi.mock("../../lib/formatting", () => ({
   formatUptime: vi.fn((startedAt: string) => `uptime:${startedAt}`),
   formatTimestamp: vi.fn((ts: string) => `relative:${ts}`),
 }));
+
+const mockUpdateTask = vi.fn();
+vi.mock("../../api/client", () => ({
+  api: {
+    tasks: {
+      updateTask: (...args: unknown[]) => mockUpdateTask(...args),
+    },
+  },
+}));
+
+const defaultListProps = {
+  projectId: "proj-1",
+  teamMembers: [
+    { id: "alice", name: "Alice" },
+    { id: "bob", name: "Bob" },
+  ],
+};
 
 const createMockTask = (
   overrides: Partial<{
@@ -62,6 +80,12 @@ const createMockPlan = (
 describe("TimelineList", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUpdateTask.mockImplementation(
+      (_projectId: string, taskId: string, updates: { assignee?: string | null }) =>
+        Promise.resolve(
+          createMockTask({ id: taskId, assignee: updates.assignee ?? null }) as never
+        )
+    );
   });
 
   it("renders section headers only for non-empty sections", () => {
@@ -71,7 +95,9 @@ describe("TimelineList", () => {
     ];
     const plans = [createMockPlan("epic-1", "Auth Epic")];
 
-    render(<TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} />);
+    renderWithProviders(
+      <TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} {...defaultListProps} />
+    );
 
     expect(screen.getByTestId("timeline-section-active")).toBeInTheDocument();
     expect(screen.getByTestId("timeline-section-completed")).toBeInTheDocument();
@@ -91,7 +117,9 @@ describe("TimelineList", () => {
     ];
     const plans = [createMockPlan("epic-1", "Auth Epic")];
 
-    render(<TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} />);
+    renderWithProviders(
+      <TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} {...defaultListProps} />
+    );
 
     expect(screen.getByRole("heading", { name: "In Progress" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Ready" })).toBeInTheDocument();
@@ -105,7 +133,9 @@ describe("TimelineList", () => {
     ];
     const plans = [createMockPlan("epic-1", "Auth Epic")];
 
-    render(<TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} />);
+    renderWithProviders(
+      <TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} {...defaultListProps} />
+    );
 
     expect(screen.getByRole("heading", { name: "In Progress" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Up Next" })).toBeInTheDocument();
@@ -127,7 +157,9 @@ describe("TimelineList", () => {
       createMockPlan("epic-planning", "Planning Epic", "planning"),
     ];
 
-    render(<TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} />);
+    renderWithProviders(
+      <TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} {...defaultListProps} />
+    );
 
     expect(screen.getByRole("heading", { name: "Planning" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Completed" })).toBeInTheDocument();
@@ -153,7 +185,9 @@ describe("TimelineList", () => {
     ];
     const plans = [createMockPlan("epic-1", "Authentication")];
 
-    render(<TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} />);
+    renderWithProviders(
+      <TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} {...defaultListProps} />
+    );
 
     expect(screen.getByText("Implement login")).toBeInTheDocument();
     expect(screen.getByTitle("In Progress")).toBeInTheDocument();
@@ -172,7 +206,9 @@ describe("TimelineList", () => {
     ];
     const plans = [createMockPlan("epic-1", "Auth Epic")];
 
-    render(<TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} />);
+    renderWithProviders(
+      <TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} {...defaultListProps} />
+    );
 
     expect(screen.getByText("Auth Epic")).toBeInTheDocument();
   });
@@ -189,7 +225,9 @@ describe("TimelineList", () => {
     ];
     const plans: Plan[] = [];
 
-    render(<TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} />);
+    renderWithProviders(
+      <TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} {...defaultListProps} />
+    );
 
     expect(screen.getByText("Task without epic")).toBeInTheDocument();
     expect(screen.queryByText("—")).not.toBeInTheDocument();
@@ -206,7 +244,9 @@ describe("TimelineList", () => {
     ];
     const plans = [createMockPlan("epic-1", "Auth")];
 
-    render(<TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} />);
+    renderWithProviders(
+      <TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} {...defaultListProps} />
+    );
 
     expect(screen.getByRole("img", { name: "Complex complexity" })).toBeInTheDocument();
   });
@@ -217,7 +257,9 @@ describe("TimelineList", () => {
     const tasks = [createMockTask({ id: "task-xyz", title: "Click me", kanbanColumn: "ready" })];
     const plans: Plan[] = [];
 
-    render(<TimelineList tasks={tasks} plans={plans} onTaskSelect={onTaskSelect} />);
+    renderWithProviders(
+      <TimelineList tasks={tasks} plans={plans} onTaskSelect={onTaskSelect} {...defaultListProps} />
+    );
 
     await user.click(screen.getByText("Click me"));
 
@@ -232,8 +274,14 @@ describe("TimelineList", () => {
     ];
     const plans: Plan[] = [];
 
-    render(
-      <TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} onUnblock={onUnblock} />
+    renderWithProviders(
+      <TimelineList
+        tasks={tasks}
+        plans={plans}
+        onTaskSelect={vi.fn()}
+        onUnblock={onUnblock}
+        {...defaultListProps}
+      />
     );
 
     const unblockBtn = screen.getByRole("button", { name: "Retry" });
@@ -250,7 +298,15 @@ describe("TimelineList", () => {
     ];
     const plans = [createMockPlan("epic-1", "Auth")];
 
-    render(<TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} statusFilter="all" />);
+    renderWithProviders(
+      <TimelineList
+        tasks={tasks}
+        plans={plans}
+        onTaskSelect={vi.fn()}
+        statusFilter="all"
+        {...defaultListProps}
+      />
+    );
 
     expect(screen.getByTestId("timeline-section-blocked")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Failures" })).toBeInTheDocument();
@@ -266,7 +322,15 @@ describe("TimelineList", () => {
     ];
     const plans = [createMockPlan("epic-1", "Auth")];
 
-    render(<TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} statusFilter="all" />);
+    renderWithProviders(
+      <TimelineList
+        tasks={tasks}
+        plans={plans}
+        onTaskSelect={vi.fn()}
+        statusFilter="all"
+        {...defaultListProps}
+      />
+    );
 
     expect(screen.queryByTestId("timeline-section-blocked")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Failures" })).not.toBeInTheDocument();
@@ -279,7 +343,15 @@ describe("TimelineList", () => {
     ];
     const plans = [createMockPlan("epic-1", "Auth")];
 
-    render(<TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} statusFilter="all" />);
+    renderWithProviders(
+      <TimelineList
+        tasks={tasks}
+        plans={plans}
+        onTaskSelect={vi.fn()}
+        statusFilter="all"
+        {...defaultListProps}
+      />
+    );
 
     expect(screen.getByTestId("timeline-section-blocked")).toBeInTheDocument();
     expect(screen.getByTestId("timeline-section-ready")).toBeInTheDocument();
@@ -300,8 +372,14 @@ describe("TimelineList", () => {
     ];
     const plans = [createMockPlan("epic-1", "Auth")];
 
-    render(
-      <TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} statusFilter="blocked" />
+    renderWithProviders(
+      <TimelineList
+        tasks={tasks}
+        plans={plans}
+        onTaskSelect={vi.fn()}
+        statusFilter="blocked"
+        {...defaultListProps}
+      />
     );
 
     expect(screen.getByTestId("timeline-section-blocked")).toBeInTheDocument();
@@ -322,13 +400,14 @@ describe("TimelineList", () => {
     const plans = [createMockPlan("epic-1", "Auth")];
     const scrollRef = { current: null };
 
-    render(
+    renderWithProviders(
       <TimelineList
         tasks={tasks}
         plans={plans}
         onTaskSelect={vi.fn()}
         scrollRef={scrollRef}
         statusFilter="all"
+        {...defaultListProps}
       />
     );
 
@@ -341,7 +420,9 @@ describe("TimelineList", () => {
   it("empty tasks array renders nothing", () => {
     const plans = [createMockPlan("epic-1", "Auth")];
 
-    const { container } = render(<TimelineList tasks={[]} plans={plans} onTaskSelect={vi.fn()} />);
+    const { container } = renderWithProviders(
+      <TimelineList tasks={[]} plans={plans} onTaskSelect={vi.fn()} {...defaultListProps} />
+    );
 
     expect(screen.queryByTestId("timeline-list")).not.toBeInTheDocument();
     expect(container.firstChild).toBeNull();
@@ -349,7 +430,9 @@ describe("TimelineList", () => {
 
   it("renders timeline-list container with data-testid", () => {
     const tasks = [createMockTask({ id: "t1", kanbanColumn: "ready" })];
-    render(<TimelineList tasks={tasks} plans={[]} onTaskSelect={vi.fn()} />);
+    renderWithProviders(
+      <TimelineList tasks={tasks} plans={[]} onTaskSelect={vi.fn()} {...defaultListProps} />
+    );
 
     expect(screen.getByTestId("timeline-list")).toBeInTheDocument();
   });
@@ -359,9 +442,40 @@ describe("TimelineList", () => {
       createMockTask({ id: "task-a", kanbanColumn: "in_progress" }),
       createMockTask({ id: "task-b", kanbanColumn: "done" }),
     ];
-    render(<TimelineList tasks={tasks} plans={[]} onTaskSelect={vi.fn()} />);
+    renderWithProviders(
+      <TimelineList tasks={tasks} plans={[]} onTaskSelect={vi.fn()} {...defaultListProps} />
+    );
 
     expect(screen.getByTestId("timeline-row-task-a")).toBeInTheDocument();
     expect(screen.getByTestId("timeline-row-task-b")).toBeInTheDocument();
+  });
+
+  it("task row shows assignee; click opens dropdown; selection updates task", async () => {
+    const user = userEvent.setup();
+    const tasks = [
+      createMockTask({
+        id: "task-1",
+        title: "Assign me",
+        kanbanColumn: "ready",
+        assignee: null,
+      }),
+    ];
+    renderWithProviders(
+      <TimelineList tasks={tasks} plans={[]} onTaskSelect={vi.fn()} {...defaultListProps} />
+    );
+
+    expect(screen.getByTestId("task-row-assignee")).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("assignee-dropdown-trigger"));
+    expect(screen.getByTestId("assignee-dropdown")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("assignee-option-alice"));
+
+    await waitFor(() => {
+      expect(mockUpdateTask).toHaveBeenCalledWith("proj-1", "task-1", {
+        assignee: "Alice",
+      });
+    });
   });
 });

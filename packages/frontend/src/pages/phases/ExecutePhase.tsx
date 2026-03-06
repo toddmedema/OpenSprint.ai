@@ -519,6 +519,8 @@ export function ExecutePhase({
                 statusFilter={statusFilter}
                 scrollRef={executeScrollRef}
                 selectedTaskId={effectiveSelectedTask}
+                projectId={projectId}
+                teamMembers={projectSettingsQuery.data?.teamMembers ?? []}
               />
             </>
           )}
