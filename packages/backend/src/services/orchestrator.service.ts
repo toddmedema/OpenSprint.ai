@@ -22,6 +22,7 @@ import {
   getProviderForAgentType,
   AGENT_NAMES,
   AGENT_NAMES_BY_ROLE,
+  isAgentAssignee,
   OPEN_QUESTION_BLOCK_REASON,
   REVIEW_ANGLE_OPTIONS,
   type PlanComplexity,
@@ -1496,6 +1497,8 @@ export class OrchestratorService {
       readyTasks = readyTasks.filter((t) => (t.status as string) !== "blocked");
       // Exclude tasks that already have an active slot
       readyTasks = readyTasks.filter((t) => !state.slots.has(t.id));
+      // Exclude human-assigned tasks from agent dispatch
+      readyTasks = readyTasks.filter((t) => !t.assignee || isAgentAssignee(t.assignee));
 
       state.status.queueDepth = readyTasks.length;
 

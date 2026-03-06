@@ -818,6 +818,77 @@ describe("OrchestratorService (slot-based model)", () => {
     });
   });
 
+  describe("human-assigned filter", () => {
+    it("excludes ready tasks with human assignee from agent dispatch", async () => {
+      const task = makeTask("task-1");
+      (task as { assignee: string | null }).assignee = "alice";
+      mockTaskStoreReady.mockResolvedValue([task]);
+      mockCreateTaskWorktree.mockResolvedValue(`/tmp/opensprint-worktrees/task-1`);
+      mockGetActiveDir.mockReturnValue(`${repoPath}/.opensprint/active/task-1`);
+      mockWriteJsonAtomic.mockResolvedValue(undefined);
+      mockInvokeCodingAgent.mockImplementation(
+        (_prompt: string, _config: unknown, _opts: { onExit: (code: number | null) => void }) => ({
+          kill: vi.fn(),
+          pid: 12345,
+        })
+      );
+
+      await orchestrator.ensureRunning(projectId);
+
+      await vi.waitFor(() => {
+        expect(mockBroadcastToProject).toHaveBeenCalled();
+      });
+
+      // Human-assigned task must not be dispatched: no worktree created, no active task
+      expect(mockCreateTaskWorktree).not.toHaveBeenCalled();
+      expect(mockBroadcastToProject).toHaveBeenCalledWith(
+        projectId,
+        expect.objectContaining({
+          type: "execute.status",
+          activeTasks: [],
+        })
+      );
+    });
+
+    it("includes ready tasks with agent assignee or unassigned in agent dispatch", async () => {
+      const taskWithAgent = makeTask("task-agent");
+      (taskWithAgent as { assignee: string | null }).assignee = "Frodo";
+      const taskUnassigned = makeTask("task-unassigned");
+      mockTaskStoreReady.mockResolvedValue([taskWithAgent, taskUnassigned]);
+      mockCreateTaskWorktree.mockImplementation(async (_repo: string, taskId: string) =>
+        `/tmp/opensprint-worktrees/${taskId}`
+      );
+      mockGetActiveDir.mockImplementation((base: string, tid: string) =>
+        path.join(base, ".opensprint", "active", tid)
+      );
+      mockWriteJsonAtomic.mockResolvedValue(undefined);
+      mockInvokeCodingAgent.mockImplementation(
+        (_prompt: string, _config: unknown, _opts: { onExit: (code: number | null) => void }) => ({
+          kill: vi.fn(),
+          pid: 12345,
+        })
+      );
+
+      await orchestrator.ensureRunning(projectId);
+
+      await vi.waitFor(() => {
+        expect(mockCreateTaskWorktree).toHaveBeenCalled();
+      });
+
+      // Agent-assigned or unassigned tasks are dispatched
+      expect(mockCreateTaskWorktree).toHaveBeenCalled();
+      expect(mockBroadcastToProject).toHaveBeenCalledWith(
+        projectId,
+        expect.objectContaining({
+          type: "execute.status",
+          activeTasks: expect.arrayContaining([
+            expect.objectContaining({ taskId: expect.any(String), phase: "coding" }),
+          ]),
+        })
+      );
+    });
+  });
+
   describe("branches mode maxSlots=1", () => {
     it("enforces maxSlots=1 regardless of maxConcurrentCoders when gitWorkingMode is branches", async () => {
       const task1 = makeTask("task-1");
