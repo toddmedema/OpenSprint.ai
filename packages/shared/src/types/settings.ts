@@ -576,7 +576,8 @@ function parseReviewAngles(raw: unknown): ReviewAngle[] | undefined {
   return filtered.length > 0 ? filtered : undefined;
 }
 
-function parseTeamMembers(raw: unknown): Array<{ id: string; name: string }> | undefined {
+/** Parse and validate teamMembers array. Filters invalid entries, trims id/name. Exported for use in project.service. */
+export function parseTeamMembers(raw: unknown): Array<{ id: string; name: string }> | undefined {
   if (!Array.isArray(raw) || raw.length === 0) return undefined;
   const result: Array<{ id: string; name: string }> = [];
   for (const item of raw) {

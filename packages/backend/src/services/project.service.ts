@@ -22,6 +22,7 @@ import {
   getTestCommandForFramework,
   hilConfigFromAiAutonomyLevel,
   parseSettings,
+  parseTeamMembers,
   getProvidersRequiringApiKeys,
 } from "@opensprint/shared";
 import type { ApiKeyProvider } from "@opensprint/shared";
@@ -891,6 +892,8 @@ export class ProjectService {
       updates.gitWorkingMode === "worktree" || updates.gitWorkingMode === "branches"
         ? updates.gitWorkingMode
         : (current.gitWorkingMode ?? "worktree");
+    const teamMembers =
+      updates.teamMembers !== undefined ? parseTeamMembers(updates.teamMembers) : current.teamMembers;
     const effectiveSettings: ProjectSettings = {
       ...current,
       ...updates,
@@ -899,6 +902,7 @@ export class ProjectService {
       aiAutonomyLevel,
       hilConfig,
       gitWorkingMode,
+      teamMembers,
     };
     const updated: ProjectSettings = {
       ...effectiveSettings,

@@ -578,6 +578,29 @@ describe.skipIf(!projectServicePostgresOk)("ProjectService", () => {
     expect(reloaded.hilConfig.scopeChanges).toBe("requires_approval");
   });
 
+  it("should accept and persist teamMembers in updateSettings", async () => {
+    const repoPath = path.join(tempDir, "team-members");
+    const project = await projectService.createProject({
+      name: "Team Members",
+      repoPath,
+      simpleComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      complexComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    const teamMembers = [{ id: "alice", name: "Alice" }];
+    const updated = await projectService.updateSettings(project.id, { teamMembers });
+
+    expect(updated.teamMembers).toEqual(teamMembers);
+
+    const reloaded = await projectService.getSettings(project.id);
+    expect(reloaded.teamMembers).toEqual(teamMembers);
+
+    const settings = await readSettingsFromGlobalStore(tempDir, project.id);
+    expect(settings.teamMembers).toEqual(teamMembers);
+  });
+
   it("should strip testFailuresAndRetries from hilConfig when reading settings (PRD §6.5.1)", async () => {
     const repoPath = path.join(tempDir, "hil-read-strip");
     const project = await projectService.createProject({
