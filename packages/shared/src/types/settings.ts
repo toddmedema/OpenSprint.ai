@@ -6,6 +6,8 @@ export interface AgentConfig {
   type: AgentType;
   model: string | null;
   cliCommand: string | null;
+  /** LM Studio server URL when type === "lmstudio". Default (applied in backend/frontend): http://localhost:1234 */
+  baseUrl?: string;
 }
 
 /** Agent configuration input for project creation */
