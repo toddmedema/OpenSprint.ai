@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import { isAgentAssignee } from "@opensprint/shared";
 import { toPgParams } from "../db/index.js";
 import { TaskStoreService } from "../services/task-store.service.js";
 import { createTestPostgresClient, createTestProjectId } from "./test-db-helper.js";
@@ -705,6 +706,33 @@ suite("TaskStoreService", () => {
       const ready = await store.ready(TEST_PROJECT_ID);
       expect(ready.map((t) => t.title)).toContain("Task in open epic");
       expect(ready.map((t) => t.title)).not.toContain("Task in blocked epic");
+    });
+
+    it("human-assigned task excluded from agent dispatch queue; unassign makes it appear", async () => {
+      const task = await store.create(TEST_PROJECT_ID, "Human-assigned task", { type: "task" });
+      expect(task.assignee).toBeNull();
+
+      // Simulate PATCH assignee=alice (human)
+      await store.update(TEST_PROJECT_ID, task.id, { assignee: "alice" });
+      const readyWithHuman = await store.ready(TEST_PROJECT_ID);
+      expect(readyWithHuman.map((t) => t.id)).toContain(task.id);
+
+      // Orchestrator filter: exclude human-assigned from dispatched set
+      const dispatchedWithHuman = readyWithHuman.filter(
+        (t) => !t.assignee || isAgentAssignee(t.assignee)
+      );
+      expect(dispatchedWithHuman.map((t) => t.id)).not.toContain(task.id);
+
+      // Unassign (assignee=null/empty)
+      await store.update(TEST_PROJECT_ID, task.id, { assignee: "" });
+      const readyUnassigned = await store.ready(TEST_PROJECT_ID);
+      expect(readyUnassigned.map((t) => t.id)).toContain(task.id);
+
+      // Task now appears in dispatched set
+      const dispatchedUnassigned = readyUnassigned.filter(
+        (t) => !t.assignee || isAgentAssignee(t.assignee)
+      );
+      expect(dispatchedUnassigned.map((t) => t.id)).toContain(task.id);
     });
   });
 
