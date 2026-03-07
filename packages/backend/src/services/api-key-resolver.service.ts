@@ -4,7 +4,8 @@
  * Project-level apiKeys removed; keys live in global-settings.json only.
  * - getNextKey(projectId, provider, options): first available key (projectId kept for API compatibility)
  * - recordLimitHit(projectId, provider, keyId, source): set limitHitAt in global store
- * - clearLimitHit(projectId, provider, keyId, source): clear limitHitAt in global store
+ * - recordInvalidKey(projectId, provider, keyId, source): set invalidAt in global store
+ * - clearLimitHit(projectId, provider, keyId, source): clear key disable markers in global store
  */
 import type { ApiKeyProvider, ApiKeyEntry, GlobalSettings } from "@opensprint/shared";
 import { isLimitHitExpired } from "@opensprint/shared";
@@ -38,6 +39,7 @@ function findAvailable(
   return entries.find(
     (e) =>
       Boolean(e.value.trim()) &&
+      !e.invalidAt &&
       (includeRateLimited || !e.limitHitAt || isLimitHitExpired(e.limitHitAt))
   );
 }
@@ -97,7 +99,31 @@ export async function recordLimitHit(
 }
 
 /**
- * Clear limitHitAt for the given key on successful API use.
+ * Record that the provider rejected the key as invalid. Sets invalidAt to now and clears limitHitAt.
+ * Writes to global store only. No-op for env keys.
+ */
+export async function recordInvalidKey(
+  _projectId: string,
+  provider: ApiKeyProvider,
+  keyId: string,
+  source: KeySource = "global"
+): Promise<void> {
+  if (keyId === ENV_FALLBACK_KEY_ID || source === "env") return;
+
+  await atomicUpdateGlobalSettings((gs: GlobalSettings) => {
+    const entries = gs.apiKeys?.[provider];
+    if (!entries) return gs;
+    const updated = entries.map((e) => {
+      if (e.id !== keyId) return e;
+      const { limitHitAt: _limitHitAt, ...rest } = e;
+      return { ...rest, invalidAt: new Date().toISOString() };
+    });
+    return { ...gs, apiKeys: { ...gs.apiKeys, [provider]: updated } };
+  });
+}
+
+/**
+ * Clear key disable markers for the given key on successful API use.
  * Writes to global store only. No-op for env keys.
  */
 export async function clearLimitHit(
@@ -113,7 +139,7 @@ export async function clearLimitHit(
     if (!entries) return gs;
     const updated = entries.map((e) => {
       if (e.id !== keyId) return e;
-      const { limitHitAt: _limitHitAt, ...rest } = e;
+      const { limitHitAt: _limitHitAt, invalidAt: _invalidAt, ...rest } = e;
       return rest as ApiKeyEntry;
     });
     return { ...gs, apiKeys: { ...gs.apiKeys, [provider]: updated } };

@@ -234,6 +234,7 @@ export function GlobalSettingsContent({ onSaveStateChange }: GlobalSettingsConte
           const preserved: ApiKeyUpdateEntry = {
             id,
             ...(entry.limitHitAt ? { limitHitAt: entry.limitHitAt } : {}),
+            ...(entry.invalidAt ? { invalidAt: entry.invalidAt } : {}),
           };
           if ("value" in entry && typeof entry.value === "string" && entry.value) {
             preserved.value = entry.value;
@@ -249,6 +250,7 @@ export function GlobalSettingsContent({ onSaveStateChange }: GlobalSettingsConte
         const normalized: ApiKeyUpdateEntry = {
           id,
           ...(entry.limitHitAt ? { limitHitAt: entry.limitHitAt } : {}),
+          ...(entry.invalidAt ? { invalidAt: entry.invalidAt } : {}),
         };
         if (typeof entry.value === "string" && entry.value) {
           normalized.value = entry.value;

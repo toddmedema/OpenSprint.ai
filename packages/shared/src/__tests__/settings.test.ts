@@ -760,6 +760,19 @@ describe("validateApiKeyEntry", () => {
     });
   });
 
+  it("accepts entry with invalidAt", () => {
+    const entry = validateApiKeyEntry({
+      id: "b3",
+      value: "key",
+      invalidAt: "2025-02-25T12:00:00Z",
+    });
+    expect(entry).toEqual({
+      id: "b3",
+      value: "key",
+      invalidAt: "2025-02-25T12:00:00Z",
+    });
+  });
+
   it("trims id", () => {
     const entry = validateApiKeyEntry({ id: "  x  ", value: "v" });
     expect(entry.id).toBe("x");
@@ -785,6 +798,12 @@ describe("validateApiKeyEntry", () => {
       validateApiKeyEntry({ id: "x", value: "secret", limitHitAt: 123 })
     ).toThrow("limitHitAt must be a string");
   });
+
+  it("throws when invalidAt is present but not a string", () => {
+    expect(() =>
+      validateApiKeyEntry({ id: "x", value: "secret", invalidAt: 123 })
+    ).toThrow("invalidAt must be a string");
+  });
 });
 
 describe("mergeApiKeysWithCurrent", () => {
@@ -799,18 +818,22 @@ describe("mergeApiKeysWithCurrent", () => {
 
   it("preserves value when id exists and value omitted (masked)", () => {
     const current: ApiKeys = {
-      ANTHROPIC_API_KEY: [{ id: "k1", value: "sk-ant-secret" }],
+      ANTHROPIC_API_KEY: [
+        { id: "k1", value: "sk-ant-secret", invalidAt: "2025-02-25T12:00:00Z" },
+      ],
     };
     const incoming = {
       ANTHROPIC_API_KEY: [{ id: "k1", masked: "••••••••" }],
     };
     const result = mergeApiKeysWithCurrent(incoming, current);
-    expect(result?.ANTHROPIC_API_KEY).toEqual([{ id: "k1", value: "sk-ant-secret" }]);
+    expect(result?.ANTHROPIC_API_KEY).toEqual([
+      { id: "k1", value: "sk-ant-secret", invalidAt: "2025-02-25T12:00:00Z" },
+    ]);
   });
 
   it("replaces value when new value provided", () => {
     const current: ApiKeys = {
-      ANTHROPIC_API_KEY: [{ id: "k1", value: "old" }],
+      ANTHROPIC_API_KEY: [{ id: "k1", value: "old", invalidAt: "2025-02-25T12:00:00Z" }],
     };
     const incoming = {
       ANTHROPIC_API_KEY: [{ id: "k1", value: "new-secret" }],
@@ -981,18 +1004,28 @@ describe("maskApiKeysForResponse", () => {
     expect(maskApiKeysForResponse({})).toBeUndefined();
   });
 
-  it("masks values and preserves id and limitHitAt", () => {
+  it("masks values and preserves id and marker timestamps", () => {
     const apiKeys: ApiKeys = {
       ANTHROPIC_API_KEY: [
         { id: "k1", value: "sk-ant-secret" },
-        { id: "k2", value: "sk-ant-other", limitHitAt: "2025-02-25T12:00:00Z" },
+        {
+          id: "k2",
+          value: "sk-ant-other",
+          limitHitAt: "2025-02-25T12:00:00Z",
+          invalidAt: "2025-02-26T12:00:00Z",
+        },
       ],
     };
     const masked = maskApiKeysForResponse(apiKeys);
     expect(masked).toEqual({
       ANTHROPIC_API_KEY: [
         { id: "k1", masked: "••••••••" },
-        { id: "k2", masked: "••••••••", limitHitAt: "2025-02-25T12:00:00Z" },
+        {
+          id: "k2",
+          masked: "••••••••",
+          limitHitAt: "2025-02-25T12:00:00Z",
+          invalidAt: "2025-02-26T12:00:00Z",
+        },
       ],
     });
   });

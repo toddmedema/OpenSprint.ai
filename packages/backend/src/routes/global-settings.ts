@@ -52,7 +52,7 @@ globalSettingsRouter.get("/reveal-key/:provider/:id", async (req, res, next) => 
   }
 });
 
-// POST /global-settings/clear-limit-hit/:provider/:id — Clears limitHitAt for a rate-limited key so it can be retried.
+// POST /global-settings/clear-limit-hit/:provider/:id — Clears key disable markers so it can be retried.
 // On success, clears exhausted state for that provider and nudges the orchestrator for all projects
 // so work can resume promptly after API access is restored.
 globalSettingsRouter.post("/clear-limit-hit/:provider/:id", async (req, res, next) => {

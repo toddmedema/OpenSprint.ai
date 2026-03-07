@@ -5,6 +5,7 @@ import os from "os";
 import {
   getNextKey,
   recordLimitHit,
+  recordInvalidKey,
   clearLimitHit,
   ENV_FALLBACK_KEY_ID,
 } from "../services/api-key-resolver.service.js";
@@ -47,6 +48,19 @@ describe("ApiKeyResolver", () => {
       await setGlobalSettings({
         apiKeys: {
           ANTHROPIC_API_KEY: [{ id: "g1", value: "sk-ant-global", limitHitAt: recent }],
+        },
+      });
+      process.env.ANTHROPIC_API_KEY = "env-key-value";
+
+      const result = await getNextKey(projectId, "ANTHROPIC_API_KEY");
+      expect(result).toBeNull();
+    });
+
+    it("returns null when all global keys are marked invalid (no env fallback)", async () => {
+      const recent = new Date(Date.now() - 1 * 60 * 1000).toISOString();
+      await setGlobalSettings({
+        apiKeys: {
+          ANTHROPIC_API_KEY: [{ id: "g1", value: "sk-ant-global", invalidAt: recent }],
         },
       });
       process.env.ANTHROPIC_API_KEY = "env-key-value";
@@ -210,6 +224,33 @@ describe("ApiKeyResolver", () => {
     });
   });
 
+  describe("recordInvalidKey — global store only", () => {
+    it("sets invalidAt and rotates to next key when source is global", async () => {
+      await setGlobalSettings({
+        apiKeys: {
+          ANTHROPIC_API_KEY: [
+            { id: "g1", value: "sk-ant-a" },
+            { id: "g2", value: "sk-ant-b" },
+          ],
+        },
+      });
+
+      await recordInvalidKey(projectId, "ANTHROPIC_API_KEY", "g1", "global");
+
+      const gs = await getGlobalSettings();
+      expect(gs.apiKeys?.ANTHROPIC_API_KEY?.[0]?.invalidAt).toBeDefined();
+      expect(gs.apiKeys?.ANTHROPIC_API_KEY?.[1]?.invalidAt).toBeUndefined();
+
+      const result = await getNextKey(projectId, "ANTHROPIC_API_KEY");
+      expect(result).toEqual({ key: "sk-ant-b", keyId: "g2", source: "global" });
+    });
+
+    it("is no-op when source is env", async () => {
+      await recordInvalidKey(projectId, "ANTHROPIC_API_KEY", ENV_FALLBACK_KEY_ID, "env");
+      await recordInvalidKey(projectId, "ANTHROPIC_API_KEY", "k1", "env");
+    });
+  });
+
   describe("clearLimitHit — global store only", () => {
     it("clears limitHitAt in global store when source is 'global'", async () => {
       const recent = new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString();
@@ -217,6 +258,23 @@ describe("ApiKeyResolver", () => {
         apiKeys: {
           ANTHROPIC_API_KEY: [
             { id: "g1", value: "sk-ant-a", limitHitAt: recent },
+            { id: "g2", value: "sk-ant-b" },
+          ],
+        },
+      });
+
+      await clearLimitHit(projectId, "ANTHROPIC_API_KEY", "g1", "global");
+
+      const result = await getNextKey(projectId, "ANTHROPIC_API_KEY");
+      expect(result).toEqual({ key: "sk-ant-a", keyId: "g1", source: "global" });
+    });
+
+    it("also clears invalidAt for invalid-marked keys", async () => {
+      const recent = new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString();
+      await setGlobalSettings({
+        apiKeys: {
+          ANTHROPIC_API_KEY: [
+            { id: "g1", value: "sk-ant-a", invalidAt: recent },
             { id: "g2", value: "sk-ant-b" },
           ],
         },

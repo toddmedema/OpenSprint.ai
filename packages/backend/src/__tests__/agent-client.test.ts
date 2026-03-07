@@ -20,9 +20,10 @@ vi.mock("../services/agent-process-registry.js", () => ({
   unregisterAgentProcess: vi.fn(),
 }));
 
-const { mockGetNextKey, mockRecordLimitHit, mockClearLimitHit } = vi.hoisted(() => ({
+const { mockGetNextKey, mockRecordLimitHit, mockRecordInvalidKey, mockClearLimitHit } = vi.hoisted(() => ({
   mockGetNextKey: vi.fn(),
   mockRecordLimitHit: vi.fn(),
+  mockRecordInvalidKey: vi.fn(),
   mockClearLimitHit: vi.fn(),
 }));
 
@@ -47,6 +48,7 @@ vi.mock("openai", () => ({
 vi.mock("../services/api-key-resolver.service.js", () => ({
   getNextKey: (...args: unknown[]) => mockGetNextKey(...args),
   recordLimitHit: (...args: unknown[]) => mockRecordLimitHit(...args),
+  recordInvalidKey: (...args: unknown[]) => mockRecordInvalidKey(...args),
   clearLimitHit: (...args: unknown[]) => mockClearLimitHit(...args),
   ENV_FALLBACK_KEY_ID: "__env__",
 }));
@@ -187,6 +189,34 @@ describe("AgentClient", () => {
         expect.any(Array),
         expect.objectContaining({ cwd: "/tmp" })
       );
+      expect(result.content).toContain("Cursor response");
+    });
+
+    it("should map cursor null model to explicit auto", async () => {
+      const mockChild = {
+        killed: false,
+        kill: vi.fn(),
+        stdout: {
+          on: vi.fn((_ev: string, fn: (d: Buffer) => void) => fn(Buffer.from("Cursor response"))),
+        },
+        stderr: { on: vi.fn() },
+        on: vi.fn((ev: string, fn: (code: number) => void) => {
+          if (ev === "close") setTimeout(() => fn(0), 0);
+          return { on: vi.fn() };
+        }),
+      };
+      mockSpawn.mockReturnValue(mockChild);
+
+      const result = await client.invoke({
+        config: { type: "cursor", model: null, cliCommand: null },
+        prompt: "Hello",
+        cwd: "/tmp",
+      });
+
+      const args = mockSpawn.mock.calls[0][1] as string[];
+      const modelIndex = args.indexOf("--model");
+      expect(modelIndex).toBeGreaterThanOrEqual(0);
+      expect(args[modelIndex + 1]).toBe("auto");
       expect(result.content).toContain("Cursor response");
     });
 
@@ -495,6 +525,37 @@ describe("AgentClient", () => {
       await fs.rm(tmpDir, { recursive: true, force: true });
     });
 
+    it("should pass --model auto for Cursor task-file spawn when model is null", async () => {
+      const fs = await import("fs/promises");
+      const path = await import("path");
+      const os = await import("os");
+      const tmpDir = path.join(os.tmpdir(), `agent-client-cursor-auto-${Date.now()}`);
+      await fs.mkdir(path.dirname(path.join(tmpDir, ".opensprint/active/bd-a3f8.1/prompt.md")), {
+        recursive: true,
+      });
+      const taskFilePath = path.join(tmpDir, ".opensprint/active/bd-a3f8.1/prompt.md");
+      await fs.writeFile(taskFilePath, "# Task\n\nImplement login", "utf-8");
+
+      const mockChild = {
+        killed: false,
+        kill: vi.fn(),
+        stdout: { on: vi.fn() },
+        stderr: { on: vi.fn() },
+        on: vi.fn(() => ({ on: vi.fn() })),
+      };
+      mockSpawn.mockReturnValue(mockChild);
+
+      const config: AgentConfig = { type: "cursor", model: null, cliCommand: null };
+      client.spawnWithTaskFile(config, taskFilePath, tmpDir, vi.fn(), vi.fn());
+
+      const args = mockSpawn.mock.calls[0][1] as string[];
+      const modelIndex = args.indexOf("--model");
+      expect(modelIndex).toBeGreaterThanOrEqual(0);
+      expect(args[modelIndex + 1]).toBe("auto");
+
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    });
+
     it("should spawn custom agent with cliCommand and task file path", () => {
       const mockChild = {
         killed: false,
@@ -582,6 +643,67 @@ describe("AgentClient", () => {
         "proj-openai",
         "OPENAI_API_KEY",
         "k1",
+        "global"
+      );
+
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it("rotates to next OpenAI key when first key is invalid in spawnWithTaskFile", async () => {
+      const fs = await import("fs/promises");
+      const path = await import("path");
+      const os = await import("os");
+      const tmpDir = path.join(os.tmpdir(), `agent-client-openai-auth-${Date.now()}`);
+      const taskDir = path.join(tmpDir, ".opensprint/active/os-auth.1");
+      await fs.mkdir(taskDir, { recursive: true });
+      const taskFilePath = path.join(taskDir, "prompt.md");
+      await fs.writeFile(taskFilePath, "# Task\n\nHandle auth retry", "utf-8");
+
+      mockGetNextKey
+        .mockResolvedValueOnce({ key: "sk-openai-bad", keyId: "k1", source: "global" })
+        .mockResolvedValueOnce({ key: "sk-openai-good", keyId: "k2", source: "global" });
+      mockOpenAICreate
+        .mockRejectedValueOnce(new Error("401 invalid_api_key"))
+        .mockImplementationOnce(async () => {
+          async function* stream() {
+            yield { choices: [{ delta: { content: "Recovered output" } }] };
+          }
+          return stream();
+        });
+
+      const onOutput = vi.fn();
+      const onExit = vi.fn();
+      const config: AgentConfig = { type: "openai", model: "gpt-4o-mini", cliCommand: null };
+
+      client.spawnWithTaskFile(
+        config,
+        taskFilePath,
+        tmpDir,
+        onOutput,
+        onExit,
+        "coder",
+        undefined,
+        "proj-openai-auth"
+      );
+
+      await vi.waitFor(
+        () => {
+          expect(onExit).toHaveBeenCalledWith(0);
+        },
+        { timeout: 2000 }
+      );
+
+      expect(mockGetNextKey).toHaveBeenCalledTimes(2);
+      expect(mockRecordInvalidKey).toHaveBeenCalledWith(
+        "proj-openai-auth",
+        "OPENAI_API_KEY",
+        "k1",
+        "global"
+      );
+      expect(mockClearLimitHit).toHaveBeenCalledWith(
+        "proj-openai-auth",
+        "OPENAI_API_KEY",
+        "k2",
         "global"
       );
 

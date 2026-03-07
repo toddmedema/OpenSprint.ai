@@ -121,7 +121,9 @@ export function ApiKeysSection({
   );
 
   const getEntriesForProvider = useCallback(
-    (provider: ApiKeyProvider): Array<{ id: string; value: string; limitHitAt?: string }> => {
+    (
+      provider: ApiKeyProvider
+    ): Array<{ id: string; value: string; limitHitAt?: string; invalidAt?: string }> => {
       const existing =
         (apiKeys as Record<string, MaskedApiKeyEntry[]> | undefined)?.[provider] ?? [];
       const added = newKeys[provider] ?? [];
@@ -135,12 +137,14 @@ export function ApiKeysSection({
             id: e.id,
             value,
             limitHitAt: e.limitHitAt,
+            invalidAt: raw.invalidAt,
           };
         }),
         ...addedOnly.map((e) => ({
           id: e.id,
           value: e.value,
           limitHitAt: undefined as string | undefined,
+          invalidAt: undefined as string | undefined,
         })),
       ];
     },
@@ -150,7 +154,7 @@ export function ApiKeysSection({
   const emitApiKeysForProvider = useCallback(
     (
       provider: ApiKeyProvider,
-      entries: Array<{ id: string; value: string; limitHitAt?: string }>,
+      entries: Array<{ id: string; value: string; limitHitAt?: string; invalidAt?: string }>,
       changedId?: string,
       changedValue?: string
     ) => {
@@ -160,6 +164,7 @@ export function ApiKeysSection({
           id: e.id,
           ...(value && value !== MASKED_PLACEHOLDER ? { value } : {}),
           ...(e.limitHitAt ? { limitHitAt: e.limitHitAt } : {}),
+          ...(e.invalidAt ? { invalidAt: e.invalidAt } : {}),
         };
       });
       onApiKeysChange({ [provider]: payload });
@@ -318,6 +323,31 @@ export function ApiKeysSection({
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-xs text-theme-muted">
                             Limit hit at {formatLimitHitAt(entry.limitHitAt)} — retry after 24h
+                          </p>
+                          {onClearLimitHit && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                setRetryingId(entry.id);
+                                try {
+                                  await onClearLimitHit(provider, entry.id);
+                                } finally {
+                                  setRetryingId(null);
+                                }
+                              }}
+                              disabled={retryingId === entry.id}
+                              className="btn-secondary text-xs py-1 px-2 disabled:opacity-50 disabled:cursor-wait"
+                              data-testid={`api-key-retry-${provider}-${entry.id}`}
+                            >
+                              {retryingId === entry.id ? "Retrying…" : "Retry"}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      {entry.invalidAt && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-xs text-theme-muted">
+                            Marked invalid at {formatLimitHitAt(entry.invalidAt)} — update this key or retry
                           </p>
                           {onClearLimitHit && (
                             <button

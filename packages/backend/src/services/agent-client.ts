@@ -5,7 +5,7 @@ import path from "path";
 import { promisify } from "util";
 import OpenAI from "openai";
 import { GoogleGenAI } from "@google/genai";
-import type { AgentConfig } from "@opensprint/shared";
+import type { AgentConfig, ApiKeyProvider } from "@opensprint/shared";
 import { OPENSPRINT_PATHS } from "@opensprint/shared";
 import { AppError } from "../middleware/error-handler.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
@@ -24,6 +24,7 @@ import {
 import {
   getNextKey,
   recordLimitHit,
+  recordInvalidKey,
   clearLimitHit,
   ENV_FALLBACK_KEY_ID,
   type KeySource,
@@ -178,6 +179,15 @@ function safeGeminiText(obj: { text?: string | (() => string) }): string {
   }
 }
 
+/**
+ * Cursor CLI supports an explicit "auto" model id.
+ * When OpenSprint stores model=null (UI "Auto"), pass --model auto to avoid
+ * inheriting a user-level default model from Cursor CLI config.
+ */
+function resolveCursorModel(model: string | null | undefined): string {
+  return typeof model === "string" && model.trim().length > 0 ? model : "auto";
+}
+
 /** Format raw agent errors into user-friendly messages with remediation hints */
 function formatAgentError(
   agentType: "claude" | "claude-cli" | "cursor" | "custom" | "openai" | "google",
@@ -257,6 +267,54 @@ function buildApiFailureMessages(
     userMessage: `${label} is not configured correctly. Add a valid API key in Settings and try again.`,
     notificationMessage: `${label} needs a valid API key in Settings before work can continue.`,
   };
+}
+
+type RotatableApiErrorKind = "rate_limit" | "auth";
+
+function toRotatableApiErrorKind(err: unknown): RotatableApiErrorKind | null {
+  const kind = classifyAgentApiError(err);
+  return kind === "rate_limit" || kind === "auth" ? kind : null;
+}
+
+function getProviderBlockedMessage(
+  provider: ApiKeyProvider,
+  kind: RotatableApiErrorKind
+): string {
+  const providerLabel =
+    provider === "OPENAI_API_KEY" ? "OpenAI" : provider === "GOOGLE_API_KEY" ? "Google" : "Cursor";
+  if (kind === "rate_limit") {
+    return `Your API key(s) for ${providerLabel} have hit their limit. Please increase your budget or add another key.`;
+  }
+  return `Your API key(s) for ${providerLabel} are invalid. Please update the key in Global settings.`;
+}
+
+async function notifyProviderBlocked(
+  projectId: string,
+  provider: ApiKeyProvider,
+  kind: RotatableApiErrorKind
+): Promise<void> {
+  const notification = await notificationService.createApiBlocked({
+    projectId,
+    source: "execute",
+    sourceId: `api-keys-${provider}`,
+    message: getProviderBlockedMessage(provider, kind),
+    errorCode: kind,
+  });
+  broadcastToProject(projectId, {
+    type: "notification.added",
+    notification: {
+      id: notification.id,
+      projectId: notification.projectId,
+      source: notification.source,
+      sourceId: notification.sourceId,
+      questions: notification.questions,
+      status: notification.status,
+      createdAt: notification.createdAt,
+      resolvedAt: notification.resolvedAt,
+      kind: "api_blocked",
+      errorCode: notification.errorCode,
+    },
+  });
 }
 
 export interface AgentInvokeOptions {
@@ -397,6 +455,7 @@ export class AgentClient {
     projectId: string
   ): { kill: () => void; pid: number | null } {
     let innerHandle: { kill: () => void; pid: number | null } | null = null;
+    let lastApiErrorKind: RotatableApiErrorKind | null = null;
     const handle: { kill: () => void; pid: number | null } = {
       get pid() {
         return innerHandle?.pid ?? null;
@@ -409,31 +468,10 @@ export class AgentClient {
     const trySpawn = async (): Promise<void> => {
       const resolved = await getNextKey(projectId, "CURSOR_API_KEY");
       if (!resolved || !resolved.key.trim()) {
-        log.error("No Cursor API key available for spawn");
+        const blockedKind = lastApiErrorKind ?? "rate_limit";
+        log.error("No Cursor API key available for spawn", { blockedKind });
         markExhausted(projectId, "CURSOR_API_KEY");
-        const notification = await notificationService.createApiBlocked({
-          projectId,
-          source: "execute",
-          sourceId: "api-keys-CURSOR_API_KEY",
-          message:
-            "Your API key(s) for Cursor have hit their limit. Please increase your budget or add another key.",
-          errorCode: "rate_limit",
-        });
-        broadcastToProject(projectId, {
-          type: "notification.added",
-          notification: {
-            id: notification.id,
-            projectId: notification.projectId,
-            source: notification.source,
-            sourceId: notification.sourceId,
-            questions: notification.questions,
-            status: notification.status,
-            createdAt: notification.createdAt,
-            resolvedAt: notification.resolvedAt,
-            kind: "api_blocked",
-            errorCode: notification.errorCode,
-          },
-        });
+        await notifyProviderBlocked(projectId, "CURSOR_API_KEY", blockedKind);
         Promise.resolve(onExit(1)).catch((e) => log.error("onExit failed", { err: e }));
         return;
       }
@@ -460,7 +498,7 @@ export class AgentClient {
           output = stderrCollector.stderr;
         }
         const apiErrorOutput = outputLogPath ? extractExplicitAgentErrors(output) : output;
-        const apiErrorKind = classifyAgentApiError(apiErrorOutput);
+        const apiErrorKind = toRotatableApiErrorKind(apiErrorOutput);
         if (apiErrorOutput && !output.includes("[Agent error:")) {
           onOutput(
             apiErrorOutput
@@ -470,36 +508,17 @@ export class AgentClient {
               .join("")
           );
         }
-        if (apiErrorKind === "rate_limit" && keyId !== ENV_FALLBACK_KEY_ID) {
-          await recordLimitHit(projectId, "CURSOR_API_KEY", keyId, source);
-          const next = await getNextKey(projectId, "CURSOR_API_KEY");
-          if (next) {
-            return trySpawn();
+        if (apiErrorKind && keyId !== ENV_FALLBACK_KEY_ID) {
+          lastApiErrorKind = apiErrorKind;
+          if (apiErrorKind === "rate_limit") {
+            await recordLimitHit(projectId, "CURSOR_API_KEY", keyId, source);
+          } else {
+            await recordInvalidKey(projectId, "CURSOR_API_KEY", keyId, source);
           }
+          const next = await getNextKey(projectId, "CURSOR_API_KEY");
+          if (next) return trySpawn();
           markExhausted(projectId, "CURSOR_API_KEY");
-          const notification = await notificationService.createApiBlocked({
-            projectId,
-            source: "execute",
-            sourceId: "api-keys-CURSOR_API_KEY",
-            message:
-              "Your API key(s) for Cursor have hit their limit. Please increase your budget or add another key.",
-            errorCode: "rate_limit",
-          });
-          broadcastToProject(projectId, {
-            type: "notification.added",
-            notification: {
-              id: notification.id,
-              projectId: notification.projectId,
-              source: notification.source,
-              sourceId: notification.sourceId,
-              questions: notification.questions,
-              status: notification.status,
-              createdAt: notification.createdAt,
-              resolvedAt: notification.resolvedAt,
-              kind: "api_blocked",
-              errorCode: notification.errorCode,
-            },
-          });
+          await notifyProviderBlocked(projectId, "CURSOR_API_KEY", apiErrorKind);
         }
         return Promise.resolve(onExit(code));
       };
@@ -596,39 +615,14 @@ export class AgentClient {
               keyId: ENV_FALLBACK_KEY_ID,
               source: "env" as KeySource,
             };
+        const exhaustedKind = toRotatableApiErrorKind(lastError) ?? "rate_limit";
 
         if (!resolved || !resolved.key.trim()) {
           const msg = lastError ? getErrorMessage(lastError) : "No OpenAI API key available";
           emit(`[Agent error: ${msg}]\n`);
           if (projectId) {
             markExhausted(projectId, "OPENAI_API_KEY");
-            notificationService
-              .createApiBlocked({
-                projectId,
-                source: "execute",
-                sourceId: "api-keys-OPENAI_API_KEY",
-                message:
-                  "Your API key(s) for OpenAI have hit their limit. Please increase your budget or add another key.",
-                errorCode: "rate_limit",
-              })
-              .then((notification) => {
-                broadcastToProject(projectId, {
-                  type: "notification.added",
-                  notification: {
-                    id: notification.id,
-                    projectId: notification.projectId,
-                    source: notification.source,
-                    sourceId: notification.sourceId,
-                    questions: notification.questions,
-                    status: notification.status,
-                    createdAt: notification.createdAt,
-                    resolvedAt: notification.resolvedAt,
-                    kind: "api_blocked",
-                    errorCode: notification.errorCode,
-                  },
-                });
-              })
-              .catch((e) => log.error("Failed to create API-blocked notification", { err: e }));
+            await notifyProviderBlocked(projectId, "OPENAI_API_KEY", exhaustedKind);
           }
           return Promise.resolve(onExit(1)).catch((e) => log.error("onExit failed", { err: e }));
         }
@@ -639,33 +633,7 @@ export class AgentClient {
           emit(`[Agent error: ${msg}]\n`);
           if (projectId) {
             markExhausted(projectId, "OPENAI_API_KEY");
-            notificationService
-              .createApiBlocked({
-                projectId,
-                source: "execute",
-                sourceId: "api-keys-OPENAI_API_KEY",
-                message:
-                  "Your API key(s) for OpenAI have hit their limit. Please increase your budget or add another key.",
-                errorCode: "rate_limit",
-              })
-              .then((notification) => {
-                broadcastToProject(projectId, {
-                  type: "notification.added",
-                  notification: {
-                    id: notification.id,
-                    projectId: notification.projectId,
-                    source: notification.source,
-                    sourceId: notification.sourceId,
-                    questions: notification.questions,
-                    status: notification.status,
-                    createdAt: notification.createdAt,
-                    resolvedAt: notification.resolvedAt,
-                    kind: "api_blocked",
-                    errorCode: notification.errorCode,
-                  },
-                });
-              })
-              .catch((e) => log.error("Failed to create API-blocked notification", { err: e }));
+            await notifyProviderBlocked(projectId, "OPENAI_API_KEY", exhaustedKind);
           }
           return Promise.resolve(onExit(1)).catch((e) => log.error("onExit failed", { err: e }));
         }
@@ -716,8 +684,13 @@ export class AgentClient {
           return Promise.resolve(onExit(0)).catch((e) => log.error("onExit failed", { err: e }));
         } catch (error: unknown) {
           lastError = error;
-          if (isLimitError(error) && keyId !== ENV_FALLBACK_KEY_ID) {
-            await recordLimitHit(projectId!, "OPENAI_API_KEY", keyId, source);
+          const apiErrorKind = toRotatableApiErrorKind(error);
+          if (projectId && apiErrorKind && keyId !== ENV_FALLBACK_KEY_ID) {
+            if (apiErrorKind === "rate_limit") {
+              await recordLimitHit(projectId, "OPENAI_API_KEY", keyId, source);
+            } else {
+              await recordInvalidKey(projectId, "OPENAI_API_KEY", keyId, source);
+            }
             return tryCall();
           }
           const msg = getErrorMessage(error);
@@ -801,39 +774,14 @@ export class AgentClient {
               keyId: ENV_FALLBACK_KEY_ID,
               source: "env" as KeySource,
             };
+        const exhaustedKind = toRotatableApiErrorKind(lastError) ?? "rate_limit";
 
         if (!resolved || !resolved.key.trim()) {
           const msg = lastError ? getErrorMessage(lastError) : "No Google API key available";
           emit(`[Agent error: ${msg}]\n`);
           if (projectId) {
             markExhausted(projectId, "GOOGLE_API_KEY");
-            notificationService
-              .createApiBlocked({
-                projectId,
-                source: "execute",
-                sourceId: "api-keys-GOOGLE_API_KEY",
-                message:
-                  "Your API key(s) for Google have hit their limit. Please increase your budget or add another key.",
-                errorCode: "rate_limit",
-              })
-              .then((notification) => {
-                broadcastToProject(projectId, {
-                  type: "notification.added",
-                  notification: {
-                    id: notification.id,
-                    projectId: notification.projectId,
-                    source: notification.source,
-                    sourceId: notification.sourceId,
-                    questions: notification.questions,
-                    status: notification.status,
-                    createdAt: notification.createdAt,
-                    resolvedAt: notification.resolvedAt,
-                    kind: "api_blocked",
-                    errorCode: notification.errorCode,
-                  },
-                });
-              })
-              .catch((e) => log.error("Failed to create API-blocked notification", { err: e }));
+            await notifyProviderBlocked(projectId, "GOOGLE_API_KEY", exhaustedKind);
           }
           return Promise.resolve(onExit(1)).catch((e) => log.error("onExit failed", { err: e }));
         }
@@ -844,33 +792,7 @@ export class AgentClient {
           emit(`[Agent error: ${msg}]\n`);
           if (projectId) {
             markExhausted(projectId, "GOOGLE_API_KEY");
-            notificationService
-              .createApiBlocked({
-                projectId,
-                source: "execute",
-                sourceId: "api-keys-GOOGLE_API_KEY",
-                message:
-                  "Your API key(s) for Google have hit their limit. Please increase your budget or add another key.",
-                errorCode: "rate_limit",
-              })
-              .then((notification) => {
-                broadcastToProject(projectId, {
-                  type: "notification.added",
-                  notification: {
-                    id: notification.id,
-                    projectId: notification.projectId,
-                    source: notification.source,
-                    sourceId: notification.sourceId,
-                    questions: notification.questions,
-                    status: notification.status,
-                    createdAt: notification.createdAt,
-                    resolvedAt: notification.resolvedAt,
-                    kind: "api_blocked",
-                    errorCode: notification.errorCode,
-                  },
-                });
-              })
-              .catch((e) => log.error("Failed to create API-blocked notification", { err: e }));
+            await notifyProviderBlocked(projectId, "GOOGLE_API_KEY", exhaustedKind);
           }
           return Promise.resolve(onExit(1)).catch((e) => log.error("onExit failed", { err: e }));
         }
@@ -905,8 +827,13 @@ export class AgentClient {
           return Promise.resolve(onExit(0)).catch((e) => log.error("onExit failed", { err: e }));
         } catch (error: unknown) {
           lastError = error;
-          if (isLimitError(error) && keyId !== ENV_FALLBACK_KEY_ID) {
-            await recordLimitHit(projectId!, "GOOGLE_API_KEY", keyId, source);
+          const apiErrorKind = toRotatableApiErrorKind(error);
+          if (projectId && apiErrorKind && keyId !== ENV_FALLBACK_KEY_ID) {
+            if (apiErrorKind === "rate_limit") {
+              await recordLimitHit(projectId, "GOOGLE_API_KEY", keyId, source);
+            } else {
+              await recordInvalidKey(projectId, "GOOGLE_API_KEY", keyId, source);
+            }
             return tryCall();
           }
           const msg = getErrorMessage(error);
@@ -980,9 +907,7 @@ export class AgentClient {
           cwd,
           "--trust",
         ];
-        if (config.model) {
-          args.push("--model", config.model);
-        }
+        args.push("--model", resolveCursorModel(config.model));
         args.push(taskContent);
         break;
       }
@@ -1367,10 +1292,9 @@ export class AgentClient {
     // $, quotes in the prompt can crash or hang the shell. Spawn passes the prompt
     // as a single argv with no shell. Also enables live streaming to the terminal.
     const cwd = options.cwd || process.cwd();
+    const cursorModel = resolveCursorModel(config.model);
     const args = ["-p", "--force", "--trust", "--mode", "ask", fullPrompt];
-    if (config.model) {
-      args.splice(1, 0, "--model", config.model);
-    }
+    args.splice(1, 0, "--model", cursorModel);
 
     const triedKeyIds = new Set<string>();
     let lastError: unknown;
@@ -1386,14 +1310,21 @@ export class AgentClient {
 
       if (!resolved || !resolved.key.trim()) {
         const msg = lastError ? getErrorMessage(lastError) : "No Cursor API key available";
+        const apiErrorKind = toRotatableApiErrorKind(lastError);
         throw new AppError(
           400,
           ErrorCodes.AGENT_INVOKE_FAILED,
-          lastError && isLimitError(lastError)
+          apiErrorKind === "rate_limit"
             ? `All Cursor API keys hit rate limits. ${msg} Add more keys in Settings, or retry after 24h.`
-            : "CURSOR_API_KEY is not set. Add it to your .env file or Settings. Get a key from Cursor → Settings → Integrations → User API Keys.",
+            : apiErrorKind === "auth"
+              ? `All Cursor API keys were rejected as invalid. ${msg} Update the key in Settings and retry.`
+              : "CURSOR_API_KEY is not set. Add it to your .env file or Settings. Get a key from Cursor → Settings → Integrations → User API Keys.",
           lastError
-            ? { agentType: "cursor", raw: msg, isLimitError: isLimitError(lastError) }
+            ? {
+                agentType: "cursor",
+                raw: msg,
+                isLimitError: apiErrorKind === "rate_limit",
+              }
             : undefined
         );
       }
@@ -1401,17 +1332,18 @@ export class AgentClient {
       const { key, keyId, source } = resolved;
       if (triedKeyIds.has(keyId)) {
         const msg = getErrorMessage(lastError);
+        const apiErrorKind = toRotatableApiErrorKind(lastError);
         throw new AppError(
           502,
           ErrorCodes.AGENT_INVOKE_FAILED,
           `Cursor API error: ${msg}. Check Settings (API key, model).`,
-          { agentType: "cursor", raw: msg, isLimitError: true }
+          { agentType: "cursor", raw: msg, isLimitError: apiErrorKind === "rate_limit" }
         );
       }
       triedKeyIds.add(keyId);
 
       log.info("Cursor CLI starting", {
-        model: config.model ?? "default",
+        model: cursorModel,
         promptLen: fullPrompt.length,
         cwd,
         CURSOR_API_KEY: key ? "set" : "NOT SET",
@@ -1429,8 +1361,13 @@ export class AgentClient {
         return { content };
       } catch (error: unknown) {
         lastError = error;
-        if (isLimitError(error) && keyId !== ENV_FALLBACK_KEY_ID) {
-          await recordLimitHit(projectId!, "CURSOR_API_KEY", keyId, source);
+        const apiErrorKind = toRotatableApiErrorKind(error);
+        if (projectId && apiErrorKind && keyId !== ENV_FALLBACK_KEY_ID) {
+          if (apiErrorKind === "rate_limit") {
+            await recordLimitHit(projectId, "CURSOR_API_KEY", keyId, source);
+          } else {
+            await recordInvalidKey(projectId, "CURSOR_API_KEY", keyId, source);
+          }
           continue;
         }
         // Non-limit error or env fallback with limit: throw
@@ -1591,17 +1528,18 @@ export class AgentClient {
 
       if (!resolved || !resolved.key.trim()) {
         const msg = lastError ? getErrorMessage(lastError) : "No OpenAI API key available";
+        const exhaustedKind = toRotatableApiErrorKind(lastError) ?? "auth";
         const details = createAgentApiFailureDetails({
-          kind: lastError && isLimitError(lastError) ? "rate_limit" : "auth",
+          kind: exhaustedKind,
           agentType: "openai",
           raw: msg,
           ...buildApiFailureMessages(
             "openai",
-            lastError && isLimitError(lastError) ? "rate_limit" : "auth",
-            { allKeysExhausted: Boolean(lastError && isLimitError(lastError)) }
+            exhaustedKind,
+            { allKeysExhausted: exhaustedKind === "rate_limit" }
           ),
-          isLimitError: Boolean(lastError && isLimitError(lastError)),
-          ...(lastError && isLimitError(lastError) ? { allKeysExhausted: true } : {}),
+          isLimitError: exhaustedKind === "rate_limit",
+          ...(exhaustedKind === "rate_limit" ? { allKeysExhausted: true } : {}),
         });
         throw new AppError(
           400,
@@ -1614,13 +1552,16 @@ export class AgentClient {
       const { key, keyId, source } = resolved;
       if (triedKeyIds.has(keyId)) {
         const msg = getErrorMessage(lastError);
+        const exhaustedKind = toRotatableApiErrorKind(lastError) ?? "rate_limit";
         const details = createAgentApiFailureDetails({
-          kind: "rate_limit",
+          kind: exhaustedKind,
           agentType: "openai",
           raw: msg,
-          ...buildApiFailureMessages("openai", "rate_limit", { allKeysExhausted: true }),
-          isLimitError: true,
-          allKeysExhausted: true,
+          ...buildApiFailureMessages("openai", exhaustedKind, {
+            allKeysExhausted: exhaustedKind === "rate_limit",
+          }),
+          isLimitError: exhaustedKind === "rate_limit",
+          ...(exhaustedKind === "rate_limit" ? { allKeysExhausted: true } : {}),
         });
         throw new AppError(
           502,
@@ -1689,22 +1630,27 @@ export class AgentClient {
         return { content };
       } catch (error: unknown) {
         lastError = error;
-        if (isLimitError(error) && keyId !== ENV_FALLBACK_KEY_ID) {
-          await recordLimitHit(projectId!, "OPENAI_API_KEY", keyId, source);
+        const apiErrorKind = toRotatableApiErrorKind(error);
+        if (projectId && apiErrorKind && keyId !== ENV_FALLBACK_KEY_ID) {
+          if (apiErrorKind === "rate_limit") {
+            await recordLimitHit(projectId, "OPENAI_API_KEY", keyId, source);
+          } else {
+            await recordInvalidKey(projectId, "OPENAI_API_KEY", keyId, source);
+          }
           continue;
         }
         const msg = getErrorMessage(error);
         const details = createAgentApiFailureDetails({
-          kind: isLimitError(error) ? "rate_limit" : "auth",
+          kind: toRotatableApiErrorKind(error) ?? "auth",
           agentType: "openai",
           raw: msg,
-          ...(isLimitError(error)
+          ...(toRotatableApiErrorKind(error) === "rate_limit"
             ? buildApiFailureMessages("openai", "rate_limit")
             : {
                 userMessage: "OpenAI failed. Check the configured API key and model in Settings.",
                 notificationMessage: "OpenAI needs attention in Settings before work can continue.",
               }),
-          isLimitError: isLimitError(error),
+          isLimitError: toRotatableApiErrorKind(error) === "rate_limit",
         });
         throw new AppError(502, ErrorCodes.AGENT_INVOKE_FAILED, details.userMessage, details);
       }
@@ -1729,17 +1675,18 @@ export class AgentClient {
 
       if (!resolved || !resolved.key.trim()) {
         const msg = lastError ? getErrorMessage(lastError) : "No Google API key available";
+        const exhaustedKind = toRotatableApiErrorKind(lastError) ?? "auth";
         const details = createAgentApiFailureDetails({
-          kind: lastError && isLimitError(lastError) ? "rate_limit" : "auth",
+          kind: exhaustedKind,
           agentType: "google",
           raw: msg,
           ...buildApiFailureMessages(
             "google",
-            lastError && isLimitError(lastError) ? "rate_limit" : "auth",
-            { allKeysExhausted: Boolean(lastError && isLimitError(lastError)) }
+            exhaustedKind,
+            { allKeysExhausted: exhaustedKind === "rate_limit" }
           ),
-          isLimitError: Boolean(lastError && isLimitError(lastError)),
-          ...(lastError && isLimitError(lastError) ? { allKeysExhausted: true } : {}),
+          isLimitError: exhaustedKind === "rate_limit",
+          ...(exhaustedKind === "rate_limit" ? { allKeysExhausted: true } : {}),
         });
         throw new AppError(
           400,
@@ -1752,13 +1699,16 @@ export class AgentClient {
       const { key, keyId, source } = resolved;
       if (triedKeyIds.has(keyId)) {
         const msg = getErrorMessage(lastError);
+        const exhaustedKind = toRotatableApiErrorKind(lastError) ?? "rate_limit";
         const details = createAgentApiFailureDetails({
-          kind: "rate_limit",
+          kind: exhaustedKind,
           agentType: "google",
           raw: msg,
-          ...buildApiFailureMessages("google", "rate_limit", { allKeysExhausted: true }),
-          isLimitError: true,
-          allKeysExhausted: true,
+          ...buildApiFailureMessages("google", exhaustedKind, {
+            allKeysExhausted: exhaustedKind === "rate_limit",
+          }),
+          isLimitError: exhaustedKind === "rate_limit",
+          ...(exhaustedKind === "rate_limit" ? { allKeysExhausted: true } : {}),
         });
         throw new AppError(
           502,
@@ -1814,23 +1764,28 @@ export class AgentClient {
         return { content };
       } catch (error: unknown) {
         lastError = error;
-        if (isLimitError(error) && keyId !== ENV_FALLBACK_KEY_ID) {
-          await recordLimitHit(projectId!, "GOOGLE_API_KEY", keyId, source);
+        const apiErrorKind = toRotatableApiErrorKind(error);
+        if (projectId && apiErrorKind && keyId !== ENV_FALLBACK_KEY_ID) {
+          if (apiErrorKind === "rate_limit") {
+            await recordLimitHit(projectId, "GOOGLE_API_KEY", keyId, source);
+          } else {
+            await recordInvalidKey(projectId, "GOOGLE_API_KEY", keyId, source);
+          }
           continue;
         }
         const msg = getErrorMessage(error);
         const details = createAgentApiFailureDetails({
-          kind: isLimitError(error) ? "rate_limit" : "auth",
+          kind: toRotatableApiErrorKind(error) ?? "auth",
           agentType: "google",
           raw: msg,
-          ...(isLimitError(error)
+          ...(toRotatableApiErrorKind(error) === "rate_limit"
             ? buildApiFailureMessages("google", "rate_limit")
             : {
                 userMessage: "Google Gemini failed. Check the configured API key and model in Settings.",
                 notificationMessage:
                   "Google Gemini needs attention in Settings before work can continue.",
               }),
-          isLimitError: isLimitError(error),
+          isLimitError: toRotatableApiErrorKind(error) === "rate_limit",
         });
         throw new AppError(502, ErrorCodes.AGENT_INVOKE_FAILED, details.userMessage, details);
       }

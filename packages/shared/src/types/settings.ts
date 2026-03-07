@@ -325,12 +325,14 @@ export type ApiKeyProvider =
   | "OPENAI_API_KEY"
   | "GOOGLE_API_KEY";
 
-/** Single API key entry with optional limit-hit timestamp */
+/** Single API key entry with optional disable markers (rate-limit cooldown or invalid key). */
 export interface ApiKeyEntry {
   id: string;
   value: string;
   /** ISO8601 timestamp when rate/limit was hit; key is retried after 24h */
   limitHitAt?: string;
+  /** ISO8601 timestamp when provider rejected the key as invalid. */
+  invalidAt?: string;
 }
 
 /** API keys per provider: array of entries ordered by preference (first available used) */
@@ -341,6 +343,7 @@ export interface ApiKeyUpdateEntry {
   id: string;
   value?: string;
   limitHitAt?: string;
+  invalidAt?: string;
 }
 
 /** Partial API key update payload keyed by provider. */
@@ -447,6 +450,7 @@ export interface MaskedApiKeyEntry {
   id: string;
   masked: string;
   limitHitAt?: string;
+  invalidAt?: string;
 }
 
 /** Masked API keys for GET /global-settings response */
@@ -468,6 +472,7 @@ export function maskApiKeysForResponse(apiKeys: ApiKeys | undefined): MaskedApiK
         id: e.id,
         masked: MASKED_PLACEHOLDER,
         ...(e.limitHitAt && { limitHitAt: e.limitHitAt }),
+        ...(e.invalidAt && { invalidAt: e.invalidAt }),
       }));
     }
   }
@@ -699,10 +704,17 @@ export function validateApiKeyEntry(entry: unknown): ApiKeyEntry {
       throw new Error("API key limitHitAt must be a string (ISO8601)");
     }
   }
+  const invalidAt = e.invalidAt;
+  if (invalidAt !== undefined && invalidAt !== null) {
+    if (typeof invalidAt !== "string") {
+      throw new Error("API key invalidAt must be a string (ISO8601)");
+    }
+  }
   return {
     id: id.trim(),
     value,
     ...(limitHitAt != null && limitHitAt !== "" && { limitHitAt: String(limitHitAt) }),
+    ...(invalidAt != null && invalidAt !== "" && { invalidAt: String(invalidAt) }),
   };
 }
 
@@ -732,19 +744,34 @@ export function mergeApiKeysWithCurrent(
       const e = item as Record<string, unknown>;
       const id = typeof e.id === "string" ? e.id.trim() : "";
       if (!id) continue;
+      const existing = currentEntries.find((x) => x.id === id);
+      const hasProvidedValue = typeof e.value === "string" && e.value.trim() !== "";
       let value: string;
-      if (typeof e.value === "string" && e.value.trim()) {
-        value = e.value;
+      if (hasProvidedValue) {
+        value = e.value as string;
       } else {
-        const existing = currentEntries.find((x) => x.id === id);
         value = existing?.value ?? "";
       }
       if (!value) continue;
+      const valueChanged = Boolean(existing && hasProvidedValue && existing.value !== value);
+      const preserveExistingState = !valueChanged;
+      const limitHitAt =
+        typeof e.limitHitAt === "string"
+          ? e.limitHitAt
+          : preserveExistingState
+            ? existing?.limitHitAt
+            : undefined;
+      const invalidAt =
+        typeof e.invalidAt === "string"
+          ? e.invalidAt
+          : preserveExistingState
+            ? existing?.invalidAt
+            : undefined;
       merged.push({
         id,
         value,
-        ...(e.limitHitAt != null &&
-          typeof e.limitHitAt === "string" && { limitHitAt: e.limitHitAt }),
+        ...(limitHitAt ? { limitHitAt } : {}),
+        ...(invalidAt ? { invalidAt } : {}),
       });
     }
     if (merged.length > 0) {
