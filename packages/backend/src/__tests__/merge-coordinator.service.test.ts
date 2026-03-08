@@ -456,6 +456,19 @@ describe("MergeCoordinatorService", () => {
     expect(nudge).toHaveBeenCalled();
   });
 
+  it("does not trigger each_task when postCompletionAsync is called with mergedToMain: false", async () => {
+    mockHost.taskStore.listAll.mockResolvedValue([
+      { id: "os-xyz.1", title: "Task", status: "closed", issue_type: "task" } as never,
+    ]);
+
+    await coordinator.postCompletionAsync(projectId, repoPath, "os-xyz.1", {
+      mergedToMain: false,
+    });
+
+    const { triggerDeployForEvent } = await import("../services/deploy-trigger.service.js");
+    expect(triggerDeployForEvent).not.toHaveBeenCalledWith(projectId, "each_task");
+  });
+
   describe("per_epic intermediate completion", () => {
     const epicTaskId = "os-abc.1";
     const epicBranchName = "opensprint/epic_os-abc";

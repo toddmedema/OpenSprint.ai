@@ -641,10 +641,7 @@ export class TaskService {
       }
     }
 
-    // PRD §7.5.3: Auto-deploy on each task when user manually marks task done
-    triggerDeployForEvent(projectId, "each_task").catch((err) => {
-      log.warn("Auto-deploy on task completion failed", { projectId, err });
-    });
+    // each_task deploy trigger fires only on merge-to-main events (see merge-coordinator); manual mark-done is not a merge
 
     return { taskClosed: true, epicClosed };
   }

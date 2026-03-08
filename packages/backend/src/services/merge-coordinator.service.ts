@@ -386,7 +386,7 @@ export class MergeCoordinatorService {
         worktreeKey: slot.worktreeKey,
       });
       this.host.nudge(projectId);
-      this.postCompletionAsync(projectId, repoPath, task.id).catch((err) => {
+      this.postCompletionAsync(projectId, repoPath, task.id, { mergedToMain: true }).catch((err) => {
         log.warn("Post-completion async work failed", { taskId: task.id, err });
       });
       return;
@@ -491,7 +491,7 @@ export class MergeCoordinatorService {
     // 5. Async push + post-completion
     this.host.nudge(projectId);
 
-    this.postCompletionAsync(projectId, repoPath, task.id).catch((err) => {
+    this.postCompletionAsync(projectId, repoPath, task.id, { mergedToMain: true }).catch((err) => {
       log.warn("Post-completion async work failed", { taskId: task.id, err });
     });
   }
@@ -706,7 +706,13 @@ export class MergeCoordinatorService {
     }
   }
 
-  async postCompletionAsync(projectId: string, repoPath: string, taskId: string): Promise<void> {
+  async postCompletionAsync(
+    projectId: string,
+    repoPath: string,
+    taskId: string,
+    options?: { mergedToMain?: boolean }
+  ): Promise<void> {
+    const mergedToMain = options?.mergedToMain !== false;
     let pushStatus: PushCompletionStatus = "publish_failed";
     if (!this.pushInProgress.has(projectId)) {
       let resolvePush!: () => void;
@@ -736,10 +742,12 @@ export class MergeCoordinatorService {
       log.warn("Auto-resolve feedback on task done failed", { taskId, err });
     });
 
-    // PRD §7.5.3: Auto-deploy on each task (merge to main)
-    triggerDeployForEvent(projectId, "each_task").catch((err) => {
-      log.warn("Auto-deploy on task completion failed", { projectId, err });
-    });
+    // PRD §7.5.3: Auto-deploy on each task only when a merge to main occurred
+    if (mergedToMain) {
+      triggerDeployForEvent(projectId, "each_task").catch((err) => {
+        log.warn("Auto-deploy on task completion failed", { projectId, err });
+      });
+    }
 
     const allIssues = await this.host.taskStore.listAll(projectId);
     const epicId = resolveEpicId(taskId, allIssues);
