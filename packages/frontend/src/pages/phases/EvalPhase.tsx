@@ -34,6 +34,7 @@ import { useScrollToQuestion } from "../../hooks/useScrollToQuestion";
 import { useOpenQuestionNotifications } from "../../hooks/useOpenQuestionNotifications";
 import { api } from "../../api/client";
 import { CONTENT_CONTAINER_CLASS, MOBILE_BREAKPOINT } from "../../lib/constants";
+import { shouldRightAlignDropdown } from "../../lib/dropdownViewport";
 import { getProjectPhasePath } from "../../lib/phaseRouting";
 import { formatPlanIdAsTitle } from "../../lib/formatting";
 import { HilApprovalBlock } from "../../components/HilApprovalBlock";
@@ -321,7 +322,9 @@ const FeedbackCard = memo(
     const [replyText, setReplyText] = useState("");
     const [replyPriority, setReplyPriority] = useState<number | null>(null);
     const [replyPriorityDropdownOpen, setReplyPriorityDropdownOpen] = useState(false);
+    const [replyPriorityAlignRight, setReplyPriorityAlignRight] = useState(false);
     const replyPriorityDropdownRef = useRef<HTMLDivElement>(null);
+    const replyPriorityTriggerRef = useRef<HTMLButtonElement>(null);
     const [answerText, setAnswerText] = useState("");
     const replyImages = useImageAttachment();
     const isReplying = replyingToId === item.id;
@@ -397,6 +400,14 @@ const FeedbackCard = memo(
         document.removeEventListener("mousedown", handleClickOutside);
         document.removeEventListener("keydown", handleKeyDown);
       };
+    }, [replyPriorityDropdownOpen]);
+
+    useEffect(() => {
+      if (replyPriorityDropdownOpen && replyPriorityTriggerRef.current) {
+        setReplyPriorityAlignRight(
+          shouldRightAlignDropdown(replyPriorityTriggerRef.current.getBoundingClientRect())
+        );
+      }
     }, [replyPriorityDropdownOpen]);
 
     const handleSubmitReply = () => {
@@ -790,6 +801,7 @@ const FeedbackCard = memo(
               </button>
               <div ref={replyPriorityDropdownRef} className="relative shrink-0 flex">
                 <button
+                  ref={replyPriorityTriggerRef}
                   type="button"
                   onClick={() => !submitting && setReplyPriorityDropdownOpen((o) => !o)}
                   disabled={submitting}
@@ -814,7 +826,7 @@ const FeedbackCard = memo(
                 {replyPriorityDropdownOpen && (
                   <ul
                     role="listbox"
-                    className="absolute left-0 top-full mt-1 z-50 min-w-[10rem] rounded-lg border border-theme-border bg-theme-surface shadow-lg py-1"
+                    className={`absolute top-full mt-1 z-50 min-w-[10rem] rounded-lg border border-theme-border bg-theme-surface shadow-lg py-1 ${replyPriorityAlignRight ? "right-0 left-auto" : "left-0 right-auto"}`}
                     data-testid="reply-priority-dropdown"
                   >
                     <li role="option">
@@ -1066,7 +1078,9 @@ export function EvalPhase({
     });
   }, [projectId, input, imageAttachment.images, priority]);
   const [feedbackPriorityDropdownOpen, setFeedbackPriorityDropdownOpen] = useState(false);
+  const [feedbackPriorityAlignRight, setFeedbackPriorityAlignRight] = useState(false);
   const feedbackPriorityDropdownRef = useRef<HTMLDivElement>(null);
+  const feedbackPriorityTriggerRef = useRef<HTMLButtonElement>(null);
   const feedbackInputRef = useRef<HTMLTextAreaElement>(null);
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() =>
@@ -1148,6 +1162,14 @@ export function EvalPhase({
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
     };
+  }, [feedbackPriorityDropdownOpen]);
+
+  useEffect(() => {
+    if (feedbackPriorityDropdownOpen && feedbackPriorityTriggerRef.current) {
+      setFeedbackPriorityAlignRight(
+        shouldRightAlignDropdown(feedbackPriorityTriggerRef.current.getBoundingClientRect())
+      );
+    }
   }, [feedbackPriorityDropdownOpen]);
 
   const feedbackFeedRef = useRef<HTMLDivElement>(null);
@@ -1433,6 +1455,7 @@ export function EvalPhase({
             <div className="flex justify-end items-stretch gap-2 flex-wrap">
               <div ref={feedbackPriorityDropdownRef} className="relative shrink-0 flex">
                 <button
+                  ref={feedbackPriorityTriggerRef}
                   type="button"
                   onClick={() => !submitting && setFeedbackPriorityDropdownOpen((o) => !o)}
                   disabled={submitting}
@@ -1457,7 +1480,7 @@ export function EvalPhase({
                 {feedbackPriorityDropdownOpen && (
                   <ul
                     role="listbox"
-                    className="absolute left-0 top-full mt-1 z-50 min-w-[10rem] rounded-lg border border-theme-border bg-theme-surface shadow-lg py-1"
+                    className={`absolute top-full mt-1 z-50 min-w-[10rem] rounded-lg border border-theme-border bg-theme-surface shadow-lg py-1 ${feedbackPriorityAlignRight ? "right-0 left-auto" : "left-0 right-auto"}`}
                     data-testid="feedback-priority-dropdown"
                   >
                     <li role="option">

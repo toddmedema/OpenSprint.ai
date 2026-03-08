@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   getDropdownPositionRightAligned,
   getDropdownPositionLeftAligned,
+  getDropdownPositionViewportAware,
+  shouldRightAlignDropdown,
+  VIEWPORT_RIGHT_EDGE_THRESHOLD,
   TOAST_SAFE_STYLE,
 } from "./dropdownViewport";
 
@@ -73,6 +76,47 @@ describe("dropdownViewport", () => {
       const rect = new DOMRect(50, 100, 40, 40);
       const style = getDropdownPositionLeftAligned(rect, { minWidth: 140 });
       expect(style.left).toBeGreaterThanOrEqual(8);
+    });
+  });
+
+  describe("shouldRightAlignDropdown", () => {
+    it("returns true when trigger right edge is within threshold of viewport right", () => {
+      const vw = 1024;
+      vi.stubGlobal("window", { innerWidth: vw, innerHeight: 768 });
+      const rect = new DOMRect(vw - 80, 100, 60, 40);
+      expect(shouldRightAlignDropdown(rect)).toBe(true);
+    });
+
+    it("returns false when trigger is far from viewport right edge", () => {
+      vi.stubGlobal("window", { innerWidth: 1024, innerHeight: 768 });
+      const rect = new DOMRect(200, 100, 100, 40);
+      expect(shouldRightAlignDropdown(rect)).toBe(false);
+    });
+
+    it("returns false when distance from right equals threshold", () => {
+      vi.stubGlobal("window", { innerWidth: 1024, innerHeight: 768 });
+      const rect = new DOMRect(1024 - 100 - 50, 100, 50, 40);
+      expect(shouldRightAlignDropdown(rect)).toBe(false);
+    });
+  });
+
+  describe("getDropdownPositionViewportAware", () => {
+    it("returns right-aligned style when trigger is near viewport right edge", () => {
+      vi.stubGlobal("window", { innerWidth: 1024, innerHeight: 768 });
+      const rect = new DOMRect(950, 100, 60, 40);
+      const style = getDropdownPositionViewportAware(rect);
+      expect(style.position).toBe("fixed");
+      expect(style.right).toBeDefined();
+      expect(style.top).toBe(144);
+    });
+
+    it("returns left-aligned style when trigger is far from viewport right edge", () => {
+      vi.stubGlobal("window", { innerWidth: 1024, innerHeight: 768 });
+      const rect = new DOMRect(200, 100, 100, 40);
+      const style = getDropdownPositionViewportAware(rect);
+      expect(style.position).toBe("fixed");
+      expect(style.left).toBeDefined();
+      expect(style.top).toBe(144);
     });
   });
 

@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import type { CSSProperties } from "react";
 import { isAgentAssignee } from "@opensprint/shared";
 import { useAppDispatch } from "../../store";
 import { updateTaskAssignee } from "../../store/slices/executeSlice";
+import { getDropdownPositionViewportAware } from "../../lib/dropdownViewport";
 
 export interface AssigneeSelectorProps {
   projectId: string;
@@ -59,7 +61,7 @@ export function AssigneeSelector({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLUListElement>(null);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const [dropdownStyle, setDropdownStyle] = useState<CSSProperties>({});
 
   useEffect(() => {
     onOpenChange?.(open);
@@ -68,7 +70,9 @@ export function AssigneeSelector({
   const updatePosition = () => {
     if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      setDropdownPosition({ top: rect.bottom + 4, left: rect.left });
+      setDropdownStyle(
+        getDropdownPositionViewportAware(rect, { minWidth: 160, estimatedHeight: 320 })
+      );
     }
   };
 
@@ -148,7 +152,7 @@ export function AssigneeSelector({
       ref={menuRef}
       role="listbox"
       className="fixed z-[9999] min-w-[160px] rounded-lg border border-theme-border bg-theme-surface shadow-lg py-1"
-      style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
+      style={dropdownStyle}
       data-testid="assignee-dropdown"
     >
       <li role="option">

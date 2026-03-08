@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import fs from "fs/promises";
 import path from "path";
 import { PrdService } from "../services/prd.service.js";
-import { SPEC_MD, SPEC_METADATA_PATH, prdToSpecMarkdown } from "@opensprint/shared";
+import { SPEC_MD, prdToSpecMarkdown } from "@opensprint/shared";
 
 vi.mock("../services/project.service.js", () => ({
   ProjectService: vi.fn().mockImplementation(() => ({
@@ -11,7 +11,50 @@ vi.mock("../services/project.service.js", () => ({
       name: "Test",
       repoPath: "/tmp/opensprint-test-prd",
     }),
+    getProjectByRepoPath: vi.fn().mockResolvedValue(null),
   })),
+}));
+
+const prdMetadataStore: Record<
+  string,
+  { version: number; change_log: string; section_versions: string }
+> = {};
+
+vi.mock("../services/task-store.service.js", () => ({
+  taskStore: {
+    getDb: vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        queryOne: vi.fn().mockImplementation(async (sql: string, params?: unknown[]) => {
+          if (sql.includes("prd_metadata") && params?.[0]) {
+            const row = prdMetadataStore[String(params[0])];
+            if (row)
+              return {
+                version: row.version,
+                change_log: row.change_log,
+                section_versions: row.section_versions,
+              };
+          }
+          return null;
+        }),
+      })
+    ),
+    runWrite: vi.fn().mockImplementation(async (fn: (client: { execute: (sql: string, args: unknown[]) => Promise<void> }) => Promise<unknown>) => {
+      const client = {
+        execute: vi.fn().mockImplementation(async (sql: string, args: unknown[]) => {
+          if (sql.includes("prd_metadata") && sql.includes("INSERT") && Array.isArray(args) && args.length >= 4) {
+            const projectId = String(args[0]);
+            prdMetadataStore[projectId] = {
+              version: Number(args[1]),
+              change_log: String(args[2]),
+              section_versions: String(args[3]),
+            };
+          }
+        }),
+      };
+      return fn(client);
+    }),
+  },
+  TaskStoreService: vi.fn(),
 }));
 
 vi.mock("../services/git-commit-queue.service.js", () => ({
@@ -26,7 +69,6 @@ describe("PrdService", () => {
   let prdService: PrdService;
   const repoPath = "/tmp/opensprint-test-prd";
   const specPath = path.join(repoPath, SPEC_MD);
-  const metaPath = path.join(repoPath, SPEC_METADATA_PATH);
 
   const mockPrd = {
     version: 1,
@@ -54,22 +96,12 @@ describe("PrdService", () => {
   };
 
   beforeEach(async () => {
+    for (const k of Object.keys(prdMetadataStore)) delete prdMetadataStore[k];
     prdService = new PrdService();
-    await fs.mkdir(path.dirname(metaPath), { recursive: true });
+    await fs.mkdir(path.dirname(specPath), { recursive: true });
     await fs.writeFile(specPath, prdToSpecMarkdown(mockPrd as never), "utf-8");
-    const sectionVersions: Record<string, number> = {};
-    for (const [k, s] of Object.entries(mockPrd.sections)) {
-      sectionVersions[k] = s.version;
-    }
-    await fs.writeFile(
-      metaPath,
-      JSON.stringify(
-        { version: mockPrd.version, changeLog: mockPrd.changeLog, sectionVersions },
-        null,
-        2
-      ),
-      "utf-8"
-    );
+    // Do not write legacy spec-metadata.json: PrdService reads metadata from DB; if no row
+    // and legacy file exists, assertMigrationCompleteForResource throws.
   });
 
   afterEach(async () => {
@@ -82,7 +114,8 @@ describe("PrdService", () => {
 
   it("should get the full PRD", async () => {
     const prd = await prdService.getPrd("test-project");
-    expect(prd.version).toBe(1);
+    // Version is 0 when loading from SPEC.md only (no prd_metadata row yet)
+    expect(prd.version).toBe(0);
     expect(prd.sections.executive_summary.content).toBe("Test summary");
   });
 
@@ -116,9 +149,9 @@ describe("PrdService", () => {
     expect(result.newVersion).toBe(2);
     expect(result.section.content).toBe("Updated summary content");
 
-    // Verify persisted and change log entry has diff
+    // Verify persisted and change log entry has diff (PRD version increments once per update)
     const prd = await prdService.getPrd("test-project");
-    expect(prd.version).toBe(2);
+    expect(prd.version).toBe(1);
     expect(prd.sections.executive_summary.version).toBe(2);
     expect(prd.changeLog).toHaveLength(1);
     expect(prd.changeLog[0].section).toBe("executive_summary");
@@ -172,15 +205,7 @@ describe("PrdService", () => {
     const prdWithoutChangeLog = { ...mockPrd };
     delete (prdWithoutChangeLog as { changeLog?: unknown }).changeLog;
     await fs.writeFile(specPath, prdToSpecMarkdown(prdWithoutChangeLog as never), "utf-8");
-    const sectionVersions: Record<string, number> = {};
-    for (const [k, s] of Object.entries(mockPrd.sections)) {
-      sectionVersions[k] = s.version;
-    }
-    await fs.writeFile(
-      metaPath,
-      JSON.stringify({ version: mockPrd.version, changeLog: [], sectionVersions }, null, 2),
-      "utf-8"
-    );
+    // No legacy spec-metadata.json: service uses DB; loading from SPEC.md only gives changeLog [].
 
     const result = await prdService.updateSection(
       "test-project",

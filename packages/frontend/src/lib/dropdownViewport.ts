@@ -10,6 +10,9 @@ import { DROPDOWN_PORTAL_Z_INDEX } from "./constants";
 /** Safe inset (px) from viewport edges to avoid cutoff on mobile. */
 const SAFE_INSET = 8;
 
+/** When trigger's right edge is within this many px of viewport right, use right-aligned dropdown. */
+export const VIEWPORT_RIGHT_EDGE_THRESHOLD = 100;
+
 /** Default max height for dropdown content (matches 90vh). */
 export const DROPDOWN_MAX_HEIGHT = "90vh";
 
@@ -53,6 +56,28 @@ export function getDropdownPositionRightAligned(
     return { ...base, bottom: vh - anchorRect.top + 4 };
   }
   return { ...base, top: anchorRect.bottom + 4 };
+}
+
+/**
+ * Returns true when the trigger's right edge is within VIEWPORT_RIGHT_EDGE_THRESHOLD of the
+ * viewport right edge. Use this to choose right vs left alignment for absolute-positioned dropdowns.
+ */
+export function shouldRightAlignDropdown(anchorRect: DOMRect): boolean {
+  const vw = typeof window !== "undefined" ? window.innerWidth : 0;
+  return vw > 0 && vw - anchorRect.right < VIEWPORT_RIGHT_EDGE_THRESHOLD;
+}
+
+/**
+ * Viewport-aware positioning: right-align when trigger is near viewport right edge (< 100px),
+ * otherwise left-align. Use for fixed/portal dropdowns.
+ */
+export function getDropdownPositionViewportAware(
+  anchorRect: DOMRect,
+  options?: DropdownPositionOptions
+): CSSProperties {
+  return shouldRightAlignDropdown(anchorRect)
+    ? getDropdownPositionRightAligned(anchorRect, options)
+    : getDropdownPositionLeftAligned(anchorRect, options);
 }
 
 /**

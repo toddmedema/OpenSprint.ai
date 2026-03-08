@@ -9,7 +9,6 @@ import {
   API_PREFIX,
   DEFAULT_HIL_CONFIG,
   SPEC_MD,
-  SPEC_METADATA_PATH,
   prdToSpecMarkdown,
 } from "@opensprint/shared";
 
@@ -172,12 +171,8 @@ describe.skipIf(!prdPostgresOk)("PRD REST API", () => {
       changeLog: [],
     };
     await fs.writeFile(path.join(repoPath, SPEC_MD), prdToSpecMarkdown(prd as never), "utf-8");
-    await fs.mkdir(path.join(repoPath, path.dirname(SPEC_METADATA_PATH)), { recursive: true });
-    await fs.writeFile(
-      path.join(repoPath, SPEC_METADATA_PATH),
-      JSON.stringify({ version: 0, changeLog: [] }, null, 2),
-      "utf-8"
-    );
+    // Do not write legacy spec-metadata.json: PrdService reads metadata from DB; if no row
+    // and legacy file exists, assertMigrationCompleteForResource throws.
 
     const res = await request(app).get(`${API_PREFIX}/projects/${projectId}/prd/executive_summary`);
 

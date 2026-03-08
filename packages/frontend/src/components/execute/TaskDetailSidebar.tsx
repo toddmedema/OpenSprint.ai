@@ -30,6 +30,7 @@ import { AssigneeSelector } from "./AssigneeSelector";
 import { TaskStatusBadge, COLUMN_LABELS } from "../kanban";
 import { formatUptime, formatTaskDuration } from "../../lib/formatting";
 import { getEpicTitleFromPlan } from "../../lib/planContentUtils";
+import { shouldRightAlignDropdown } from "../../lib/dropdownViewport";
 import { getMessageBasedHint } from "../../store/listeners/notificationListener";
 import { filterAgentOutput } from "../../utils/agentOutputFilter";
 import { ArchivedSessionView } from "./ArchivedSessionView";
@@ -312,7 +313,9 @@ function TaskDetailSidebarInner({
     resetKey: selectedTask,
   });
   const actionsMenuRef = useRef<HTMLDivElement>(null);
+  const actionsMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
+  const [actionsMenuAlignRight, setActionsMenuAlignRight] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteLinkConfirm, setDeleteLinkConfirm] = useState<{
     targetId: string;
@@ -401,6 +404,14 @@ function TaskDetailSidebarInner({
     return () => document.removeEventListener("mousedown", handler);
   }, [actionsMenuOpen]);
 
+  useEffect(() => {
+    if (actionsMenuOpen && actionsMenuTriggerRef.current) {
+      setActionsMenuAlignRight(
+        shouldRightAlignDropdown(actionsMenuTriggerRef.current.getBoundingClientRect())
+      );
+    }
+  }, [actionsMenuOpen]);
+
   const handleConfirmDeleteTask = async () => {
     await onDeleteTask();
     setDeleteConfirmOpen(false);
@@ -422,6 +433,7 @@ function TaskDetailSidebarInner({
         {hasActions && (
           <div ref={actionsMenuRef} className="relative shrink-0">
             <button
+              ref={actionsMenuTriggerRef}
               type="button"
               onClick={() => setActionsMenuOpen((o) => !o)}
               className="p-1.5 rounded-md text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle transition-colors"
@@ -437,7 +449,7 @@ function TaskDetailSidebarInner({
             {actionsMenuOpen && (
               <ul
                 role="menu"
-                className="absolute right-0 top-full mt-1 z-50 min-w-[140px] rounded-lg border border-theme-border bg-theme-surface shadow-lg py-1"
+                className={`absolute top-full mt-1 z-50 min-w-[140px] rounded-lg border border-theme-border bg-theme-surface shadow-lg py-1 ${actionsMenuAlignRight ? "right-0 left-auto" : "left-0 right-auto"}`}
                 data-testid="sidebar-actions-menu"
               >
                 {isBlockedTask && (

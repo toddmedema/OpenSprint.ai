@@ -5,6 +5,7 @@ import type { DeploymentRecord, DeploymentConfig } from "@opensprint/shared";
 import { getDeploymentTargetConfig } from "@opensprint/shared";
 import { getProjectPhasePath } from "../../lib/phaseRouting";
 import { MOBILE_BREAKPOINT } from "../../lib/constants";
+import { shouldRightAlignDropdown } from "../../lib/dropdownViewport";
 import { useAppDispatch, useAppSelector } from "../../store";
 import {
   triggerDeliver,
@@ -109,7 +110,9 @@ export function DeliverPhase({ projectId, onOpenSettings, onOpenGlobalSettings }
   const [resetLoading, setResetLoading] = useState(false);
   const [envFilter, setEnvFilter] = useState<string>("all");
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
+  const [filterDropdownAlignRight, setFilterDropdownAlignRight] = useState(false);
   const filterDropdownRef = useRef<HTMLDivElement>(null);
+  const filterTriggerRef = useRef<HTMLButtonElement>(null);
 
   const history = useAppSelector((s) => s.deliver.history);
 
@@ -139,6 +142,15 @@ export function DeliverPhase({ projectId, onOpenSettings, onOpenGlobalSettings }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (filterDropdownOpen && filterTriggerRef.current) {
+      setFilterDropdownAlignRight(
+        shouldRightAlignDropdown(filterTriggerRef.current.getBoundingClientRect())
+      );
+    }
+  }, [filterDropdownOpen]);
+
   const activeDeployId = useAppSelector((s) => s.deliver.activeDeployId);
   const selectedDeployId = useAppSelector((s) => s.deliver.selectedDeployId);
   const liveLog = useAppSelector((s) => s.deliver.liveLog);
@@ -338,6 +350,7 @@ export function DeliverPhase({ projectId, onOpenSettings, onOpenGlobalSettings }
                 {history.length > 0 && (
                   <div className="relative shrink-0" ref={filterDropdownRef}>
                     <button
+                      ref={filterTriggerRef}
                       type="button"
                       onClick={() => setFilterDropdownOpen((o) => !o)}
                       className="min-h-[44px] min-w-[44px] p-1 flex items-center justify-center rounded text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle transition-colors"
@@ -351,7 +364,7 @@ export function DeliverPhase({ projectId, onOpenSettings, onOpenGlobalSettings }
                     {filterDropdownOpen && (
                       <div
                         role="listbox"
-                        className="absolute right-0 top-full mt-1 z-10 min-w-[10rem] max-h-[90vh] overflow-y-auto py-1 bg-theme-surface border border-theme-border rounded-lg shadow-lg"
+                        className={`absolute top-full mt-1 z-10 min-w-[10rem] max-h-[90vh] overflow-y-auto py-1 bg-theme-surface border border-theme-border rounded-lg shadow-lg ${filterDropdownAlignRight ? "right-0 left-auto" : "left-0 right-auto"}`}
                         data-testid="delivery-history-filter-dropdown"
                       >
                         <button
@@ -482,6 +495,7 @@ export function DeliverPhase({ projectId, onOpenSettings, onOpenGlobalSettings }
                   {history.length > 0 && (
                     <div className="relative shrink-0" ref={filterDropdownRef}>
                       <button
+                        ref={filterTriggerRef}
                         type="button"
                         onClick={() => setFilterDropdownOpen((o) => !o)}
                         className="p-1 rounded text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle transition-colors"
@@ -495,7 +509,7 @@ export function DeliverPhase({ projectId, onOpenSettings, onOpenGlobalSettings }
                       {filterDropdownOpen && (
                         <div
                           role="listbox"
-                          className="absolute right-0 top-full mt-1 z-10 min-w-[10rem] py-1 bg-theme-surface border border-theme-border rounded-lg shadow-lg"
+                          className={`absolute top-full mt-1 z-10 min-w-[10rem] py-1 bg-theme-surface border border-theme-border rounded-lg shadow-lg ${filterDropdownAlignRight ? "right-0 left-auto" : "left-0 right-auto"}`}
                           data-testid="delivery-history-filter-dropdown"
                         >
                           <button

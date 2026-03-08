@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { NavButton } from "./NavButton";
 import type { Project, ProjectPhase } from "@opensprint/shared";
 import { NAVBAR_HEIGHT } from "../../lib/constants";
+import { shouldRightAlignDropdown } from "../../lib/dropdownViewport";
 import { useAppSelector, useAppDispatch } from "../../store";
 import { selectTasks } from "../../store/slices/executeSlice";
 import { wsConnectHome } from "../../store/middleware/websocketMiddleware";
@@ -40,7 +41,9 @@ export function Navbar({
   const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectDropdownAlignRight, setProjectDropdownAlignRight] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const projectTriggerRef = useRef<HTMLButtonElement>(null);
 
   const isSettingsActive = Boolean(
     location.pathname === "/settings" ||
@@ -106,6 +109,14 @@ export function Navbar({
     }
   }, [dropdownOpen]);
 
+  useEffect(() => {
+    if (dropdownOpen && projectTriggerRef.current) {
+      setProjectDropdownAlignRight(
+        shouldRightAlignDropdown(projectTriggerRef.current.getBoundingClientRect())
+      );
+    }
+  }, [dropdownOpen]);
+
   const handleCreateOrAddClick = async (
     route: "/projects/create-new" | "/projects/add-existing"
   ) => {
@@ -155,6 +166,7 @@ export function Navbar({
           <div className="relative flex items-center min-w-0" ref={dropdownRef}>
             <span className="hidden min-[1000px]:inline text-theme-muted shrink-0 pr-1">/</span>
             <button
+              ref={projectTriggerRef}
               type="button"
               onClick={() => setDropdownOpen((o) => !o)}
               className="dropdown-trigger inline-flex items-center gap-1 min-h-[44px] min-w-[44px] text-sm font-medium text-theme-muted hover:text-theme-text transition-colors rounded py-1 px-2 hover:bg-theme-border-subtle max-w-[120px] md:max-w-none"
@@ -181,7 +193,7 @@ export function Navbar({
             </button>
             {dropdownOpen && (
               <div
-                className="absolute left-0 top-full mt-1 min-w-[200px] max-w-[min(280px,calc(100vw-2rem))] max-h-[min(280px,calc(100vh-6rem))] overflow-y-auto bg-theme-surface border border-theme-border rounded-lg shadow-lg py-1 z-50"
+                className={`absolute top-full mt-1 min-w-[200px] max-w-[min(280px,calc(100vw-2rem))] max-h-[min(280px,calc(100vh-6rem))] overflow-y-auto bg-theme-surface border border-theme-border rounded-lg shadow-lg py-1 z-50 ${projectDropdownAlignRight ? "right-0 left-auto" : "left-0 right-auto"}`}
                 role="listbox"
               >
                 {projects.map((p) => (

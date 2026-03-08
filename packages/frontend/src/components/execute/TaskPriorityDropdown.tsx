@@ -7,6 +7,7 @@ import {
 } from "../../store/slices/executeSlice";
 import { PRIORITY_LABELS } from "@opensprint/shared";
 import { PriorityIcon } from "../PriorityIcon";
+import { shouldRightAlignDropdown } from "../../lib/dropdownViewport";
 
 /**
  * Isolated priority display/dropdown that reads from Redux.
@@ -29,7 +30,9 @@ export function TaskPriorityDropdown({
     Boolean(taskId) && priorityUpdatePendingTaskId === taskId;
 
   const [priorityDropdownOpen, setPriorityDropdownOpen] = useState(false);
+  const [alignRight, setAlignRight] = useState(false);
   const priorityDropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!priorityDropdownOpen) return;
@@ -40,6 +43,12 @@ export function TaskPriorityDropdown({
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
+  }, [priorityDropdownOpen]);
+
+  useEffect(() => {
+    if (priorityDropdownOpen && triggerRef.current) {
+      setAlignRight(shouldRightAlignDropdown(triggerRef.current.getBoundingClientRect()));
+    }
   }, [priorityDropdownOpen]);
 
   const handlePrioritySelect = (priority: number) => {
@@ -74,6 +83,7 @@ export function TaskPriorityDropdown({
   return (
     <div ref={priorityDropdownRef} className="relative inline-block">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setPriorityDropdownOpen((o) => !o)}
         disabled={priorityUpdateLoading}
@@ -97,7 +107,7 @@ export function TaskPriorityDropdown({
       {priorityDropdownOpen && (
         <ul
           role="listbox"
-          className="absolute left-0 top-full mt-1 z-50 min-w-[140px] rounded-lg border border-theme-border bg-theme-surface shadow-lg py-1"
+          className={`absolute top-full mt-1 z-50 min-w-[140px] rounded-lg border border-theme-border bg-theme-surface shadow-lg py-1 ${alignRight ? "right-0 left-auto" : "left-0 right-auto"}`}
           data-testid="priority-dropdown"
         >
           {([0, 1, 2, 3, 4] as const).map((p) => (
