@@ -15,6 +15,7 @@ import { VirtualizedAgentOutput } from "./VirtualizedAgentOutput";
 import {
   AGENT_ROLE_LABELS,
   complexityToDisplay,
+  isAgentAssignee,
   TASK_COMPLEXITY_MIN,
   TASK_COMPLEXITY_MAX,
 } from "@opensprint/shared";
@@ -691,6 +692,7 @@ function TaskDetailSidebarInner({
                   currentAssignee={task.assignee ?? null}
                   teamMembers={teamMembers}
                   readOnly={isDoneTask}
+                  isAgentAssignee={!!task.assignee && isAgentAssignee(task.assignee)}
                 />
                 {isDoneTask &&
                   (() => {

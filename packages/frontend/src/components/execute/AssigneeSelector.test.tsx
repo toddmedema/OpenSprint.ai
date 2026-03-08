@@ -149,7 +149,7 @@ describe("AssigneeSelector", () => {
     expect(svgs.length).toBeGreaterThan(0);
   });
 
-  it("shows agent icon when isAgentAssignee is true", () => {
+  it("shows no assignee icon when isAgentAssignee is true", () => {
     renderWithProviders(
       <AssigneeSelector
         {...defaultProps}
@@ -158,6 +158,30 @@ describe("AssigneeSelector", () => {
       />
     );
 
-    expect(screen.getByTestId("assignee-dropdown-trigger")).toBeInTheDocument();
+    const trigger = screen.getByTestId("assignee-dropdown-trigger");
+    expect(trigger).toBeInTheDocument();
+    expect(trigger.querySelector("svg")).not.toBeInTheDocument();
+  });
+
+  it("shows assignee icon when unassigned", () => {
+    renderWithProviders(<AssigneeSelector {...defaultProps} />);
+
+    const trigger = screen.getByTestId("assignee-dropdown-trigger");
+    expect(trigger.querySelector("svg")).toBeInTheDocument();
+  });
+
+  it("readOnly with agent assignee shows label without icon", () => {
+    renderWithProviders(
+      <AssigneeSelector
+        {...defaultProps}
+        currentAssignee="Frodo"
+        isAgentAssignee={true}
+        readOnly
+      />
+    );
+
+    expect(screen.getByTestId("assignee-read-only")).toBeInTheDocument();
+    expect(screen.getByText("Frodo")).toBeInTheDocument();
+    expect(screen.getByTestId("assignee-read-only").querySelector("svg")).not.toBeInTheDocument();
   });
 });

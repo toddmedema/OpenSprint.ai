@@ -36,24 +36,6 @@ function PersonIcon({ size = "sm" }: { size?: "xs" | "sm" }) {
   );
 }
 
-/** Agent/bot icon for agent-assigned tasks. */
-function AgentIcon({ size = "sm" }: { size?: "xs" | "sm" }) {
-  const cls = size === "xs" ? "w-3 h-3" : "w-4 h-4";
-  return (
-    <svg
-      className={`${cls} shrink-0 text-theme-muted`}
-      viewBox="0 0 16 16"
-      role="img"
-      aria-hidden
-    >
-      <path
-        fill="currentColor"
-        d="M8 2a2 2 0 0 1 2 2v1h2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-2v1a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-1H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2V4a2 2 0 0 1 2-2h2zm0 2v2h2V4H8zm-4 3v2h2V7H4zm8 0v2h2V7h-2zm-4 3v2h2v-2H8z"
-      />
-    </svg>
-  );
-}
-
 export function AssigneeSelector({
   projectId,
   taskId,
@@ -122,7 +104,7 @@ export function AssigneeSelector({
         className="inline-flex items-center gap-1.5 text-theme-muted/80 cursor-default"
         data-testid="assignee-read-only"
       >
-        {isAgent ? <AgentIcon size="sm" /> : <PersonIcon size="sm" />}
+        {!isAgent && <PersonIcon size="sm" />}
         {displayLabel}
       </span>
     );
@@ -141,7 +123,7 @@ export function AssigneeSelector({
         aria-label={`Assignee: ${displayLabel}. Click to change`}
         data-testid="assignee-dropdown-trigger"
       >
-        {isAgent ? <AgentIcon size="sm" /> : <PersonIcon size="sm" />}
+        {!isAgent && <PersonIcon size="sm" />}
         <span>{displayLabel}</span>
         {loading ? (
           <span className="text-[10px] opacity-70 pr-2 animate-pulse">Updating…</span>
