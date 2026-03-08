@@ -310,7 +310,7 @@ export function TimelineList({
         ({ key, tasks: sectionTasks }) =>
           sectionTasks.length > 0 && (
             <section key={key} data-testid={`timeline-section-${key}`}>
-              <h3 className="text-xs font-semibold text-theme-muted tracking-wide uppercase px-4 pt-4 pb-2 border-b border-theme-border-subtle">
+              <h3 className="text-xs font-semibold text-theme-muted tracking-wide uppercase px-4 pt-4 pb-0 border-b border-theme-border-subtle">
                 {SECTION_LABELS[key]}
               </h3>
               <ul className="divide-y divide-theme-border-subtle">
@@ -367,7 +367,7 @@ export function TimelineList({
                   transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)`,
                 }}
               >
-                <h3 className="text-xs font-semibold text-theme-muted tracking-wide uppercase px-4 pt-4 pb-2 border-b border-theme-border-subtle">
+                <h3 className="text-xs font-semibold text-theme-muted tracking-wide uppercase px-4 pt-4 pb-0 border-b border-theme-border-subtle">
                   {item.label}
                 </h3>
               </div>
