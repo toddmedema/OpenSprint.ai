@@ -86,7 +86,7 @@ function TimelineRow({
   return (
     <li
       data-testid={`timeline-row-${task.id}`}
-      className={assigneeDropdownOpen ? "relative z-[200]" : undefined}
+      className={assigneeDropdownOpen ? "relative z-[1000]" : undefined}
     >
       <div className="flex items-center gap-2 px-4 py-2.5 group overflow-x-auto md:overflow-x-visible min-w-0">
         <button
@@ -384,7 +384,7 @@ export function TimelineList({
                 left: 0,
                 width: "100%",
                 transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)`,
-                zIndex: openAssigneeTaskId === item.task.id ? 200 : undefined,
+                zIndex: openAssigneeTaskId === item.task.id ? 1000 : undefined,
               }}
               className="border-b border-theme-border-subtle"
             >

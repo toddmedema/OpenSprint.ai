@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { isAgentAssignee } from "@opensprint/shared";
 import { useAppDispatch } from "../../store";
 import { updateTaskAssignee } from "../../store/slices/executeSlice";
@@ -56,15 +57,40 @@ export function AssigneeSelector({
   const [otherInput, setOtherInput] = useState("");
   const [showOtherInput, setShowOtherInput] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLUListElement>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
 
   useEffect(() => {
     onOpenChange?.(open);
   }, [open, onOpenChange]);
 
+  const updatePosition = () => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setDropdownPosition({ top: rect.bottom + 4, left: rect.left });
+    }
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    updatePosition();
+    const onScrollOrResize = () => updatePosition();
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    return () => {
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+    };
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const inTrigger = dropdownRef.current?.contains(target);
+      const inMenu = menuRef.current?.contains(target);
+      if (!inTrigger && !inMenu) {
         setOpen(false);
         setShowOtherInput(false);
         setOtherInput("");
@@ -117,34 +143,15 @@ export function AssigneeSelector({
     ? "text-xs text-theme-muted hover:bg-theme-border-subtle/50 hover:text-theme-text transition-colors"
     : "text-theme-muted hover:bg-theme-border-subtle/50 hover:text-theme-text transition-colors";
 
-  return (
-    <div ref={dropdownRef} className="relative inline-flex items-center">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        disabled={loading}
-        className={`dropdown-trigger inline-flex items-center gap-2 rounded py-0.5 leading-tight cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed ${triggerTypography}`}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-busy={loading}
-        aria-label={`Assignee: ${displayLabel}. Click to change`}
-        data-testid="assignee-dropdown-trigger"
-      >
-        {currentAssignee && !isAgent && <PersonIcon size="sm" />}
-        <span>{displayLabel}</span>
-        {loading ? (
-          <span className="text-[10px] opacity-70 pr-2 animate-pulse">Updating…</span>
-        ) : (
-          <span className="text-[10px] opacity-70 pr-2">{open ? "▲" : "▼"}</span>
-        )}
-      </button>
-      {open && (
-        <ul
-          role="listbox"
-          className="absolute left-0 top-full mt-1 z-[1000] min-w-[160px] rounded-lg border border-theme-border bg-theme-surface shadow-lg py-1"
-          data-testid="assignee-dropdown"
-        >
-          <li role="option">
+  const dropdownMenu = open ? (
+    <ul
+      ref={menuRef}
+      role="listbox"
+      className="fixed z-[9999] min-w-[160px] rounded-lg border border-theme-border bg-theme-surface shadow-lg py-1"
+      style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
+      data-testid="assignee-dropdown"
+    >
+      <li role="option">
             <button
               type="button"
               onClick={() => handleSelect(null)}
@@ -218,7 +225,31 @@ export function AssigneeSelector({
             </li>
           )}
         </ul>
-      )}
+  ) : null;
+
+  return (
+    <div ref={dropdownRef} className="relative inline-flex items-center">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        disabled={loading}
+        className={`dropdown-trigger inline-flex items-center gap-2 rounded py-0.5 leading-tight cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed ${triggerTypography}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-busy={loading}
+        aria-label={`Assignee: ${displayLabel}. Click to change`}
+        data-testid="assignee-dropdown-trigger"
+      >
+        {currentAssignee && !isAgent && <PersonIcon size="sm" />}
+        <span>{displayLabel}</span>
+        {loading ? (
+          <span className="text-[10px] opacity-70 pr-2 animate-pulse">Updating…</span>
+        ) : (
+          <span className="text-[10px] opacity-70 pr-2">{open ? "▲" : "▼"}</span>
+        )}
+      </button>
+      {typeof document !== "undefined" && createPortal(dropdownMenu, document.body)}
     </div>
   );
 }
