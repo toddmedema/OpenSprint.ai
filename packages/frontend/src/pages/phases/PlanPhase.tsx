@@ -3,7 +3,7 @@ import { shallowEqual } from "react-redux";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Plan, PlanStatus } from "@opensprint/shared";
 import { sortPlansByStatus } from "@opensprint/shared";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { store, useAppDispatch, useAppSelector } from "../../store";
 import {
   executePlan,
@@ -54,7 +54,7 @@ import { useScrollToQuestion } from "../../hooks/useScrollToQuestion";
 import { useOpenQuestionNotifications } from "../../hooks/useOpenQuestionNotifications";
 import { formatPlanIdAsTitle } from "../../lib/formatting";
 import { matchesPlanSearchQuery } from "../../lib/planSearchFilter";
-import { parseDetailParams } from "../../lib/phaseRouting";
+import { parseDetailParams, getProjectPhasePath } from "../../lib/phaseRouting";
 
 /** Display text for plan chat: show "Plan updated" when agent response contains [PLAN_UPDATE] */
 export function getPlanChatMessageDisplay(content: string): string {
@@ -197,6 +197,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   const dispatch = useAppDispatch();
   const queryClient = useQueryClient();
   const location = useLocation();
+  const navigate = useNavigate();
 
   /* ── TanStack Query for loading state (data synced to Redux by ProjectShell) ── */
   const plansQuery = usePlans(projectId);
@@ -912,6 +913,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
                       onPlanTasks={() => handlePlanTasks(plan.metadata.planId)}
                       onReship={() => handleReship(plan.metadata.planId)}
                       onClearError={() => dispatch(clearExecuteError())}
+                      onGoToEvaluate={() => navigate(getProjectPhasePath(projectId, "eval"))}
                     />
                   ))}
                 </div>

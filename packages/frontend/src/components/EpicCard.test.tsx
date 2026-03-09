@@ -167,7 +167,7 @@ describe("EpicCard", () => {
     );
 
     expect(screen.getByText("Auth Feature")).toBeInTheDocument();
-    expect(screen.getByText("building")).toBeInTheDocument();
+    expect(screen.getByText("Building")).toBeInTheDocument();
   });
 
   it("renders progress bar with correct completion", () => {
@@ -358,6 +358,64 @@ describe("EpicCard", () => {
 
     expect(screen.queryByTestId("plan-tasks-button")).not.toBeInTheDocument();
     expect(screen.queryByTestId("execute-button")).not.toBeInTheDocument();
+  });
+
+  it("shows In review badge and message when plan status is in_review", () => {
+    const plan: Plan = {
+      ...basePlan,
+      status: "in_review",
+      taskCount: 3,
+      doneTaskCount: 3,
+    };
+    renderWithStore(
+      <EpicCard
+        plan={plan}
+        tasks={[]}
+        executingPlanId={null}
+        reExecutingPlanId={null}
+        planTasksPlanIds={[]}
+        onSelect={vi.fn()}
+        onShip={vi.fn()}
+        onPlanTasks={vi.fn()}
+        onReship={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("In review")).toBeInTheDocument();
+    expect(
+      screen.getByText(/All tasks are done. Review in Evaluate and mark this plan complete to ship./)
+    ).toBeInTheDocument();
+  });
+
+  it("shows Mark complete in Evaluate button when in_review and onGoToEvaluate provided", async () => {
+    const onGoToEvaluate = vi.fn();
+    const user = userEvent.setup();
+    const plan: Plan = {
+      ...basePlan,
+      status: "in_review",
+      taskCount: 3,
+      doneTaskCount: 3,
+    };
+    renderWithStore(
+      <EpicCard
+        plan={plan}
+        tasks={[]}
+        executingPlanId={null}
+        reExecutingPlanId={null}
+        planTasksPlanIds={[]}
+        onSelect={vi.fn()}
+        onShip={vi.fn()}
+        onPlanTasks={vi.fn()}
+        onReship={vi.fn()}
+        onGoToEvaluate={onGoToEvaluate}
+      />
+    );
+
+    const cta = screen.getByTestId("go-to-evaluate-button");
+    expect(cta).toBeInTheDocument();
+    expect(cta).toHaveTextContent(/mark complete in evaluate/i);
+    await user.click(cta);
+    expect(onGoToEvaluate).toHaveBeenCalledTimes(1);
   });
 
   it("shows Execute button when plan status is planning and has child tasks", () => {

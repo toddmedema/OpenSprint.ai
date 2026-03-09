@@ -21,6 +21,8 @@ export interface EpicCardProps {
   onPlanTasks: () => void;
   onReship: () => void;
   onClearError?: () => void;
+  /** When provided, in_review plans show a CTA to navigate to Evaluate (e.g. "Mark complete in Evaluate"). */
+  onGoToEvaluate?: () => void;
 }
 
 const statusConfig: Record<string, { badge: string; accent: string; icon: React.ReactNode }> = {
@@ -64,6 +66,26 @@ const statusConfig: Record<string, { badge: string; accent: string; icon: React.
       </svg>
     ),
   },
+  in_review: {
+    badge: "bg-theme-warning-bg text-theme-warning-text ring-1 ring-theme-warning-border/60",
+    accent: "bg-theme-warning-solid",
+    icon: (
+      <svg
+        className="w-3.5 h-3.5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2}
+        aria-hidden
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+        />
+      </svg>
+    ),
+  },
   complete: {
     badge: "bg-theme-success-bg text-theme-success-text ring-1 ring-theme-success-border/60",
     accent: "bg-theme-success-solid",
@@ -92,6 +114,14 @@ const defaultStatus = {
   icon: null,
 };
 
+/** Human-readable label for plan status badge (in_review → "In review"). */
+const PLAN_STATUS_LABEL: Record<string, string> = {
+  planning: "Planning",
+  building: "Building",
+  in_review: "In review",
+  complete: "Complete",
+};
+
 export function EpicCard({
   plan,
   tasks: tasksProp,
@@ -105,6 +135,7 @@ export function EpicCard({
   onPlanTasks,
   onReship,
   onClearError,
+  onGoToEvaluate,
 }: EpicCardProps) {
   const tasksFromRedux = useAppSelector(
     (s) => selectTasksForEpic(s, plan.metadata.epicId),
@@ -176,7 +207,7 @@ export function EpicCard({
             className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium capitalize ${config.badge}`}
           >
             {config.icon}
-            {plan.status}
+            {PLAN_STATUS_LABEL[plan.status] ?? plan.status}
           </span>
         </div>
 
@@ -341,6 +372,26 @@ export function EpicCard({
               </div>
             )}
           </>
+        )}
+        {plan.status === "in_review" && (
+          <div className="space-y-2">
+            <p className="text-xs text-theme-muted">
+              All tasks are done. Review in Evaluate and mark this plan complete to ship.
+            </p>
+            {onGoToEvaluate && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onGoToEvaluate();
+                }}
+                className="btn-primary text-xs w-full py-2 rounded-lg font-medium inline-flex items-center justify-center"
+                data-testid="go-to-evaluate-button"
+              >
+                Mark complete in Evaluate
+              </button>
+            )}
+          </div>
         )}
         {plan.status === "complete" &&
           plan.metadata.shippedAt &&
