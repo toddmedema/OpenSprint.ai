@@ -1,10 +1,12 @@
 "use strict";
 
+const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
 const http = require("http");
 const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } = require("electron");
 
+const APP_NAME = "Open Sprint";
 const BACKEND_PORT = 3100;
 const HEALTH_URL = `http://127.0.0.1:${BACKEND_PORT}/health`;
 const HEALTH_POLL_MS = 200;
@@ -15,6 +17,8 @@ const TRAY_REFRESH_MS = 10000;
 let mainWindow = null;
 let backendProcess = null;
 let tray = null;
+
+app.setName(APP_NAME);
 
 function getPaths() {
   const isPackaged = app.isPackaged;
@@ -34,12 +38,40 @@ function getPaths() {
   };
 }
 
+function getAppIconPath() {
+  const isPackaged = app.isPackaged;
+  const frontendDir = isPackaged
+    ? path.join(process.resourcesPath, "frontend")
+    : path.join(__dirname, "desktop-resources", "frontend");
+  const candidates = [
+    "logo-512x512.png",
+    "logo-192x192.png",
+    "apple-touch-icon.png",
+    "favicon.ico",
+  ];
+  for (const file of candidates) {
+    const fullPath = path.join(frontendDir, file);
+    if (fs.existsSync(fullPath)) return fullPath;
+  }
+  return null;
+}
+
+function applyRuntimeBranding() {
+  const iconPath = getAppIconPath();
+  if (!iconPath) return null;
+  const iconImage = nativeImage.createFromPath(iconPath);
+  if (iconImage.isEmpty()) return null;
+  if (process.platform === "darwin" && app.dock) {
+    app.dock.setIcon(iconImage);
+  }
+  return iconPath;
+}
+
 function getTrayIconPaths() {
   const isPackaged = app.isPackaged;
   const frontendDir = isPackaged
     ? path.join(process.resourcesPath, "frontend")
     : path.join(__dirname, "desktop-resources", "frontend");
-  const fs = require("fs");
   const normal =
     process.platform === "darwin"
       ? path.join(frontendDir, "trayIconTemplate.png")
@@ -132,10 +164,12 @@ function startBackend() {
 }
 
 function createWindow() {
+  const appIconPath = getAppIconPath();
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
-    title: "Open Sprint",
+    title: APP_NAME,
+    icon: appIconPath || undefined,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -185,7 +219,7 @@ function refreshTrayMenu() {
       { label: `${agentCount} agents running`, enabled: false },
       { type: "separator" },
       {
-        label: "Show OpenSprint",
+        label: `Show ${APP_NAME}`,
         click: () => {
           if (mainWindow) {
             mainWindow.show();
@@ -206,7 +240,7 @@ function createTray() {
   if (img.isEmpty()) img = nativeImage.createFromPath(path.join(path.dirname(normalPath), "favicon-16x16.png"));
   if (isTemplate && !img.isEmpty()) img.setTemplateImage(true);
   tray = new Tray(img);
-  tray.setToolTip("OpenSprint");
+  tray.setToolTip(APP_NAME);
   if (process.platform === "darwin") tray.setTitle("", { fontType: "monospacedDigit" });
   refreshTrayMenu();
   tray.on("click", () => {
@@ -249,6 +283,7 @@ app.whenReady().then(async () => {
     return;
   }
 
+  applyRuntimeBranding();
   backendProcess = startBackend();
   try {
     await waitForBackend();
