@@ -265,7 +265,7 @@ export class RecoveryService {
           event: "recovery.stale_heartbeat",
           data: { staleSec, threshold: HEARTBEAT_STALE_MS / 1000 },
         })
-        .catch(() => {});
+        .catch((err) => log.debug("Best-effort event log append failed", { taskId, err }));
 
       try {
         const task = await this.taskStore.show(projectId, taskId);
@@ -326,6 +326,12 @@ export class RecoveryService {
 
   // ─── Orphaned in_progress tasks ───
 
+  /**
+   * Reset in-progress tasks assigned to an agent when no process exists for that assignee.
+   * "Process exists" is determined by excludeIds: task IDs in a slot (getSlottedTaskIds) or
+   * in active agent registry (getActiveAgentIds). Human-assigned tasks are never included
+   * (listInProgressWithAgentAssignee returns only agent assignees).
+   */
   private async recoverOrphanedTasks(
     projectId: string,
     repoPath: string,
@@ -339,6 +345,22 @@ export class RecoveryService {
       try {
         await this.recoverTask(projectId, repoPath, task);
         recovered.push(task.id);
+        eventLogService
+          .append(repoPath, {
+            timestamp: new Date().toISOString(),
+            projectId,
+            taskId: task.id,
+            event: "recovery.agent_assignee_no_process_reset",
+            data: { assignee: task.assignee ?? null, reason: "no process for agent assignee" },
+          })
+          .catch((err) => log.debug("Best-effort event log append failed", { taskId: task.id, err }));
+        await this.taskStore
+          .comment(
+            projectId,
+            task.id,
+            "Watchdog: no running process for agent assignee. Task requeued for next attempt."
+          )
+          .catch((err) => log.warn("Failed to comment on recovered task", { taskId: task.id, err }));
       } catch (err) {
         log.warn("Failed to recover task", { taskId: task.id, err: (err as Error).message });
       }
@@ -368,7 +390,7 @@ export class RecoveryService {
             event: "recovery.stale_lock_removed",
             data: { ageMs },
           })
-          .catch(() => {});
+          .catch((err) => log.debug("Best-effort event log append failed", { err }));
         return true;
       }
     } catch {

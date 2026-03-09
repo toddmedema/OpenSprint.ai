@@ -1081,4 +1081,69 @@ describe("PlanService createWithRetry usage", () => {
     const plan = await planService.getPlan(projectId, planId);
     expect(plan.status).toBe("planning");
   });
+
+  it("getPlan returns metadata.reviewedAt when set in store", async () => {
+    const planId = "reviewed-at-plan";
+    const epicId = "epic-reviewed";
+    const reviewedAt = "2025-03-09T12:00:00.000Z";
+    const metadata = {
+      planId,
+      epicId,
+      shippedAt: null,
+      reviewedAt,
+      complexity: "medium",
+    };
+    await mockPlanInsert(projectId, planId, {
+      content: "# Reviewed Plan\n\n## Overview\n\nContent.",
+      metadata: JSON.stringify(metadata),
+    });
+    mockTaskStoreListAll.mockResolvedValue([
+      { id: epicId, status: "open", type: "epic" },
+      { id: `${epicId}.1`, status: "closed", type: "task" },
+    ]);
+
+    const plan = await planService.getPlan(projectId, planId);
+    expect(plan.metadata.reviewedAt).toBe(reviewedAt);
+  });
+
+  it("getPlan returns metadata.reviewedAt null when stored as null", async () => {
+    const planId = "reviewed-null-plan";
+    const epicId = "epic-null";
+    const metadata = {
+      planId,
+      epicId,
+      shippedAt: null,
+      reviewedAt: null,
+      complexity: "medium",
+    };
+    await mockPlanInsert(projectId, planId, {
+      content: "# Null Reviewed\n\n## Overview\n\nContent.",
+      metadata: JSON.stringify(metadata),
+    });
+    mockTaskStoreListAll.mockResolvedValue([{ id: epicId, status: "open", type: "epic" }]);
+
+    const plan = await planService.getPlan(projectId, planId);
+    expect(plan.metadata.reviewedAt).toBeNull();
+  });
+
+  it("createPlan writes metadata with reviewedAt null", async () => {
+    await planService.createPlan(projectId, {
+      title: "Reviewed At Plan",
+      content: "# Reviewed At\n\n## Overview\n\nContent.",
+      complexity: "low",
+    });
+
+    expect(mockPlanInsert).toHaveBeenCalledWith(
+      projectId,
+      "reviewed-at-plan",
+      expect.objectContaining({
+        epic_id: "epic-123",
+        content: expect.any(String),
+        metadata: expect.any(String),
+      })
+    );
+    const metadataArg = mockPlanInsert.mock.calls[0][2].metadata as string;
+    const parsed = JSON.parse(metadataArg) as Record<string, unknown>;
+    expect(parsed.reviewedAt).toBeNull();
+  });
 });

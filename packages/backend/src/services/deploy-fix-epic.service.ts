@@ -163,6 +163,7 @@ ${testOutput.slice(0, 15000)}
       planId,
       epicId,
       shippedAt: null,
+      reviewedAt: null,
       complexity: "medium",
     }),
   });

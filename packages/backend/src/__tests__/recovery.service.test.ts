@@ -68,6 +68,7 @@ vi.mock("../services/branch-manager.js", () => ({
 }));
 
 import { taskStore } from "../services/task-store.service.js";
+import { eventLogService } from "../services/event-log.service.js";
 
 describe("RecoveryService — stale heartbeat recovery", () => {
   let tmpDir: string;
@@ -293,5 +294,67 @@ describe("RecoveryService — stale heartbeat recovery", () => {
     expect(result.reattached).toEqual(["task-stale"]);
     expect(result.requeued).toEqual([]);
     expect(vi.mocked(taskStore.update)).not.toHaveBeenCalled();
+  });
+
+  describe("orphaned in_progress tasks (agent assignee, no process)", () => {
+    it("resets tasks with agent assignee when no slot or active agent", async () => {
+      vi.mocked(taskStore.listInProgressWithAgentAssignee).mockResolvedValue([
+        {
+          id: "task-orphan",
+          project_id: "proj-1",
+          title: "Orphan task",
+          status: "in_progress",
+          assignee: "Frodo",
+        } as never,
+      ]);
+
+      const result = await service.runFullRecovery("proj-1", tmpDir, host);
+
+      expect(result.requeued).toContain("task-orphan");
+      expect(vi.mocked(taskStore.update)).toHaveBeenCalledWith(
+        "proj-1",
+        "task-orphan",
+        expect.objectContaining({ status: "open", assignee: "" })
+      );
+      expect(vi.mocked(eventLogService.append)).toHaveBeenCalledWith(
+        tmpDir,
+        expect.objectContaining({
+          taskId: "task-orphan",
+          event: "recovery.agent_assignee_no_process_reset",
+          data: expect.objectContaining({ assignee: "Frodo", reason: "no process for agent assignee" }),
+        })
+      );
+      expect(vi.mocked(taskStore.comment)).toHaveBeenCalledWith(
+        "proj-1",
+        "task-orphan",
+        "Watchdog: no running process for agent assignee. Task requeued for next attempt."
+      );
+    });
+
+    it("does not reset tasks that are slotted or have active agent", async () => {
+      vi.mocked(taskStore.listInProgressWithAgentAssignee).mockResolvedValue([
+        { id: "task-slotted", status: "in_progress", assignee: "Samwise" } as never,
+        { id: "task-active", status: "in_progress", assignee: "Merry" } as never,
+      ]);
+
+      const hostWithExcludes = {
+        getSlottedTaskIds: (projectId: string) => (projectId === "proj-1" ? ["task-slotted"] : []),
+        getActiveAgentIds: (projectId: string) => (projectId === "proj-1" ? ["task-active"] : []),
+      };
+
+      const result = await service.runFullRecovery("proj-1", tmpDir, hostWithExcludes);
+
+      expect(result.requeued).toEqual([]);
+      expect(vi.mocked(taskStore.update)).not.toHaveBeenCalledWith(
+        "proj-1",
+        "task-slotted",
+        expect.any(Object)
+      );
+      expect(vi.mocked(taskStore.update)).not.toHaveBeenCalledWith(
+        "proj-1",
+        "task-active",
+        expect.any(Object)
+      );
+    });
   });
 });

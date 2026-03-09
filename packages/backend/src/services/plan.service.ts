@@ -587,6 +587,10 @@ export class PlanService {
       planId: (row.metadata.planId as string) ?? planId,
       epicId: (row.metadata.epicId as string) ?? "",
       shippedAt: (row.metadata.shippedAt as string | null) ?? null,
+      reviewedAt:
+        "reviewedAt" in row.metadata
+          ? (row.metadata.reviewedAt as string | null)
+          : undefined,
       complexity: (row.metadata.complexity as PlanMetadata["complexity"]) ?? "medium",
       mockups: (row.metadata.mockups as PlanMetadata["mockups"]) ?? undefined,
     };
@@ -780,6 +784,7 @@ export class PlanService {
       planId,
       epicId: epicId,
       shippedAt: null,
+      reviewedAt: null,
       complexity,
       mockups: mockups.length > 0 ? mockups : undefined,
     };

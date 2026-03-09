@@ -137,4 +137,25 @@ describe("WatchdogService", () => {
     await (watchdog as any).runChecks();
     expect(recoveryService.runFullRecovery).not.toHaveBeenCalled();
   });
+
+  it("logs recovered tasks when runFullRecovery returns requeued (agent assignee no-process reset)", async () => {
+    vi.mocked(recoveryService.runFullRecovery).mockResolvedValueOnce({
+      reattached: [],
+      requeued: ["task-orphan-1", "task-orphan-2"],
+      cleaned: [],
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    watchdog.start(getTargets);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (watchdog as any).runChecks();
+
+    const logged = warnSpy.mock.calls.map((c) => c[0]).join(" ");
+    expect(logged).toContain("Recovered tasks");
+    expect(logged).toContain("proj-1");
+    expect(logged).toContain("task-orphan-1");
+    expect(logged).toContain("task-orphan-2");
+    expect(logged).toContain("2");
+    warnSpy.mockRestore();
+  });
 });
