@@ -595,7 +595,7 @@ export class PlanService {
       mockups: (row.metadata.mockups as PlanMetadata["mockups"]) ?? undefined,
     };
 
-    // Derive status from task store: planning = epic blocked; building = epic open + tasks pending; complete = all done
+    // Derive status: planning = epic blocked; building = epic open + tasks pending; when all done → in_review if no reviewedAt, else complete
     let status: Plan["status"] = "planning";
     const { total, done } = metadata.epicId
       ? opts?.allIssues
@@ -603,15 +603,17 @@ export class PlanService {
         : await this.countTasks(projectId, metadata.epicId, undefined)
       : { total: 0, done: 0 };
 
+    const allTasksDone = total > 0 && done === total;
+    const statusWhenAllDone: Plan["status"] =
+      metadata.reviewedAt != null ? "complete" : "in_review";
+
     if (metadata.epicId && opts?.allIssues) {
       const epicIssue = opts.allIssues.find((i) => i.id === metadata.epicId);
       const epicStatus = (epicIssue?.status as string) ?? "open";
       if (epicStatus === "blocked") {
         status = "planning";
-      } else if (metadata.shippedAt) {
-        status = total > 0 && done === total ? "complete" : "building";
       } else {
-        status = total > 0 && done === total ? "complete" : "building";
+        status = allTasksDone ? statusWhenAllDone : "building";
       }
     } else if (metadata.epicId) {
       try {
@@ -619,20 +621,18 @@ export class PlanService {
         const epicStatus = (epicIssue.status as string) ?? "open";
         if (epicStatus === "blocked") {
           status = "planning";
-        } else if (metadata.shippedAt) {
-          status = total > 0 && done === total ? "complete" : "building";
         } else {
-          status = total > 0 && done === total ? "complete" : "building";
+          status = allTasksDone ? statusWhenAllDone : "building";
         }
       } catch {
         status = metadata.shippedAt
-          ? total > 0 && done === total
-            ? "complete"
+          ? allTasksDone
+            ? statusWhenAllDone
             : "building"
           : "planning";
       }
     } else if (metadata.shippedAt) {
-      status = total > 0 && done === total ? "complete" : "building";
+      status = allTasksDone ? statusWhenAllDone : "building";
     }
 
     const dependencyCount = opts?.edges

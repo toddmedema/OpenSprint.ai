@@ -963,6 +963,44 @@ describe("PlanService createWithRetry usage", () => {
     expect(plans.length).toBe(1);
   });
 
+  it("listPlansWithDependencyGraph derives in_review and complete from reviewedAt", async () => {
+    const planA = "plan-in-review";
+    const planB = "plan-complete";
+    const epicA = "epic-a";
+    const epicB = "epic-b";
+    await mockPlanInsert(projectId, planA, {
+      content: "# Plan A\n\n## Overview\n\nContent.",
+      metadata: JSON.stringify({
+        planId: planA,
+        epicId: epicA,
+        shippedAt: new Date().toISOString(),
+        complexity: "medium",
+      }),
+    });
+    await mockPlanInsert(projectId, planB, {
+      content: "# Plan B\n\n## Overview\n\nContent.",
+      metadata: JSON.stringify({
+        planId: planB,
+        epicId: epicB,
+        shippedAt: new Date().toISOString(),
+        reviewedAt: "2025-03-09T12:00:00.000Z",
+        complexity: "medium",
+      }),
+    });
+    mockTaskStoreListAll.mockResolvedValue([
+      { id: epicA, status: "open", type: "epic" },
+      { id: `${epicA}.1`, status: "closed", type: "task" },
+      { id: epicB, status: "open", type: "epic" },
+      { id: `${epicB}.1`, status: "closed", type: "task" },
+    ]);
+
+    const { plans } = await planService.listPlansWithDependencyGraph(projectId);
+    const a = plans.find((p) => p.metadata.planId === planA);
+    const b = plans.find((p) => p.metadata.planId === planB);
+    expect(a?.status).toBe("in_review");
+    expect(b?.status).toBe("complete");
+  });
+
   it("getPlan status: planning when epic is blocked", async () => {
     const planId = "status-planning";
     const epicId = "epic-status";
@@ -1010,13 +1048,38 @@ describe("PlanService createWithRetry usage", () => {
     expect(plan.status).toBe("building");
   });
 
-  it("getPlan status: complete when epic is open and all tasks done", async () => {
-    const planId = "status-complete";
-    const epicId = "epic-complete";
+  it("getPlan status: in_review when epic is open and all tasks done and no reviewedAt", async () => {
+    const planId = "status-in-review";
+    const epicId = "epic-in-review";
     const metadata = {
       planId,
       epicId: epicId,
       shippedAt: new Date().toISOString(),
+      complexity: "medium",
+    };
+    await mockPlanInsert(projectId, planId, {
+      content: "# Status In Review\n\n## Overview\n\nContent.",
+      metadata: JSON.stringify(metadata),
+    });
+    mockTaskStoreListAll.mockResolvedValue([
+      { id: epicId, status: "open", type: "epic" },
+      { id: `${epicId}.1`, status: "closed", type: "task" },
+      { id: `${epicId}.2`, status: "closed", type: "task" },
+    ]);
+
+    const plan = await planService.getPlan(projectId, planId);
+    expect(plan.status).toBe("in_review");
+  });
+
+  it("getPlan status: complete when epic is open and all tasks done and reviewedAt set", async () => {
+    const planId = "status-complete";
+    const epicId = "epic-complete";
+    const reviewedAt = "2025-03-09T12:00:00.000Z";
+    const metadata = {
+      planId,
+      epicId: epicId,
+      shippedAt: new Date().toISOString(),
+      reviewedAt,
       complexity: "medium",
     };
     await mockPlanInsert(projectId, planId, {
