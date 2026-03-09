@@ -128,7 +128,59 @@ function countResolved(feedback: FeedbackItem[], plansComplete: Plan[]): number 
   return countByStatus(feedback, "resolved") + plansComplete.length;
 }
 
+/** Count for All filter: all feedback + in_review plans + complete plans */
+function countAll(
+  feedback: FeedbackItem[],
+  plansInReview: Plan[],
+  plansComplete: Plan[]
+): number {
+  return feedback.length + plansInReview.length + plansComplete.length;
+}
+
 const VALID_FILTER_VALUES: FeedbackStatusFilter[] = ["all", "pending", "resolved", "cancelled"];
+
+/** Unified review list item: either a plan (in_review or complete) or a feedback tree node */
+export type UnifiedReviewItem =
+  | { kind: "plan"; plan: Plan }
+  | { kind: "feedback"; node: FeedbackTreeNode };
+
+function getSortDate(item: UnifiedReviewItem): string {
+  if (item.kind === "plan") {
+    return (
+      item.plan.metadata.reviewedAt ??
+      item.plan.lastModified ??
+      ""
+    );
+  }
+  return item.node.item.createdAt ?? "";
+}
+
+/** Build unified list for current filter and sort by date (newest first). */
+function buildUnifiedReviewList(
+  statusFilter: FeedbackStatusFilter,
+  feedbackTree: FeedbackTreeNode[],
+  plansInReview: Plan[],
+  plansComplete: Plan[]
+): UnifiedReviewItem[] {
+  const planItems: UnifiedReviewItem[] = [];
+  if (statusFilter === "pending" || statusFilter === "all") {
+    planItems.push(...plansInReview.map((plan) => ({ kind: "plan" as const, plan })));
+  }
+  if (statusFilter === "resolved" || statusFilter === "all") {
+    planItems.push(...plansComplete.map((plan) => ({ kind: "plan" as const, plan })));
+  }
+  const feedbackItems: UnifiedReviewItem[] = feedbackTree.map((node) => ({
+    kind: "feedback" as const,
+    node,
+  }));
+  const combined = [...planItems, ...feedbackItems];
+  combined.sort((a, b) => {
+    const dateA = getSortDate(a);
+    const dateB = getSortDate(b);
+    return dateB.localeCompare(dateA);
+  });
+  return combined;
+}
 
 function loadFeedbackStatusFilter(): FeedbackStatusFilter {
   if (typeof window === "undefined") return "pending";
@@ -1369,6 +1421,16 @@ export function EvalPhase({
     [feedback, statusFilter, animatingOutIds]
   );
   const feedbackTree = useMemo(() => buildFeedbackTree(filteredFeedback), [filteredFeedback]);
+  const unifiedList = useMemo(
+    () =>
+      buildUnifiedReviewList(
+        statusFilter,
+        feedbackTree,
+        plansInReview,
+        plansComplete
+      ),
+    [statusFilter, feedbackTree, plansInReview, plansComplete]
+  );
 
   useEffect(() => {
     if (reconcilingFeedbackIds.size === 0) return;
@@ -1617,7 +1679,9 @@ export function EvalPhase({
                 aria-label="Filter feedback and plan reviews by status"
                 data-testid="feedback-status-filter"
               >
-                <option value="all">All ({countByStatus(feedback, "all")})</option>
+                <option value="all">
+                  All ({countAll(feedback, plansInReview, plansComplete)})
+                </option>
                 <option value="pending">
                   Pending ({countPending(feedback, plansInReview)})
                 </option>
@@ -1637,13 +1701,10 @@ export function EvalPhase({
             <div className="text-center py-10 text-theme-muted text-sm">
               No feedback submitted yet. Test your app and report findings above.
             </div>
-          ) : (statusFilter === "pending" && plansInReview.length === 0 && filteredFeedback.length === 0) ||
-            (statusFilter === "resolved" && plansComplete.length === 0 && filteredFeedback.length === 0) ||
-            (statusFilter === "all" && filteredFeedback.length === 0) ||
-            (statusFilter === "cancelled" && filteredFeedback.length === 0) ? (
+          ) : unifiedList.length === 0 ? (
             <div className="text-center py-10 text-theme-muted text-sm">
               {statusFilter === "all"
-                ? "No feedback yet."
+                ? "No feedback or plans in review yet."
                 : statusFilter === "pending"
                   ? "No pending feedback or plans in review."
                   : statusFilter === "resolved"
@@ -1651,36 +1712,24 @@ export function EvalPhase({
                     : "No cancelled feedback yet."}
             </div>
           ) : (
-            <>
-              <div className="space-y-3 flex flex-col">
-                {statusFilter === "pending" &&
-                  plansInReview.map((plan) => (
-                    <PlanReviewCard
-                      key={plan.metadata.planId}
-                      plan={plan}
-                      onMarkComplete={() =>
-                        markPlanCompleteMutation.mutate(plan.metadata.planId)
-                      }
-                      isMarking={
-                        markPlanCompleteMutation.isPending &&
-                        markPlanCompleteMutation.variables === plan.metadata.planId
-                      }
-                    />
-                  ))}
-                {statusFilter === "resolved" &&
-                  plansComplete.map((plan) => (
-                    <PlanReviewCard
-                      key={plan.metadata.planId}
-                      plan={plan}
-                      onMarkComplete={() => {}}
-                      isMarking={false}
-                    />
-                  ))}
-                {/* key=node.item.id preserves DOM identity when a single item is updated via WebSocket */}
-                {feedbackTree.map((node) => (
+            <div className="space-y-3 flex flex-col">
+              {unifiedList.map((entry) =>
+                entry.kind === "plan" ? (
+                  <PlanReviewCard
+                    key={`plan-${entry.plan.metadata.planId}`}
+                    plan={entry.plan}
+                    onMarkComplete={() =>
+                      markPlanCompleteMutation.mutate(entry.plan.metadata.planId)
+                    }
+                    isMarking={
+                      markPlanCompleteMutation.isPending &&
+                      markPlanCompleteMutation.variables === entry.plan.metadata.planId
+                    }
+                  />
+                ) : (
                   <FeedbackCard
-                    key={node.item.id}
-                    node={node}
+                    key={`feedback-${entry.node.item.id}`}
+                    node={entry.node}
                     depth={0}
                     projectId={projectId}
                     onNavigateToBuildTask={onNavigateToBuildTask}
@@ -1697,9 +1746,9 @@ export function EvalPhase({
                     isDraggingImage={isDraggingImage}
                     clearDragState={clearDragState}
                     taskSummaryById={taskSummaryById}
-                    questionId={questionIdByFeedbackId[node.item.id]}
+                    questionId={questionIdByFeedbackId[entry.node.item.id]}
                     questionIdByFeedbackId={questionIdByFeedbackId}
-                    notification={notificationByFeedbackId[node.item.id]}
+                    notification={notificationByFeedbackId[entry.node.item.id]}
                     notificationByFeedbackId={notificationByFeedbackId}
                     onAnswerOpenQuestion={handleAnswerOpenQuestion}
                     onDismissOpenQuestion={handleDismissOpenQuestion}
@@ -1707,13 +1756,13 @@ export function EvalPhase({
                     onHilResolved={refetchNotifications}
                     onCardTap={
                       isMobile
-                        ? () => setSelectedFeedbackIdForOverlay(node.item.id)
+                        ? () => setSelectedFeedbackIdForOverlay(entry.node.item.id)
                         : undefined
                     }
                   />
-                ))}
-              </div>
-            </>
+                )
+              )}
+            </div>
           )}
         </div>
       </div>

@@ -25,7 +25,7 @@ import {
   setTasks,
 } from "../../store/slices/executeSlice";
 import { updateFeedbackItem } from "../../store/slices/evalSlice";
-import type { FeedbackItem, Notification, Task } from "@opensprint/shared";
+import type { FeedbackItem, Notification, Plan, Task } from "@opensprint/shared";
 import { queryKeys } from "../../api/queryKeys";
 
 /**
@@ -40,6 +40,34 @@ function createQueryClientWithFeedbackPreloaded(feedback: FeedbackItem[] = []): 
   });
   client.setQueryData(queryKeys.feedback.list("proj-1"), feedback);
   return client;
+}
+
+/** Pre-seed feedback and plans queries for unified list tests (pending = pending feedback + in_review plans). */
+function createQueryClientWithFeedbackAndPlans(
+  feedback: FeedbackItem[],
+  plans: Plan[] = []
+): QueryClient {
+  const client = createQueryClientWithFeedbackPreloaded(feedback);
+  client.setQueryData(queryKeys.plans.list("proj-1"), { plans, edges: [] });
+  return client;
+}
+
+function createMockPlan(opts: { planId: string; status: Plan["status"] }): Plan {
+  return {
+    metadata: {
+      planId: opts.planId,
+      epicId: "epic-1",
+      shippedAt: null,
+      reviewedAt: opts.status === "complete" ? "2024-01-01T12:00:00Z" : null,
+      complexity: "medium",
+    },
+    content: "# Plan",
+    status: opts.status,
+    taskCount: 3,
+    doneTaskCount: 3,
+    dependencyCount: 0,
+    lastModified: "2024-01-01T12:00:00Z",
+  };
 }
 
 vi.mock("../../api/client", () => ({
@@ -1660,6 +1688,86 @@ describe("EvalPhase feedback form", () => {
       expect(screen.getByText("Bug 4")).toBeInTheDocument();
       expect(screen.getByText("Bug 5")).toBeInTheDocument();
       expect(screen.queryByText("Bug 6")).not.toBeInTheDocument();
+    });
+
+    describe("unified review list (pending = pending feedback + in_review plans)", () => {
+      it("Pending filter shows pending feedback and in_review plans in one list", async () => {
+        const twoPendingFeedback: FeedbackItem[] = [
+          { ...mockFeedbackItems[0], id: "fb-a", text: "Pending A", status: "pending" },
+          { ...mockFeedbackItems[1], id: "fb-b", text: "Pending B", status: "pending" },
+        ];
+        const planInReview = createMockPlan({ planId: "auth-plan", status: "in_review" });
+        const queryClient = createQueryClientWithFeedbackAndPlans(twoPendingFeedback, [planInReview]);
+        const store = createStore({ evalFeedback: twoPendingFeedback });
+        localStorage.setItem(EVALUATE_FEEDBACK_FILTER_KEY, "pending");
+
+        renderWithProviders(
+          <MemoryRouter>
+            <EvalPhase projectId="proj-1" />
+          </MemoryRouter>,
+          { store, queryClient }
+        );
+
+        await waitFor(() => expect(screen.getByTestId("feedback-status-filter")).toBeInTheDocument());
+
+        // Pending count = 2 feedback + 1 plan = 3
+        expect(screen.getByRole("option", { name: "Pending (3)" })).toBeInTheDocument();
+        expect(screen.getByText("Pending A")).toBeInTheDocument();
+        expect(screen.getByText("Pending B")).toBeInTheDocument();
+        expect(screen.getByTestId("plan-review-card-auth-plan")).toBeInTheDocument();
+      });
+
+      it("Resolved filter shows resolved feedback and complete plans in one list", async () => {
+        const oneResolved: FeedbackItem[] = [
+          { ...mockFeedbackItems[5], id: "fb-done", text: "Resolved feedback", status: "resolved" },
+        ];
+        const planComplete = createMockPlan({ planId: "done-plan", status: "complete" });
+        const queryClient = createQueryClientWithFeedbackAndPlans(oneResolved, [planComplete]);
+        const store = createStore({ evalFeedback: oneResolved });
+        localStorage.setItem(EVALUATE_FEEDBACK_FILTER_KEY, "resolved");
+
+        renderWithProviders(
+          <MemoryRouter>
+            <EvalPhase projectId="proj-1" />
+          </MemoryRouter>,
+          { store, queryClient }
+        );
+
+        await waitFor(() => expect(screen.getByTestId("feedback-status-filter")).toBeInTheDocument());
+
+        expect(screen.getByRole("option", { name: "Resolved (2)" })).toBeInTheDocument();
+        expect(screen.getByText("Resolved feedback")).toBeInTheDocument();
+        expect(screen.getByTestId("plan-review-card-done-plan")).toBeInTheDocument();
+      });
+
+      it("filter dropdown counts include both feedback and plans (e.g. Pending (3) = 2 feedback + 1 plan)", async () => {
+        const twoPendingOneResolved: FeedbackItem[] = [
+          { ...mockFeedbackItems[0], id: "p1", status: "pending" },
+          { ...mockFeedbackItems[1], id: "p2", status: "pending" },
+          { ...mockFeedbackItems[5], id: "r1", status: "resolved" },
+        ];
+        const planInReview = createMockPlan({ planId: "review-plan", status: "in_review" });
+        const planComplete = createMockPlan({ planId: "complete-plan", status: "complete" });
+        const queryClient = createQueryClientWithFeedbackAndPlans(twoPendingOneResolved, [
+          planInReview,
+          planComplete,
+        ]);
+        const store = createStore({ evalFeedback: twoPendingOneResolved });
+
+        renderWithProviders(
+          <MemoryRouter>
+            <EvalPhase projectId="proj-1" />
+          </MemoryRouter>,
+          { store, queryClient }
+        );
+
+        await waitFor(() => expect(screen.getByTestId("feedback-status-filter")).toBeInTheDocument());
+
+        // All = 3 feedback + 2 plans = 5; Pending = 2 feedback + 1 in_review = 3; Resolved = 1 feedback + 1 complete = 2
+        expect(screen.getByRole("option", { name: "All (5)" })).toBeInTheDocument();
+        expect(screen.getByRole("option", { name: "Pending (3)" })).toBeInTheDocument();
+        expect(screen.getByRole("option", { name: "Resolved (2)" })).toBeInTheDocument();
+      });
     });
 
     it("All filter shows all feedback items", async () => {
