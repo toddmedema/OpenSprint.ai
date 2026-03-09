@@ -280,8 +280,8 @@ export function Navbar({
           </div>
         )}
 
-        {/* Right: Active agents + Help + Status + Settings — padding only, no margin */}
-        <div className="flex items-center shrink-0 [&>*:not(:first-child)]:pl-1 md:[&>*:not(:first-child)]:pl-3">
+        {/* Right: Active agents + Help + Status + Settings — padding only, no margin; 8px right spacing */}
+        <div className="flex items-center shrink-0 pr-2 [&>*:not(:first-child)]:pl-1 md:[&>*:not(:first-child)]:pl-3">
           {project ? (
             <>
               {showAgentDropdown && <ActiveAgentsList projectId={project.id} />}
