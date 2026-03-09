@@ -339,6 +339,8 @@ export type ApiKeyProvider =
 export interface ApiKeyEntry {
   id: string;
   value: string;
+  /** User-defined label (e.g. 'Production', 'Staging'). Optional, display only. */
+  label?: string;
   /** ISO8601 timestamp when rate/limit was hit; key is retried after 24h */
   limitHitAt?: string;
   /** ISO8601 timestamp when provider rejected the key as invalid. */
@@ -352,6 +354,7 @@ export type ApiKeys = Partial<Record<ApiKeyProvider, ApiKeyEntry[]>>;
 export interface ApiKeyUpdateEntry {
   id: string;
   value?: string;
+  label?: string;
   limitHitAt?: string;
   invalidAt?: string;
 }
@@ -545,6 +548,7 @@ export function isLocalDatabaseUrl(databaseUrl: string): boolean {
 export interface MaskedApiKeyEntry {
   id: string;
   masked: string;
+  label?: string;
   limitHitAt?: string;
   invalidAt?: string;
 }
@@ -567,6 +571,7 @@ export function maskApiKeysForResponse(apiKeys: ApiKeys | undefined): MaskedApiK
       result[provider] = entries.map((e) => ({
         id: e.id,
         masked: MASKED_PLACEHOLDER,
+        ...(e.label != null && e.label !== "" && { label: e.label }),
         ...(e.limitHitAt && { limitHitAt: e.limitHitAt }),
         ...(e.invalidAt && { invalidAt: e.invalidAt }),
       }));
@@ -818,9 +823,14 @@ export function validateApiKeyEntry(entry: unknown): ApiKeyEntry {
       throw new Error("API key invalidAt must be a string (ISO8601)");
     }
   }
+  const label = e.label;
+  if (label !== undefined && label !== null && typeof label !== "string") {
+    throw new Error("API key label must be a string");
+  }
   return {
     id: id.trim(),
     value,
+    ...(label != null && { label: String(label) }),
     ...(limitHitAt != null && limitHitAt !== "" && { limitHitAt: String(limitHitAt) }),
     ...(invalidAt != null && invalidAt !== "" && { invalidAt: String(invalidAt) }),
   };
@@ -875,9 +885,16 @@ export function mergeApiKeysWithCurrent(
           : preserveExistingState
             ? existing?.invalidAt
             : undefined;
+      const label =
+        typeof e.label === "string"
+          ? e.label
+          : preserveExistingState
+            ? existing?.label
+            : undefined;
       merged.push({
         id,
         value,
+        ...(label !== undefined && { label }),
         ...(limitHitAt ? { limitHitAt } : {}),
         ...(invalidAt ? { invalidAt } : {}),
       });

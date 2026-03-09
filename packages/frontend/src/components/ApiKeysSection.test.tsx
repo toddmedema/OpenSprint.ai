@@ -155,6 +155,29 @@ describe("ApiKeysSection", () => {
     expect(lastCall.ANTHROPIC_API_KEY!.some((e) => e.value === "sk-ant-new-key")).toBe(true);
   });
 
+  it("renders label input to the left of each API key and includes label in onApiKeysChange", async () => {
+    const user = userEvent.setup();
+    const settingsWithLabels: ApiKeysSectionSettings = {
+      ...mockSettingsClaude,
+      apiKeys: {
+        ANTHROPIC_API_KEY: [
+          { id: "k1", value: "sk-ant-a", label: "Production" },
+          { id: "k2", value: "sk-ant-b" },
+        ],
+      },
+    };
+    render(<ApiKeysSection settings={settingsWithLabels} onApiKeysChange={onApiKeysChange} />);
+    const labelInputs = screen.getAllByTestId(/api-key-label-ANTHROPIC_API_KEY-/);
+    expect(labelInputs).toHaveLength(2);
+    expect(labelInputs[0]).toHaveValue("Production");
+    expect(labelInputs[1]).toHaveValue("");
+    await user.type(labelInputs[1], "Staging");
+    expect(onApiKeysChange).toHaveBeenCalled();
+    const lastCall = onApiKeysChange.mock.calls[onApiKeysChange.mock.calls.length - 1][0];
+    const entries = lastCall.ANTHROPIC_API_KEY!;
+    expect(entries.find((e) => e.id === "k2")?.label).toBe("Staging");
+  });
+
   it("enables remove when only one key remains (allows key rotation/cleanup)", () => {
     const settingsWithOneKey: ApiKeysSectionSettings = {
       ...mockSettingsClaude,

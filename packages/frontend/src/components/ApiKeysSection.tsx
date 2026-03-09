@@ -83,8 +83,9 @@ export function ApiKeysSection({
 }: ApiKeysSectionProps) {
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [editedValues, setEditedValues] = useState<Record<string, string>>({});
+  const [editedLabels, setEditedLabels] = useState<Record<string, string>>({});
   const [newKeys, setNewKeys] = useState<
-    Partial<Record<ApiKeyProvider, Array<{ id: string; value: string }>>>
+    Partial<Record<ApiKeyProvider, Array<{ id: string; value: string; label?: string }>>>
   >({});
   const [revealedValues, setRevealedValues] = useState<Record<string, string>>({});
   const [revealingId, setRevealingId] = useState<string | null>(null);
@@ -123,9 +124,17 @@ export function ApiKeysSection({
   const getEntriesForProvider = useCallback(
     (
       provider: ApiKeyProvider
-    ): Array<{ id: string; value: string; limitHitAt?: string; invalidAt?: string }> => {
+    ): Array<{
+      id: string;
+      value: string;
+      label?: string;
+      limitHitAt?: string;
+      invalidAt?: string;
+    }> => {
       const existing =
-        (apiKeys as Record<string, MaskedApiKeyEntry[]> | undefined)?.[provider] ?? [];
+        (apiKeys as Record<string, (MaskedApiKeyEntry & { label?: string })[]> | undefined)?.[
+          provider
+        ] ?? [];
       const added = newKeys[provider] ?? [];
       const existingIds = new Set(existing.map((e) => e.id));
       const addedOnly = added.filter((e) => !existingIds.has(e.id));
@@ -133,9 +142,11 @@ export function ApiKeysSection({
         ...existing.map((e) => {
           const raw = e as ApiKeyEntry & MaskedApiKeyEntry;
           const value = editedValues[e.id] ?? raw.value ?? revealedValues[e.id] ?? raw.masked ?? "";
+          const label = editedLabels[e.id] ?? raw.label ?? "";
           return {
             id: e.id,
             value,
+            label: label || undefined,
             limitHitAt: e.limitHitAt,
             invalidAt: raw.invalidAt,
           };
@@ -143,18 +154,25 @@ export function ApiKeysSection({
         ...addedOnly.map((e) => ({
           id: e.id,
           value: e.value,
+          label: editedLabels[e.id] ?? e.label ?? undefined,
           limitHitAt: undefined as string | undefined,
           invalidAt: undefined as string | undefined,
         })),
       ];
     },
-    [apiKeys, newKeys, editedValues, revealedValues]
+    [apiKeys, newKeys, editedValues, editedLabels, revealedValues]
   );
 
   const emitApiKeysForProvider = useCallback(
     (
       provider: ApiKeyProvider,
-      entries: Array<{ id: string; value: string; limitHitAt?: string; invalidAt?: string }>,
+      entries: Array<{
+        id: string;
+        value: string;
+        label?: string;
+        limitHitAt?: string;
+        invalidAt?: string;
+      }>,
       changedId?: string,
       changedValue?: string
     ) => {
@@ -163,6 +181,7 @@ export function ApiKeysSection({
         return {
           id: e.id,
           ...(value && value !== MASKED_PLACEHOLDER ? { value } : {}),
+          ...(e.label !== undefined && { label: e.label }),
           ...(e.limitHitAt ? { limitHitAt: e.limitHitAt } : {}),
           ...(e.invalidAt ? { invalidAt: e.invalidAt } : {}),
         };
@@ -187,6 +206,25 @@ export function ApiKeysSection({
       const entries = getEntriesForProvider(provider);
       const updatedEntries = entries.map((e) => (e.id === id ? { ...e, value } : e));
       emitApiKeysForProvider(provider, updatedEntries, id, value);
+    },
+    [newKeys, getEntriesForProvider, emitApiKeysForProvider]
+  );
+
+  const updateEntryLabel = useCallback(
+    (provider: ApiKeyProvider, id: string, label: string) => {
+      const added = newKeys[provider];
+      const isNew = added?.some((e) => e.id === id);
+      if (isNew) {
+        setNewKeys((prev) => ({
+          ...prev,
+          [provider]: (prev[provider] ?? []).map((e) => (e.id === id ? { ...e, label } : e)),
+        }));
+      } else {
+        setEditedLabels((prev) => ({ ...prev, [id]: label }));
+      }
+      const entries = getEntriesForProvider(provider);
+      const updatedEntries = entries.map((e) => (e.id === id ? { ...e, label } : e));
+      emitApiKeysForProvider(provider, updatedEntries);
     },
     [newKeys, getEntriesForProvider, emitApiKeysForProvider]
   );
@@ -279,9 +317,22 @@ export function ApiKeysSection({
                             : "key_..."
                       : MASKED_PLACEHOLDER
                     : undefined;
+                  const displayLabel =
+                    editedLabels[entry.id] ??
+                    (newKeys[provider]?.find((x) => x.id === entry.id)?.label ?? entry.label ?? "");
                   return (
                     <div key={entry.id} className="space-y-1">
                       <div className="flex gap-2 items-center">
+                        <input
+                          type="text"
+                          className="input text-sm w-32 shrink-0"
+                          placeholder="Label"
+                          value={displayLabel}
+                          onChange={(e) => updateEntryLabel(provider, entry.id, e.target.value)}
+                          autoComplete="off"
+                          data-testid={`api-key-label-${provider}-${entry.id}`}
+                          aria-label="Key label"
+                        />
                         <div className="flex-1 min-w-0">
                           <div className="relative flex">
                             <input

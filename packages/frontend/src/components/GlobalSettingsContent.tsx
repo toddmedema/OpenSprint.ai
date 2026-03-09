@@ -248,6 +248,7 @@ export function GlobalSettingsContent({ onSaveStateChange }: GlobalSettingsConte
             id,
             ...(entry.limitHitAt ? { limitHitAt: entry.limitHitAt } : {}),
             ...(entry.invalidAt ? { invalidAt: entry.invalidAt } : {}),
+            ...("label" in entry && entry.label !== undefined && { label: entry.label }),
           };
           if ("value" in entry && typeof entry.value === "string" && entry.value) {
             preserved.value = entry.value;
@@ -264,6 +265,7 @@ export function GlobalSettingsContent({ onSaveStateChange }: GlobalSettingsConte
           id,
           ...(entry.limitHitAt ? { limitHitAt: entry.limitHitAt } : {}),
           ...(entry.invalidAt ? { invalidAt: entry.invalidAt } : {}),
+          ...(entry.label !== undefined && { label: entry.label }),
         };
         if (typeof entry.value === "string" && entry.value) {
           normalized.value = entry.value;

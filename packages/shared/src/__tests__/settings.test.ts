@@ -889,6 +889,15 @@ describe("validateApiKeyEntry", () => {
       validateApiKeyEntry({ id: "x", value: "secret", invalidAt: 123 })
     ).toThrow("invalidAt must be a string");
   });
+
+  it("accepts optional label and includes it in output", () => {
+    const entry = validateApiKeyEntry({
+      id: "k1",
+      value: "sk-ant-xxx",
+      label: "Production",
+    });
+    expect(entry).toMatchObject({ id: "k1", value: "sk-ant-xxx", label: "Production" });
+  });
 });
 
 describe("mergeApiKeysWithCurrent", () => {
@@ -968,6 +977,32 @@ describe("mergeApiKeysWithCurrent", () => {
     const result = mergeApiKeysWithCurrent(incoming, current);
     expect(result?.OPENAI_API_KEY).toEqual([{ id: "o1", value: "sk-old" }]);
   });
+
+  it("preserves label when value omitted (masked)", () => {
+    const current: ApiKeys = {
+      ANTHROPIC_API_KEY: [{ id: "k1", value: "sk-ant-secret", label: "Production" }],
+    };
+    const incoming = {
+      ANTHROPIC_API_KEY: [{ id: "k1", masked: "••••••••" }],
+    };
+    const result = mergeApiKeysWithCurrent(incoming, current);
+    expect(result?.ANTHROPIC_API_KEY).toEqual([
+      { id: "k1", value: "sk-ant-secret", label: "Production" },
+    ]);
+  });
+
+  it("uses incoming label when provided", () => {
+    const current: ApiKeys = {
+      ANTHROPIC_API_KEY: [{ id: "k1", value: "sk-ant-secret", label: "Old" }],
+    };
+    const incoming = {
+      ANTHROPIC_API_KEY: [{ id: "k1", masked: "••••••••", label: "Staging" }],
+    };
+    const result = mergeApiKeysWithCurrent(incoming, current);
+    expect(result?.ANTHROPIC_API_KEY).toEqual([
+      { id: "k1", value: "sk-ant-secret", label: "Staging" },
+    ]);
+  });
 });
 
 describe("sanitizeApiKeys", () => {
@@ -994,6 +1029,16 @@ describe("sanitizeApiKeys", () => {
     expect(result?.ANTHROPIC_API_KEY).toEqual([{ id: "k1", value: "sk-ant-xxx" }]);
     expect(result?.CURSOR_API_KEY).toEqual([{ id: "k2", value: "cursor-key" }]);
     expect(result?.OPENAI_API_KEY).toEqual([{ id: "k3", value: "sk-xxx" }]);
+  });
+
+  it("preserves label when present", () => {
+    const raw = {
+      ANTHROPIC_API_KEY: [{ id: "k1", value: "sk-ant-xxx", label: "Staging" }],
+    };
+    const result = sanitizeApiKeys(raw) as ApiKeys;
+    expect(result?.ANTHROPIC_API_KEY).toEqual([
+      { id: "k1", value: "sk-ant-xxx", label: "Staging" },
+    ]);
   });
 
   it("ignores unknown provider keys", () => {
@@ -1122,6 +1167,20 @@ describe("maskApiKeysForResponse", () => {
     const masked = maskApiKeysForResponse(apiKeys);
     expect(masked?.CURSOR_API_KEY?.[0]).not.toHaveProperty("value");
     expect(masked?.CURSOR_API_KEY?.[0]).toEqual({ id: "c1", masked: "••••••••" });
+  });
+
+  it("preserves label in masked output", () => {
+    const apiKeys: ApiKeys = {
+      ANTHROPIC_API_KEY: [
+        { id: "k1", value: "sk-ant-secret", label: "Production" },
+        { id: "k2", value: "sk-ant-other", label: "Staging" },
+      ],
+    };
+    const masked = maskApiKeysForResponse(apiKeys);
+    expect(masked?.ANTHROPIC_API_KEY).toEqual([
+      { id: "k1", masked: "••••••••", label: "Production" },
+      { id: "k2", masked: "••••••••", label: "Staging" },
+    ]);
   });
 });
 
