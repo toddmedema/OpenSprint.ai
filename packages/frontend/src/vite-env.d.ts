@@ -5,3 +5,5 @@ declare global {
     electron?: { isElectron: true };
   }
 }
+
+export {};

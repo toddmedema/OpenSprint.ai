@@ -103,6 +103,7 @@ export function GlobalSettingsContent({ onSaveStateChange }: GlobalSettingsConte
     undefined
   );
   const [showNotificationDotInMenuBar, setShowNotificationDotInMenuBar] = useState(true);
+  const [showRunningAgentCountInMenuBar, setShowRunningAgentCountInMenuBar] = useState(true);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
   const [upgradePostgresUrl, setUpgradePostgresUrl] = useState("");
   const [upgradeLoading, setUpgradeLoading] = useState(false);
@@ -157,6 +158,7 @@ export function GlobalSettingsContent({ onSaveStateChange }: GlobalSettingsConte
         setExpoTokenConfigured(res.expoTokenConfigured ?? false);
         setExpoToken(res.expoTokenConfigured ? "••••••••" : "");
         setShowNotificationDotInMenuBar(res.showNotificationDotInMenuBar !== false);
+        setShowRunningAgentCountInMenuBar(res.showRunningAgentCountInMenuBar !== false);
       })
       .catch(() => {
         setDatabaseUrl("");
@@ -701,6 +703,32 @@ export function GlobalSettingsContent({ onSaveStateChange }: GlobalSettingsConte
           </label>
           <p className="text-xs text-theme-muted mt-1 ml-6">
             When unchecked, the tray icon will not show a dot when you have pending notifications.
+          </p>
+          <label className="flex items-center gap-2 cursor-pointer mt-3">
+            <input
+              type="checkbox"
+              checked={showRunningAgentCountInMenuBar}
+              onChange={async (e) => {
+                const value = e.target.checked;
+                setShowRunningAgentCountInMenuBar(value);
+                const startTime = Date.now();
+                notifySaveState("saving");
+                try {
+                  await api.globalSettings.put({ showRunningAgentCountInMenuBar: value });
+                  scheduleSaveComplete(startTime);
+                } catch {
+                  setShowRunningAgentCountInMenuBar(!value);
+                  scheduleSaveComplete(startTime);
+                }
+              }}
+              data-testid="show-running-agent-count-in-menu-bar"
+              className="rounded border-theme-border"
+            />
+            <span className="text-sm text-theme-text">Show running agent count in menu bar</span>
+          </label>
+          <p className="text-xs text-theme-muted mt-1 ml-6">
+            When unchecked, the number of running agents will not appear next to the menu bar icon
+            (macOS).
           </p>
         </div>
       )}

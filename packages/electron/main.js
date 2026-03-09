@@ -3,7 +3,7 @@
 const path = require("path");
 const { spawn } = require("child_process");
 const http = require("http");
-const { app, BrowserWindow, Tray, Menu, nativeImage } = require("electron");
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } = require("electron");
 
 const BACKEND_PORT = 3100;
 const HEALTH_URL = `http://127.0.0.1:${BACKEND_PORT}/health`;
@@ -173,6 +173,14 @@ function refreshTrayMenu() {
     if (img.isEmpty()) img = nativeImage.createFromPath(normalPath);
     if (isTemplate && !img.isEmpty()) img.setTemplateImage(true);
     tray.setImage(img);
+    // macOS: show agent count to the right of the menu bar icon when setting enabled (e.g. "1", "9+")
+    if (process.platform === "darwin") {
+      const showCount = settingsRes.data?.showRunningAgentCountInMenuBar !== false;
+      const title = showCount
+        ? (agentCount === 0 ? "" : agentCount > 9 ? "9+" : String(agentCount))
+        : "";
+      tray.setTitle(title, { fontType: "monospacedDigit" });
+    }
     const menu = Menu.buildFromTemplate([
       { label: `${agentCount} agents running`, enabled: false },
       { type: "separator" },
@@ -199,6 +207,7 @@ function createTray() {
   if (isTemplate && !img.isEmpty()) img.setTemplateImage(true);
   tray = new Tray(img);
   tray.setToolTip("OpenSprint");
+  if (process.platform === "darwin") tray.setTitle("", { fontType: "monospacedDigit" });
   refreshTrayMenu();
   tray.on("click", () => {
     if (process.platform === "darwin") {

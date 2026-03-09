@@ -284,7 +284,7 @@ describe("GlobalSettingsContent", () => {
     renderGlobalSettingsContent();
 
     await screen.findByTestId("database-url-section");
-    expect(screen.getByText("Database URL")).toBeInTheDocument();
+    expect(screen.getByText("Database")).toBeInTheDocument();
     expect(
       screen.getByText(/PostgreSQL connection URL for tasks, feedback, and sessions/)
     ).toBeInTheDocument();

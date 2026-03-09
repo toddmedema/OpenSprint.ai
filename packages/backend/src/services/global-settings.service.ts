@@ -50,12 +50,15 @@ async function load(): Promise<GlobalSettings> {
           : undefined;
       const showNotificationDotInMenuBar =
         obj.showNotificationDotInMenuBar === false ? false : obj.showNotificationDotInMenuBar === true ? true : undefined;
+      const showRunningAgentCountInMenuBar =
+        obj.showRunningAgentCountInMenuBar === false ? false : obj.showRunningAgentCountInMenuBar === true ? true : undefined;
       return {
         ...(apiKeys && { apiKeys }),
         ...(useCustomCli !== undefined && { useCustomCli }),
         ...(databaseUrl && { databaseUrl }),
         ...(expoToken && { expoToken }),
         ...(showNotificationDotInMenuBar !== undefined && { showNotificationDotInMenuBar }),
+        ...(showRunningAgentCountInMenuBar !== undefined && { showRunningAgentCountInMenuBar }),
       };
     }
   } catch {
@@ -138,6 +141,9 @@ export async function setGlobalSettings(settings: GlobalSettings): Promise<void>
   if (settings.showNotificationDotInMenuBar !== undefined) {
     sanitized.showNotificationDotInMenuBar = settings.showNotificationDotInMenuBar;
   }
+  if (settings.showRunningAgentCountInMenuBar !== undefined) {
+    sanitized.showRunningAgentCountInMenuBar = settings.showRunningAgentCountInMenuBar;
+  }
   await save(sanitized);
 }
 
@@ -166,6 +172,9 @@ export async function updateGlobalSettings(
   }
   if (updates.showNotificationDotInMenuBar !== undefined) {
     merged.showNotificationDotInMenuBar = updates.showNotificationDotInMenuBar;
+  }
+  if (updates.showRunningAgentCountInMenuBar !== undefined) {
+    merged.showRunningAgentCountInMenuBar = updates.showRunningAgentCountInMenuBar;
   }
 
   await save(merged);

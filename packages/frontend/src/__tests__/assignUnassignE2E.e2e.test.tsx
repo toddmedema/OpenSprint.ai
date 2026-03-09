@@ -152,7 +152,7 @@ describe("E2E: Assign task to teammate, verify no agent pickup; unassign and ver
   beforeEach(() => {
     vi.clearAllMocks();
     mockTasksList.mockResolvedValue([]);
-    mockGetSettings.mockResolvedValue({ teamMembers });
+    mockGetSettings.mockResolvedValue({ teamMembers, enableHumanTeammates: true });
     mockExecuteStatus.mockResolvedValue({ activeTasks: [], queueDepth: 0 });
     mockTaskGet.mockResolvedValue(readyTask);
     mockSessions.mockResolvedValue([]);

@@ -36,6 +36,7 @@ function buildResponse(settings: GlobalSettings) {
     ...(settings.apiKeys && { apiKeys: maskApiKeysForResponse(settings.apiKeys) }),
     expoTokenConfigured: Boolean(settings.expoToken && settings.expoToken.trim()),
     showNotificationDotInMenuBar: settings.showNotificationDotInMenuBar !== false,
+    showRunningAgentCountInMenuBar: settings.showRunningAgentCountInMenuBar !== false,
   };
 }
 
@@ -178,12 +179,14 @@ globalSettingsRouter.put("/", async (req: Request, res, next) => {
       apiKeys?: unknown;
       expoToken?: string;
       showNotificationDotInMenuBar?: boolean;
+      showRunningAgentCountInMenuBar?: boolean;
     };
     const updates: {
       databaseUrl?: string;
       apiKeys?: unknown;
       expoToken?: string;
       showNotificationDotInMenuBar?: boolean;
+      showRunningAgentCountInMenuBar?: boolean;
     } = {};
     const previous = await getGlobalSettings();
 
@@ -213,6 +216,10 @@ globalSettingsRouter.put("/", async (req: Request, res, next) => {
 
     if (body.showNotificationDotInMenuBar !== undefined) {
       updates.showNotificationDotInMenuBar = Boolean(body.showNotificationDotInMenuBar);
+    }
+
+    if (body.showRunningAgentCountInMenuBar !== undefined) {
+      updates.showRunningAgentCountInMenuBar = Boolean(body.showRunningAgentCountInMenuBar);
     }
 
     if (Object.keys(updates).length === 0) {

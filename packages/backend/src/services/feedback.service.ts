@@ -163,6 +163,11 @@ export class FeedbackService {
     try {
       await this.categorizeFeedbackImpl(projectId, item);
     } catch (err) {
+      const code = (err as { code?: string })?.code;
+      if (code === ErrorCodes.PROJECT_NOT_FOUND || code === ErrorCodes.FEEDBACK_NOT_FOUND) {
+        // Terminal conditions: retrying only causes inbox churn for deleted projects/feedback.
+        throw err;
+      }
       // Re-enqueue for retry so the feedback is not lost
       await this.enqueueForCategorization(projectId, feedbackId);
       throw err;

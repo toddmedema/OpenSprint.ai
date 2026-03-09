@@ -388,6 +388,8 @@ export interface GlobalSettings {
   expoToken?: string;
   /** When true (default), show a notification dot on the desktop tray/menu bar icon when human notifications are pending. Desktop only. */
   showNotificationDotInMenuBar?: boolean;
+  /** When true (default), show the running agent count to the right of the menu bar icon on macOS. Desktop only. */
+  showRunningAgentCountInMenuBar?: boolean;
 }
 
 /** Response shape for GET /global-settings (apiKeys masked, expoToken masked) */
@@ -400,6 +402,8 @@ export interface GlobalSettingsResponse {
   expoTokenConfigured?: boolean;
   /** When true (default), show notification dot in menu bar when notifications pending. Desktop only. */
   showNotificationDotInMenuBar?: boolean;
+  /** When true (default), show running agent count in menu bar on macOS. Desktop only. */
+  showRunningAgentCountInMenuBar?: boolean;
 }
 
 /** Request body for PUT /global-settings */
@@ -410,6 +414,8 @@ export interface GlobalSettingsPutRequest {
   expoToken?: string;
   /** When false, do not show notification dot in menu bar. Default true. */
   showNotificationDotInMenuBar?: boolean;
+  /** When false, do not show running agent count in menu bar. Default true. */
+  showRunningAgentCountInMenuBar?: boolean;
 }
 
 /** Read-only runtime cache/probe status for Git fields returned by project settings APIs. */

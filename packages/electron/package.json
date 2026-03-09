@@ -14,7 +14,8 @@
   "dependencies": {},
   "devDependencies": {
     "electron": "^33.0.0",
-    "electron-builder": "^25.0.0"
+    "electron-builder": "^25.0.0",
+    "sharp": "^0.33.5"
   },
   "build": {
     "appId": "com.opensprint.app",

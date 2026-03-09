@@ -24,7 +24,7 @@ import { dbStatusRouter } from "./routes/db-status.js";
 import { API_PREFIX } from "@opensprint/shared";
 import { requestIdMiddleware } from "./middleware/request-id.js";
 import { requireDatabase } from "./middleware/require-database.js";
-import { activeAgentsService } from "./services/active-agents.service.js";
+import { orchestratorService } from "./services/orchestrator.service.js";
 
 export function createApp() {
   const app = express();
@@ -40,9 +40,23 @@ export function createApp() {
   });
 
   // API routes (global agents count for desktop tray; must be before /projects so :projectId does not capture "agents")
-  app.get(`${API_PREFIX}/agents/active-count`, (_req, res) => {
-    const count = activeAgentsService.list().length;
-    res.json({ data: { count } });
+  // Uses same logic as UI: list projects, then getActiveAgents(projectId) per project and sum (orchestrator + planning agents).
+  app.get(`${API_PREFIX}/agents/active-count`, async (_req, res, next) => {
+    try {
+      const projects = await projectService.listProjects();
+      let count = 0;
+      for (const p of projects) {
+        try {
+          const agents = await orchestratorService.getActiveAgents(p.id);
+          count += agents.length;
+        } catch {
+          // Skip project if getActiveAgents fails (e.g. project no longer valid)
+        }
+      }
+      res.json({ data: { count } });
+    } catch (err) {
+      next(err);
+    }
   });
 
   app.use(`${API_PREFIX}/db-status`, dbStatusRouter);
