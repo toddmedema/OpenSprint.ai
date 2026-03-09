@@ -120,6 +120,18 @@ plansRouter.get("/:planId/auditor-runs", async (req: Request<PlanParams>, res, n
   }
 });
 
+// POST /projects/:projectId/plans/:planId/mark-complete — Mark plan complete (set reviewedAt when all tasks closed)
+// Registered before generic :planId so /mark-complete is not captured as a planId
+plansRouter.post("/:planId/mark-complete", async (req: Request<PlanParams>, res, next) => {
+  try {
+    const plan = await planService.markPlanComplete(req.params.projectId, req.params.planId);
+    const body: ApiResponse<Plan> = { data: plan };
+    res.json(body);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /projects/:projectId/plans/:planId — Get Plan details
 plansRouter.get("/:planId", async (req: Request<PlanParams>, res, next) => {
   try {

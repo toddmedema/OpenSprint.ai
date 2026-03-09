@@ -1582,6 +1582,150 @@ Feature that depends on auth.
     });
   });
 
+  describe("POST /projects/:id/plans/:planId/mark-complete", () => {
+    it(
+      "returns 200 and plan status complete when all epic tasks are closed",
+      { timeout: 15000 },
+      async () => {
+        const planBody = {
+          title: "Mark Complete Feature",
+          content: "# Mark Complete\n\nContent.",
+          complexity: "medium",
+          tasks: [
+            { title: "Task A", description: "First", priority: 0, dependsOn: [] },
+            { title: "Task B", description: "Second", priority: 1, dependsOn: [] },
+          ],
+        };
+
+        const createRes = await request(app)
+          .post(`${API_PREFIX}/projects/${projectId}/plans`)
+          .send(planBody);
+        expect(createRes.status).toBe(201);
+        const planId = createRes.body.data.metadata.planId;
+        const epicId = createRes.body.data.metadata.epicId;
+
+        const shipRes = await request(app).post(
+          `${API_PREFIX}/projects/${projectId}/plans/${planId}/execute`
+        );
+        expect(shipRes.status).toBe(200);
+
+        const _project = await projectService.getProject(projectId);
+        const allIssues = await taskStore.listAll(projectId);
+        const planTasks = allIssues.filter(
+          (i: { id: string; issue_type?: string; type?: string }) =>
+            i.id.startsWith(epicId + ".") && (i.issue_type ?? i.type) !== "epic"
+        );
+        for (const task of planTasks) {
+          await taskStore.close(projectId, (task as { id: string }).id, "Done");
+        }
+
+        const markRes = await request(app).post(
+          `${API_PREFIX}/projects/${projectId}/plans/${planId}/mark-complete`
+        );
+        expect(markRes.status).toBe(200);
+        expect(markRes.body.data).toBeDefined();
+        expect(markRes.body.data.status).toBe("complete");
+        expect(markRes.body.data.metadata.reviewedAt).toBeDefined();
+        expect(typeof markRes.body.data.metadata.reviewedAt).toBe("string");
+      }
+    );
+
+    it(
+      "returns 200 idempotent when reviewedAt already set",
+      { timeout: 15000 },
+      async () => {
+        const planBody = {
+          title: "Idempotent Mark Complete",
+          content: "# Idempotent\n\nContent.",
+          complexity: "low",
+          tasks: [{ title: "Only task", description: "Only", priority: 0, dependsOn: [] }],
+        };
+
+        const createRes = await request(app)
+          .post(`${API_PREFIX}/projects/${projectId}/plans`)
+          .send(planBody);
+        expect(createRes.status).toBe(201);
+        const planId = createRes.body.data.metadata.planId;
+        const epicId = createRes.body.data.metadata.epicId;
+
+        await request(app).post(
+          `${API_PREFIX}/projects/${projectId}/plans/${planId}/execute`
+        );
+        const allIssues = await taskStore.listAll(projectId);
+        const planTasks = allIssues.filter(
+          (i: { id: string; issue_type?: string; type?: string }) =>
+            i.id.startsWith(epicId + ".") && (i.issue_type ?? i.type) !== "epic"
+        );
+        for (const task of planTasks) {
+          await taskStore.close(projectId, (task as { id: string }).id, "Done");
+        }
+
+        const first = await request(app).post(
+          `${API_PREFIX}/projects/${projectId}/plans/${planId}/mark-complete`
+        );
+        expect(first.status).toBe(200);
+        const reviewedAt = first.body.data.metadata.reviewedAt;
+        expect(reviewedAt).toBeDefined();
+
+        const second = await request(app).post(
+          `${API_PREFIX}/projects/${projectId}/plans/${planId}/mark-complete`
+        );
+        expect(second.status).toBe(200);
+        expect(second.body.data.metadata.reviewedAt).toBe(reviewedAt);
+        expect(second.body.data.status).toBe("complete");
+      }
+    );
+
+    it(
+      "returns 400 when not all epic tasks are closed",
+      { timeout: 15000 },
+      async () => {
+        const planBody = {
+          title: "Open Tasks Feature",
+          content: "# Open Tasks\n\nContent.",
+          complexity: "medium",
+          tasks: [
+            { title: "Task X", description: "First", priority: 0, dependsOn: [] },
+            { title: "Task Y", description: "Second", priority: 1, dependsOn: [] },
+          ],
+        };
+
+        const createRes = await request(app)
+          .post(`${API_PREFIX}/projects/${projectId}/plans`)
+          .send(planBody);
+        expect(createRes.status).toBe(201);
+        const planId = createRes.body.data.metadata.planId;
+        const epicId = createRes.body.data.metadata.epicId;
+
+        await request(app).post(
+          `${API_PREFIX}/projects/${projectId}/plans/${planId}/execute`
+        );
+        const allIssues = await taskStore.listAll(projectId);
+        const planTasks = allIssues.filter(
+          (i: { id: string; issue_type?: string; type?: string }) =>
+            i.id.startsWith(epicId + ".") && (i.issue_type ?? i.type) !== "epic"
+        );
+        await taskStore.close(projectId, (planTasks[0] as { id: string }).id, "Done");
+        // Leave planTasks[1] open
+
+        const markRes = await request(app).post(
+          `${API_PREFIX}/projects/${projectId}/plans/${planId}/mark-complete`
+        );
+        expect(markRes.status).toBe(400);
+        expect(markRes.body.error?.message).toBe("Plan has open tasks; cannot mark complete");
+        expect(markRes.body.error?.code).toBe("INVALID_INPUT");
+      }
+    );
+
+    it("returns 404 when plan not found", async () => {
+      const markRes = await request(app).post(
+        `${API_PREFIX}/projects/${projectId}/plans/nonexistent-plan-id-xyz/mark-complete`
+      );
+      expect(markRes.status).toBe(404);
+      expect(markRes.body.error?.code).toBe("PLAN_NOT_FOUND");
+    });
+  });
+
   it("POST /projects/:id/plans/:planId/archive returns 400 when plan has no epic", async () => {
     const planBody = {
       title: "No Epic Plan",

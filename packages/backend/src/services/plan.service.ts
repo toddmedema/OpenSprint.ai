@@ -1619,6 +1619,46 @@ ${planNew}`;
   }
 
   /**
+   * Mark plan complete: set reviewedAt (and optionally shippedAt if not set) when all epic tasks are closed.
+   * Idempotent when reviewedAt is already set. Returns 400 if any epic task is not closed.
+   */
+  async markPlanComplete(projectId: string, planId: string): Promise<Plan> {
+    const plan = await this.getPlan(projectId, planId);
+
+    const epicId = plan.metadata.epicId;
+    if (epicId) {
+      const allIssues = await this.taskStore.listAll(projectId);
+      const children = allIssues.filter(
+        (issue: StoredTask) =>
+          issue.id.startsWith(epicId + ".") && (issue.issue_type ?? issue.type) !== "epic"
+      );
+      const allClosed = children.every((issue: StoredTask) => (issue.status as string) === "closed");
+      if (children.length > 0 && !allClosed) {
+        throw new AppError(
+          400,
+          ErrorCodes.INVALID_INPUT,
+          "Plan has open tasks; cannot mark complete",
+          { planId }
+        );
+      }
+    }
+
+    if (plan.metadata.reviewedAt != null) {
+      return this.getPlan(projectId, planId);
+    }
+
+    const updatedMetadata = { ...plan.metadata } as unknown as Record<string, unknown>;
+    updatedMetadata.reviewedAt = new Date().toISOString();
+    if (updatedMetadata.shippedAt == null) {
+      updatedMetadata.shippedAt = new Date().toISOString();
+    }
+    await this.taskStore.planUpdateMetadata(projectId, planId, updatedMetadata);
+
+    broadcastToProject(projectId, { type: "plan.updated", planId });
+    return this.getPlan(projectId, planId);
+  }
+
+  /**
    * Archive a plan: close all ready/open tasks to done. Tasks in progress remain unchanged.
    */
   async archivePlan(projectId: string, planId: string): Promise<Plan> {
