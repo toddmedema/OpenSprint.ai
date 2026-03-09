@@ -13,7 +13,7 @@ export function ConnectionIndicator() {
   }
 
   return (
-    <div className="flex items-center gap-2 text-sm text-theme-error-text">
+    <div className="mr-1 flex items-center gap-2 text-sm text-theme-error-text">
       <div className="w-2 h-2 rounded-full bg-theme-error-solid" />
       <span>Offline</span>
     </div>
