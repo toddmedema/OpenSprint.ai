@@ -9,9 +9,10 @@ import {
 import { AppError } from "../middleware/error-handler.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
 import { createLogger } from "../utils/logger.js";
+import { getErrorMessage } from "../utils/error-utils.js";
 import type { DbClient } from "../db/client.js";
 import { classifyDbConnectionError, isDbConnectionError } from "../db/db-errors.js";
-import type { AppDb } from "../db/app-db.js";
+import type { AppDb, DrizzlePg } from "../db/app-db.js";
 import { initAppDb } from "../db/app-db.js";
 import { PlanStore, type PlanInsertData } from "./plan-store.service.js";
 import {
@@ -132,7 +133,7 @@ export class TaskStoreService {
   /** Optional callback to emit WebSocket events on task create/update/close. */
   private onTaskChange: TaskChangeCallback | null = null;
 
-  private planStore = new PlanStore(() => this.ensureClient());
+  private planStore = new PlanStore(() => this.ensureClient(), () => this.getDrizzle());
   private auditorRunStore = new AuditorRunStore(() => this.ensureClient());
 
   constructor(injectedClient?: DbClient) {
@@ -263,6 +264,12 @@ export class TaskStoreService {
       );
     }
     return this.client;
+  }
+
+  /** Returns Drizzle instance when using Postgres; null for SQLite or when not initialized. */
+  private async getDrizzle(): Promise<DrizzlePg | null> {
+    if (!this.appDb?.getDrizzle) return null;
+    return this.appDb.getDrizzle();
   }
 
   /**
@@ -594,14 +601,8 @@ export class TaskStoreService {
   getBlockersFromIssue(issue: StoredTask): string[] {
     const deps = issue.dependencies ?? [];
     return deps
-      .filter((d) => (d.type ?? (d as Record<string, unknown>).dependency_type) === "blocks")
-      .map(
-        (d) =>
-          d.depends_on_id ??
-          (d as Record<string, unknown>).issue_id ??
-          (d as Record<string, unknown>).id ??
-          ""
-      )
+      .filter((d) => d.type === "blocks")
+      .map((d) => d.depends_on_id)
       .filter((x): x is string => !!x);
   }
 
@@ -678,6 +679,161 @@ export class TaskStoreService {
     return resolveEpicId(issue.id ?? "", allIssues);
   }
 
+  /** Throws if assignee change is not allowed (task in progress and not reopening). */
+  private validateAssigneeChange(
+    currentStatus: string | undefined,
+    options: { status?: string; assignee?: string; claim?: boolean },
+    issueId: string
+  ): void {
+    if (options.claim || options.assignee === undefined) return;
+    const reopening = options.status === "open";
+    if (currentStatus === "in_progress" && !reopening) {
+      throw new AppError(
+        400,
+        ErrorCodes.ASSIGNEE_LOCKED,
+        "Cannot change assignee while task is in progress",
+        { issueId }
+      );
+    }
+  }
+
+  /** Merge options.extra, block_reason, last_auto_retry_at into existing extra JSON. Returns undefined if no extra-related options. */
+  private mergeExtraForUpdate(
+    existing: Record<string, unknown>,
+    options: {
+      extra?: Record<string, unknown>;
+      block_reason?: string | null;
+      last_auto_retry_at?: string | null;
+    }
+  ): Record<string, unknown> {
+    const merged: Record<string, unknown> = { ...existing, ...options.extra };
+    if (options.block_reason !== undefined) {
+      if (options.block_reason == null || options.block_reason === "") {
+        delete merged.block_reason;
+      } else {
+        merged.block_reason = options.block_reason;
+      }
+    }
+    if (options.last_auto_retry_at !== undefined) {
+      if (options.last_auto_retry_at == null || options.last_auto_retry_at === "") {
+        delete merged.last_auto_retry_at;
+      } else {
+        merged.last_auto_retry_at = options.last_auto_retry_at;
+      }
+    }
+    return merged;
+  }
+
+  /** Build SET clause and values for a single-task update. Row may contain status, started_at, extra for conditional logic. Returns nextIdx for WHERE id = $nextIdx AND project_id = $(nextIdx+1). */
+  private buildTaskUpdateSets(
+    options: {
+      title?: string;
+      status?: string;
+      assignee?: string;
+      description?: string;
+      priority?: number;
+      claim?: boolean;
+      complexity?: number | null;
+      extra?: Record<string, unknown>;
+      block_reason?: string | null;
+      last_auto_retry_at?: string | null;
+    },
+    now: string,
+    row: { status?: string; started_at?: string | null; extra?: string } | null,
+    mergedExtra: Record<string, unknown> | undefined
+  ): { sets: string[]; vals: unknown[]; nextIdx: number } {
+    const sets: string[] = ["updated_at = $1"];
+    const vals: unknown[] = [now];
+    let idx = 2;
+
+    if (options.title != null) {
+      sets.push(`title = $${idx++}`);
+      vals.push(options.title);
+    }
+    if (options.claim) {
+      sets.push(`status = $${idx++}`);
+      vals.push("in_progress");
+      if (options.assignee != null) {
+        sets.push(`assignee = $${idx++}`);
+        vals.push(options.assignee);
+      }
+    } else {
+      if (options.status != null) {
+        sets.push(`status = $${idx++}`);
+        vals.push(options.status);
+      }
+      if (options.assignee !== undefined) {
+        sets.push(`assignee = $${idx++}`);
+        vals.push(options.assignee);
+        const reopening = options.status === "open" && (options.assignee === "" || options.assignee == null);
+        if (reopening) {
+          sets.push(`started_at = $${idx++}`);
+          vals.push(null);
+        }
+      }
+    }
+
+    const assigneeBeingSet = options.assignee != null && options.assignee.trim() !== "";
+    if (assigneeBeingSet && row && (row.started_at == null || row.started_at === "")) {
+      sets.push(`started_at = $${idx++}`);
+      vals.push(now);
+    }
+    if (options.description != null) {
+      sets.push(`description = $${idx++}`);
+      vals.push(options.description);
+    }
+    if (options.priority != null) {
+      sets.push(`priority = $${idx++}`);
+      vals.push(options.priority);
+    }
+    if (options.complexity !== undefined) {
+      const c = clampTaskComplexity(options.complexity);
+      sets.push(`complexity = $${idx++}`);
+      vals.push(c ?? null);
+    }
+    if (mergedExtra !== undefined) {
+      sets.push(`extra = $${idx++}`);
+      vals.push(JSON.stringify(mergedExtra));
+    }
+    return { sets, vals, nextIdx: idx };
+  }
+
+  /** Build SET clause and values for updateMany (status, assignee, description, priority, started_at). Returns nextIdx for WHERE. */
+  private buildUpdateManySets(
+    u: { status?: string; assignee?: string; description?: string; priority?: number },
+    now: string,
+    row: { started_at?: string | null } | null
+  ): { sets: string[]; vals: unknown[]; nextIdx: number } {
+    const sets: string[] = ["updated_at = $1"];
+    const vals: unknown[] = [now];
+    let idx = 2;
+    if (u.status != null) {
+      sets.push(`status = $${idx++}`);
+      vals.push(u.status);
+    }
+    if (u.assignee !== undefined) {
+      sets.push(`assignee = $${idx++}`);
+      vals.push(u.assignee ?? null);
+      const reopening = u.status === "open" && (u.assignee === "" || u.assignee == null);
+      if (reopening) {
+        sets.push(`started_at = $${idx++}`);
+        vals.push(null);
+      } else if (u.assignee != null && u.assignee.trim() !== "" && row && (row.started_at == null || row.started_at === "")) {
+        sets.push(`started_at = $${idx++}`);
+        vals.push(now);
+      }
+    }
+    if (u.description != null) {
+      sets.push(`description = $${idx++}`);
+      vals.push(u.description);
+    }
+    if (u.priority != null) {
+      sets.push(`priority = $${idx++}`);
+      vals.push(u.priority);
+    }
+    return { sets, vals, nextIdx: idx };
+  }
+
   // ──── Write methods (mutex + save) ────
 
   async create(projectId: string, title: string, options: CreateOpts = {}): Promise<StoredTask> {
@@ -727,7 +883,7 @@ export class TaskStoreService {
   }
 
   private isDuplicateKeyError(err: unknown): boolean {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = getErrorMessage(err);
     return /unique constraint|already exists|duplicate/i.test(msg);
   }
 
@@ -869,117 +1025,43 @@ export class TaskStoreService {
       await this.ensureInitialized();
       const client = this.ensureClient();
       const now = new Date().toISOString();
-      const sets: string[] = ["updated_at = $1"];
-      const vals: unknown[] = [now];
-      let paramIdx = 2;
 
-      if (options.title != null) {
-        sets.push(`title = $${paramIdx++}`);
-        vals.push(options.title);
-      }
-      if (options.claim) {
-        sets.push("status = $" + paramIdx++);
-        vals.push("in_progress");
-        if (options.assignee != null) {
-          sets.push("assignee = $" + paramIdx++);
-          vals.push(options.assignee);
-        }
-      } else {
-        if (options.status != null) {
-          sets.push("status = $" + paramIdx++);
-          vals.push(options.status);
-        }
-        if (options.assignee !== undefined) {
-          const statusRow = await client.queryOne(
-            toPgParams("SELECT status FROM tasks WHERE id = ? AND project_id = ?"),
+      const needRow =
+        options.assignee !== undefined ||
+        options.extra != null ||
+        options.block_reason !== undefined ||
+        options.last_auto_retry_at !== undefined;
+      const row = needRow
+        ? await client.queryOne(
+            toPgParams("SELECT status, started_at, extra FROM tasks WHERE id = ? AND project_id = ?"),
             [id, projectId]
-          );
-          const currentStatus = statusRow?.status as string | undefined;
-          const reopening = options.status === "open";
-          if (currentStatus === "in_progress" && !reopening) {
-            throw new AppError(
-              400,
-              ErrorCodes.ASSIGNEE_LOCKED,
-              "Cannot change assignee while task is in progress",
-              { issueId: id }
-            );
+          )
+        : null;
+      const rowShape = row
+        ? {
+            status: row.status as string | undefined,
+            started_at: row.started_at as string | null | undefined,
+            extra: row.extra as string | undefined,
           }
-          sets.push("assignee = $" + paramIdx++);
-          vals.push(options.assignee);
-          if (reopening && (options.assignee === "" || options.assignee == null)) {
-            sets.push("started_at = $" + paramIdx++);
-            vals.push(null);
-          }
-        }
-      }
+        : null;
 
-      const assigneeBeingSet = options.assignee != null && options.assignee.trim() !== "";
-      if (assigneeBeingSet) {
-        const row = await client.queryOne(
-          toPgParams("SELECT started_at FROM tasks WHERE id = ? AND project_id = ?"),
-          [id, projectId]
-        );
-        if (row) {
-          const currentStartedAt = row.started_at as string | null | undefined;
-          if (currentStartedAt == null || currentStartedAt === "") {
-            sets.push(`started_at = $${paramIdx++}`);
-            vals.push(now);
-          }
-        }
-      }
+      this.validateAssigneeChange(rowShape?.status, options, id);
 
-      if (options.description != null) {
-        sets.push(`description = $${paramIdx++}`);
-        vals.push(options.description);
-      }
-      if (options.priority != null) {
-        sets.push(`priority = $${paramIdx++}`);
-        vals.push(options.priority);
-      }
-      if (options.complexity !== undefined) {
-        const c = clampTaskComplexity(options.complexity);
-        sets.push(`complexity = $${paramIdx++}`);
-        vals.push(c ?? null);
-      }
-
+      let mergedExtra: Record<string, unknown> | undefined;
       if (
         options.extra != null ||
         options.block_reason !== undefined ||
         options.last_auto_retry_at !== undefined
       ) {
-        const row = await client.queryOne(
-          toPgParams("SELECT extra FROM tasks WHERE id = ? AND project_id = ?"),
-          [id, projectId]
-        );
-        if (row) {
-          const existing: Record<string, unknown> = JSON.parse(
-            (row.extra as string) || "{}"
-          ) as Record<string, unknown>;
-          const merged: Record<string, unknown> = {
-            ...existing,
-            ...options.extra,
-          };
-          if (options.block_reason !== undefined) {
-            if (options.block_reason == null || options.block_reason === "") {
-              delete merged.block_reason;
-            } else {
-              merged.block_reason = options.block_reason;
-            }
-          }
-          if (options.last_auto_retry_at !== undefined) {
-            if (options.last_auto_retry_at == null || options.last_auto_retry_at === "") {
-              delete merged.last_auto_retry_at;
-            } else {
-              merged.last_auto_retry_at = options.last_auto_retry_at;
-            }
-          }
-          sets.push(`extra = $${paramIdx++}`);
-          vals.push(JSON.stringify(merged));
-        }
+        const existing: Record<string, unknown> = rowShape?.extra
+          ? (JSON.parse(rowShape.extra || "{}") as Record<string, unknown>)
+          : {};
+        mergedExtra = this.mergeExtraForUpdate(existing, options);
       }
 
+      const { sets, vals, nextIdx } = this.buildTaskUpdateSets(options, now, rowShape, mergedExtra);
       vals.push(id, projectId);
-      const updateSql = `UPDATE tasks SET ${sets.join(", ")} WHERE id = $${paramIdx++} AND project_id = $${paramIdx}`;
+      const updateSql = `UPDATE tasks SET ${sets.join(", ")} WHERE id = $${nextIdx} AND project_id = $${nextIdx + 1}`;
       const modified = await client.execute(updateSql, vals);
       if (modified === 0) {
         throw new AppError(404, ErrorCodes.ISSUE_NOT_FOUND, `Task ${id} not found`, {
@@ -1007,61 +1089,26 @@ export class TaskStoreService {
       const client = this.ensureClient();
       await client.runInTransaction(async (tx) => {
         for (const u of updates) {
-          if (u.assignee !== undefined) {
-            const statusRow = await tx.queryOne(
-              toPgParams("SELECT status FROM tasks WHERE id = ? AND project_id = ?"),
-              [u.id, projectId]
-            );
-            const currentStatus = statusRow?.status as string | undefined;
-            const reopening = u.status === "open";
-            if (currentStatus === "in_progress" && !reopening) {
-              throw new AppError(
-                400,
-                ErrorCodes.ASSIGNEE_LOCKED,
-                "Cannot change assignee while task is in progress",
-                { issueId: u.id }
-              );
-            }
-          }
-          const now = new Date().toISOString();
-          const sets: string[] = ["updated_at = $1"];
-          const vals: unknown[] = [now];
-          let paramIdx = 2;
-          if (u.status != null) {
-            sets.push(`status = $${paramIdx++}`);
-            vals.push(u.status);
-          }
-          if (u.assignee !== undefined) {
-            sets.push(`assignee = $${paramIdx++}`);
-            vals.push(u.assignee ?? null);
-            const reopening = u.status === "open" && (u.assignee === "" || u.assignee == null);
-            if (reopening) {
-              sets.push(`started_at = $${paramIdx++}`);
-              vals.push(null);
-            } else if (u.assignee != null && u.assignee.trim() !== "") {
-              const row = await tx.queryOne(
-                toPgParams("SELECT started_at FROM tasks WHERE id = ? AND project_id = ?"),
+          const needRow = u.assignee !== undefined;
+          const row = needRow
+            ? await tx.queryOne(
+                toPgParams("SELECT status, started_at FROM tasks WHERE id = ? AND project_id = ?"),
                 [u.id, projectId]
-              );
-              if (row) {
-                const currentStartedAt = row.started_at as string | null | undefined;
-                if (currentStartedAt == null || currentStartedAt === "") {
-                  sets.push(`started_at = $${paramIdx++}`);
-                  vals.push(now);
-                }
+              )
+            : null;
+          const rowShape = row
+            ? {
+                status: row.status as string | undefined,
+                started_at: row.started_at as string | null | undefined,
               }
-            }
-          }
-          if (u.description != null) {
-            sets.push(`description = $${paramIdx++}`);
-            vals.push(u.description);
-          }
-          if (u.priority != null) {
-            sets.push(`priority = $${paramIdx++}`);
-            vals.push(u.priority);
-          }
+            : null;
+
+          this.validateAssigneeChange(rowShape?.status, u, u.id);
+
+          const now = new Date().toISOString();
+          const { sets, vals, nextIdx } = this.buildUpdateManySets(u, now, rowShape);
           vals.push(u.id, projectId);
-          const sql = `UPDATE tasks SET ${sets.join(", ")} WHERE id = $${paramIdx++} AND project_id = $${paramIdx}`;
+          const sql = `UPDATE tasks SET ${sets.join(", ")} WHERE id = $${nextIdx} AND project_id = $${nextIdx + 1}`;
           await tx.execute(sql, vals);
         }
       });

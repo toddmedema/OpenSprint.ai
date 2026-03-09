@@ -2,6 +2,9 @@ import type { DbClient } from "../db/client.js";
 import { toPgParams } from "../db/sql-params.js";
 import { AppError } from "../middleware/error-handler.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
+import type { DrizzlePg } from "../db/app-db.js";
+import { plansTable } from "../db/drizzle-schema-pg.js";
+import { and, eq } from "drizzle-orm";
 
 /** Plan row returned from plans table (metadata is JSON string; parse as PlanMetadata). */
 export interface StoredPlan {
@@ -40,11 +43,29 @@ export type PlanGetByEpicIdResult = {
 };
 
 export class PlanStore {
-  constructor(private getClient: () => DbClient) {}
+  constructor(
+    private getClient: () => DbClient,
+    private getDrizzle?: () => Promise<DrizzlePg | null>
+  ) {}
 
   async planInsert(projectId: string, planId: string, data: PlanInsertData): Promise<void> {
-    const client = this.getClient();
+    const db = this.getDrizzle ? await this.getDrizzle() : null;
     const now = new Date().toISOString();
+    if (db) {
+      await db.insert(plansTable).values({
+        projectId,
+        planId,
+        epicId: data.epic_id,
+        gateTaskId: data.gate_task_id ?? null,
+        reExecuteGateTaskId: data.re_execute_gate_task_id ?? null,
+        content: data.content,
+        metadata: data.metadata != null ? JSON.stringify(data.metadata) : "{}",
+        shippedContent: null,
+        updatedAt: now,
+      });
+      return;
+    }
+    const client = this.getClient();
     await client.execute(
       toPgParams(
         `INSERT INTO plans (project_id, plan_id, epic_id, gate_task_id, re_execute_gate_task_id, content, metadata, shipped_content, updated_at)
@@ -64,6 +85,33 @@ export class PlanStore {
   }
 
   async planGet(projectId: string, planId: string): Promise<PlanGetResult | null> {
+    const db = this.getDrizzle ? await this.getDrizzle() : null;
+    if (db) {
+      const rows = await db
+        .select({
+          content: plansTable.content,
+          metadata: plansTable.metadata,
+          shippedContent: plansTable.shippedContent,
+          updatedAt: plansTable.updatedAt,
+        })
+        .from(plansTable)
+        .where(and(eq(plansTable.projectId, projectId), eq(plansTable.planId, planId)))
+        .limit(1);
+      const row = rows[0];
+      if (!row) return null;
+      let metadata: Record<string, unknown>;
+      try {
+        metadata = JSON.parse((row.metadata ?? "{}")) as Record<string, unknown>;
+      } catch {
+        metadata = {};
+      }
+      return {
+        content: row.content ?? "",
+        metadata,
+        shipped_content: row.shippedContent ?? null,
+        updated_at: row.updatedAt ?? "",
+      };
+    }
     const client = this.getClient();
     const row = await client.queryOne(
       toPgParams(
@@ -87,6 +135,35 @@ export class PlanStore {
   }
 
   async planGetByEpicId(projectId: string, epicId: string): Promise<PlanGetByEpicIdResult | null> {
+    const db = this.getDrizzle ? await this.getDrizzle() : null;
+    if (db) {
+      const rows = await db
+        .select({
+          planId: plansTable.planId,
+          content: plansTable.content,
+          metadata: plansTable.metadata,
+          shippedContent: plansTable.shippedContent,
+          updatedAt: plansTable.updatedAt,
+        })
+        .from(plansTable)
+        .where(and(eq(plansTable.projectId, projectId), eq(plansTable.epicId, epicId)))
+        .limit(1);
+      const row = rows[0];
+      if (!row) return null;
+      let metadata: Record<string, unknown>;
+      try {
+        metadata = JSON.parse((row.metadata ?? "{}")) as Record<string, unknown>;
+      } catch {
+        metadata = {};
+      }
+      return {
+        plan_id: row.planId ?? "",
+        content: row.content ?? "",
+        metadata,
+        shipped_content: row.shippedContent ?? null,
+        updated_at: row.updatedAt ?? "",
+      };
+    }
     const client = this.getClient();
     const row = await client.queryOne(
       toPgParams(
@@ -111,6 +188,15 @@ export class PlanStore {
   }
 
   async planListIds(projectId: string): Promise<string[]> {
+    const db = this.getDrizzle ? await this.getDrizzle() : null;
+    if (db) {
+      const rows = await db
+        .select({ planId: plansTable.planId })
+        .from(plansTable)
+        .where(eq(plansTable.projectId, projectId))
+        .orderBy(plansTable.updatedAt);
+      return rows.map((r) => r.planId);
+    }
     const client = this.getClient();
     const rows = await client.query(
       toPgParams("SELECT plan_id FROM plans WHERE project_id = ? ORDER BY updated_at ASC"),
@@ -120,6 +206,17 @@ export class PlanStore {
   }
 
   async planUpdateContent(projectId: string, planId: string, content: string): Promise<void> {
+    const db = this.getDrizzle ? await this.getDrizzle() : null;
+    if (db) {
+      const result = await db
+        .update(plansTable)
+        .set({ content, updatedAt: new Date().toISOString() })
+        .where(and(eq(plansTable.projectId, projectId), eq(plansTable.planId, planId)));
+      if (result.rowCount === 0) {
+        throw new AppError(404, ErrorCodes.PLAN_NOT_FOUND, `Plan ${planId} not found`, { planId });
+      }
+      return;
+    }
     const client = this.getClient();
     const existing = await client.queryOne(
       toPgParams("SELECT 1 FROM plans WHERE project_id = ? AND plan_id = ?"),
@@ -142,6 +239,20 @@ export class PlanStore {
     planId: string,
     metadata: Record<string, unknown>
   ): Promise<void> {
+    const db = this.getDrizzle ? await this.getDrizzle() : null;
+    if (db) {
+      const result = await db
+        .update(plansTable)
+        .set({
+          metadata: JSON.stringify(metadata),
+          updatedAt: new Date().toISOString(),
+        })
+        .where(and(eq(plansTable.projectId, projectId), eq(plansTable.planId, planId)));
+      if (result.rowCount === 0) {
+        throw new AppError(404, ErrorCodes.PLAN_NOT_FOUND, `Plan ${planId} not found`, { planId });
+      }
+      return;
+    }
     const client = this.getClient();
     const existing = await client.queryOne(
       toPgParams("SELECT 1 FROM plans WHERE project_id = ? AND plan_id = ?"),
@@ -165,6 +276,17 @@ export class PlanStore {
     planId: string,
     shippedContent: string
   ): Promise<void> {
+    const db = this.getDrizzle ? await this.getDrizzle() : null;
+    if (db) {
+      const result = await db
+        .update(plansTable)
+        .set({ shippedContent })
+        .where(and(eq(plansTable.projectId, projectId), eq(plansTable.planId, planId)));
+      if (result.rowCount === 0) {
+        throw new AppError(404, ErrorCodes.PLAN_NOT_FOUND, `Plan ${planId} not found`, { planId });
+      }
+      return;
+    }
     const client = this.getClient();
     const existing = await client.queryOne(
       toPgParams("SELECT 1 FROM plans WHERE project_id = ? AND plan_id = ?"),
@@ -180,6 +302,15 @@ export class PlanStore {
   }
 
   async planGetShippedContent(projectId: string, planId: string): Promise<string | null> {
+    const db = this.getDrizzle ? await this.getDrizzle() : null;
+    if (db) {
+      const rows = await db
+        .select({ shippedContent: plansTable.shippedContent })
+        .from(plansTable)
+        .where(and(eq(plansTable.projectId, projectId), eq(plansTable.planId, planId)))
+        .limit(1);
+      return rows[0]?.shippedContent ?? null;
+    }
     const client = this.getClient();
     const row = await client.queryOne(
       toPgParams("SELECT shipped_content FROM plans WHERE project_id = ? AND plan_id = ?"),
@@ -189,6 +320,13 @@ export class PlanStore {
   }
 
   async planDelete(projectId: string, planId: string): Promise<boolean> {
+    const db = this.getDrizzle ? await this.getDrizzle() : null;
+    if (db) {
+      const result = await db
+        .delete(plansTable)
+        .where(and(eq(plansTable.projectId, projectId), eq(plansTable.planId, planId)));
+      return (result.rowCount ?? 0) > 0;
+    }
     const client = this.getClient();
     const existing = await client.queryOne(
       toPgParams("SELECT 1 FROM plans WHERE project_id = ? AND plan_id = ?"),
@@ -203,6 +341,11 @@ export class PlanStore {
   }
 
   async planDeleteAllForProject(projectId: string): Promise<void> {
+    const db = this.getDrizzle ? await this.getDrizzle() : null;
+    if (db) {
+      await db.delete(plansTable).where(eq(plansTable.projectId, projectId));
+      return;
+    }
     const client = this.getClient();
     await client.execute(toPgParams("DELETE FROM plans WHERE project_id = ?"), [projectId]);
   }

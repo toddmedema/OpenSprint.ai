@@ -37,6 +37,7 @@ import {
   clearAgentProcessRegistry,
 } from "./services/agent-process-registry.js";
 import { createLogger } from "./utils/logger.js";
+import { getErrorMessage } from "./utils/error-utils.js";
 import { initAppDb } from "./db/app-db.js";
 import type { AppDb } from "./db/app-db.js";
 import { databaseRuntime } from "./services/database-runtime.service.js";
@@ -94,7 +95,7 @@ function acquirePidFile(): void {
     }
   } catch (err: unknown) {
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-      logStartup.warn("Could not read PID file", { err: (err as Error).message });
+      logStartup.warn("Could not read PID file", { err: getErrorMessage(err) });
     }
   }
 
@@ -131,6 +132,10 @@ let appDb: AppDb | null = null;
 let databaseFeaturesStarted = false;
 let databaseFeaturesStartPromise: Promise<void> | null = null;
 
+function hasValidRepoPath(project: { repoPath: string }): boolean {
+  return fs.existsSync(project.repoPath) && fs.existsSync(path.join(project.repoPath, ".git"));
+}
+
 async function initAlwaysOnOrchestrator(): Promise<void> {
   const projectService = new ProjectService();
   const feedbackService = new FeedbackService();
@@ -144,7 +149,7 @@ async function initAlwaysOnOrchestrator(): Promise<void> {
 
     // Prune projects whose repoPath no longer contains a git repo (stale temp dirs, deleted repos)
     const validProjects = projects.filter((p) => {
-      if (!fs.existsSync(p.repoPath) || !fs.existsSync(path.join(p.repoPath, ".git"))) {
+      if (!hasValidRepoPath(p)) {
         logOrchestrator.warn("Skipping project — repoPath is not a valid git repo", {
           name: p.name,
           repoPath: p.repoPath,
@@ -170,14 +175,14 @@ async function initAlwaysOnOrchestrator(): Promise<void> {
     watchdogService.start(async () => {
       const projects = await projectServiceForWatchdog.listProjects();
       return projects
-        .filter((p) => fs.existsSync(p.repoPath) && fs.existsSync(path.join(p.repoPath, ".git")))
+        .filter(hasValidRepoPath)
         .map((p) => ({ projectId: p.id, repoPath: p.repoPath }));
     });
 
     startBlockedAutoRetry(async () => {
       const projects = await projectServiceForWatchdog.listProjects();
       return projects
-        .filter((p) => fs.existsSync(p.repoPath) && fs.existsSync(path.join(p.repoPath, ".git")))
+        .filter(hasValidRepoPath)
         .map((p) => ({ projectId: p.id, repoPath: p.repoPath }));
     });
 
@@ -222,18 +227,18 @@ async function initAlwaysOnOrchestrator(): Promise<void> {
           .catch((err) => {
             logOrchestrator.warn("Pending feedback enqueue failed", {
               name: project.name,
-              err: (err as Error).message,
+              err: getErrorMessage(err),
             });
           });
       } catch (err) {
         logOrchestrator.warn("Could not read tasks for project", {
           name: project.name,
-          err: (err as Error).message,
+          err: getErrorMessage(err),
         });
       }
     }
   } catch (err) {
-    logOrchestrator.warn("Status check failed", { err: (err as Error).message });
+    logOrchestrator.warn("Status check failed", { err: getErrorMessage(err) });
   }
 }
 
@@ -248,13 +253,13 @@ async function stopDatabaseFeatures(): Promise<void> {
   orchestratorService.stopAll();
   await taskStore.closePool().catch((err) => {
     logShutdown.warn("Could not close task store pool", {
-      err: err instanceof Error ? err.message : String(err),
+      err: getErrorMessage(err),
     });
   });
   if (appDb) {
     await appDb.close().catch((err) => {
       logShutdown.warn("Could not close app database", {
-        err: err instanceof Error ? err.message : String(err),
+        err: getErrorMessage(err),
       });
     });
     appDb = null;
@@ -325,7 +330,7 @@ const shutdown = async () => {
     setTimeout(() => reject(new Error("flush timeout")), FLUSH_PERSIST_TIMEOUT_MS)
   );
   await Promise.race([flushDone, flushTimeout]).catch((err) => {
-    logShutdown.warn("Task store flush timed out or failed", { err: (err as Error).message });
+    logShutdown.warn("Task store flush timed out or failed", { err: getErrorMessage(err) });
   });
 
   await taskStore.closePool();

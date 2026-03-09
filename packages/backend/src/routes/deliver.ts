@@ -36,6 +36,43 @@ export const deliverRouter = Router({ mergeParams: true });
 type ProjectParams = { projectId: string };
 type DeployIdParams = { projectId: string; deployId: string };
 
+/** True when repoPath is under the system temp dir (e.g. test env). Used to skip pre-deploy tests and await in-process. */
+function isRepoInTempDir(repoPath: string): boolean {
+  const resolvedRepo = path.resolve(repoPath);
+  const tmpDir = path.resolve(os.tmpdir());
+  return resolvedRepo.startsWith(tmpDir + path.sep) || resolvedRepo === tmpDir;
+}
+
+/** Result shape for completeDeploy: update storage record and broadcast deliver.completed. */
+interface CompleteDeployResult {
+  success: boolean;
+  error?: string;
+  fixEpicId?: string | null;
+  url?: string;
+}
+
+/** Update deploy record and broadcast deliver.completed in one place. */
+async function completeDeploy(
+  projectId: string,
+  deployId: string,
+  result: CompleteDeployResult
+): Promise<void> {
+  const status = result.success ? "success" : "failed";
+  await deployStorageService.updateRecord(projectId, deployId, {
+    status,
+    completedAt: new Date().toISOString(),
+    ...(result.error != null && { error: result.error }),
+    ...(result.fixEpicId !== undefined && { fixEpicId: result.fixEpicId }),
+    ...(result.url != null && { url: result.url }),
+  });
+  broadcastToProject(projectId, {
+    type: "deliver.completed",
+    deployId,
+    success: result.success,
+    ...(result.fixEpicId != null && { fixEpicId: result.fixEpicId }),
+  });
+}
+
 /** Current deliver phase status for a project (deployment records) */
 export interface DeliverStatusResponse {
   activeDeployId: string | null;
@@ -52,6 +89,7 @@ function getCommitHash(repoPath: string): string | null {
   }
 }
 
+/** In-memory slot per project: value is "pending" or deployId. Every path that set()s must release via delete() in finally or catch. */
 const activeDeployments = new Map<string, string>();
 
 // POST /projects/:projectId/deliver — Trigger deployment (Deliver phase)
@@ -100,9 +138,7 @@ deliverRouter.post("/", async (req: Request<ProjectParams>, res, next) => {
       throw updateErr;
     }
 
-    const resolvedRepo = path.resolve(project.repoPath);
-    const tmpDir = path.resolve(os.tmpdir());
-    const repoInTempDir = resolvedRepo.startsWith(tmpDir + path.sep) || resolvedRepo === tmpDir;
+    const repoInTempDir = isRepoInTempDir(project.repoPath);
 
     const deployPromise = runDeployAsync(
       projectId,
@@ -205,15 +241,9 @@ deliverRouter.post("/cancel", async (req: Request<ProjectParams>, res, next) => 
 
     const latest = await deployStorageService.getLatestDeploy(projectId);
     if (latest && (latest.status === "running" || latest.status === "pending")) {
-      await deployStorageService.updateRecord(projectId, latest.id, {
-        status: "failed",
-        completedAt: new Date().toISOString(),
-        error: "Cancelled (deliver state reset)",
-      });
-      broadcastToProject(projectId, {
-        type: "deliver.completed",
-        deployId: latest.id,
+      await completeDeploy(projectId, latest.id, {
         success: false,
+        error: "Cancelled (deliver state reset)",
       });
     }
 
@@ -301,9 +331,7 @@ deliverRouter.post("/expo-deploy", async (req: Request<ProjectParams>, res, next
       throw updateErr;
     }
 
-    const resolvedRepo = path.resolve(project.repoPath);
-    const tmpDir = path.resolve(os.tmpdir());
-    const repoInTempDir = resolvedRepo.startsWith(tmpDir + path.sep) || resolvedRepo === tmpDir;
+    const repoInTempDir = isRepoInTempDir(project.repoPath);
     const expoTarget = variant === "prod" ? "production" : "staging";
     const expoTargetConfig = getDeploymentTargetConfig(settings.deployment, expoTarget);
     const baseEnvVars =
@@ -391,10 +419,7 @@ deliverRouter.post("/:deployId/rollback", async (req: Request<DeployIdParams>, r
         log.error("Rollback failed", { rollbackId: rollbackRecord.id, err });
       });
 
-      const repoInTempDir =
-        path.resolve(project.repoPath).startsWith(os.tmpdir() + path.sep) ||
-        path.resolve(project.repoPath) === os.tmpdir();
-      if (repoInTempDir) {
+      if (isRepoInTempDir(project.repoPath)) {
         await rollbackPromise;
       }
 
@@ -442,9 +467,7 @@ export async function runDeployAsync(
     // PRD §7.5.2: Pre-deployment validation — run full test suite before deploying
     // Skip pre-deploy tests when repo is in temp dir (e.g. test environment) so deploys complete
     // before test teardown deletes the directory
-    const resolvedRepo = path.resolve(repoPath);
-    const tmpDir = path.resolve(os.tmpdir());
-    const repoInTempDir = resolvedRepo.startsWith(tmpDir + path.sep) || resolvedRepo === tmpDir;
+    const repoInTempDir = isRepoInTempDir(repoPath);
 
     let testResult: Awaited<ReturnType<typeof testRunner.runTestsWithOutput>>;
     if (repoInTempDir) {
@@ -477,105 +500,122 @@ export async function runDeployAsync(
         repoPath,
         testResult.rawOutput || failMsg
       );
-
-      await deployStorageService.updateRecord(projectId, deployId, {
-        status: "failed",
-        completedAt: new Date().toISOString(),
-        error: failMsg,
-        fixEpicId: fixResult?.epicId ?? null,
-      });
       if (fixResult) {
         emit(`Fix epic created: ${fixResult.epicId} (${fixResult.taskCount} tasks)\n`);
       }
-      broadcastToProject(projectId, {
-        type: "deliver.completed",
-        deployId,
+      await completeDeploy(projectId, deployId, {
         success: false,
-        fixEpicId: fixResult?.epicId ?? undefined,
+        error: failMsg,
+        fixEpicId: fixResult?.epicId ?? null,
       });
       return;
     }
 
     emit("All tests passed. Proceeding with deployment...\n");
 
-    if (config.mode === "expo") {
-      // Pre-deploy: identify required but missing Expo auth
-      const authCheck = await checkExpoAuth(repoPath);
-      if (!authCheck.ok) {
-        emit(`${authCheck.prompt}\n`);
-        await deployStorageService.updateRecord(projectId, deployId, {
-          status: "failed",
-          completedAt: new Date().toISOString(),
-          error: authCheck.message,
-        });
-        broadcastToProject(projectId, { type: "deliver.completed", deployId, success: false });
-        return;
-      }
-      const expoEnvVars =
-        authCheck.expoToken != null ? { ...envVars, EXPO_TOKEN: authCheck.expoToken } : envVars;
-      // Expo mode: staging maps to beta variant, production to prod (PRD §7.5.3)
-      const variant: "beta" | "prod" = effectiveTarget === "staging" ? "beta" : "prod";
-      await runExpoDeployAsync(
-        projectId,
-        deployId,
-        repoPath,
-        variant,
-        emit,
-        expoEnvVars,
-        projectName
-      );
-    } else if (config.mode === "custom") {
-      const customCommand = targetConfig?.command ?? config.customCommand;
-      const webhookUrl = targetConfig?.webhookUrl ?? config.webhookUrl;
-
-      if (customCommand) {
-        await runCommandStreaming("sh", ["-c", customCommand], repoPath, emit, envVars);
-        await deployStorageService.updateRecord(projectId, deployId, {
-          status: "success",
-          completedAt: new Date().toISOString(),
-        });
-        broadcastToProject(projectId, { type: "deliver.completed", deployId, success: true });
-      } else if (webhookUrl) {
-        const result = await deploymentService.deployWithWebhook(projectId, webhookUrl, envVars);
-        emit(`Webhook POST to ${webhookUrl}\n`);
-        await deployStorageService.updateRecord(projectId, deployId, {
-          status: result.success ? "success" : "failed",
-          completedAt: new Date().toISOString(),
-          url: result.url,
-          error: result.error,
-        });
-        broadcastToProject(projectId, {
-          type: "deliver.completed",
-          deployId,
-          success: result.success,
-        });
-      } else {
-        await deployStorageService.updateRecord(projectId, deployId, {
-          status: "failed",
-          completedAt: new Date().toISOString(),
-          error: "No custom deployment command or webhook URL configured",
-        });
-        broadcastToProject(projectId, { type: "deliver.completed", deployId, success: false });
-      }
-    } else {
-      await deployStorageService.updateRecord(projectId, deployId, {
-        status: "failed",
-        completedAt: new Date().toISOString(),
-        error: `Unknown deployment mode: ${config.mode}`,
-      });
-      broadcastToProject(projectId, { type: "deliver.completed", deployId, success: false });
-    }
+    const handler = deployHandlers[config.mode] ?? deployHandlers.unknown;
+    await handler({
+      projectId,
+      deployId,
+      repoPath,
+      settings,
+      effectiveTarget,
+      targetConfig,
+      envVars,
+      emit,
+      projectName,
+    });
   } catch (err) {
     const msg = getErrorMessage(err);
     emit(`Error: ${msg}\n`);
-    await deployStorageService.updateRecord(projectId, deployId, {
-      status: "failed",
-      completedAt: new Date().toISOString(),
-      error: msg,
-    });
-    broadcastToProject(projectId, { type: "deliver.completed", deployId, success: false });
+    await completeDeploy(projectId, deployId, { success: false, error: msg });
   }
 }
+
+type DeployHandlerContext = {
+  projectId: string;
+  deployId: string;
+  repoPath: string;
+  settings: ProjectSettings;
+  effectiveTarget: string;
+  targetConfig: ReturnType<typeof getDeploymentTargetConfig>;
+  envVars: Record<string, string>;
+  emit: (chunk: string) => void | Promise<unknown>;
+  projectName?: string;
+};
+
+const deployHandlers: Record<
+  string,
+  (ctx: DeployHandlerContext) => Promise<void>
+> = {
+  expo: async (ctx) => {
+    const authCheck = await checkExpoAuth(ctx.repoPath);
+    if (!authCheck.ok) {
+      ctx.emit(`${authCheck.prompt}\n`);
+      await completeDeploy(ctx.projectId, ctx.deployId, {
+        success: false,
+        error: authCheck.message,
+      });
+      return;
+    }
+    const expoEnvVars =
+      authCheck.expoToken != null
+        ? { ...ctx.envVars, EXPO_TOKEN: authCheck.expoToken }
+        : ctx.envVars;
+    const variant: "beta" | "prod" =
+      ctx.effectiveTarget === "staging" ? "beta" : "prod";
+    await runExpoDeployAsync(
+      ctx.projectId,
+      ctx.deployId,
+      ctx.repoPath,
+      variant,
+      (chunk) => ctx.emit(chunk),
+      expoEnvVars,
+      ctx.projectName
+    );
+  },
+  custom: async (ctx) => {
+    const customCommand =
+      ctx.targetConfig?.command ?? ctx.settings.deployment.customCommand;
+    const webhookUrl =
+      ctx.targetConfig?.webhookUrl ?? ctx.settings.deployment.webhookUrl;
+
+    if (customCommand) {
+      await runCommandStreaming(
+        "sh",
+        ["-c", customCommand],
+        ctx.repoPath,
+        (chunk) => ctx.emit(chunk),
+        ctx.envVars
+      );
+      await completeDeploy(ctx.projectId, ctx.deployId, { success: true });
+    } else if (webhookUrl) {
+      const result = await deploymentService.deployWithWebhook(
+        ctx.projectId,
+        webhookUrl,
+        ctx.envVars
+      );
+      ctx.emit(`Webhook POST to ${webhookUrl}\n`);
+      await completeDeploy(ctx.projectId, ctx.deployId, {
+        success: result.success,
+        url: result.url,
+        error: result.error,
+      });
+    } else {
+      await completeDeploy(ctx.projectId, ctx.deployId, {
+        success: false,
+        error:
+          "No custom deployment command or webhook URL configured",
+      });
+    }
+  },
+  unknown: async (ctx) => {
+    await completeDeploy(ctx.projectId, ctx.deployId, {
+      success: false,
+      error: `Unknown deployment mode: ${ctx.settings.deployment.mode}`,
+    });
+  },
+};
 
 /** Run Expo deploy (beta or prod): npx expo export --platform web && eas deploy [--prod] */
 async function runExpoDeployAsync(
@@ -589,16 +629,9 @@ async function runExpoDeployAsync(
 ): Promise<void> {
   const cmd = getExpoDeployCommand(variant);
   try {
-    const resolvedRepo = path.resolve(repoPath);
-    const tmpDir = path.resolve(os.tmpdir());
-    const repoInTempDir = resolvedRepo.startsWith(tmpDir + path.sep) || resolvedRepo === tmpDir;
-    if (repoInTempDir) {
+    if (isRepoInTempDir(repoPath)) {
       emit(`Skipping Expo CLI in temp repo for test environment (${variant}).\n`);
-      await deployStorageService.updateRecord(projectId, deployId, {
-        status: "success",
-        completedAt: new Date().toISOString(),
-      });
-      broadcastToProject(projectId, { type: "deliver.completed", deployId, success: true });
+      await completeDeploy(projectId, deployId, { success: true });
       return;
     }
 
@@ -606,12 +639,10 @@ async function runExpoDeployAsync(
     const ensureResult = await ensureExpoInstalled(repoPath, emit);
     if (!ensureResult.ok) {
       emit(`Expo installation required but failed: ${ensureResult.error}\n`);
-      await deployStorageService.updateRecord(projectId, deployId, {
-        status: "failed",
-        completedAt: new Date().toISOString(),
+      await completeDeploy(projectId, deployId, {
+        success: false,
         error: ensureResult.error,
       });
-      broadcastToProject(projectId, { type: "deliver.completed", deployId, success: false });
       return;
     }
     const configResult = await ensureExpoConfig(
@@ -621,31 +652,20 @@ async function runExpoDeployAsync(
     );
     if (!configResult.ok) {
       emit(`Expo configuration failed: ${configResult.error}\n`);
-      await deployStorageService.updateRecord(projectId, deployId, {
-        status: "failed",
-        completedAt: new Date().toISOString(),
+      await completeDeploy(projectId, deployId, {
+        success: false,
         error: configResult.error,
       });
-      broadcastToProject(projectId, { type: "deliver.completed", deployId, success: false });
       return;
     }
     await ensureEasConfig(repoPath);
     emit(`Running: ${cmd}\n`);
     await runCommandStreaming("sh", ["-c", cmd], repoPath, emit, envVars);
-    await deployStorageService.updateRecord(projectId, deployId, {
-      status: "success",
-      completedAt: new Date().toISOString(),
-    });
-    broadcastToProject(projectId, { type: "deliver.completed", deployId, success: true });
+    await completeDeploy(projectId, deployId, { success: true });
   } catch (err) {
     const msg = getErrorMessage(err);
     emit(`Error: ${msg}\n`);
-    await deployStorageService.updateRecord(projectId, deployId, {
-      status: "failed",
-      completedAt: new Date().toISOString(),
-      error: msg,
-    });
-    broadcastToProject(projectId, { type: "deliver.completed", deployId, success: false });
+    await completeDeploy(projectId, deployId, { success: false, error: msg });
   }
 }
 
@@ -665,26 +685,17 @@ async function runRollbackAsync(
 
   try {
     await runCommandStreaming("sh", ["-c", rollbackCommand], repoPath, emit);
-    await deployStorageService.updateRecord(projectId, deployId, {
-      status: "success",
-      completedAt: new Date().toISOString(),
-    });
     if (rolledBackDeployId) {
       await deployStorageService.updateRecord(projectId, rolledBackDeployId, {
         status: "rolled_back",
         rolledBackBy: deployId,
       });
     }
-    broadcastToProject(projectId, { type: "deliver.completed", deployId, success: true });
+    await completeDeploy(projectId, deployId, { success: true });
   } catch (err) {
     const msg = getErrorMessage(err);
     emit(`Error: ${msg}\n`);
-    await deployStorageService.updateRecord(projectId, deployId, {
-      status: "failed",
-      completedAt: new Date().toISOString(),
-      error: msg,
-    });
-    broadcastToProject(projectId, { type: "deliver.completed", deployId, success: false });
+    await completeDeploy(projectId, deployId, { success: false, error: msg });
   }
 }
 

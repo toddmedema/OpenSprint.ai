@@ -42,7 +42,7 @@ async function load(): Promise<GlobalSettings> {
       const obj = parsed as Record<string, unknown>;
       const apiKeys = sanitizeApiKeys(obj.apiKeys);
       const useCustomCli =
-        obj.useCustomCli === true ? true : obj.useCustomCli === false ? false : undefined;
+        (obj.useCustomCli === true || obj.useCustomCli === false) ? obj.useCustomCli : undefined;
       const databaseUrl = parseDatabaseUrl(obj.databaseUrl);
       const expoToken =
         obj.expoToken != null && typeof obj.expoToken === "string" && obj.expoToken.trim()
