@@ -16,7 +16,7 @@ import { getGitNoHooksPath } from "../utils/git-no-hooks.js";
 import { waitForGitReady } from "../utils/git-lock.js";
 import { shellExec } from "../utils/shell-exec.js";
 const log = createLogger("git-commit-queue");
-const MAX_REBASE_RESOLUTION_ROUNDS = 12;
+const _MAX_REBASE_RESOLUTION_ROUNDS = 12;
 
 /** Thrown when a job cannot proceed due to existing unmerged files. */
 export class RepoConflictError extends Error {

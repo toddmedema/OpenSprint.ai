@@ -17,7 +17,6 @@ import { PlanService } from "./plan.service.js";
 import { PrdService } from "./prd.service.js";
 import type { HarmonizerPrdUpdate } from "./harmonizer.service.js";
 import { taskStore as taskStoreSingleton } from "./task-store.service.js";
-import { planComplexityToTask } from "./plan-complexity.js";
 import { feedbackStore } from "./feedback-store.service.js";
 import { writeFeedbackImages } from "./feedback-store.service.js";
 import { orchestratorService } from "./orchestrator.service.js";
@@ -26,7 +25,7 @@ import { broadcastToProject } from "../websocket/index.js";
 import { extractJsonFromAgentResponse } from "../utils/json-extract.js";
 import { JSON_OUTPUT_PREAMBLE } from "../utils/agent-prompts.js";
 import { triggerDeployForEvent } from "./deploy-trigger.service.js";
-import { buildAutonomyDescription } from "./context-assembler.js";
+import { buildAutonomyDescription } from "./autonomy-description.js";
 import { getCombinedInstructions } from "./agent-instructions.service.js";
 import { maybeAutoRespond } from "./open-question-autoresolve.service.js";
 import { createLogger } from "../utils/logger.js";
@@ -75,7 +74,7 @@ Given the user's feedback (and any attached images), the PRD, available plans, a
 3. The mapped epic ID — use the epicId from the plan you mapped to (or null if no plan or link unclear)
 4. Whether this is a scope change — true if the feedback fundamentally alters requirements/PRD; false otherwise
 5. Whether this is **large scope** — true when feedback affects a whole epic/plan, architecture changes, or significant tradeoffs. Large-scope feedback is routed to the Planner to create a new Epic/Plan instead of individual tickets. Use is_large_scope: true for: whole-epic rewrites, architecture changes, major feature pivots, significant tradeoff decisions. Use is_large_scope: false for: single-task fixes, small enhancements, localized bugs.
-6. Proposed tasks in indexed Planner format — same structure as Planner output: index, title, description, priority, depends_on, complexity (integer 1-10 — assign per task based on implementation difficulty, 1=simplest, 10=most complex). When mapped_plan_id is null and is_large_scope is false, create top-level tasks (no parent epic). **When is_large_scope is true, omit proposed_tasks** — the Planner will create the plan.
+6. Proposed tasks in indexed Planner format — same structure as Planner output: index, title, description, priority, depends_on, complexity (integer 1-10 only — assign per task based on implementation difficulty, 1=simplest, 10=most complex; use the full range as appropriate, do not bias toward any specific number). When mapped_plan_id is null and is_large_scope is false, create top-level tasks (no parent epic). **When is_large_scope is true, omit proposed_tasks** — the Planner will create the plan.
 
 **Linking to existing tasks:** When feedback is clearly covered by one or more existing OPEN tasks, prefer linking instead of creating new tasks:
 - \`link_to_existing_task_ids\`: string[]. If non-empty, do NOT create new tasks; link feedback to these existing task IDs. All IDs must appear in the Existing OPEN/READY tasks list.
@@ -87,7 +86,7 @@ When feedback lacks a clear plan/epic link, use mapped_plan_id: null, mapped_epi
 
 For replies (parent_id present), consider the parent's category and mapped plan — the reply often refines or adds to the parent. If the feedback is a single word or too vague to categorize, default to "ux" and propose_tasks: [] with a generic title.
 
-**Reply-derived complexity:** When feedback is a reply (parent_id present), always set complexity to 7 for every proposed task. Rationale: a reply indicates the default agent could not resolve it, so the work merits a higher-complexity agent.
+**Reply-derived complexity:** When feedback is a reply (parent_id present), assign a complexity in the 6-10 range for each proposed task so the work is routed to a more capable agent.
 
 JSON format:
 {
@@ -97,7 +96,7 @@ JSON format:
   "is_scope_change": true | false,
   "is_large_scope": true | false,
   "proposed_tasks": [
-    { "index": 0, "title": "Task title", "description": "Detailed spec with acceptance criteria", "priority": 1, "depends_on": [], "complexity": 3 }
+    { "index": 0, "title": "Task title", "description": "Detailed spec with acceptance criteria", "priority": 1, "depends_on": [], "complexity": 5 }
   ],
   "link_to_existing_task_ids": ["task-id-1", "task-id-2"],
   "similar_existing_task_id": "task-id or null",
@@ -107,7 +106,7 @@ JSON format:
 
 When feedback is too vague: return non-empty open_questions: [{ "id": "q1", "text": "Clarification question..." }]. Server surfaces via Human Notification System. Do not set proposed_tasks or link_to_existing_task_ids. Omit open_questions when you can categorize normally.
 
-priority: 0 (highest) to 4 (lowest). depends_on: array of task indices (0-based) this task is blocked by. complexity: integer 1-10 (1=simplest, 10=most complex) — assign per task based on implementation difficulty.`;
+priority: 0 (highest) to 4 (lowest). depends_on: array of task indices (0-based) this task is blocked by. complexity: integer 1-10 only (1=simplest, 10=most complex) — assign per task based on implementation difficulty; use the full range as appropriate.`;
 
 export class FeedbackService {
   private projectService = new ProjectService();
@@ -494,14 +493,8 @@ export class FeedbackService {
                 const title = String(t.title ?? t.task_title ?? "").trim();
                 const deps = (t.depends_on ?? t.dependsOn ?? []) as unknown[];
                 const rawComplexity = t.complexity;
-                let complexity =
-                  clampTaskComplexity(rawComplexity) ??
-                  (rawComplexity === "simple" || rawComplexity === "low"
-                    ? 3
-                    : rawComplexity === "complex" || rawComplexity === "high"
-                      ? 7
-                      : undefined);
-                // Reply-derived tasks: always complex (default agent could not resolve)
+                let complexity = clampTaskComplexity(rawComplexity);
+                // Reply-derived tasks: always 7 (default agent could not resolve)
                 if (item.parent_id) {
                   complexity = 7;
                 }
@@ -1067,10 +1060,7 @@ export class FeedbackService {
               : singleProposedTask
                 ? `Feedback ID: ${item.id}`
                 : baseDesc;
-          const planComplexity = parentEpicId
-            ? await this.resolvePlanComplexityForEpic(projectId, parentEpicId)
-            : undefined;
-          // Reply-derived tasks: always complex (default agent could not resolve)
+          // Task complexity: use only what the analyst returned (or legacy 3/7 from strings). No plan fallback.
           const raw = task.complexity as number | string | undefined;
           const taskComplexity = item.parent_id
             ? 7
@@ -1079,8 +1069,7 @@ export class FeedbackService {
                 ? 3
                 : raw === "complex" || raw === "high"
                   ? 7
-                  : undefined) ??
-              (planComplexity ? planComplexityToTask(planComplexity) : 3));
+                  : undefined));
           const issue = await this.taskStore.createWithRetry(
             project.id,
             task.title,
@@ -1089,7 +1078,7 @@ export class FeedbackService {
               priority,
               description,
               parentId: parentEpicId,
-              complexity: taskComplexity,
+              ...(taskComplexity != null && { complexity: taskComplexity }),
               extra: { sourceFeedbackIds: [item.id] },
             },
             { fallbackToStandalone: true }

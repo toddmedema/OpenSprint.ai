@@ -114,8 +114,9 @@ describe("PlanFilterToolbar", () => {
       />
     );
 
-    expect(screen.getByTestId("plan-all-tasks-button")).toBeInTheDocument();
-    expect(screen.getByTestId("execute-all-button")).toBeInTheDocument();
+    expect(screen.getByTestId("plan-bulk-actions-button")).toBeInTheDocument();
+    expect(screen.queryByTestId("plan-all-tasks-button")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("execute-all-button")).not.toBeInTheDocument();
 
     rerender(
       <PlanFilterToolbar
@@ -136,8 +137,33 @@ describe("PlanFilterToolbar", () => {
       />
     );
 
-    expect(screen.queryByTestId("plan-all-tasks-button")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("execute-all-button")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("plan-bulk-actions-button")).not.toBeInTheDocument();
+  });
+
+  it("opens bulk actions menu and exposes secondary action buttons", async () => {
+    const user = userEvent.setup();
+    render(
+      <PlanFilterToolbar
+        statusFilter="all"
+        setStatusFilter={vi.fn()}
+        planCountByStatus={{ all: 2, planning: 1, building: 1, in_review: 0, complete: 0 }}
+        viewMode="card"
+        onViewModeChange={vi.fn()}
+        plansWithNoTasksCount={2}
+        plansReadyToExecuteCount={2}
+        planAllInProgress={false}
+        executeAllInProgress={false}
+        executingPlanId={null}
+        planTasksPlanIds={[]}
+        onPlanAllTasks={vi.fn()}
+        onExecuteAll={vi.fn()}
+        onAddPlan={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByTestId("plan-bulk-actions-button"));
+    expect(screen.getByTestId("plan-all-tasks-button")).toBeInTheDocument();
+    expect(screen.getByTestId("execute-all-button")).toBeInTheDocument();
   });
 
   it("expands and closes the search UI and updates the input value", async () => {
@@ -163,7 +189,7 @@ describe("PlanFilterToolbar", () => {
     expect(props.onViewModeChange).toHaveBeenCalledWith("graph");
   });
 
-  it("uses responsive padding and flex-wrap for mobile layout", () => {
+  it("uses responsive padding and renders the segmented control", () => {
     const { container } = render(
       <PlanFilterToolbar
         statusFilter="all"
@@ -184,8 +210,7 @@ describe("PlanFilterToolbar", () => {
     );
     const toolbar = container.firstElementChild;
     expect(toolbar).toHaveClass("px-4");
-    expect(toolbar).toHaveClass("md:px-6");
-    const inner = toolbar?.querySelector(".flex-wrap");
-    expect(inner).toBeInTheDocument();
+    expect(toolbar).toHaveClass("sm:px-6");
+    expect(screen.getByTestId("plan-filter-segmented")).toBeInTheDocument();
   });
 });

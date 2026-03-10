@@ -158,8 +158,8 @@ export function EpicCard({
 
   return (
     <div
-      className="group relative overflow-hidden rounded-xl bg-theme-surface shadow-sm ring-1 ring-theme-border cursor-pointer
-        hover:shadow-lg hover:ring-theme-info-border/50 transition-all duration-200 ease-out hover:-translate-y-0.5
+      className="group relative overflow-hidden rounded-2xl bg-theme-surface ring-1 ring-theme-border-subtle cursor-pointer
+        hover:ring-theme-border transition-colors duration-200 ease-out
         focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
       onClick={onSelect}
       role="button"
@@ -233,7 +233,7 @@ export function EpicCard({
             </div>
             <div className="w-full bg-theme-surface-muted rounded-full h-2 overflow-hidden">
               <div
-                className="h-2 rounded-full transition-all duration-500 ease-out bg-gradient-to-r from-brand-500 to-brand-600"
+                className="h-2 rounded-full transition-all duration-500 ease-out bg-theme-info-solid"
                 style={{ width: `${progress}%` }}
                 role="progressbar"
                 aria-valuenow={plan.doneTaskCount}

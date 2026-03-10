@@ -191,9 +191,22 @@ export function setSelfImprovementRunInProgressForTest(projectId: string, inProg
 
 export class SelfImprovementRunnerService {
   private taskStore = taskStoreSingleton;
-  private projectService = new ProjectService();
-  private planService = new PlanService();
-  private contextAssembler = new ContextAssembler();
+  private _projectService: ProjectService | null = null;
+  private _planService: PlanService | null = null;
+  private _contextAssembler: ContextAssembler | null = null;
+
+  private get projectService(): ProjectService {
+    if (!this._projectService) this._projectService = new ProjectService();
+    return this._projectService;
+  }
+  private get planService(): PlanService {
+    if (!this._planService) this._planService = new PlanService();
+    return this._planService;
+  }
+  private get contextAssembler(): ContextAssembler {
+    if (!this._contextAssembler) this._contextAssembler = new ContextAssembler();
+    return this._contextAssembler;
+  }
 
   /** Returns true when a self-improvement run is in progress for the given project. */
   isSelfImprovementRunInProgress(projectId: string): boolean {
@@ -261,7 +274,7 @@ Review the codebase and output a structured list of improvement tasks (JSON arra
       ...(options?.planId && { planId: options.planId }),
     };
 
-    let allItems: ImprovementItem[] = [];
+    const allItems: ImprovementItem[] = [];
     let atLeastOneReviewSucceeded = false;
 
     for (const lens of lenses) {

@@ -34,15 +34,15 @@ export function HelpContent({ project, onClose }: HelpContentProps) {
     <div className="flex flex-col h-full min-h-0">
       {/* Full-width secondary nav bar — matches Plan/Execute filter bar pattern */}
       <div
-        className="w-full px-4 sm:px-6 flex items-center border-b border-theme-border bg-theme-surface shrink-0"
+        className="relative w-full px-4 sm:px-6 flex items-center justify-center border-b border-theme-border bg-theme-surface shrink-0"
         style={{ height: NAVBAR_HEIGHT }}
         role="tablist"
         aria-label="Help sections"
       >
-        <div className="flex-1 min-w-0" aria-hidden="true" />
         <div className="flex flex-wrap items-center justify-center gap-1 bg-theme-border-subtle rounded-lg p-1 shrink-0">
           <NavButton
             active={activeTab === "ask"}
+            tone="accent"
             onClick={() => setActiveTab("ask")}
             role="tab"
             aria-selected={activeTab === "ask"}
@@ -53,6 +53,7 @@ export function HelpContent({ project, onClose }: HelpContentProps) {
           </NavButton>
           <NavButton
             active={activeTab === "meet"}
+            tone="accent"
             onClick={() => setActiveTab("meet")}
             role="tab"
             aria-selected={activeTab === "meet"}
@@ -63,6 +64,7 @@ export function HelpContent({ project, onClose }: HelpContentProps) {
           </NavButton>
           <NavButton
             active={activeTab === "analytics"}
+            tone="accent"
             onClick={() => setActiveTab("analytics")}
             role="tab"
             aria-selected={activeTab === "analytics"}
@@ -73,6 +75,7 @@ export function HelpContent({ project, onClose }: HelpContentProps) {
           </NavButton>
           <NavButton
             active={activeTab === "agentLog"}
+            tone="accent"
             onClick={() => setActiveTab("agentLog")}
             role="tab"
             aria-selected={activeTab === "agentLog"}
@@ -82,7 +85,7 @@ export function HelpContent({ project, onClose }: HelpContentProps) {
             Agent log
           </NavButton>
         </div>
-        <div className="flex-1 min-w-0 flex justify-end items-center">
+        <div className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2 flex items-center">
           {onClose && (
             <button
               type="button"

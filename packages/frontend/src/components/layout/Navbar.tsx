@@ -184,9 +184,9 @@ export function Navbar({
               className="w-8 h-8"
               aria-hidden="true"
             >
-              <polygon points="4,10 36,40 4,70" fill="#c7d2fe" />
-              <polygon points="22,10 54,40 22,70" fill="#818cf8" />
-              <polygon points="40,10 72,40 40,70" fill="#4f46e5" />
+              <polygon points="4,10 36,40 4,70" fill="#d8d8de" />
+              <polygon points="22,10 54,40 22,70" fill="#a1a1aa" />
+              <polygon points="40,10 72,40 40,70" fill="#0071e3" />
             </svg>
             <span className="hidden min-[1000px]:inline font-sans font-semibold text-lg text-theme-text">
               Open Sprint
@@ -288,6 +288,7 @@ export function Navbar({
                     key={phase.key}
                     role="tab"
                     active={isActive}
+                    tone="accent"
                     showUnreadDot={phase.showUnreadDot}
                     onClick={() => onPhaseChange(phase.key)}
                     onKeyDown={(e) => {
@@ -321,6 +322,7 @@ export function Navbar({
               <NavButton
                 to={helpHref}
                 active={isHelpActive}
+                tone="accent"
                 variant="icon"
                 className="shrink-0"
                 aria-label="Help"
@@ -331,6 +333,7 @@ export function Navbar({
               <NavButton
                 to={settingsHref}
                 active={isSettingsActive}
+                tone="accent"
                 variant="icon"
                 className="shrink-0"
                 aria-label="Project settings"
@@ -363,6 +366,7 @@ export function Navbar({
               <NavButton
                 to={helpHref}
                 active={isHelpActive}
+                tone="accent"
                 variant="icon"
                 className="shrink-0"
                 aria-label="Help"
@@ -373,6 +377,7 @@ export function Navbar({
               <NavButton
                 to={settingsHref}
                 active={isSettingsActive}
+                tone="accent"
                 variant="icon"
                 className="shrink-0"
                 aria-label="Settings"
@@ -403,6 +408,7 @@ export function Navbar({
               <NavButton
                 to={helpHref}
                 active={isHelpActive}
+                tone="accent"
                 variant="icon"
                 className="shrink-0"
                 aria-label="Help"
@@ -413,6 +419,7 @@ export function Navbar({
               <NavButton
                 to={settingsHref}
                 active={isSettingsActive}
+                tone="accent"
                 variant="icon"
                 className="shrink-0"
                 aria-label="Settings"

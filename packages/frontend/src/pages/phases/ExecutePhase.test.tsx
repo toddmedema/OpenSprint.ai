@@ -849,7 +849,7 @@ describe("ExecutePhase top bar", () => {
     expect(epicCard!.textContent).toContain("Ready task");
 
     await user.click(screen.getByTestId("filter-chip-all"));
-    expect(screen.getByTestId("filter-chip-all")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("filter-chip-all")).toHaveAttribute("aria-checked", "true");
     expect(container).toHaveTextContent("Ready task");
     expect(container).not.toHaveTextContent("Done task");
     expect(container).not.toHaveTextContent("In progress task");
@@ -889,7 +889,7 @@ describe("ExecutePhase top bar", () => {
     expect(container).not.toHaveTextContent("Ready task");
 
     await user.click(screen.getByTestId("filter-chip-done"));
-    expect(screen.getByTestId("filter-chip-all")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("filter-chip-all")).toHaveAttribute("aria-checked", "true");
     expect(container).toHaveTextContent("Ready task");
     expect(container).not.toHaveTextContent("Done task");
   });
@@ -914,7 +914,7 @@ describe("ExecutePhase top bar", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByTestId("filter-chip-all")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("filter-chip-all")).toHaveAttribute("aria-checked", "true");
   });
 
   it("does not render play or pause buttons in the header", () => {
@@ -963,7 +963,7 @@ describe("ExecutePhase top bar", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("filter-chip-all")).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByTestId("filter-chip-all")).toHaveAttribute("aria-checked", "true");
     });
     expect(localStorage.getItem("opensprint.executeStatusFilter")).toBe("all");
   });
@@ -990,7 +990,7 @@ describe("ExecutePhase top bar", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("filter-chip-all")).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByTestId("filter-chip-all")).toHaveAttribute("aria-checked", "true");
     });
     expect(localStorage.getItem("opensprint.executeStatusFilter")).toBe("all");
   });
@@ -1016,7 +1016,7 @@ describe("ExecutePhase top bar", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByTestId("filter-chip-ready")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("filter-chip-ready")).toHaveAttribute("aria-checked", "true");
     expect(localStorage.getItem("opensprint.executeStatusFilter")).toBe("ready");
   });
 
@@ -1040,7 +1040,7 @@ describe("ExecutePhase top bar", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText("Awaiting approval…")).toBeInTheDocument();
+    expect(screen.getByText("Awaiting approval")).toBeInTheDocument();
   });
 
   it("does not show awaiting approval when awaitingApproval is false", () => {
@@ -1063,7 +1063,7 @@ describe("ExecutePhase top bar", () => {
       </MemoryRouter>
     );
 
-    expect(screen.queryByText("Awaiting approval…")).not.toBeInTheDocument();
+    expect(screen.queryByText("Awaiting approval")).not.toBeInTheDocument();
   });
 });
 
@@ -1097,7 +1097,7 @@ describe("ExecutePhase epic merge mode indicator", () => {
     );
     const indicator = await screen.findByTestId("execute-epic-merge-indicator");
     expect(indicator).toBeInTheDocument();
-    expect(indicator).toHaveTextContent("Epic merge mode: changes merge when plan is complete");
+    expect(indicator).toHaveTextContent("Epic merge mode");
   });
 
   it("does not show epic merge mode indicator when mergeStrategy is per_task or missing", async () => {
@@ -2026,7 +2026,7 @@ describe("ExecutePhase view toggle", () => {
 
     await user.click(screen.getByTestId("filter-chip-blocked"));
 
-    expect(screen.getByTestId("filter-chip-blocked")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("filter-chip-blocked")).toHaveAttribute("aria-checked", "true");
     expect(screen.getByTestId("timeline-section-blocked")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Failures" })).toBeInTheDocument();
     expect(screen.getByText("Blocked task")).toBeInTheDocument();

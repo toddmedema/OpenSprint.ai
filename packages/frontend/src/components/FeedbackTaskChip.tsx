@@ -53,12 +53,12 @@ export const FeedbackTaskChip = memo(function FeedbackTaskChip({
         <button
           type="button"
           onClick={() => onNavigateToBuildTask(taskId)}
-          className="inline-flex items-center gap-1.5 rounded bg-theme-border-subtle px-1.5 py-0.5 text-xs font-mono text-brand-600 hover:bg-theme-info-bg hover:text-theme-info-text underline transition-colors"
+          className="inline-flex items-center gap-1.5 rounded border border-theme-border-subtle bg-theme-surface-muted px-1.5 py-0.5 text-xs text-theme-text hover:bg-theme-border-subtle transition-colors"
         >
           {chipContent}
         </button>
       ) : (
-        <span className="inline-flex items-center gap-1.5 rounded bg-theme-border-subtle px-1.5 py-0.5 text-xs font-mono text-theme-muted">
+        <span className="inline-flex items-center gap-1.5 rounded border border-theme-border-subtle bg-theme-surface-muted px-1.5 py-0.5 text-xs text-theme-muted">
           {chipContent}
         </span>
       )}

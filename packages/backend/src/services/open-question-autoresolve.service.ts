@@ -19,10 +19,27 @@ import type { Notification } from "./notification.service.js";
 
 const log = createLogger("open-question-autoresolve");
 
-const projectService = new ProjectService();
-const prdService = new PrdService();
-const chatService = new ChatService();
-const feedbackService = new FeedbackService();
+let _projectService: ProjectService | null = null;
+let _prdService: PrdService | null = null;
+let _chatService: ChatService | null = null;
+let _feedbackService: FeedbackService | null = null;
+
+function getProjectService(): ProjectService {
+  if (!_projectService) _projectService = new ProjectService();
+  return _projectService;
+}
+function getPrdService(): PrdService {
+  if (!_prdService) _prdService = new PrdService();
+  return _prdService;
+}
+function getChatService(): ChatService {
+  if (!_chatService) _chatService = new ChatService();
+  return _chatService;
+}
+function getFeedbackService(): FeedbackService {
+  if (!_feedbackService) _feedbackService = new FeedbackService();
+  return _feedbackService;
+}
 
 function buildPrdContextFromSections(sections: Record<string, { content?: string }>): string {
   let context = "## Current PRD / Spec\n\n";
@@ -48,16 +65,16 @@ export async function maybeAutoRespond(
   if (notification.kind !== "open_question") return;
 
   try {
-    const settings = await projectService.getSettings(projectId);
+    const settings = await getProjectService().getSettings(projectId);
     if (settings.aiAutonomyLevel !== "full") return;
 
     const questionTexts = notification.questions.map((q) => q.text).filter(Boolean);
     if (questionTexts.length === 0) return;
 
-    const prd = await prdService.getPrd(projectId).catch(() => null);
+    const prd = await getPrdService().getPrd(projectId).catch(() => null);
     const prdContext = prd ? buildPrdContextFromSections(prd.sections) : "No PRD available.";
 
-    const repoPath = await projectService.getRepoPath(projectId).catch(() => undefined);
+    const repoPath = await getProjectService().getRepoPath(projectId).catch(() => undefined);
     const agentConfig = getAgentForPlanningRole(settings, "dreamer");
     const instructions = repoPath
       ? await getCombinedInstructions(repoPath, "dreamer")
@@ -101,7 +118,7 @@ ${questionTexts.map((t) => `- ${t}`).join("\n")}`;
 
     switch (source) {
       case "execute": {
-        await chatService.sendMessage(projectId, {
+        await getChatService().sendMessage(projectId, {
           message: answer,
           context: `execute:${sourceId}`,
         });
@@ -137,7 +154,7 @@ ${questionTexts.map((t) => `- ${t}`).join("\n")}`;
       }
       case "plan": {
         const draftId = sourceId.startsWith("draft:") ? sourceId.slice("draft:".length) : sourceId;
-        await chatService.sendMessage(projectId, {
+        await getChatService().sendMessage(projectId, {
           message: answer,
           context: `plan-draft:${draftId}`,
         });
@@ -158,7 +175,7 @@ ${questionTexts.map((t) => `- ${t}`).join("\n")}`;
       }
       case "eval": {
         await notificationService.resolve(projectId, notificationId);
-        await feedbackService.recategorizeFeedback(projectId, sourceId, { answer });
+        await getFeedbackService().recategorizeFeedback(projectId, sourceId, { answer });
         broadcastToProject(projectId, {
           type: "notification.resolved",
           notificationId,
@@ -174,7 +191,7 @@ ${questionTexts.map((t) => `- ${t}`).join("\n")}`;
         break;
       }
       case "prd": {
-        await chatService.sendMessage(projectId, {
+        await getChatService().sendMessage(projectId, {
           message: answer,
           context: "sketch",
         });

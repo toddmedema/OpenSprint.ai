@@ -126,7 +126,7 @@ export function PrdTocPanel({
         <button
           type="button"
           onClick={() => onCollapsedChange(false)}
-          className="flex flex-col items-center justify-center gap-1 min-h-[44px] min-w-[44px] p-2 shrink-0 text-theme-muted hover:text-brand-600 dark:hover:text-brand-400 hover:bg-theme-border-subtle rounded-lg transition-colors"
+          className="flex flex-col items-center justify-center gap-1 min-h-[44px] min-w-[44px] p-2 shrink-0 text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle rounded-lg transition-colors"
           title="Expand table of contents"
           aria-label="Expand table of contents"
         >
@@ -161,7 +161,7 @@ export function PrdTocPanel({
                   onClick={() => scrollToSection(sectionKey)}
                   className={`w-full text-left px-2 py-1.5 rounded-lg text-sm transition-colors block truncate ${
                     isActive
-                      ? "font-bold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/30"
+                      ? "font-bold text-theme-info-text bg-theme-info-bg"
                       : "text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle"
                   }`}
                   data-testid={`toc-section-${sectionKey}`}
@@ -189,7 +189,7 @@ export function PrdTocPanel({
                 title={formatSectionKey(sectionKey)}
                 className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs transition-colors ${
                   isActive
-                    ? "font-bold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/30"
+                    ? "font-bold text-theme-info-text bg-theme-info-bg"
                     : "text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle"
                 }`}
                 data-testid={`toc-section-${sectionKey}`}

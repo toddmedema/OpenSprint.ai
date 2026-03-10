@@ -11,40 +11,17 @@ const frontendDir = path.join(repoRoot, "packages", "frontend");
 const sharedDir = path.join(repoRoot, "packages", "shared");
 const outDir = path.join(repoRoot, "packages", "electron", "desktop-resources");
 
-function copyRecursive(src, dest) {
-  const stat = fs.statSync(src);
-  if (stat.isDirectory()) {
-    if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
-    for (const name of fs.readdirSync(src)) {
-      copyRecursive(path.join(src, name), path.join(dest, name));
-    }
-  } else {
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.copyFileSync(src, dest);
-  }
-}
-
-function rmRecursive(dir) {
-  if (!fs.existsSync(dir)) return;
-  for (const name of fs.readdirSync(dir)) {
-    const p = path.join(dir, name);
-    if (fs.statSync(p).isDirectory()) rmRecursive(p);
-    else fs.unlinkSync(p);
-  }
-  fs.rmdirSync(dir);
-}
-
 async function run() {
   console.log("Preparing desktop resources...");
 
-  if (fs.existsSync(outDir)) rmRecursive(outDir);
+  if (fs.existsSync(outDir)) fs.rmSync(outDir, { recursive: true, force: true });
   fs.mkdirSync(outDir, { recursive: true });
 
   const backendOut = path.join(outDir, "backend");
   const frontendOut = path.join(outDir, "frontend");
 
   fs.mkdirSync(backendOut, { recursive: true });
-  copyRecursive(path.join(backendDir, "dist"), path.join(backendOut, "dist"));
+  fs.cpSync(path.join(backendDir, "dist"), path.join(backendOut, "dist"), { recursive: true });
   fs.copyFileSync(
     path.join(backendDir, "package.json"),
     path.join(backendOut, "package.json")
@@ -52,7 +29,7 @@ async function run() {
 
   const sharedDest = path.join(backendOut, "node_modules", "@opensprint", "shared");
   fs.mkdirSync(sharedDest, { recursive: true });
-  copyRecursive(path.join(sharedDir, "dist"), path.join(sharedDest, "dist"));
+  fs.cpSync(path.join(sharedDir, "dist"), path.join(sharedDest, "dist"), { recursive: true });
   fs.copyFileSync(
     path.join(sharedDir, "package.json"),
     path.join(sharedDest, "package.json")
@@ -64,7 +41,7 @@ async function run() {
     stdio: "inherit",
   });
 
-  copyRecursive(path.join(frontendDir, "dist"), frontendOut);
+  fs.cpSync(path.join(frontendDir, "dist"), frontendOut, { recursive: true });
 
   // Generate macOS tray template icons (black logo on transparent) so the menu bar shows the three triangles
   await generateTrayIcons(frontendOut);

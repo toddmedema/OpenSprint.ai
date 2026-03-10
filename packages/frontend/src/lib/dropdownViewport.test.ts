@@ -4,7 +4,6 @@ import {
   getDropdownPositionLeftAligned,
   getDropdownPositionViewportAware,
   shouldRightAlignDropdown,
-  VIEWPORT_RIGHT_EDGE_THRESHOLD,
   TOAST_SAFE_STYLE,
 } from "./dropdownViewport";
 

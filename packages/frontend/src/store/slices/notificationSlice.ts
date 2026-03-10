@@ -1,11 +1,13 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
 export type NotificationSeverity = "error" | "warning" | "info" | "success";
+export type NotificationPresentation = "toast" | "inline";
 
 export interface Notification {
   id: string;
   message: string;
   severity: NotificationSeverity;
+  presentation?: NotificationPresentation;
   /** Auto-dismiss timeout in ms. 0 = persistent. Default: 8000 for info/success, 0 for error/warning. */
   timeout?: number;
   createdAt: number;
@@ -14,6 +16,8 @@ export interface Notification {
 export interface AddNotificationPayload {
   message: string;
   severity?: NotificationSeverity;
+  /** "toast" appears in floating stack; "inline" is reserved for context-specific rendering. */
+  presentation?: NotificationPresentation;
   /** Override auto-dismiss. 0 = persistent. */
   timeout?: number;
 }
@@ -41,12 +45,13 @@ export const notificationSlice = createSlice({
   initialState,
   reducers: {
     addNotification(state, action: PayloadAction<AddNotificationPayload>) {
-      const { message, severity = "info", timeout } = action.payload;
+      const { message, severity = "info", presentation = "toast", timeout } = action.payload;
       const effectiveTimeout = timeout !== undefined ? timeout : getDefaultTimeout(severity);
       state.items.push({
         id: nextId(),
         message,
         severity,
+        presentation,
         timeout: effectiveTimeout,
         createdAt: Date.now(),
       });

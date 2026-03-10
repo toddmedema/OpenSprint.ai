@@ -243,12 +243,12 @@ interface OrchestratorCounters {
 export class OrchestratorService {
   private state = new Map<string, OrchestratorState>();
   private taskStore = taskStoreSingleton;
-  private projectService = new ProjectService();
+  private _projectService: ProjectService | null = null;
   private branchManager = new BranchManager();
-  private contextAssembler = new ContextAssembler();
+  private _contextAssembler: ContextAssembler | null = null;
   private sessionManager = new SessionManager();
   private testRunner = new TestRunner();
-  private feedbackService = new FeedbackService();
+  private _feedbackService: FeedbackService | null = null;
   private lifecycleManager = new AgentLifecycleManager();
   private fileScopeAnalyzer = new FileScopeAnalyzer();
   private taskScheduler = new TaskScheduler(this.taskStore);
@@ -258,6 +258,19 @@ export class OrchestratorService {
   private maxSlotsCache = new Map<string, number>();
   private failureHandler = new FailureHandlerService(this as unknown as FailureHandlerHost);
   private mergeCoordinator = new MergeCoordinatorService(this as unknown as MergeCoordinatorHost);
+
+  private get projectService(): ProjectService {
+    if (!this._projectService) this._projectService = new ProjectService();
+    return this._projectService;
+  }
+  private get contextAssembler(): ContextAssembler {
+    if (!this._contextAssembler) this._contextAssembler = new ContextAssembler();
+    return this._contextAssembler;
+  }
+  private get feedbackService(): FeedbackService {
+    if (!this._feedbackService) this._feedbackService = new FeedbackService();
+    return this._feedbackService;
+  }
 
   private phaseExecutor = new PhaseExecutorService(this as unknown as PhaseExecutorHost, {
     handleCodingDone: (a, b, c, d, e) => this.handleCodingDone(a, b, c, d, e),

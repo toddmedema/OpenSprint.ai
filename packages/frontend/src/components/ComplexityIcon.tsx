@@ -1,8 +1,8 @@
 import type { PlanComplexity } from "@opensprint/shared";
 
 export interface ComplexityIconProps {
-  /** Task-level complexity (1-10) or plan-level (low|medium|high|very_high). Legacy "simple"/"complex" accepted for display. */
-  complexity: number | PlanComplexity | "simple" | "complex" | undefined;
+  /** Task-level complexity (1-10) or plan-level (low|medium|high|very_high). */
+  complexity: number | PlanComplexity | undefined;
   size?: "xs" | "sm" | "md";
   className?: string;
 }
@@ -21,7 +21,7 @@ export function ComplexityIcon({ complexity, size = "sm", className = "" }: Comp
   const isSimple =
     typeof complexity === "number"
       ? complexity >= 1 && complexity <= 5
-      : complexity === "low" || complexity === "simple";
+      : complexity === "low";
   const ariaLabel =
     typeof complexity === "string" && ["low", "medium", "high", "very_high"].includes(complexity)
       ? `${complexity} complexity`

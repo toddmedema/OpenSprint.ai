@@ -97,7 +97,7 @@ describe("auditor.service", () => {
       expect(result?.tasks?.[1].depends_on).toEqual([0]);
     });
 
-    it("parses complexity (1-10) when provided, migrates legacy simple/complex to 3/7", () => {
+    it("parses complexity (1-10) when provided as integer", () => {
       const content = JSON.stringify({
         status: "success",
         capability_summary: "## Features",
@@ -108,7 +108,7 @@ describe("auditor.service", () => {
             description: "...",
             priority: 1,
             depends_on: [],
-            complexity: "low",
+            complexity: 3,
           },
           {
             index: 1,
@@ -116,13 +116,25 @@ describe("auditor.service", () => {
             description: "...",
             priority: 2,
             depends_on: [0],
-            complexity: "high",
+            complexity: 8,
           },
         ],
       });
       const result = parseAuditorResult(content);
       expect(result?.tasks?.[0].complexity).toBe(3);
-      expect(result?.tasks?.[1].complexity).toBe(7);
+      expect(result?.tasks?.[1].complexity).toBe(8);
+    });
+
+    it("omits complexity when legacy string (simple/low/complex/high) is provided", () => {
+      const content = JSON.stringify({
+        status: "success",
+        capability_summary: "## Features",
+        tasks: [
+          { index: 0, title: "Task", description: "...", priority: 1, depends_on: [], complexity: "low" },
+        ],
+      });
+      const result = parseAuditorResult(content);
+      expect(result?.tasks?.[0]).not.toHaveProperty("complexity");
     });
 
     it("omits complexity when invalid or absent", () => {

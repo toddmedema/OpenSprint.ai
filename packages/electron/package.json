@@ -5,31 +5,33 @@
   "private": true,
   "description": "Desktop packaging workspace for OpenSprint",
   "author": "OpenSprint Team",
-  "main": "main.js",
+  "main": "dist/main.js",
   "scripts": {
-    "start": "electron .",
-    "build": "electron-builder",
-    "build:dir": "electron-builder --dir",
-    "build:mac": "electron-builder --mac",
-    "build:win": "electron-builder --win",
-    "build:linux": "electron-builder --linux"
+    "compile": "tsc",
+    "start": "npm run compile && electron .",
+    "build": "npm run compile && electron-builder",
+    "build:dir": "npm run compile && electron-builder --dir",
+    "build:mac": "npm run compile && electron-builder --mac",
+    "build:win": "npm run compile && electron-builder --win",
+    "build:linux": "npm run compile && electron-builder --linux"
   },
   "dependencies": {},
   "devDependencies": {
-    "electron": "33.0.0",
+    "electron": "^35.1.0",
     "electron-builder": "^25.0.0",
-    "sharp": "^0.33.5"
+    "sharp": "^0.33.5",
+    "typescript": "^5.7.2"
   },
   "build": {
     "appId": "com.opensprint.app",
     "productName": "Open Sprint",
-    "electronVersion": "33.0.0",
+    "electronVersion": "35.1.0",
     "directories": {
       "output": "dist"
     },
     "files": [
-      "main.js",
-      "preload.js"
+      "dist/main.js",
+      "dist/preload.js"
     ],
     "extraResources": [
       {

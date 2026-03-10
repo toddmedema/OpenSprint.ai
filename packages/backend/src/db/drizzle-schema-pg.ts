@@ -36,5 +36,5 @@ export const planVersionsTable = pgTable(
     createdAt: text("created_at").notNull(),
     isExecutedVersion: boolean("is_executed_version").notNull().default(false),
   },
-  (t) => []
+  (_t) => []
 );

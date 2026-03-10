@@ -132,7 +132,7 @@ export function PrdChatPanel({
           <button
             type="button"
             onClick={() => onCollapsedChange?.(false)}
-            className="flex flex-col items-center justify-center gap-1 min-h-[44px] min-w-[44px] p-2 shrink-0 text-theme-muted hover:text-brand-600 dark:hover:text-brand-400 hover:bg-theme-border-subtle rounded-lg transition-colors"
+            className="flex flex-col items-center justify-center gap-1 min-h-[44px] min-w-[44px] p-2 shrink-0 text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle rounded-lg transition-colors"
             title="Expand Discuss"
             aria-label="Expand Discuss sidebar"
           >
@@ -196,19 +196,19 @@ export function PrdChatPanel({
 
             {/* Selection context indicator */}
             {selectionContext && (
-              <div className="mx-3 mb-1 px-3 py-2 bg-brand-50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-700 rounded-lg text-xs">
+              <div className="mx-3 mb-1 px-3 py-2 bg-theme-surface-muted border border-theme-border-subtle rounded-lg text-xs">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="font-medium text-brand-700 dark:text-brand-400">
+                  <span className="font-medium text-theme-text">
                     Discussing: {formatSectionKey(selectionContext.section)}
                   </span>
                   <CloseButton
                     onClick={onClearSelectionContext}
                     ariaLabel="Clear selection"
-                    className="p-0.5 text-brand-500 dark:text-brand-400 hover:text-brand-600 dark:hover:text-brand-300 hover:bg-transparent"
+                    className="p-0.5 text-theme-muted hover:text-theme-text hover:bg-transparent"
                     size="w-3 h-3"
                   />
                 </div>
-                <p className="text-brand-600 dark:text-brand-400 line-clamp-2 italic">
+                <p className="text-theme-muted line-clamp-2 italic">
                   &ldquo;{selectionContext.text}&rdquo;
                 </p>
               </div>
@@ -243,7 +243,7 @@ export function PrdChatPanel({
       <button
         type="button"
         onClick={() => onOpenChange(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-brand-600 text-white shadow-lg hover:bg-brand-700 hover:shadow-xl transition-all flex items-center justify-center z-40 group"
+        className="fixed bottom-6 right-6 w-14 h-14 rounded-full border border-theme-border bg-theme-surface text-theme-text shadow-lg hover:bg-theme-surface-muted transition-all flex items-center justify-center z-40 group"
         title="Chat with AI"
       >
         <ChatIcon className="w-6 h-6 group-hover:scale-110 transition-transform" />
@@ -310,19 +310,19 @@ export function PrdChatPanel({
 
       {/* Selection context indicator */}
       {selectionContext && (
-        <div className="mx-3 mb-1 px-3 py-2 bg-brand-50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-700 rounded-lg text-xs">
+        <div className="mx-3 mb-1 px-3 py-2 bg-theme-surface-muted border border-theme-border-subtle rounded-lg text-xs">
           <div className="flex items-center justify-between mb-1">
-            <span className="font-medium text-brand-700 dark:text-brand-400">
+            <span className="font-medium text-theme-text">
               Discussing: {formatSectionKey(selectionContext.section)}
             </span>
             <CloseButton
               onClick={onClearSelectionContext}
               ariaLabel="Clear selection"
-              className="p-0.5 text-brand-500 dark:text-brand-400 hover:text-brand-600 dark:hover:text-brand-300 hover:bg-transparent"
+              className="p-0.5 text-theme-muted hover:text-theme-text hover:bg-transparent"
               size="w-3 h-3"
             />
           </div>
-          <p className="text-brand-600 dark:text-brand-400 line-clamp-2 italic">
+          <p className="text-theme-muted line-clamp-2 italic">
             &ldquo;{selectionContext.text}&rdquo;
           </p>
         </div>

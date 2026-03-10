@@ -1,6 +1,8 @@
+import { useEffect, useRef, useState } from "react";
 import type { PlanStatus } from "@opensprint/shared";
-import { PHASE_TOOLBAR_HEIGHT, PHASE_TOOLBAR_BUTTON_SIZE } from "../../lib/constants";
 import { ViewToggle } from "../execute/ViewToggle";
+import { SegmentedControl } from "../controls/SegmentedControl";
+import { FilterBar } from "../controls/FilterBar";
 
 function CardIcon({ className }: { className?: string }) {
   return (
@@ -44,12 +46,37 @@ function GraphIcon({ className }: { className?: string }) {
   );
 }
 
+function KebabIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.8}
+      stroke="currentColor"
+      aria-hidden
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z"
+      />
+    </svg>
+  );
+}
+
 export type PlanViewMode = "card" | "graph";
 
 interface PlanFilterToolbarProps {
   statusFilter: "all" | PlanStatus;
   setStatusFilter: (f: "all" | PlanStatus) => void;
-  planCountByStatus: { all: number; planning: number; building: number; in_review: number; complete: number };
+  planCountByStatus: {
+    all: number;
+    planning: number;
+    building: number;
+    in_review: number;
+    complete: number;
+  };
   viewMode: PlanViewMode;
   onViewModeChange: (mode: PlanViewMode) => void;
   plansWithNoTasksCount: number;
@@ -95,8 +122,22 @@ export function PlanFilterToolbar({
   handleSearchExpand,
   handleSearchClose,
   handleSearchKeyDown,
-  autoExecutePlans = false,
+  autoExecutePlans: _autoExecutePlans = false,
 }: PlanFilterToolbarProps) {
+  const [bulkMenuOpen, setBulkMenuOpen] = useState(false);
+  const bulkMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!bulkMenuOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (bulkMenuRef.current && !bulkMenuRef.current.contains(event.target as Node)) {
+        setBulkMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [bulkMenuOpen]);
+
   const chipConfig = [
     { label: "All", filter: "all" as const, count: planCountByStatus.all },
     { label: "Planning", filter: "planning" as const, count: planCountByStatus.planning },
@@ -105,150 +146,163 @@ export function PlanFilterToolbar({
     { label: "Complete", filter: "complete" as const, count: planCountByStatus.complete },
   ].filter((c) => c.filter === "all" || c.count > 0);
 
-  return (
-    <div
-      className="phase-toolbar w-full px-4 md:px-6 flex items-center py-0.5 border-b border-theme-border bg-theme-surface shrink-0"
-      style={{ height: PHASE_TOOLBAR_HEIGHT }}
-    >
-      <div className="flex flex-wrap w-full items-center justify-between gap-2 md:gap-3">
-        <div className="flex items-center gap-2 flex-1 min-w-0 overflow-x-auto overflow-y-visible flex-nowrap py-0.5 pl-2">
-          {chipConfig.map(({ label, filter, count }) => {
-            const isActive = statusFilter === filter;
-            const isAll = filter === "all";
-            const handleClick = () => {
-              setStatusFilter(isActive && !isAll ? "all" : filter);
-            };
-            return (
-              <button
-                key={filter}
-                type="button"
-                onClick={handleClick}
-                data-testid={`plan-filter-chip-${filter}`}
-                style={{ minHeight: PHASE_TOOLBAR_BUTTON_SIZE, minWidth: PHASE_TOOLBAR_BUTTON_SIZE }}
-                className={`inline-flex items-center justify-center gap-1 rounded-sm px-2 py-0.5 text-sm font-medium transition-colors shrink-0 ${
-                  isActive
-                    ? "bg-brand-600 text-white ring-2 ring-brand-500 ring-offset-1 ring-offset-theme-bg"
-                    : "bg-theme-surface-muted text-theme-text hover:bg-theme-border-subtle"
-                }`}
-                aria-pressed={isActive}
-                aria-label={`${label} ${count}${isActive ? ", selected" : ""}`}
-              >
-                <span>{label}</span>
-                <span className={isActive ? "opacity-90" : "text-theme-muted"}>{count}</span>
-              </button>
-            );
-          })}
-          {!autoExecutePlans && plansWithNoTasksCount >= 2 && (
-            <button
-              type="button"
-              onClick={onPlanAllTasks}
-              disabled={planAllInProgress || planTasksPlanIds.length > 0}
-              style={{ minHeight: PHASE_TOOLBAR_BUTTON_SIZE, minWidth: PHASE_TOOLBAR_BUTTON_SIZE }}
-              className="btn-primary text-sm py-0.5 px-2 rounded-sm disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center shrink-0"
-              data-testid="plan-all-tasks-button"
-            >
-              {planAllInProgress ? "Generating all…" : "Generate All Tasks"}
-            </button>
-          )}
-        </div>
-        <div className="flex items-center shrink-0 gap-1.5">
+  const showPlanAllButton = plansWithNoTasksCount >= 2;
+  const showExecuteAllButton = plansReadyToExecuteCount >= 2;
+  const showBulkActions = showPlanAllButton || showExecuteAllButton;
+
+  const left = (
+    <SegmentedControl
+      dataTestId="plan-filter-segmented"
+      value={statusFilter}
+      onChange={(next) => {
+        const isActive = statusFilter === next;
+        setStatusFilter(isActive && next !== "all" ? "all" : next);
+      }}
+      options={chipConfig.map(({ label, filter, count }) => ({
+        value: filter,
+        label,
+        count,
+        testId: `plan-filter-chip-${filter}`,
+        ariaLabel: `${label} ${count}${statusFilter === filter ? ", selected" : ""}`,
+      }))}
+    />
+  );
+
+  const right = (
+    <>
+      <button
+        type="button"
+        onClick={onAddPlan}
+        className="btn-primary text-sm py-1.5 px-2.5 min-h-[44px] min-w-[44px] hover:bg-brand-800 inline-flex items-center justify-center"
+        data-testid="add-plan-button"
+      >
+        New Plan
+      </button>
+
+      {showBulkActions && (
+        <div className="relative" ref={bulkMenuRef}>
           <button
             type="button"
-            onClick={onAddPlan}
-            style={{ minHeight: PHASE_TOOLBAR_BUTTON_SIZE, minWidth: PHASE_TOOLBAR_BUTTON_SIZE }}
-            className="btn-primary text-sm py-0.5 px-2 rounded-sm hover:bg-brand-800 inline-flex items-center justify-center"
-            data-testid="add-plan-button"
+            onClick={() => setBulkMenuOpen((open) => !open)}
+            className="btn-secondary px-2.5 min-h-[44px] min-w-[44px] inline-flex items-center gap-1"
+            data-testid="plan-bulk-actions-button"
+            aria-label="Open bulk actions"
+            aria-expanded={bulkMenuOpen}
+            aria-haspopup="menu"
           >
-            New Plan
+            <KebabIcon className="w-4 h-4" />
+            <span className="hidden sm:inline">Bulk</span>
           </button>
-          {plansReadyToExecuteCount >= 2 && (
-            <button
-              type="button"
-              onClick={onExecuteAll}
-              disabled={!!executingPlanId || executeAllInProgress}
-              style={{ minHeight: PHASE_TOOLBAR_BUTTON_SIZE, minWidth: PHASE_TOOLBAR_BUTTON_SIZE }}
-              className="btn-primary text-sm py-0.5 px-2 rounded-sm disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center"
-              data-testid="execute-all-button"
+          {bulkMenuOpen && (
+            <div
+              role="menu"
+              className="absolute right-0 top-full mt-1 min-w-[13rem] rounded-lg border border-theme-border bg-theme-surface shadow-lg py-1 z-20"
+              data-testid="plan-bulk-actions-menu"
             >
-              {executeAllInProgress ? "Executing all…" : "Execute All"}
-            </button>
-          )}
-          {handleSearchExpand &&
-          handleSearchClose &&
-          handleSearchKeyDown &&
-          setSearchInputValue &&
-          searchInputRef ? (
-            searchExpanded ? (
-              <div
-                className="flex items-center gap-1 animate-fade-in"
-                data-testid="plan-search-expanded"
-              >
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchInputValue}
-                  onChange={(e) => setSearchInputValue(e.target.value)}
-                  onKeyDown={handleSearchKeyDown}
-                  placeholder="Search plans…"
-                  className="w-48 sm:w-56 px-2.5 py-1 text-sm bg-theme-surface-muted rounded-sm text-theme-text placeholder:text-theme-muted border border-theme-border focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all"
-                  aria-label="Search plans"
-                />
+              {showPlanAllButton && (
                 <button
                   type="button"
-                  onClick={handleSearchClose}
-                  style={{ minHeight: PHASE_TOOLBAR_BUTTON_SIZE, minWidth: PHASE_TOOLBAR_BUTTON_SIZE }}
-                  className="p-1 rounded-sm text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle transition-colors inline-flex items-center justify-center"
-                  aria-label="Close search"
-                  data-testid="plan-search-close"
+                  role="menuitem"
+                  onClick={() => {
+                    onPlanAllTasks();
+                    setBulkMenuOpen(false);
+                  }}
+                  disabled={planAllInProgress || planTasksPlanIds.length > 0}
+                  className="w-full text-left px-3 py-2 text-sm text-theme-text hover:bg-theme-border-subtle disabled:opacity-60 disabled:cursor-not-allowed"
+                  data-testid="plan-all-tasks-button"
                 >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  {planAllInProgress ? "Generating all…" : "Generate All Tasks"}
                 </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={handleSearchExpand}
-                style={{ minHeight: PHASE_TOOLBAR_BUTTON_SIZE, minWidth: PHASE_TOOLBAR_BUTTON_SIZE }}
-                className="p-1 rounded-sm text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle transition-colors inline-flex items-center justify-center"
-                aria-label="Expand search"
-                data-testid="plan-search-expand"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+              )}
+              {showExecuteAllButton && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    onExecuteAll();
+                    setBulkMenuOpen(false);
+                  }}
+                  disabled={!!executingPlanId || executeAllInProgress}
+                  className="w-full text-left px-3 py-2 text-sm text-theme-text hover:bg-theme-border-subtle disabled:opacity-60 disabled:cursor-not-allowed"
+                  data-testid="execute-all-button"
                 >
-                  <circle cx="11" cy="11" r="8" />
-                  <path d="m21 21-4.35-4.35" />
-                </svg>
-              </button>
-            )
-          ) : null}
-          <div>
-            <ViewToggle
-              options={[
-                { value: "card", icon: <CardIcon className="w-3 h-3" />, label: "Card view" },
-                { value: "graph", icon: <GraphIcon className="w-3 h-3" />, label: "Graph view" },
-              ]}
-              value={viewMode}
-              onChange={onViewModeChange}
-              compact
-            />
-          </div>
+                  {executeAllInProgress ? "Executing all…" : "Execute All"}
+                </button>
+              )}
+            </div>
+          )}
         </div>
-      </div>
-    </div>
+      )}
+
+      {handleSearchExpand &&
+      handleSearchClose &&
+      handleSearchKeyDown &&
+      setSearchInputValue &&
+      searchInputRef ? (
+        searchExpanded ? (
+          <div className="flex items-center gap-1 animate-fade-in" data-testid="plan-search-expanded">
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchInputValue}
+              onChange={(e) => setSearchInputValue(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              placeholder="Search plans…"
+              className="w-48 sm:w-56 px-3 py-1.5 text-sm bg-theme-surface-muted rounded-md text-theme-text placeholder:text-theme-muted border border-theme-border focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all"
+              aria-label="Search plans"
+            />
+            <button
+              type="button"
+              onClick={handleSearchClose}
+              className="p-1.5 min-h-[44px] min-w-[44px] rounded-md text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle transition-colors inline-flex items-center justify-center"
+              aria-label="Close search"
+              data-testid="plan-search-close"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={handleSearchExpand}
+            className="p-1.5 min-h-[44px] min-w-[44px] rounded-md text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle transition-colors inline-flex items-center justify-center"
+            aria-label="Expand search"
+            data-testid="plan-search-expand"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+          </button>
+        )
+      ) : null}
+
+      <ViewToggle
+        options={[
+          { value: "card", icon: <CardIcon className="w-3 h-3" />, label: "Card view" },
+          { value: "graph", icon: <GraphIcon className="w-3 h-3" />, label: "Graph view" },
+        ]}
+        value={viewMode}
+        onChange={onViewModeChange}
+      />
+    </>
   );
+
+  return <FilterBar left={left} right={right} dataTestId="plan-filter-toolbar" />;
 }

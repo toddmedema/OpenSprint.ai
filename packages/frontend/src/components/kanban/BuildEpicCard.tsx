@@ -172,7 +172,7 @@ export function BuildEpicCard({
 
   return (
     <div
-      className="rounded-xl bg-theme-surface shadow-sm ring-1 ring-theme-border overflow-hidden"
+      className="rounded-2xl bg-theme-surface ring-1 ring-theme-border-subtle overflow-hidden"
       data-testid={`epic-card-${epicId || "other"}`}
     >
       {/* Epic header with progress */}
@@ -224,7 +224,7 @@ export function BuildEpicCard({
         </div>
         <div className="w-full bg-theme-surface-muted rounded-full h-2 overflow-hidden">
           <div
-            className="h-2 rounded-full transition-all duration-500 ease-out bg-gradient-to-r from-brand-500 to-brand-600"
+            className="h-2 rounded-full transition-all duration-500 ease-out bg-theme-info-solid"
             style={{ width: `${progress}%` }}
             role="progressbar"
             aria-valuenow={doneCount}

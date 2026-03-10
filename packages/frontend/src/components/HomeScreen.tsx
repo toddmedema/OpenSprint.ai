@@ -65,14 +65,14 @@ function ProjectActionConfirmModal({
           {children}
         </div>
         <div className="flex justify-end gap-2 px-5 py-4 border-t border-theme-border bg-theme-bg rounded-b-xl shrink-0">
-          <button type="button" onClick={onCancel} className="btn-primary" disabled={confirming}>
+          <button type="button" onClick={onCancel} className="btn-secondary" disabled={confirming}>
             Cancel
           </button>
           <button
             type="button"
             onClick={onConfirm}
             disabled={confirming}
-            className="btn-secondary disabled:opacity-50"
+            className="btn-primary disabled:opacity-50"
           >
             {confirming ? "Processing…" : "Proceed"}
           </button>

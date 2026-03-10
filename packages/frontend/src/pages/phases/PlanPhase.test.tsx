@@ -1261,6 +1261,8 @@ describe("Generate All Tasks button", () => {
       </MemoryRouter>,
       { wrapper: PlanPhaseWrapper }
     );
+    const user = userEvent.setup();
+    await user.click(await screen.findByTestId("plan-bulk-actions-button"));
     expect(await screen.findByTestId("plan-all-tasks-button")).toBeInTheDocument();
     expect(screen.getByTestId("plan-all-tasks-button")).toHaveTextContent("Generate All Tasks");
   });
@@ -1311,7 +1313,7 @@ describe("Generate All Tasks button", () => {
     await waitFor(() => {
       expect(screen.getByText("Feature Plans")).toBeInTheDocument();
     });
-    expect(screen.queryByTestId("plan-all-tasks-button")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("plan-bulk-actions-button")).not.toBeInTheDocument();
   });
 
   it("queues all plans with no tasks sequentially when Generate All Tasks is clicked", async () => {
@@ -1349,6 +1351,7 @@ describe("Generate All Tasks button", () => {
       </MemoryRouter>,
       { wrapper: PlanPhaseWrapper }
     );
+    await user.click(await screen.findByTestId("plan-bulk-actions-button"));
     const planAllBtn = await screen.findByTestId("plan-all-tasks-button");
     await user.click(planAllBtn);
     await waitFor(() => {
@@ -1402,6 +1405,7 @@ describe("Generate All Tasks button", () => {
       </MemoryRouter>,
       { wrapper: PlanPhaseWrapper }
     );
+    await user.click(await screen.findByTestId("plan-bulk-actions-button"));
     const planAllBtn = await screen.findByTestId("plan-all-tasks-button");
     await user.click(planAllBtn);
     await waitFor(() => {
@@ -1474,6 +1478,8 @@ describe("Execute All button", () => {
       </MemoryRouter>,
       { wrapper: PlanPhaseWrapper }
     );
+    const user = userEvent.setup();
+    await user.click(await screen.findByTestId("plan-bulk-actions-button"));
     expect(await screen.findByTestId("execute-all-button")).toBeInTheDocument();
     expect(screen.getByTestId("execute-all-button")).toHaveTextContent("Execute All");
   });
@@ -1524,7 +1530,7 @@ describe("Execute All button", () => {
     await waitFor(() => {
       expect(screen.getByText("Feature Plans")).toBeInTheDocument();
     });
-    expect(screen.queryByTestId("execute-all-button")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("plan-bulk-actions-button")).not.toBeInTheDocument();
   });
 
   it("executes all plans in dependency order when Execute All is clicked", async () => {
@@ -1579,6 +1585,7 @@ describe("Execute All button", () => {
       </MemoryRouter>,
       { wrapper: PlanPhaseWrapper }
     );
+    await user.click(await screen.findByTestId("plan-bulk-actions-button"));
     const executeAllBtn = await screen.findByTestId("execute-all-button");
     await user.click(executeAllBtn);
     await waitFor(() => {
@@ -2202,9 +2209,9 @@ describe("PlanPhase plan sorting and status filter", () => {
       { wrapper: PlanPhaseWrapper }
     );
 
-    const allChip = screen.getByRole("button", { name: /all 1/i });
+    const allChip = screen.getByRole("radio", { name: /all 1/i });
     expect(allChip).toBeInTheDocument();
-    expect(allChip).toHaveAttribute("aria-pressed", "true");
+    expect(allChip).toHaveAttribute("aria-checked", "true");
   });
 
   it("filters plans when status filter is changed", async () => {
@@ -2234,7 +2241,7 @@ describe("PlanPhase plan sorting and status filter", () => {
     expect(screen.getByText(/planning feature/i)).toBeInTheDocument();
     expect(screen.getByText(/building feature/i)).toBeInTheDocument();
 
-    const planningChip = screen.getByRole("button", { name: /planning 1/i });
+    const planningChip = screen.getByRole("radio", { name: /planning 1/i });
     await user.click(planningChip);
 
     expect(screen.getByText(/planning feature/i)).toBeInTheDocument();
@@ -2259,10 +2266,10 @@ describe("PlanPhase plan sorting and status filter", () => {
       { wrapper: PlanPhaseWrapper }
     );
 
-    expect(screen.getByRole("button", { name: /all 1/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /planning 1/i })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /building 0/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /complete 0/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /all 1/i })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /planning 1/i })).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /building 0/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /complete 0/i })).not.toBeInTheDocument();
   });
 });
 
@@ -2305,10 +2312,10 @@ describe("PlanPhase sendPlanMessage thunk", () => {
     );
 
     // Filter chips (chips with count 0 are hidden)
-    expect(screen.getByRole("button", { name: /all 1/i })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /planning 0/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /building 1/i })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /complete 0/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /all 1/i })).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /planning 0/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /building 1/i })).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /complete 0/i })).not.toBeInTheDocument();
 
     // View toggle: Card (default) and Graph
     const cardView = screen.getByRole("radio", { name: /card view/i });

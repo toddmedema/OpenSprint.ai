@@ -8,6 +8,8 @@ import { Link } from "react-router-dom";
 interface NavButtonBaseProps {
   active: boolean;
   children: React.ReactNode;
+  /** Visual emphasis for active state. */
+  tone?: "neutral" | "accent";
   variant?: "default" | "icon";
   className?: string;
   title?: string;
@@ -41,12 +43,16 @@ const baseClasses =
 
 const iconVariantClasses = "aspect-square min-h-[44px] min-w-[44px] !p-2";
 
-const activeClasses = "bg-brand-600 text-white";
+const activeToneClasses: Record<"neutral" | "accent", string> = {
+  neutral: "bg-theme-border-subtle text-theme-text ring-1 ring-theme-border",
+  accent: "bg-brand-600 text-white",
+};
 const inactiveClasses = "text-theme-muted hover:text-theme-text hover:bg-theme-border-subtle";
 
 export function NavButton({
   active,
   children,
+  tone = "neutral",
   variant = "default",
   className = "",
   title,
@@ -60,7 +66,7 @@ export function NavButton({
   id,
   ...rest
 }: NavButtonProps) {
-  const stateClasses = active ? activeClasses : inactiveClasses;
+  const stateClasses = active ? activeToneClasses[tone] : inactiveClasses;
   const variantClasses = variant === "icon" ? iconVariantClasses : "";
   const combinedClassName = [
     baseClasses,

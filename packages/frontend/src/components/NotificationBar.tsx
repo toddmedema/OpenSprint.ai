@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useAppDispatch, useAppSelector } from "../store";
 import {
   dismissNotification,
@@ -8,10 +8,10 @@ import {
 import { NAVBAR_HEIGHT } from "../lib/constants";
 
 const SEVERITY_STYLES: Record<NotificationSeverity, string> = {
-  error: "bg-theme-notification-error text-white border-theme-notification-error",
-  warning: "bg-theme-notification-warning text-white border-theme-notification-warning",
-  info: "bg-theme-notification-info text-white border-theme-notification-info",
-  success: "bg-theme-notification-success text-white border-theme-notification-success",
+  error: "bg-theme-notification-error text-white border-theme-notification-error/70",
+  warning: "bg-theme-notification-warning text-white border-theme-notification-warning/70",
+  info: "bg-theme-notification-info text-white border-theme-notification-info/70",
+  success: "bg-theme-notification-success text-white border-theme-notification-success/70",
 };
 
 function NotificationItem({
@@ -53,7 +53,7 @@ function NotificationItem({
       role="alert"
       aria-live="assertive"
       className={`
-        flex items-center justify-between gap-3 px-4 py-3 rounded-lg border shadow-sm
+        flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border shadow-lg backdrop-blur-sm
         animate-[slide-up-fade_0.25s_ease-out]
         ${styleClass}
       `}
@@ -85,16 +85,21 @@ function NotificationItem({
 
 export function NotificationBar() {
   const dispatch = useAppDispatch();
-  const items = useAppSelector((s) => s.notification.items);
+  const notifications = useAppSelector((state) => state.notification.items);
+  const items = useMemo(
+    () => notifications.filter((item) => item.presentation !== "inline"),
+    [notifications]
+  );
 
   if (items.length === 0) return null;
 
   return (
     <div
-      className="fixed left-0 right-0 z-50 flex flex-col gap-2 px-4 py-2"
-      style={{ top: NAVBAR_HEIGHT }}
+      className="fixed right-4 z-50 flex w-[min(420px,calc(100vw-2rem))] flex-col gap-2"
+      style={{ top: NAVBAR_HEIGHT + 8 }}
       role="region"
       aria-label="Notifications"
+      data-testid="notification-toast-stack"
     >
       {items.map((n) => (
         <NotificationItem

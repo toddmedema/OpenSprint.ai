@@ -53,17 +53,16 @@ function formatDate(iso: string): string {
 }
 
 function StatusBadge({ status }: { status: DeploymentRecord["status"] }) {
-  const styles: Record<DeploymentRecord["status"], string> = {
-    pending: "bg-theme-surface-muted text-theme-text",
-    running: "bg-theme-info-bg text-theme-info-text",
-    success: "bg-theme-success-bg text-theme-success-text",
-    failed: "bg-theme-error-bg text-theme-error-text",
-    rolled_back: "bg-theme-warning-bg text-theme-warning-text",
+  const dotStyles: Record<DeploymentRecord["status"], string> = {
+    pending: "bg-theme-ring",
+    running: "bg-theme-status-ready",
+    success: "bg-theme-status-done",
+    failed: "bg-theme-status-blocked",
+    rolled_back: "bg-theme-status-backlog",
   };
   return (
-    <span
-      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${styles[status]}`}
-    >
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-theme-surface-muted text-theme-text border border-theme-border-subtle">
+      <span className={`inline-block w-1.5 h-1.5 rounded-full ${dotStyles[status]}`} />
       {status.replace("_", "-")}
     </span>
   );
@@ -73,7 +72,7 @@ function EnvironmentChip({ target }: { target: DeploymentRecord["target"] }) {
   const label = formatTarget(target);
   return (
     <span
-      className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-theme-surface-muted text-theme-muted shrink-0"
+      className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-theme-surface-muted text-theme-muted border border-theme-border-subtle shrink-0"
       title={`Environment: ${label}`}
     >
       {label}

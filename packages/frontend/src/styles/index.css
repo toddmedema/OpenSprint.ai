@@ -6,61 +6,81 @@
 :root,
 html[data-theme="light"],
 html:not([data-theme]) {
-  --color-bg: #f9fafb;
-  --color-bg-elevated: #ffffff;
-  --color-text: #111827;
-  --color-text-muted: #6b7280;
-  --color-surface: #ffffff;
-  --color-border: #e5e7eb;
-  --color-border-subtle: #f3f4f6;
-  --color-ring: #d1d5db;
-  --color-input-bg: #ffffff;
-  --color-input-text: #111827;
-  --color-input-placeholder: #9ca3af;
-  --color-code-bg: #1f2937;
-  --color-code-text: #10b981;
+  /* Design token contract (surface/text/stroke/accent/status) */
+  --ui-surface-page: #f5f5f7;
+  --ui-surface-raised: #ffffff;
+  --ui-surface-muted: #f2f2f4;
+  --ui-surface-code: #1f2937;
+  --ui-text-primary: #1d1d1f;
+  --ui-text-secondary: #6e6e73;
+  --ui-text-inverse: #f5f5f7;
+  --ui-stroke-soft: #e5e5ea;
+  --ui-stroke-strong: #d2d2d7;
+  --ui-stroke-focus: #a1a1aa;
+  --ui-accent-primary: #0071e3;
+  --ui-accent-strong: #005bb5;
+  --ui-accent-tint: #e8f2ff;
+  --ui-status-info: #0a84ff;
+  --ui-status-success: #30d158;
+  --ui-status-warning: #ff9f0a;
+  --ui-status-error: #ff453a;
+
+  /* Backward-compatible aliases for existing components */
+  --color-bg: var(--ui-surface-page);
+  --color-bg-elevated: var(--ui-surface-raised);
+  --color-text: var(--ui-text-primary);
+  --color-text-muted: var(--ui-text-secondary);
+  --color-surface: var(--ui-surface-raised);
+  --color-border: var(--ui-stroke-soft);
+  --color-border-subtle: #ececf1;
+  --color-ring: var(--ui-stroke-strong);
+  --color-input-bg: var(--ui-surface-raised);
+  --color-input-text: var(--ui-text-primary);
+  --color-input-placeholder: #8e8e93;
+  --color-code-bg: var(--ui-surface-code);
+  --color-code-text: #c4f2d6;
   --color-overlay: rgba(0, 0, 0, 0.4);
-  --color-surface-muted: #f3f4f6;
+  --color-surface-muted: var(--ui-surface-muted);
   /* Semantic theme tokens */
-  --color-error-bg: #fef2f2;
-  --color-error-text: #b91c1c;
-  --color-error-border: #fecaca;
-  --color-error-solid: #dc2626;
-  --color-error-solid-hover: #b91c1c;
-  --color-success-bg: #f0fdf4;
-  --color-success-text: #166534;
-  --color-success-border: #bbf7d0;
-  --color-success-solid: #22c55e;
-  --color-success-muted: #10b981;
-  --color-warning-bg: #fffbeb;
-  --color-warning-text: #b45309;
-  --color-warning-border: #fde68a;
-  --color-warning-solid: #f59e0b;
-  --color-info-bg: #eff6ff;
-  --color-info-text: #1d4ed8;
-  --color-info-border: #bfdbfe;
-  --color-info-solid: #3b82f6;
+  --color-error-bg: #fff1f0;
+  --color-error-text: #a11c15;
+  --color-error-border: #ffd2cf;
+  --color-error-solid: var(--ui-status-error);
+  --color-error-solid-hover: #d43b31;
+  --color-success-bg: #edfcef;
+  --color-success-text: #0f6b2f;
+  --color-success-border: #c9f4d3;
+  --color-success-solid: var(--ui-status-success);
+  --color-success-muted: #18a44d;
+  --color-warning-bg: #fff9ef;
+  --color-warning-text: #8a5400;
+  --color-warning-border: #ffe5b3;
+  --color-warning-solid: var(--ui-status-warning);
+  --color-info-bg: var(--ui-accent-tint);
+  --color-info-text: #0051a8;
+  --color-info-border: #b9d7ff;
+  --color-info-solid: var(--ui-accent-primary);
   /* Notification/toast severity (solid bg, white text) */
-  --color-notification-error: #dc2626;
-  --color-notification-warning: #d97706;
-  --color-notification-info: #2563eb;
-  --color-notification-success: #059669;
+  --color-notification-error: #d43b31;
+  --color-notification-warning: #bd7a07;
+  --color-notification-info: #0062c9;
+  --color-notification-success: #208946;
   /* Feedback category tokens */
-  --color-feedback-bug-bg: #fef2f2;
-  --color-feedback-bug-text: #b91c1c;
-  --color-feedback-feature-bg: #faf5ff;
-  --color-feedback-feature-text: #7c3aed;
+  --color-feedback-bug-bg: #fff1f0;
+  --color-feedback-bug-text: #a11c15;
+  --color-feedback-feature-bg: #eef4ff;
+  --color-feedback-feature-text: #1554a8;
   --color-feedback-ux-bg: #eff6ff;
-  --color-feedback-ux-text: #1d4ed8;
-  --color-feedback-scope-bg: #fefce8;
-  --color-feedback-scope-text: #a16207;
+  --color-feedback-ux-text: #1554a8;
+  --color-feedback-scope-bg: #fffaee;
+  --color-feedback-scope-text: #8a5400;
   /* Status indicator tokens (dots, badges) */
-  --color-status-backlog: #eab308;
-  --color-status-ready: #3b82f6;
-  --color-status-in-progress: #a855f7;
-  --color-status-in-review: #f97316;
-  --color-status-done: #22c55e;
-  --color-status-blocked: #ef4444;
+  --color-status-backlog: #bf8b2c;
+  --color-status-ready: var(--ui-status-info);
+  --color-status-in-progress: #3f8cff;
+  --color-status-in-review: #ff9f0a;
+  --color-status-done: var(--ui-status-success);
+  --color-status-blocked: var(--ui-status-error);
   /* DependencyGraph D3/SVG theme tokens */
   --color-graph-edge: #d1d5db;
   --color-graph-edge-critical: #dc2626;
@@ -82,61 +102,79 @@ html:not([data-theme]) {
 }
 
 html[data-theme="dark"] {
-  --color-bg: #111827;
-  --color-bg-elevated: #1f2937;
-  --color-text: #f3f4f6;
-  --color-text-muted: #9ca3af;
-  --color-surface: #1f2937;
-  --color-border: #374151;
-  --color-border-subtle: #1f2937;
-  --color-ring: #4b5563;
-  --color-input-bg: #1f2937;
-  --color-input-text: #f3f4f6;
-  --color-input-placeholder: #6b7280;
-  --color-code-bg: #111827;
-  --color-code-text: #34d399;
+  --ui-surface-page: #111215;
+  --ui-surface-raised: #1c1d21;
+  --ui-surface-muted: #26272c;
+  --ui-surface-code: #0f1115;
+  --ui-text-primary: #f5f5f7;
+  --ui-text-secondary: #a1a1aa;
+  --ui-text-inverse: #111215;
+  --ui-stroke-soft: #34353b;
+  --ui-stroke-strong: #474850;
+  --ui-stroke-focus: #61626c;
+  --ui-accent-primary: #3f9cff;
+  --ui-accent-strong: #2f89f1;
+  --ui-accent-tint: #10243d;
+  --ui-status-info: #4aa5ff;
+  --ui-status-success: #30d158;
+  --ui-status-warning: #ff9f0a;
+  --ui-status-error: #ff6961;
+
+  --color-bg: var(--ui-surface-page);
+  --color-bg-elevated: var(--ui-surface-raised);
+  --color-text: var(--ui-text-primary);
+  --color-text-muted: var(--ui-text-secondary);
+  --color-surface: var(--ui-surface-raised);
+  --color-border: var(--ui-stroke-soft);
+  --color-border-subtle: #2a2b31;
+  --color-ring: var(--ui-stroke-strong);
+  --color-input-bg: var(--ui-surface-raised);
+  --color-input-text: var(--ui-text-primary);
+  --color-input-placeholder: #8a8a95;
+  --color-code-bg: var(--ui-surface-code);
+  --color-code-text: #9de7bd;
   --color-overlay: rgba(0, 0, 0, 0.6);
-  --color-surface-muted: #1f2937;
+  --color-surface-muted: var(--ui-surface-muted);
   /* Semantic theme tokens (dark mode) */
-  --color-error-bg: #450a0a;
-  --color-error-text: #fca5a5;
-  --color-error-border: #7f1d1d;
-  --color-error-solid: #dc2626;
-  --color-error-solid-hover: #ef4444;
-  --color-success-bg: #052e16;
-  --color-success-text: #86efac;
-  --color-success-border: #14532d;
-  --color-success-solid: #22c55e;
-  --color-success-muted: #34d399;
-  --color-warning-bg: #422006;
-  --color-warning-text: #fcd34d;
-  --color-warning-border: #78350f;
-  --color-warning-solid: #f59e0b;
-  --color-info-bg: #1e3a8a;
-  --color-info-text: #93c5fd;
-  --color-info-border: #1e40af;
-  --color-info-solid: #3b82f6;
+  --color-error-bg: #3a1717;
+  --color-error-text: #ffb8b3;
+  --color-error-border: #66302d;
+  --color-error-solid: var(--ui-status-error);
+  --color-error-solid-hover: #ff7a73;
+  --color-success-bg: #142d1d;
+  --color-success-text: #9de7bd;
+  --color-success-border: #29563a;
+  --color-success-solid: var(--ui-status-success);
+  --color-success-muted: #6ddb98;
+  --color-warning-bg: #3a2a16;
+  --color-warning-text: #ffd38a;
+  --color-warning-border: #66481f;
+  --color-warning-solid: var(--ui-status-warning);
+  --color-info-bg: #10243d;
+  --color-info-text: #9ac9ff;
+  --color-info-border: #26476e;
+  --color-info-solid: var(--ui-accent-primary);
   /* Notification severity (dark mode) */
-  --color-notification-error: #b91c1c;
-  --color-notification-warning: #b45309;
-  --color-notification-info: #1d4ed8;
-  --color-notification-success: #047857;
+  --color-notification-error: #b53e38;
+  --color-notification-warning: #b17a2a;
+  --color-notification-info: #2f78d8;
+  --color-notification-success: #247f44;
   /* Feedback category tokens (dark mode) */
-  --color-feedback-bug-bg: #450a0a;
-  --color-feedback-bug-text: #fca5a5;
-  --color-feedback-feature-bg: #3b0764;
-  --color-feedback-feature-text: #e9d5ff;
-  --color-feedback-ux-bg: #1e3a8a;
-  --color-feedback-ux-text: #93c5fd;
-  --color-feedback-scope-bg: #422006;
-  --color-feedback-scope-text: #fde68a;
+  --color-feedback-bug-bg: #3a1717;
+  --color-feedback-bug-text: #ffb8b3;
+  --color-feedback-feature-bg: #13263d;
+  --color-feedback-feature-text: #9ac9ff;
+  --color-feedback-ux-bg: #13263d;
+  --color-feedback-ux-text: #9ac9ff;
+  --color-feedback-scope-bg: #3a2a16;
+  --color-feedback-scope-text: #ffd38a;
   /* Status indicator tokens (dark mode) */
-  --color-status-backlog: #eab308;
-  --color-status-ready: #60a5fa;
-  --color-status-in-progress: #c084fc;
-  --color-status-in-review: #fb923c;
-  --color-status-done: #34d399;
-  --color-status-blocked: #f87171;
+  --color-status-backlog: #bf8b2c;
+  --color-status-ready: var(--ui-status-info);
+  --color-status-in-progress: #78b6ff;
+  --color-status-in-review: var(--ui-status-warning);
+  --color-status-done: var(--ui-status-success);
+  --color-status-blocked: var(--ui-status-error);
   /* DependencyGraph D3/SVG theme tokens (dark mode) */
   --color-graph-edge: #4b5563;
   --color-graph-edge-critical: #ef4444;
@@ -215,8 +253,8 @@ html[data-theme="dark"] {
 
   .btn-secondary {
     @apply inline-flex items-center justify-center rounded-lg bg-theme-surface px-4 py-2.5
-      text-sm font-semibold text-theme-text shadow-sm ring-1 ring-inset ring-theme-ring
-      hover:bg-theme-bg-elevated transition-colors;
+      text-sm font-semibold text-theme-text ring-1 ring-inset ring-theme-border
+      hover:bg-theme-surface-muted transition-colors;
   }
 
   .btn-danger {
@@ -231,7 +269,7 @@ html[data-theme="dark"] {
   }
 
   .card {
-    @apply rounded-xl bg-theme-surface shadow-sm ring-1 ring-theme-border;
+    @apply rounded-2xl bg-theme-surface ring-1 ring-theme-border-subtle;
   }
 
   .input {

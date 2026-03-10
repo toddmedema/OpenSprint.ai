@@ -36,6 +36,16 @@ describe("NavButton", () => {
     );
     const btn = screen.getByRole("button");
     expect(btn).toHaveAttribute("data-active", "true");
+    expect(btn).toHaveClass("bg-theme-border-subtle", "text-theme-text");
+  });
+
+  it("applies accent active styling when tone is accent", () => {
+    render(
+      <NavButton active={true} tone="accent" onClick={vi.fn()}>
+        Active
+      </NavButton>
+    );
+    const btn = screen.getByRole("button");
     expect(btn).toHaveClass("bg-brand-600", "text-white");
   });
 

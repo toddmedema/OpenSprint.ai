@@ -41,7 +41,7 @@ Respond with ONLY valid JSON in this exact format (you may wrap in a markdown js
       "description": "Detailed spec: what to fix, which files, acceptance criteria",
       "priority": 1,
       "depends_on": [],
-      "complexity": 3
+      "complexity": 5
     },
     {
       "index": 1,
@@ -49,12 +49,12 @@ Respond with ONLY valid JSON in this exact format (you may wrap in a markdown js
       "description": "...",
       "priority": 1,
       "depends_on": [0],
-      "complexity": 3
+      "complexity": 5
     }
   ]
 }
 
-priority: 0 (highest) to 4 (lowest). depends_on: array of task indices (0-based) this task is blocked by. complexity: integer 1-10 (1=simplest, 10=most complex) — assign per task based on fix difficulty.
+priority: 0 (highest) to 4 (lowest). depends_on: array of task indices (0-based) this task is blocked by. complexity: integer 1-10 only (1=simplest, 10=most complex) — assign per task based on fix difficulty; use the full range as appropriate.
 If you cannot parse meaningful fix tasks from the output, return: {"status": "failed", "tasks": []}`;
 
 export interface CreateFixEpicResult {
@@ -176,16 +176,13 @@ ${testOutput.slice(0, 15000)}
   for (const task of tasks) {
     const idx = task.index ?? tasks.indexOf(task);
     const priority = Math.min(4, Math.max(0, task.priority ?? 2));
-    const raw = task.complexity as number | string | undefined;
-    const taskComplexity =
-      clampTaskComplexity(raw) ??
-      (raw === "simple" || raw === "low" ? 3 : raw === "complex" || raw === "high" ? 7 : 3);
+    const taskComplexity = clampTaskComplexity(task.complexity);
     const taskResult = await taskStore.createWithRetry(projectId, task.title, {
       type: "task",
       description: task.description ?? "",
       priority,
       parentId: epicId,
-      complexity: taskComplexity,
+      ...(taskComplexity != null && { complexity: taskComplexity }),
     });
     if (!taskResult) {
       log.error("Failed to create fix task after retries", { title: task.title });

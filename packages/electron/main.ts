@@ -1,10 +1,18 @@
-"use strict";
-
-const fs = require("fs");
-const path = require("path");
-const { spawn } = require("child_process");
-const http = require("http");
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } = require("electron");
+import fs from "fs";
+import path from "path";
+import { spawn, type ChildProcess } from "child_process";
+import http from "http";
+import {
+  app,
+  BrowserWindow,
+  Tray,
+  Menu,
+  nativeImage,
+  session,
+  shell,
+  dialog,
+  type MenuItemConstructorOptions,
+} from "electron";
 
 const APP_NAME = "Open Sprint";
 const BACKEND_PORT = 3100;
@@ -14,9 +22,10 @@ const HEALTH_TIMEOUT_MS = 30000;
 const API_BASE = `http://127.0.0.1:${BACKEND_PORT}/api/v1`;
 const TRAY_REFRESH_MS = 10000;
 
-let mainWindow = null;
-let backendProcess = null;
-let tray = null;
+let mainWindow: BrowserWindow | null = null;
+let backendProcess: ChildProcess | null = null;
+let tray: Tray | null = null;
+let trayRefreshInterval: ReturnType<typeof setInterval> | null = null;
 let isQuitting = false;
 
 app.setName(APP_NAME);
@@ -26,7 +35,11 @@ if (!gotSingleInstanceLock) {
   app.exit(0);
 }
 
-function getPaths() {
+function getPaths(): {
+  backendDir: string;
+  backendEntry: string;
+  frontendDist: string;
+} {
   const isPackaged = app.isPackaged;
   if (isPackaged) {
     const resourcesPath = process.resourcesPath;
@@ -36,7 +49,8 @@ function getPaths() {
       frontendDist: path.join(resourcesPath, "frontend"),
     };
   }
-  const repoRoot = path.resolve(__dirname, "..", "..");
+  // When running from dist/main.js, __dirname is packages/electron/dist
+  const repoRoot = path.resolve(__dirname, "..", "..", "..");
   return {
     backendDir: path.join(repoRoot, "packages", "backend"),
     backendEntry: path.join(repoRoot, "packages", "backend", "dist", "index.js"),
@@ -44,11 +58,11 @@ function getPaths() {
   };
 }
 
-function getAppIconPath() {
+function getAppIconPath(): string | null {
   const isPackaged = app.isPackaged;
   const frontendDir = isPackaged
     ? path.join(process.resourcesPath, "frontend")
-    : path.join(__dirname, "desktop-resources", "frontend");
+    : path.join(__dirname, "..", "desktop-resources", "frontend");
   const candidates =
     process.platform === "darwin"
       ? [
@@ -66,7 +80,7 @@ function getAppIconPath() {
   return null;
 }
 
-function applyRuntimeBranding() {
+function applyRuntimeBranding(): string | null {
   const iconPath = getAppIconPath();
   if (!iconPath) return null;
   const iconImage = nativeImage.createFromPath(iconPath);
@@ -77,11 +91,15 @@ function applyRuntimeBranding() {
   return iconPath;
 }
 
-function getTrayIconPaths() {
+function getTrayIconPaths(): {
+  normalPath: string;
+  withDotPath: string;
+  isTemplate: boolean;
+} {
   const isPackaged = app.isPackaged;
   const frontendDir = isPackaged
     ? path.join(process.resourcesPath, "frontend")
-    : path.join(__dirname, "desktop-resources", "frontend");
+    : path.join(__dirname, "..", "desktop-resources", "frontend");
   const normal =
     process.platform === "darwin"
       ? path.join(frontendDir, "trayIconTemplate.png")
@@ -92,14 +110,14 @@ function getTrayIconPaths() {
   return { normalPath, withDotPath, isTemplate: process.platform === "darwin" };
 }
 
-function fetchJson(url, timeoutMs = 500) {
+function fetchJson(url: string, timeoutMs = 500): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const req = http.get(url, (res) => {
       let data = "";
       res.on("data", (chunk) => (data += chunk));
       res.on("end", () => {
         try {
-          resolve(JSON.parse(data));
+          resolve(JSON.parse(data) as Record<string, unknown>);
         } catch {
           reject(new Error("Invalid JSON"));
         }
@@ -113,10 +131,10 @@ function fetchJson(url, timeoutMs = 500) {
   });
 }
 
-function waitForBackend() {
+function waitForBackend(): Promise<void> {
   return new Promise((resolve, reject) => {
     const start = Date.now();
-    function poll() {
+    function poll(): void {
       const req = http.get(HEALTH_URL, (res) => {
         if (res.statusCode === 200) {
           resolve();
@@ -130,7 +148,7 @@ function waitForBackend() {
         tryNext();
       });
     }
-    function tryNext() {
+    function tryNext(): void {
       if (Date.now() - start >= HEALTH_TIMEOUT_MS) {
         reject(new Error("Backend failed to start within 30s"));
         return;
@@ -141,7 +159,7 @@ function waitForBackend() {
   });
 }
 
-function startBackend() {
+function startBackend(): ChildProcess {
   const { backendDir, backendEntry, frontendDist } = getPaths();
   const env = {
     ...process.env,
@@ -154,17 +172,23 @@ function startBackend() {
     stdio: app.isPackaged ? "ignore" : ["inherit", "pipe", "pipe"],
   });
   if (!app.isPackaged && child.stdout) {
-    child.stdout.on("data", (data) => process.stdout.write(data));
+    child.stdout.on("data", (data: Buffer) => process.stdout.write(data));
   }
   if (!app.isPackaged && child.stderr) {
-    child.stderr.on("data", (data) => process.stderr.write(data));
+    child.stderr.on("data", (data: Buffer) => process.stderr.write(data));
   }
-  child.on("error", (err) => {
+  child.on("error", (err: Error) => {
     console.error("Backend process error:", err);
   });
   child.on("exit", (code, signal) => {
+    if (isQuitting) return;
     if (code != null && code !== 0) {
       console.error("Backend exited with code", code);
+      dialog.showErrorBox(
+        "Backend Error",
+        "The backend process crashed. The app will now quit."
+      );
+      app.exit(1);
     }
     if (signal) {
       console.error("Backend killed with signal", signal);
@@ -173,18 +197,39 @@ function startBackend() {
   return child;
 }
 
-function createWindow() {
+function createWindow(): void {
   const appIconPath = getAppIconPath();
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     title: APP_NAME,
     icon: appIconPath || undefined,
+    show: false,
+    backgroundColor: "#0f172a",
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true,
       preload: path.join(__dirname, "preload.js"),
     },
+  });
+  mainWindow.once("ready-to-show", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show();
+  });
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: "deny" };
+  });
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    try {
+      const parsed = new URL(url);
+      if (parsed.origin !== `http://127.0.0.1:${BACKEND_PORT}`) {
+        event.preventDefault();
+        shell.openExternal(url);
+      }
+    } catch {
+      event.preventDefault();
+    }
   });
   mainWindow.loadURL(`http://127.0.0.1:${BACKEND_PORT}`);
   mainWindow.on("close", (e) => {
@@ -192,7 +237,7 @@ function createWindow() {
       return;
     }
     e.preventDefault();
-    mainWindow.hide();
+    mainWindow?.hide();
   });
   mainWindow.on("closed", () => {
     mainWindow = null;
@@ -202,29 +247,38 @@ function createWindow() {
   }
 }
 
-function refreshTrayMenu() {
+function refreshTrayMenu(): Promise<void> {
   if (!tray || tray.isDestroyed()) return Promise.resolve();
   const { normalPath, withDotPath, isTemplate } = getTrayIconPaths();
   return Promise.all([
     fetchJson(`${API_BASE}/agents/active-count`).catch(() => ({ data: { count: 0 } })),
     fetchJson(`${API_BASE}/notifications/pending-count`).catch(() => ({ data: { count: 0 } })),
-    fetchJson(`${API_BASE}/global-settings`).catch(() => ({ data: { showNotificationDotInMenuBar: true } })),
+    fetchJson(`${API_BASE}/global-settings`).catch(() => ({
+      data: { showNotificationDotInMenuBar: true },
+    })),
   ]).then(([agentsRes, notifRes, settingsRes]) => {
     if (!tray || tray.isDestroyed()) return;
-    const agentCount = agentsRes.data?.count ?? 0;
-    const pendingCount = notifRes.data?.count ?? 0;
-    const showDot = settingsRes.data?.showNotificationDotInMenuBar !== false;
+    const agentCount = (agentsRes?.data as { count?: number } | undefined)?.count ?? 0;
+    const pendingCount = (notifRes?.data as { count?: number } | undefined)?.count ?? 0;
+    const showDot =
+      (settingsRes?.data as { showNotificationDotInMenuBar?: boolean } | undefined)
+        ?.showNotificationDotInMenuBar !== false;
     const useDotIcon = pendingCount > 0 && showDot;
     const iconPath = useDotIcon ? withDotPath : normalPath;
     let img = nativeImage.createFromPath(iconPath);
     if (img.isEmpty()) img = nativeImage.createFromPath(normalPath);
     if (isTemplate && !img.isEmpty()) img.setTemplateImage(true);
     tray.setImage(img);
-    // macOS: show agent count to the right of the menu bar icon when setting enabled (e.g. "1", "9+")
     if (process.platform === "darwin") {
-      const showCount = settingsRes.data?.showRunningAgentCountInMenuBar !== false;
+      const showCount =
+        (settingsRes?.data as { showRunningAgentCountInMenuBar?: boolean } | undefined)
+          ?.showRunningAgentCountInMenuBar !== false;
       const title = showCount
-        ? (agentCount === 0 ? "" : agentCount > 9 ? "9+" : String(agentCount))
+        ? agentCount === 0
+          ? ""
+          : agentCount > 9
+            ? "9+"
+            : String(agentCount)
         : "";
       tray.setTitle(title, { fontType: "monospacedDigit" });
     }
@@ -247,10 +301,11 @@ function refreshTrayMenu() {
   });
 }
 
-function createTray() {
+function createTray(): void {
   const { normalPath, isTemplate } = getTrayIconPaths();
   let img = nativeImage.createFromPath(normalPath);
-  if (img.isEmpty()) img = nativeImage.createFromPath(path.join(path.dirname(normalPath), "favicon-16x16.png"));
+  if (img.isEmpty())
+    img = nativeImage.createFromPath(path.join(path.dirname(normalPath), "favicon-16x16.png"));
   if (isTemplate && !img.isEmpty()) img.setTemplateImage(true);
   tray = new Tray(img);
   tray.setToolTip(APP_NAME);
@@ -274,11 +329,76 @@ function createTray() {
   });
 }
 
-function killBackend() {
-  if (backendProcess && !backendProcess.killed) {
-    backendProcess.kill("SIGTERM");
-    backendProcess = null;
-  }
+function setApplicationMenu(): void {
+  const template = [
+    ...(process.platform === "darwin"
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { role: "about" as const },
+              { type: "separator" as const },
+              { role: "hide" as const },
+              { role: "hideOthers" as const },
+              { role: "unhide" as const },
+              { type: "separator" as const },
+              { role: "quit" as const },
+            ],
+          },
+        ]
+      : []),
+    {
+      label: "Edit",
+      submenu: [
+        { role: "undo" as const },
+        { role: "redo" as const },
+        { type: "separator" as const },
+        { role: "cut" as const },
+        { role: "copy" as const },
+        { role: "paste" as const },
+        { role: "selectAll" as const },
+      ],
+    },
+    {
+      label: "View",
+      submenu: [
+        { role: "reload" as const },
+        { role: "toggleDevTools" as const },
+        { type: "separator" as const },
+        { role: "resetZoom" as const },
+        { role: "zoomIn" as const },
+        { role: "zoomOut" as const },
+        { type: "separator" as const },
+        { role: "togglefullscreen" as const },
+      ],
+    },
+    {
+      label: "Window",
+      submenu: [
+        { role: "minimize" as const },
+        { role: "zoom" as const },
+        ...(process.platform === "darwin"
+          ? [{ type: "separator" as const }, { role: "front" as const }]
+          : [{ role: "close" as const }]),
+      ],
+    },
+  ] as MenuItemConstructorOptions[];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+function killBackend(): void {
+  if (!backendProcess || backendProcess.killed) return;
+  const proc = backendProcess;
+  backendProcess = null;
+  proc.kill("SIGTERM");
+  const killTimer = setTimeout(() => {
+    try {
+      if (!proc.killed) proc.kill("SIGKILL");
+    } catch {
+      // ignore
+    }
+  }, 5000);
+  proc.once("exit", () => clearTimeout(killTimer));
 }
 
 app.on("second-instance", () => {
@@ -289,24 +409,52 @@ app.on("second-instance", () => {
   }
 });
 
+function setupSessionSecurity(): void {
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    const allowed = ["clipboard-read", "clipboard-sanitized-write"];
+    callback(allowed.includes(permission));
+  });
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        "Content-Security-Policy": [
+          "default-src 'self' http://127.0.0.1:" +
+            BACKEND_PORT +
+            "; script-src 'self'; connect-src 'self' ws://127.0.0.1:" +
+            BACKEND_PORT +
+            "; style-src 'self' 'unsafe-inline'",
+        ],
+      },
+    });
+  });
+}
+
 app.whenReady().then(async () => {
   if (!gotSingleInstanceLock) {
     return;
   }
 
+  setupSessionSecurity();
   applyRuntimeBranding();
   backendProcess = startBackend();
   try {
     await waitForBackend();
   } catch (err) {
-    console.error(err.message);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(message);
     killBackend();
+    dialog.showErrorBox(
+      "Backend Failed to Start",
+      `The backend could not start: ${message}. Check that port ${BACKEND_PORT} is not in use.`
+    );
     app.exit(1);
     return;
   }
   createWindow();
+  setApplicationMenu();
   createTray();
-  setInterval(refreshTrayMenu, TRAY_REFRESH_MS);
+  trayRefreshInterval = setInterval(refreshTrayMenu, TRAY_REFRESH_MS);
 });
 
 app.on("activate", () => {
@@ -317,11 +465,16 @@ app.on("activate", () => {
 });
 
 app.on("window-all-closed", () => {
-  killBackend();
-  app.quit();
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
 });
 
 app.on("before-quit", () => {
   isQuitting = true;
+  if (trayRefreshInterval) {
+    clearInterval(trayRefreshInterval);
+    trayRefreshInterval = null;
+  }
   killBackend();
 });

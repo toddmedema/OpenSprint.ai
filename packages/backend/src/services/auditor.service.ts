@@ -15,8 +15,8 @@ export interface DeltaTask {
   description: string;
   priority?: number;
   depends_on?: number[];
-  /** Task-level complexity (1-10). Accepts legacy "simple"/"complex" mapped to 3/7. */
-  complexity?: number | "simple" | "complex";
+  /** Task-level complexity (1-10). */
+  complexity?: number;
 }
 
 /** Auditor result.json format per PRD 12.3.6 */
@@ -74,7 +74,7 @@ For depends_on: use 0-based indices into YOUR tasks array. Ensure no circular de
 ${JSON_OUTPUT_PREAMBLE}
 
 **If delta tasks are needed:**
-{"status":"success","capability_summary":"<markdown>","tasks":[{"index":0,"title":"Task title","description":"Detailed spec","priority":1,"depends_on":[],"complexity":3}]}
+{"status":"success","capability_summary":"<markdown>","tasks":[{"index":0,"title":"Task title","description":"Detailed spec","priority":1,"depends_on":[],"complexity":5}]}
 
 - capability_summary: markdown summary of current capabilities (use ## headers for sections)
 - tasks: array of delta tasks
@@ -83,7 +83,7 @@ ${JSON_OUTPUT_PREAMBLE}
   - description: Detailed spec with acceptance criteria
   - priority: 0 (highest) to 4 (lowest)
   - depends_on: array of indices (0-based) this task depends on — use [] if none
-  - complexity: integer 1-10 (1=simplest, 10=most complex) — assign per task based on implementation difficulty
+  - complexity: integer 1-10 only (1=simplest, 10=most complex) — assign per task based on implementation difficulty; use the full range as appropriate, do not bias toward any specific number
 
 **If no work is needed (plan unchanged or fully satisfied):**
 {"status":"no_changes_needed","capability_summary":"<markdown>"}
@@ -130,13 +130,7 @@ export function parseAuditorResult(content: string): AuditorResult | null {
     if (Array.isArray(rawTasks) && rawTasks.length > 0) {
       result.tasks = rawTasks.map((t) => {
         const raw = t.complexity;
-        const complexity =
-          clampTaskComplexity(raw) ??
-          (raw === "simple" || raw === "low"
-            ? 3
-            : raw === "complex" || raw === "high"
-              ? 7
-              : undefined);
+        const complexity = clampTaskComplexity(raw);
         const task: DeltaTask = {
           index: typeof t.index === "number" ? t.index : 0,
           title: String(t.title ?? t.task_title ?? "").trim(),

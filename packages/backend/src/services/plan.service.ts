@@ -30,7 +30,7 @@ import { notificationService } from "./notification.service.js";
 import { PrdService } from "./prd.service.js";
 import { agentService } from "./agent.service.js";
 import { buildAuditorPrompt, parseAuditorResult } from "./auditor.service.js";
-import { buildAutonomyDescription } from "./context-assembler.js";
+import { buildAutonomyDescription } from "./autonomy-description.js";
 import { getCombinedInstructions } from "./agent-instructions.service.js";
 import { AppError } from "../middleware/error-handler.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
@@ -149,13 +149,9 @@ function normalizePlannerTask(
     task,
     tasksArray as Array<{ title?: string; [k: string]: unknown }> | undefined
   );
-  // Accept integer 1-10 or legacy "simple"|"complex" (map to 3, 7)
+  // Task complexity: integer 1-10 only
   const raw = task.complexity;
-  let complexity: number | undefined = clampTaskComplexity(raw);
-  if (complexity === undefined && typeof raw === "string") {
-    if (raw === "simple") complexity = 3;
-    else if (raw === "complex") complexity = 7;
-  }
+  const complexity = clampTaskComplexity(raw);
   const rawFiles = task.files;
   const files =
     rawFiles && typeof rawFiles === "object"
@@ -359,13 +355,13 @@ Guidelines:
 Respond with ONLY valid JSON (you may wrap in a markdown json code block):
   {
     "tasks": [
-    {"title": "Task title", "description": "Detailed implementation spec with acceptance criteria", "priority": 1, "dependsOn": [], "complexity": 3, "files": {"modify": ["src/existing.ts"], "create": ["src/new.ts"], "test": ["src/__tests__/new.test.ts"]}}
+    {"title": "Task title", "description": "Detailed implementation spec with acceptance criteria", "priority": 1, "dependsOn": [], "complexity": 5, "files": {"modify": ["src/existing.ts"], "create": ["src/new.ts"], "test": ["src/__tests__/new.test.ts"]}}
     ]
   }
 
 Do not include any prose before or after the JSON. Do not include comments. Use standard JSON with double quotes and no trailing commas.
 
-Task-level complexity: integer 1-10 (1=simplest, 10=most complex) — assign per task based on implementation difficulty (1-3: routine, isolated; 4-6: moderate; 7-10: challenging, many integrations).`;
+Task-level complexity: integer 1-10 only (1=simplest, 10=most complex). Assign per task based on implementation difficulty (1-3: routine, isolated; 4-6: moderate; 7-10: challenging, many integrations). Use the full range as appropriate — do not bias toward any specific number.`;
 
 const TASK_GENERATION_RETRY_PROMPT = `Your previous reply could not be parsed for task generation.
 
@@ -377,7 +373,7 @@ Return ONLY a single valid JSON object, exactly this shape:
       "description": "Detailed implementation spec with acceptance criteria",
       "priority": 1,
       "dependsOn": [],
-      "complexity": 3,
+      "complexity": 5,
       "files": { "modify": [], "create": [], "test": [] }
     }
   ]
@@ -803,14 +799,13 @@ export class PlanService {
       : [];
     if (rawTasks.length > 0) {
       const tasks = rawTasks.map((t) => normalizePlannerTask(t, rawTasks));
-      const planTaskComplexity = planComplexityToTask(complexity);
       const inputs = tasks.map((task) => ({
         title: task.title,
         type: "task" as const,
         description: task.description,
         priority: Math.min(4, Math.max(0, task.priority)),
         parentId: epicId,
-        complexity: task.complexity ?? planTaskComplexity,
+        ...(task.complexity != null && { complexity: task.complexity }),
       }));
       const created = await this.taskStore.createMany(projectId, inputs);
       const taskIdMap = new Map<string, string>();
@@ -1097,14 +1092,13 @@ export class PlanService {
     const tasks = rawTasks.map((t) => normalizePlannerTask(t, rawTasks));
 
     // Create tasks under the existing epic (batch create + batch dependencies)
-    const planTaskComplexity = planComplexityToTask(plan.metadata.complexity);
     const inputs = tasks.map((task) => ({
       title: task.title,
       type: "task" as const,
       description: task.description || "",
       priority: Math.min(4, Math.max(0, task.priority ?? 2)),
       parentId: epicId,
-      complexity: task.complexity ?? planTaskComplexity,
+      ...(task.complexity != null && { complexity: task.complexity }),
     }));
     const created = await this.taskStore.createMany(projectId, inputs);
     const taskIdMap = new Map<string, string>();
@@ -1434,10 +1428,10 @@ ${planNew}`;
     }
 
     // Create delta tasks without gate (epic blocked; Execute! will unblock)
-    const planTaskComplexity = planComplexityToTask(plan.metadata.complexity);
     const taskIdMap = new Map<number, string>();
     for (const task of auditorResult.tasks) {
       const priority = Math.min(4, Math.max(0, task.priority ?? 2));
+      const taskComplexity = clampTaskComplexity(task.complexity);
       const taskResult = await this.taskStore.createWithRetry(
         projectId,
         task.title,
@@ -1446,14 +1440,7 @@ ${planNew}`;
           description: task.description || "",
           priority,
           parentId: epicId,
-          complexity:
-            (typeof task.complexity === "number"
-              ? task.complexity
-              : task.complexity === "simple"
-                ? 3
-                : task.complexity === "complex"
-                  ? 7
-                  : undefined) ?? planTaskComplexity,
+          ...(taskComplexity != null && { complexity: taskComplexity }),
         },
         { fallbackToStandalone: true }
       );
@@ -2293,7 +2280,7 @@ Field rules: complexity: low, medium, high, or very_high (plan-level).
     const prdContext = await this.buildPrdContext(projectId);
     const repoPath = await this.getRepoPath(projectId);
 
-    const prompt = `Analyze the PRD below and produce a feature decomposition. Output valid JSON with a "plans" array. Each plan has: title, content (full markdown), complexity (low|medium|high|very_high), and tasks array. Each task has: title, description, priority (0-4), dependsOn (array of task titles it depends on), complexity (integer 1-10 — assign per task based on implementation difficulty, 1=simplest, 10=most complex).`;
+    const prompt = `Analyze the PRD below and produce a feature decomposition. Output valid JSON with a "plans" array. Each plan has: title, content (full markdown), complexity (low|medium|high|very_high), and tasks array. Each task has: title, description, priority (0-4), dependsOn (array of task titles it depends on), complexity (integer 1-10 only — assign per task based on implementation difficulty, 1=simplest, 10=most complex; use the full range as appropriate, do not bias toward any specific number).`;
 
     const agentId = `plan-suggest-${projectId}-${Date.now()}`;
 

@@ -20,7 +20,7 @@ const createMockTask = (
       | "blocked";
     priority: number;
     assignee: string | null;
-    complexity: "simple" | "complex";
+    complexity?: number;
     source: string;
   }> = {}
 ) => ({
@@ -409,9 +409,9 @@ describe("BuildEpicCard", () => {
     const tasks = [
       createMockTask({
         id: "epic-1.1",
-        title: "Complex task",
+        title: "Simple task",
         kanbanColumn: "in_progress",
-        complexity: "simple",
+        complexity: 3,
       }),
     ];
     renderWithStore(

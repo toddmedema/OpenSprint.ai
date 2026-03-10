@@ -4,7 +4,7 @@
  */
 
 import { getDatabaseDialect } from "@opensprint/shared";
-import type { DbClient, DbRow } from "../db/client.js";
+import type { DbRow } from "../db/client.js";
 import { createPostgresDbClientFromUrl } from "../db/client.js";
 import { runSchema } from "../db/schema.js";
 import { initAppDb } from "../db/app-db.js";

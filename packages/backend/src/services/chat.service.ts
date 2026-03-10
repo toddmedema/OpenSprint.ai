@@ -30,7 +30,7 @@ import {
   parseHarmonizerResultFull,
   type HarmonizerPrdUpdate,
 } from "./harmonizer.service.js";
-import { buildAutonomyDescription } from "./context-assembler.js";
+import { buildAutonomyDescription } from "./autonomy-description.js";
 import { getCombinedInstructions } from "./agent-instructions.service.js";
 import { maybeAutoRespond } from "./open-question-autoresolve.service.js";
 import { activeAgentsService } from "./active-agents.service.js";

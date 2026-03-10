@@ -240,7 +240,7 @@ describe("TimelineList", () => {
         id: "task-1",
         title: "Complex task",
         kanbanColumn: "in_progress",
-        complexity: "complex",
+        complexity: 7,
       }),
     ];
     const plans = [createMockPlan("epic-1", "Auth")];

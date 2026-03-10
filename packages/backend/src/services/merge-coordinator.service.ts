@@ -32,7 +32,7 @@ import { buildTaskLastExecutionSummary, compactExecutionText } from "./task-exec
 import { inspectGitRepoState, resolveBaseBranch } from "../utils/git-repo-state.js";
 
 const log = createLogger("merge-coordinator");
-const MAX_PUSH_REBASE_RESOLUTION_ROUNDS = 12;
+const _MAX_PUSH_REBASE_RESOLUTION_ROUNDS = 12;
 
 export interface MergeSlot {
   taskId: string;

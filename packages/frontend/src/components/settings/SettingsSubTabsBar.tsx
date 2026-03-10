@@ -28,13 +28,14 @@ export function SettingsSubTabsBar({
   variant = "bar",
 }: SettingsSubTabsBarProps) {
   const content = (
-    <div className="flex flex-wrap items-center gap-1 bg-theme-border-subtle rounded-lg p-1">
+    <div className="flex flex-wrap items-center gap-1 rounded-xl border border-theme-border-subtle p-1">
       {TABS.map((tab) => {
         const isActive = activeTab === tab.key;
         return (
           <NavButton
             key={tab.key}
             active={isActive}
+            tone="accent"
             onClick={() => onTabChange(tab.key)}
             data-testid={`settings-tab-${tab.key}`}
           >
@@ -50,7 +51,7 @@ export function SettingsSubTabsBar({
   }
   return (
     <div
-      className="px-4 sm:px-6 flex items-center justify-center border-b border-theme-border bg-theme-surface shrink-0"
+      className="px-4 sm:px-6 flex items-center justify-center bg-theme-surface shrink-0"
       style={{ height: NAVBAR_HEIGHT }}
       data-testid="settings-sub-tabs-bar"
     >
