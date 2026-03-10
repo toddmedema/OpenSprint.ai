@@ -11,6 +11,8 @@ interface NavButtonBaseProps {
   variant?: "default" | "icon";
   className?: string;
   title?: string;
+  /** When true, show a small unread indicator dot in the top-right of the button. */
+  showUnreadDot?: boolean;
   "data-testid"?: string;
   "aria-label"?: string;
   "aria-selected"?: boolean;
@@ -48,6 +50,7 @@ export function NavButton({
   variant = "default",
   className = "",
   title,
+  showUnreadDot = false,
   "data-testid": dataTestId,
   "aria-label": ariaLabel,
   "aria-selected": ariaSelected,
@@ -63,11 +66,20 @@ export function NavButton({
     baseClasses,
     stateClasses,
     variantClasses,
+    showUnreadDot ? "relative" : "",
     className,
   ]
     .filter(Boolean)
     .join(" ")
     .trim();
+
+  const dot = showUnreadDot ? (
+    <span
+      className="absolute top-1 right-1 h-2 w-2 rounded-full bg-theme-info-solid shrink-0"
+      aria-hidden
+      data-testid="nav-button-unread-dot"
+    />
+  ) : null;
 
   const commonProps = {
     className: combinedClassName,
@@ -81,7 +93,12 @@ export function NavButton({
   };
 
   if ("to" in rest && rest.to) {
-    return <Link to={rest.to} {...commonProps}>{children}</Link>;
+    return (
+      <Link to={rest.to} {...commonProps}>
+        {children}
+        {dot}
+      </Link>
+    );
   }
 
   return (
@@ -94,6 +111,7 @@ export function NavButton({
       {...commonProps}
     >
       {children}
+      {dot}
     </button>
   );
 }

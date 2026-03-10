@@ -35,6 +35,7 @@ import {
   appendAuditorOutput,
   setAuditorOutputBackfill,
 } from "../slices/planSlice";
+import { setPhaseUnread } from "../slices/unreadPhaseSlice";
 import type { QueryClient } from "@tanstack/react-query";
 import { getQueryClient } from "../../queryClient";
 import { queryKeys } from "../../api/queryKeys";
@@ -244,21 +245,40 @@ export const websocketMiddleware: Middleware = (storeApi) => {
   ) {
     const qc = getQueryClient();
     switch (event.type) {
-      case "prd.updated":
+      case "prd.updated": {
+        const route = (getState() as { route?: { projectId: string | null; phase: string | null } })
+          ?.route;
+        if (route?.projectId !== projectId || route?.phase !== "sketch") {
+          d(setPhaseUnread({ projectId, phase: "sketch" }));
+        }
         void qc.invalidateQueries({ queryKey: queryKeys.prd.detail(projectId) });
         void qc.invalidateQueries({ queryKey: queryKeys.prd.history(projectId) });
         void qc.invalidateQueries({ queryKey: queryKeys.chat.history(projectId, "sketch") });
         void qc.invalidateQueries({ queryKey: queryKeys.plans.status(projectId) });
         break;
+      }
 
-      case "plan.generated":
+      case "plan.generated": {
+        const planGenRoute = (
+          getState() as { route?: { projectId: string | null; phase: string | null } }
+        )?.route;
+        if (planGenRoute?.projectId !== projectId || planGenRoute?.phase !== "plan") {
+          d(setPhaseUnread({ projectId, phase: "plan" }));
+        }
         void qc.invalidateQueries({ queryKey: queryKeys.plans.list(projectId) });
         void qc.invalidateQueries({
           queryKey: queryKeys.plans.detail(projectId, event.planId),
         });
         break;
+      }
 
-      case "plan.updated":
+      case "plan.updated": {
+        const planUpdRoute = (
+          getState() as { route?: { projectId: string | null; phase: string | null } }
+        )?.route;
+        if (planUpdRoute?.projectId !== projectId || planUpdRoute?.phase !== "plan") {
+          d(setPhaseUnread({ projectId, phase: "plan" }));
+        }
         void qc.invalidateQueries({ queryKey: queryKeys.plans.list(projectId) });
         void qc.invalidateQueries({ queryKey: queryKeys.plans.status(projectId) });
         void qc.invalidateQueries({
@@ -269,6 +289,7 @@ export const websocketMiddleware: Middleware = (storeApi) => {
         });
         void qc.invalidateQueries({ queryKey: queryKeys.tasks.list(projectId) });
         break;
+      }
 
       case "task.created": {
         const created = event as { type: "task.created"; task: TaskEventPayload };

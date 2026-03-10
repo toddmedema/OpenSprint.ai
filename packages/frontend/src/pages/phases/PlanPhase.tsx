@@ -26,6 +26,7 @@ import {
 } from "../../store/slices/planSlice";
 import { addNotification } from "../../store/slices/notificationSlice";
 import { addNotification as addOpenQuestionNotification } from "../../store/slices/openQuestionsSlice";
+import { clearPhaseUnread } from "../../store/slices/unreadPhaseSlice";
 import { usePlanChat, useSinglePlan, usePlans, useMarkPlanComplete } from "../../api/hooks";
 import { usePhaseLoadingState } from "../../hooks/usePhaseLoadingState";
 import { PhaseLoadingSpinner } from "../../components/PhaseLoadingSpinner";
@@ -198,6 +199,10 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   const queryClient = useQueryClient();
   const location = useLocation();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    dispatch(clearPhaseUnread({ projectId, phase: "plan" }));
+  }, [dispatch, projectId]);
 
   /* ── TanStack Query for loading state (data synced to Redux by ProjectShell) ── */
   const plansQuery = usePlans(projectId);

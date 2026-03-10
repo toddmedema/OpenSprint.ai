@@ -38,6 +38,7 @@ import { useOpenQuestionNotifications } from "../../hooks/useOpenQuestionNotific
 import { ExecuteFilterToolbar } from "../../components/execute/ExecuteFilterToolbar";
 import { TaskDetailSidebar } from "../../components/execute/TaskDetailSidebar";
 import { TimelineList } from "../../components/execute/TimelineList";
+import { clearPhaseUnread } from "../../store/slices/unreadPhaseSlice";
 
 interface ExecutePhaseProps {
   projectId: string;
@@ -55,6 +56,9 @@ export function ExecutePhase({
   onClose: onCloseProp,
 }: ExecutePhaseProps) {
   const dispatch = useAppDispatch();
+  useEffect(() => {
+    dispatch(clearPhaseUnread({ projectId, phase: "execute" }));
+  }, [dispatch, projectId]);
   const [viewMode, setViewMode] = useState<"kanban" | "timeline">(() => {
     const stored = localStorage.getItem("opensprint.executeView");
     return stored === "kanban" || stored === "timeline" ? stored : "timeline";

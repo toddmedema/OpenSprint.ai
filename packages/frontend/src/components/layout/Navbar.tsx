@@ -6,6 +6,11 @@ import { NAVBAR_HEIGHT } from "../../lib/constants";
 import { shouldRightAlignDropdown } from "../../lib/dropdownViewport";
 import { useAppSelector, useAppDispatch } from "../../store";
 import { selectTasks } from "../../store/slices/executeSlice";
+import {
+  selectPhaseUnread,
+  EMPTY_PHASE_UNREAD,
+  setPhaseUnread,
+} from "../../store/slices/unreadPhaseSlice";
 import { wsConnectHome } from "../../store/middleware/websocketMiddleware";
 import { getProjectPhasePath } from "../../lib/phaseRouting";
 import { api } from "../../api/client";
@@ -65,13 +70,19 @@ export function Navbar({
     return implTasks.filter((t) => t.kanbanColumn === "blocked").length;
   });
 
+  const phaseUnread = useAppSelector((s) =>
+    project?.id ? selectPhaseUnread(s, project.id) : EMPTY_PHASE_UNREAD
+  );
+
   const phaseTabs = useMemo(
     () =>
       (["sketch", "plan", "execute", "eval", "deliver"] as const).map((key) => ({
         key,
-        label: key === "execute" && executeBlockedCount > 0 ? "⚠️ Execute" : PHASE_LABELS[key],
+        label: PHASE_LABELS[key],
+        showUnreadDot:
+          key === "plan" ? phaseUnread.plan : key === "sketch" ? phaseUnread.sketch : key === "execute" ? phaseUnread.execute : false,
       })),
-    [executeBlockedCount]
+    [phaseUnread.plan, phaseUnread.sketch, phaseUnread.execute]
   );
   const showDbBackedChrome = dbStatus?.ok === true;
   const isOffline = useIsOffline();
@@ -90,6 +101,13 @@ export function Navbar({
       dispatch(wsConnectHome());
     }
   }, [project, projects.length, dispatch]);
+
+  // Set Execute unread when this project has blocked tasks and user is not on Execute page
+  useEffect(() => {
+    if (project?.id && currentPhase !== "execute" && executeBlockedCount > 0) {
+      dispatch(setPhaseUnread({ projectId: project.id, phase: "execute" }));
+    }
+  }, [project?.id, currentPhase, executeBlockedCount, dispatch]);
 
   useEffect(() => {
     if (dropdownOpen) {
@@ -258,6 +276,7 @@ export function Navbar({
                     key={phase.key}
                     role="tab"
                     active={isActive}
+                    showUnreadDot={phase.showUnreadDot}
                     onClick={() => onPhaseChange(phase.key)}
                     onKeyDown={(e) => {
                       if (e.key === "ArrowLeft" && index > 0) {

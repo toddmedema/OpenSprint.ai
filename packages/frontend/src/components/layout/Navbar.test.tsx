@@ -23,6 +23,8 @@ import connectionReducer from "../../store/slices/connectionSlice";
 import sketchReducer from "../../store/slices/sketchSlice";
 import evalReducer from "../../store/slices/evalSlice";
 import deliverReducer from "../../store/slices/deliverSlice";
+import unreadPhaseReducer from "../../store/slices/unreadPhaseSlice";
+import routeReducer from "../../store/slices/routeSlice";
 
 const mockGetSettings = vi.fn();
 const mockProjectsList = vi.fn();
@@ -150,7 +152,10 @@ function renderNavbar(ui: ReactElement, store = createStore()) {
 
 function createStore(
   executeTasks: Task[] = [],
-  overrides?: { websocket?: { connected: boolean; deliverToast: string | null } }
+  overrides?: {
+    websocket?: { connected: boolean; deliverToast: string | null };
+    unreadPhase?: Record<string, { plan?: boolean; sketch?: boolean; execute?: boolean }>;
+  }
 ) {
   return configureStore({
     reducer: {
@@ -165,6 +170,8 @@ function createStore(
       deliver: deliverReducer,
       openQuestions: openQuestionsReducer,
       notification: notificationReducer,
+      unreadPhase: unreadPhaseReducer,
+      route: routeReducer,
     },
     preloadedState: {
       execute: {
@@ -200,6 +207,7 @@ function createStore(
         error: null,
       },
       websocket: overrides?.websocket ?? { connected: false, deliverToast: null },
+      unreadPhase: overrides?.unreadPhase ?? {},
     },
   });
 }
@@ -516,7 +524,7 @@ describe("Navbar", () => {
     expect(screen.queryByRole("tab", { name: /⚠️ Execute/ })).not.toBeInTheDocument();
   });
 
-  it("shows ⚠️ Execute badge in phase nav when blocked task count > 0", () => {
+  it("shows Execute tab with unread dot when blocked task count > 0 and not on Execute phase", () => {
     const mockProject = {
       id: "proj-1",
       name: "Test",
@@ -532,11 +540,12 @@ describe("Navbar", () => {
       store
     );
 
-    expect(screen.getByRole("tab", { name: /⚠️ Execute/ })).toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: /^Execute$/ })).not.toBeInTheDocument();
+    const executeTab = screen.getByRole("tab", { name: /Switch to Execute phase/ });
+    expect(executeTab).toHaveTextContent("Execute");
+    expect(executeTab.querySelector("[data-testid=nav-button-unread-dot]")).toBeInTheDocument();
   });
 
-  it("shows Execute (no badge) when blocked count returns to zero", () => {
+  it("shows Execute tab without unread dot when on Execute phase (cleared on enter)", () => {
     const mockProject = {
       id: "proj-1",
       name: "Test",
@@ -552,8 +561,53 @@ describe("Navbar", () => {
       store
     );
 
-    expect(screen.getByRole("tab", { name: /Execute/ })).toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: /⚠️ Execute/ })).not.toBeInTheDocument();
+    const executeTab = screen.getByRole("tab", { name: /Switch to Execute phase/ });
+    expect(executeTab).toHaveTextContent("Execute");
+    expect(executeTab.querySelector("[data-testid=nav-button-unread-dot]")).not.toBeInTheDocument();
+  });
+
+  it("shows Plan tab with unread dot when phaseUnread.plan is true for current project", () => {
+    const mockProject = {
+      id: "proj-1",
+      name: "Test",
+      repoPath: "/path",
+      currentPhase: "sketch" as const,
+      createdAt: "2025-01-01T00:00:00Z",
+      updatedAt: "2025-01-01T00:00:00Z",
+    };
+    const store = createStore([], {
+      unreadPhase: { "proj-1": { plan: true } },
+    });
+    renderNavbar(
+      <Navbar project={mockProject} currentPhase="sketch" onPhaseChange={vi.fn()} />,
+      store
+    );
+
+    const planTab = screen.getByRole("tab", { name: /Switch to Plan phase/ });
+    expect(planTab).toHaveTextContent("Plan");
+    expect(planTab.querySelector("[data-testid=nav-button-unread-dot]")).toBeInTheDocument();
+  });
+
+  it("shows Sketch tab with unread dot when phaseUnread.sketch is true for current project", () => {
+    const mockProject = {
+      id: "proj-1",
+      name: "Test",
+      repoPath: "/path",
+      currentPhase: "plan" as const,
+      createdAt: "2025-01-01T00:00:00Z",
+      updatedAt: "2025-01-01T00:00:00Z",
+    };
+    const store = createStore([], {
+      unreadPhase: { "proj-1": { sketch: true } },
+    });
+    renderNavbar(
+      <Navbar project={mockProject} currentPhase="plan" onPhaseChange={vi.fn()} />,
+      store
+    );
+
+    const sketchTab = screen.getByRole("tab", { name: /Switch to Sketch phase/ });
+    expect(sketchTab).toHaveTextContent("Sketch");
+    expect(sketchTab.querySelector("[data-testid=nav-button-unread-dot]")).toBeInTheDocument();
   });
 
   describe("integration: (?) navigates to Help page (full page, project-specific when in project)", () => {

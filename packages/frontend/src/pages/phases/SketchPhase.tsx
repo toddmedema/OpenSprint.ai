@@ -43,6 +43,7 @@ import { CommentIcon, ChatIcon, ListIcon } from "../../components/icons/PrdIcons
 import { api } from "../../api/client";
 import { isApiError } from "../../api/client";
 import { isNotificationManagedAgentFailure } from "../../lib/agentApiError";
+import { clearPhaseUnread } from "../../store/slices/unreadPhaseSlice";
 
 /* ── Types ──────────────────────────────────────────────── */
 
@@ -136,6 +137,10 @@ function findParentSection(node: Node): string | null {
 export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
   const dispatch = useAppDispatch();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    dispatch(clearPhaseUnread({ projectId, phase: "sketch" }));
+  }, [dispatch, projectId]);
 
   /* ── TanStack Query (server state) ── */
   const { data: prdData, isLoading: prdLoading, isPending: prdPending } = usePrd(projectId);
