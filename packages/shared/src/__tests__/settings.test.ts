@@ -24,8 +24,16 @@ import {
   getProvidersInUse,
   getProvidersRequiringApiKeys,
   getProviderForAgentType,
+  VALID_SELF_IMPROVEMENT_FREQUENCIES,
+  SELF_IMPROVEMENT_FREQUENCY_OPTIONS,
 } from "../types/settings.js";
-import type { ProjectSettings, AgentConfig, DeploymentConfig, ApiKeys } from "../types/settings.js";
+import type {
+  ProjectSettings,
+  AgentConfig,
+  DeploymentConfig,
+  ApiKeys,
+  SelfImprovementFrequency,
+} from "../types/settings.js";
 
 const defaultAgent: AgentConfig = { type: "claude", model: "claude-sonnet-4", cliCommand: null };
 const highAgent: AgentConfig = { type: "claude", model: "claude-opus-5", cliCommand: null };
@@ -486,6 +494,75 @@ describe("parseSettings", () => {
         worktreeBaseBranch: 123,
       });
       expect(parsed.worktreeBaseBranch).toBe("main");
+    });
+  });
+
+  describe("selfImprovementFrequency", () => {
+    it("VALID_SELF_IMPROVEMENT_FREQUENCIES contains never, after_each_plan, daily, weekly", () => {
+      expect(VALID_SELF_IMPROVEMENT_FREQUENCIES).toEqual([
+        "never",
+        "after_each_plan",
+        "daily",
+        "weekly",
+      ]);
+    });
+
+    it("SELF_IMPROVEMENT_FREQUENCY_OPTIONS has one option per frequency with labels", () => {
+      expect(SELF_IMPROVEMENT_FREQUENCY_OPTIONS).toHaveLength(4);
+      const values = SELF_IMPROVEMENT_FREQUENCY_OPTIONS.map((o) => o.value);
+      expect(values).toEqual(VALID_SELF_IMPROVEMENT_FREQUENCIES);
+      expect(SELF_IMPROVEMENT_FREQUENCY_OPTIONS.map((o) => o.label)).toEqual([
+        "Never",
+        "After each Plan",
+        "Daily",
+        "Weekly",
+      ]);
+    });
+
+    it("should default to never when parseSettings receives empty object", () => {
+      const parsed = parseSettings({});
+      expect(parsed.selfImprovementFrequency).toBe("never");
+    });
+
+    it("should default to never when selfImprovementFrequency is missing", () => {
+      const parsed = parseSettings({
+        simpleComplexityAgent: lowAgent,
+        complexComplexityAgent: highAgent,
+      });
+      expect(parsed.selfImprovementFrequency).toBe("never");
+    });
+
+    it("should preserve valid selfImprovementFrequency values", () => {
+      for (const freq of VALID_SELF_IMPROVEMENT_FREQUENCIES as SelfImprovementFrequency[]) {
+        const parsed = parseSettings({
+          simpleComplexityAgent: lowAgent,
+          complexComplexityAgent: highAgent,
+          selfImprovementFrequency: freq,
+        });
+        expect(parsed.selfImprovementFrequency).toBe(freq);
+      }
+    });
+
+    it("should normalize invalid selfImprovementFrequency to never", () => {
+      const parsed = parseSettings({
+        simpleComplexityAgent: lowAgent,
+        complexComplexityAgent: highAgent,
+        selfImprovementFrequency: "invalid",
+      });
+      expect(parsed.selfImprovementFrequency).toBe("never");
+    });
+
+    it("should not set selfImprovementLastRunAt or selfImprovementLastCommitSha from client input", () => {
+      const parsed = parseSettings({
+        simpleComplexityAgent: lowAgent,
+        complexComplexityAgent: highAgent,
+        selfImprovementFrequency: "daily",
+        selfImprovementLastRunAt: "2025-01-01T00:00:00Z",
+        selfImprovementLastCommitSha: "abc123",
+      });
+      expect(parsed.selfImprovementFrequency).toBe("daily");
+      expect(parsed.selfImprovementLastRunAt).toBeUndefined();
+      expect(parsed.selfImprovementLastCommitSha).toBeUndefined();
     });
   });
 });

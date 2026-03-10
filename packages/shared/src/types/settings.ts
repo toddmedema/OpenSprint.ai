@@ -328,6 +328,28 @@ export type MergeStrategy = "per_task" | "per_epic";
 /** Valid merge strategy values for parsing/validation */
 export const VALID_MERGE_STRATEGIES: MergeStrategy[] = ["per_task", "per_epic"];
 
+/** Self-improvement run frequency (default: never). Backend sets lastRunAt/lastCommitSha after each run. */
+export type SelfImprovementFrequency = "never" | "after_each_plan" | "daily" | "weekly";
+
+/** Valid self-improvement frequency values for parsing/validation */
+export const VALID_SELF_IMPROVEMENT_FREQUENCIES: SelfImprovementFrequency[] = [
+  "never",
+  "after_each_plan",
+  "daily",
+  "weekly",
+];
+
+/** Self-improvement frequency options for UI dropdown */
+export const SELF_IMPROVEMENT_FREQUENCY_OPTIONS: {
+  value: SelfImprovementFrequency;
+  label: string;
+}[] = [
+  { value: "never", label: "Never" },
+  { value: "after_each_plan", label: "After each Plan" },
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+];
+
 /** API key provider env var names (used as keys in apiKeys) */
 export type ApiKeyProvider =
   | "ANTHROPIC_API_KEY"
@@ -614,6 +636,12 @@ export interface ProjectSettings {
   enableHumanTeammates?: boolean;
   /** Team members (id + name) for human assignees. Stored in project settings. */
   teamMembers?: Array<{ id: string; name: string }>;
+  /** Self-improvement run frequency. Default: "never". Client can set; backend does not accept lastRunAt/lastCommitSha from client. */
+  selfImprovementFrequency?: SelfImprovementFrequency;
+  /** ISO 8601 timestamp of last self-improvement run. Set by backend only after a run. */
+  selfImprovementLastRunAt?: string;
+  /** Git commit SHA at last self-improvement run. Set by backend only after a run. */
+  selfImprovementLastCommitSha?: string;
 }
 
 /** Planning agent roles — Dreamer/Analyst use fixed tiers; others inherit plan complexity */
@@ -742,6 +770,11 @@ export function parseSettings(raw: unknown): ProjectSettings {
   const hilConfig = hilConfigFromAiAutonomyLevel(aiAutonomyLevel);
 
   const enableHumanTeammates = r?.enableHumanTeammates === true;
+  const selfImprovementFrequency =
+    typeof r?.selfImprovementFrequency === "string" &&
+    VALID_SELF_IMPROVEMENT_FREQUENCIES.includes(r.selfImprovementFrequency as SelfImprovementFrequency)
+      ? (r.selfImprovementFrequency as SelfImprovementFrequency)
+      : "never";
   const base = {
     deployment: migrateDeploymentConfig(r?.deployment),
     aiAutonomyLevel,
@@ -753,6 +786,9 @@ export function parseSettings(raw: unknown): ProjectSettings {
     reviewAngles: parseReviewAngles(r?.reviewAngles),
     enableHumanTeammates,
     teamMembers: parseTeamMembers(r?.teamMembers),
+    selfImprovementFrequency,
+    selfImprovementLastRunAt: undefined,
+    selfImprovementLastCommitSha: undefined,
   };
 
   const { apiKeys: _omitApiKeys, ...rest } = r as Partial<ProjectSettings> & { apiKeys?: unknown };
