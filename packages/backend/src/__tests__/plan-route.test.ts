@@ -1632,6 +1632,173 @@ Feature that depends on auth.
     });
   });
 
+  describe("GET /projects/:id/plans/:planId/versions", () => {
+    it("returns 200 with empty versions when plan has no versions", async () => {
+      const planBody = {
+        title: "Versions List Test",
+        content: "# Versions List Test\n\n## Overview\n\nContent.",
+        complexity: "low",
+      };
+      const createRes = await request(app)
+        .post(`${API_PREFIX}/projects/${projectId}/plans`)
+        .send(planBody);
+      expect(createRes.status).toBe(201);
+      const planId = createRes.body.data.metadata.planId;
+
+      const listRes = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/plans/${planId}/versions`
+      );
+      expect(listRes.status).toBe(200);
+      expect(listRes.body.data).toEqual({ versions: [] });
+    });
+
+    it("returns 200 with versions newest first when versions exist", async () => {
+      const planBody = {
+        title: "Versions Order Test",
+        content: "# Versions Order Test\n\n## Overview\n\nContent.",
+        complexity: "low",
+      };
+      const createRes = await request(app)
+        .post(`${API_PREFIX}/projects/${projectId}/plans`)
+        .send(planBody);
+      expect(createRes.status).toBe(201);
+      const planId = createRes.body.data.metadata.planId;
+
+      await taskStore.planVersionInsert({
+        project_id: projectId,
+        plan_id: planId,
+        version_number: 1,
+        title: "V1",
+        content: "# V1\n\nContent.",
+        metadata: JSON.stringify({}),
+        is_executed_version: false,
+      });
+      await taskStore.planVersionInsert({
+        project_id: projectId,
+        plan_id: planId,
+        version_number: 2,
+        title: "V2",
+        content: "# V2\n\nContent.",
+        metadata: JSON.stringify({}),
+        is_executed_version: true,
+      });
+
+      const listRes = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/plans/${planId}/versions`
+      );
+      expect(listRes.status).toBe(200);
+      expect(listRes.body.data.versions).toHaveLength(2);
+      expect(listRes.body.data.versions[0].version_number).toBe(2);
+      expect(listRes.body.data.versions[0].is_executed_version).toBe(true);
+      expect(listRes.body.data.versions[1].version_number).toBe(1);
+      expect(listRes.body.data.versions[1].is_executed_version).toBe(false);
+      expect(listRes.body.data.versions[0]).toMatchObject({
+        id: expect.any(Number),
+        version_number: 2,
+        created_at: expect.any(String),
+        is_executed_version: true,
+      });
+    });
+
+    it("returns 404 when plan does not exist", async () => {
+      const listRes = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/plans/nonexistent-plan-xyz/versions`
+      );
+      expect(listRes.status).toBe(404);
+      expect(listRes.body.error?.code).toBe("PLAN_NOT_FOUND");
+    });
+  });
+
+  describe("GET /projects/:id/plans/:planId/versions/:versionNumber", () => {
+    it("returns 200 with version when version exists", async () => {
+      const planBody = {
+        title: "Get Version Test",
+        content: "# Get Version Test\n\n## Overview\n\nContent.",
+        complexity: "low",
+      };
+      const createRes = await request(app)
+        .post(`${API_PREFIX}/projects/${projectId}/plans`)
+        .send(planBody);
+      expect(createRes.status).toBe(201);
+      const planId = createRes.body.data.metadata.planId;
+
+      await taskStore.planVersionInsert({
+        project_id: projectId,
+        plan_id: planId,
+        version_number: 1,
+        title: "My Title",
+        content: "# My Title\n\nBody content.",
+        metadata: JSON.stringify({ key: "value" }),
+        is_executed_version: true,
+      });
+
+      const getRes = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/plans/${planId}/versions/1`
+      );
+      expect(getRes.status).toBe(200);
+      expect(getRes.body.data).toMatchObject({
+        version_number: 1,
+        title: "My Title",
+        content: "# My Title\n\nBody content.",
+        created_at: expect.any(String),
+        is_executed_version: true,
+      });
+      expect(getRes.body.data.metadata).toEqual({ key: "value" });
+    });
+
+    it("returns 404 when version does not exist", async () => {
+      const planBody = {
+        title: "Missing Version Test",
+        content: "# Missing Version\n\nContent.",
+        complexity: "low",
+      };
+      const createRes = await request(app)
+        .post(`${API_PREFIX}/projects/${projectId}/plans`)
+        .send(planBody);
+      expect(createRes.status).toBe(201);
+      const planId = createRes.body.data.metadata.planId;
+
+      const getRes = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/plans/${planId}/versions/999`
+      );
+      expect(getRes.status).toBe(404);
+      expect(getRes.body.error?.code).toBe("PLAN_VERSION_NOT_FOUND");
+    });
+
+    it("returns 404 when plan does not exist", async () => {
+      const getRes = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/plans/nonexistent-plan-xyz/versions/1`
+      );
+      expect(getRes.status).toBe(404);
+      expect(getRes.body.error?.code).toBe("PLAN_NOT_FOUND");
+    });
+
+    it("returns 404 for invalid version number (e.g. 0 or non-numeric)", async () => {
+      const planBody = {
+        title: "Invalid Version Test",
+        content: "# Invalid Version\n\nContent.",
+        complexity: "low",
+      };
+      const createRes = await request(app)
+        .post(`${API_PREFIX}/projects/${projectId}/plans`)
+        .send(planBody);
+      expect(createRes.status).toBe(201);
+      const planId = createRes.body.data.metadata.planId;
+
+      const res0 = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/plans/${planId}/versions/0`
+      );
+      expect(res0.status).toBe(404);
+      expect(res0.body.error?.code).toBe("PLAN_VERSION_NOT_FOUND");
+
+      const resAbc = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/plans/${planId}/versions/abc`
+      );
+      expect(resAbc.status).toBe(404);
+      expect(resAbc.body.error?.code).toBe("PLAN_VERSION_NOT_FOUND");
+    });
+  });
+
   describe("POST /projects/:id/plans/:planId/execute with prerequisitePlanIds", () => {
     it("executes prerequisites first then requested plan", { timeout: 20000 }, async () => {
       // Create plan A (user-auth)

@@ -132,6 +132,65 @@ plansRouter.post("/:planId/mark-complete", async (req: Request<PlanParams>, res,
   }
 });
 
+type VersionParams = PlanParams & { versionNumber: string };
+
+// GET /projects/:projectId/plans/:planId/versions — List plan versions (newest first)
+plansRouter.get("/:planId/versions", async (req: Request<PlanParams>, res, next) => {
+  try {
+    await planService.getPlan(req.params.projectId, req.params.planId);
+    const list = await taskStore.listPlanVersions(req.params.projectId, req.params.planId);
+    const versions = list.map((v) => ({
+      id: v.id,
+      version_number: v.version_number,
+      created_at: v.created_at,
+      is_executed_version: v.is_executed_version,
+    }));
+    const body: ApiResponse<{ versions: typeof versions }> = { data: { versions } };
+    res.json(body);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /projects/:projectId/plans/:planId/versions/:versionNumber — Get plan version by number
+plansRouter.get("/:planId/versions/:versionNumber", async (req: Request<VersionParams>, res, next) => {
+  try {
+    await planService.getPlan(req.params.projectId, req.params.planId);
+    const versionNum = parseInt(req.params.versionNumber, 10);
+    if (Number.isNaN(versionNum) || versionNum < 1) {
+      res.status(404).json({
+        error: { code: "PLAN_VERSION_NOT_FOUND", message: `Plan version ${req.params.versionNumber} not found` },
+      });
+      return;
+    }
+    const row = await taskStore.getPlanVersionByNumber(
+      req.params.projectId,
+      req.params.planId,
+      versionNum
+    );
+    let metadata: Record<string, unknown> | null = null;
+    if (row.metadata != null && row.metadata.trim() !== "") {
+      try {
+        metadata = JSON.parse(row.metadata) as Record<string, unknown>;
+      } catch {
+        metadata = null;
+      }
+    }
+    const data = {
+      version_number: row.version_number,
+      title: row.title,
+      content: row.content,
+      metadata,
+      created_at: row.created_at,
+      is_executed_version: row.is_executed_version,
+    };
+    const body: ApiResponse<typeof data> = { data };
+    res.json(body);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /projects/:projectId/plans/:planId — Get Plan details
 plansRouter.get("/:planId", async (req: Request<PlanParams>, res, next) => {
   try {

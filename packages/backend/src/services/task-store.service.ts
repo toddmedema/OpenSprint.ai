@@ -16,6 +16,12 @@ import type { AppDb, DrizzlePg } from "../db/app-db.js";
 import { initAppDb } from "../db/app-db.js";
 import { PlanStore, type PlanInsertData } from "./plan-store.service.js";
 import {
+  PlanVersionStore,
+  type PlanVersionInsert,
+  type PlanVersionListItem,
+  type PlanVersionRow,
+} from "./plan-version-store.service.js";
+import {
   AuditorRunStore,
   type AuditorRunInsert,
   type AuditorRunRecord,
@@ -134,6 +140,7 @@ export class TaskStoreService {
   private onTaskChange: TaskChangeCallback | null = null;
 
   private planStore = new PlanStore(() => this.ensureClient(), () => this.getDrizzle());
+  private planVersionStore = new PlanVersionStore(() => this.ensureClient());
   private auditorRunStore = new AuditorRunStore(() => this.ensureClient());
 
   constructor(injectedClient?: DbClient) {
@@ -1753,6 +1760,33 @@ export class TaskStoreService {
     return this.withWriteLock(async () => {
       await this.ensureInitialized();
       return this.planStore.planDelete(projectId, planId);
+    });
+  }
+
+  /** List plan versions for a plan (newest first). */
+  async listPlanVersions(
+    projectId: string,
+    planId: string
+  ): Promise<PlanVersionListItem[]> {
+    await this.ensureInitialized();
+    return this.planVersionStore.list(projectId, planId);
+  }
+
+  /** Get a single plan version by version number. Throws 404 if not found. */
+  async getPlanVersionByNumber(
+    projectId: string,
+    planId: string,
+    versionNumber: number
+  ): Promise<PlanVersionRow> {
+    await this.ensureInitialized();
+    return this.planVersionStore.getByVersionNumber(projectId, planId, versionNumber);
+  }
+
+  /** Insert a plan version (e.g. on execute or for tests). */
+  async planVersionInsert(data: PlanVersionInsert): Promise<PlanVersionRow> {
+    return this.withWriteLock(async () => {
+      await this.ensureInitialized();
+      return this.planVersionStore.insert(data);
     });
   }
 
