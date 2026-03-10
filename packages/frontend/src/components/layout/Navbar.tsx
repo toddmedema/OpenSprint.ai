@@ -174,9 +174,9 @@ export function Navbar({
         className="absolute bottom-0 left-0 right-0 h-px bg-theme-border pointer-events-none z-10"
         aria-hidden="true"
       />
-      {/* Edge spacing: pl/pr-4 (mobile), pl/pr-6 (md+) so logo left and Settings right match. items-stretch + py-0 so phase tab row fills height with no gap above nav buttons. */}
-      <div className="flex w-full items-stretch justify-between gap-2 min-w-0 py-0 pl-4 md:pl-6 pr-4 md:pr-6">
-        <div className="flex items-center gap-2 md:gap-4 min-w-0 shrink-0">
+      {/* Grid: 1fr auto 1fr so center (phase tabs) is viewport-centered regardless of left content width. */}
+      <div className="grid w-full grid-cols-[1fr_auto_1fr] items-stretch gap-2 min-w-0 py-0 pl-4 md:pl-6 pr-4 md:pr-6">
+        <div className="flex items-center gap-2 md:gap-4 min-w-0">
           {/* Left: Logo + Project Selector */}
           <Link to="/" className="flex items-center gap-2" data-testid="navbar-logo-link">
             <svg
@@ -270,9 +270,9 @@ export function Navbar({
           </div>
         </div>
 
-        {/* Center: Phase Tabs — horizontally scrollable on mobile; stretch so tablist fills bar height (no gap above) */}
-        {project && currentPhase && onPhaseChange && (
-          <div className="flex flex-1 min-w-0 md:flex-initial overflow-x-auto px-1 md:px-0 items-stretch [&::-webkit-scrollbar]:h-1">
+        {/* Center: Phase Tabs — viewport-centered via grid; horizontally scrollable on mobile */}
+        <div className="flex justify-center min-w-0 overflow-x-auto px-1 md:px-0 items-stretch [&::-webkit-scrollbar]:h-1">
+          {project && currentPhase && onPhaseChange ? (
             <div
               className="flex items-stretch gap-1 bg-theme-border-subtle rounded-lg py-0 px-1 shrink-0 self-stretch min-h-0"
               role="tablist"
@@ -307,11 +307,11 @@ export function Navbar({
                 );
               })}
             </div>
-          </div>
-        )}
+          ) : null}
+        </div>
 
-        {/* Right: Active agents + Help + Status + Settings — pr matches pl above */}
-        <div className="flex items-center shrink-0 [&>*:not(:first-child)]:pl-1 md:[&>*:not(:first-child)]:pl-3">
+        {/* Right: Active agents + Help + Status + Settings */}
+        <div className="flex items-center justify-end [&>*:not(:first-child)]:pl-1 md:[&>*:not(:first-child)]:pl-3">
           {project ? (
             <>
               {showAgentDropdown && <ActiveAgentsList projectId={project.id} />}

@@ -320,6 +320,14 @@ describe("Navbar", () => {
     expect(content).toHaveClass("items-stretch");
   });
 
+  it("uses 3-column grid so phase tabs (nav icons) are viewport-centered regardless of left content width", () => {
+    renderNavbar(<Navbar project={null} />);
+    const nav = screen.getByRole("navigation");
+    const grid = nav.children[1] as HTMLElement;
+    expect(grid).toHaveClass("grid");
+    expect(grid).toHaveClass("grid-cols-[1fr_auto_1fr]");
+  });
+
   it("phase tab row and buttons use flush layout (no gap above): tablist py-0/items-stretch, tabs min-h-0 h-full", () => {
     const mockProject = {
       id: "proj-1",
