@@ -125,6 +125,8 @@ ${questionTexts.map((t) => `- ${t}`).join("\n")}`;
           type: "task.updated",
           taskId: sourceId,
           projectId,
+          status: "open",
+          assignee: null,
         });
         log.info("Auto-resolved execute open question with Dreamer answer", {
           projectId,

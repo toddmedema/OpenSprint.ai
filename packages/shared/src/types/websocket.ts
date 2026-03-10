@@ -7,6 +7,8 @@ import type { ScopeChangeMetadata, ScopeChangeProposedUpdate } from "./notificat
 export interface TaskUpdatedEvent {
   type: "task.updated";
   taskId: string;
+  /** Project scope; when omitted, client infers from channel. */
+  projectId?: string;
   status: string;
   assignee: string | null;
   /** Optional; when present, syncs task priority into task registry and execute state */

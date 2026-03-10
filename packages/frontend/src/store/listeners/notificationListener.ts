@@ -168,9 +168,11 @@ notificationListener.startListening({
 export const CONNECTION_TOAST_MESSAGE_PATTERN =
   /failed to connect|reconnecting to postgres|connecting to postgres|connecting to database|postgres.*unavailable|unable to connect.*postgres|server.*unreachable|open sprint server/i;
 
+type NotificationState = { notification?: { items: { id: string; message: string }[] } };
+
 function clearConnectionErrorAndDismissToasts(
   dispatch: (action: unknown) => void,
-  getState: () => { notification?: { items: { id: string; message: string }[] } }
+  getState: () => NotificationState
 ): void {
   dispatch(setConnectionError(false));
   const items = getState().notification?.items ?? [];
@@ -189,7 +191,9 @@ notificationListener.startListening({
     return API_THUNK_PREFIXES.some((p) => type.startsWith(p));
   },
   effect: (_, listenerApi) => {
-    clearConnectionErrorAndDismissToasts(listenerApi.dispatch, listenerApi.getState);
+    clearConnectionErrorAndDismissToasts(listenerApi.dispatch, () =>
+      listenerApi.getState() as NotificationState
+    );
     // Refetch db-status so DatabaseStatusBanner (Connecting to Postgres) auto-dismisses when DB is back.
     try {
       getQueryClient().invalidateQueries({ queryKey: DB_STATUS_QUERY_KEY });
@@ -203,6 +207,8 @@ notificationListener.startListening({
 notificationListener.startListening({
   actionCreator: dbStatusRestored,
   effect: (_, listenerApi) => {
-    clearConnectionErrorAndDismissToasts(listenerApi.dispatch, listenerApi.getState);
+    clearConnectionErrorAndDismissToasts(listenerApi.dispatch, () =>
+      listenerApi.getState() as NotificationState
+    );
   },
 });

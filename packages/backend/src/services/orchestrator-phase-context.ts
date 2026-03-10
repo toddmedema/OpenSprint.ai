@@ -53,6 +53,8 @@ export interface AgentSlotLike {
       timers: { clearAll: () => void };
     }
   >;
+  /** When true, general reviewer runs alongside angle-specific reviewers (multi-angle review). */
+  includeGeneralReview?: boolean;
 }
 
 /** Callbacks PhaseExecutor needs from ResultHandler (passed from Orchestrator) */
