@@ -644,6 +644,8 @@ export interface ProjectSettings {
   selfImprovementLastRunAt?: string;
   /** Git commit SHA at last self-improvement run. Set by backend only after a run. */
   selfImprovementLastCommitSha?: string;
+  /** Next scheduled self-improvement run (daily/weekly). ISO 8601. Computed by backend; only present when frequency is daily or weekly. */
+  nextRunAt?: string;
   /** When true, Plan phase supports single-step Execute (generate tasks and run); when false, two-step flow (Generate Tasks then Execute). Default: false. */
   autoExecutePlans?: boolean;
 }

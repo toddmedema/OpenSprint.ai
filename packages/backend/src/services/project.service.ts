@@ -64,6 +64,22 @@ import { classifyInitError, attemptRecovery } from "./scaffold-recovery.service.
 const execAsync = promisify(exec);
 const log = createLogger("project");
 
+/** Next midnight UTC (daily) or next Sunday 00:00 UTC (weekly). Used for nextRunAt in settings response. */
+function getNextScheduledSelfImprovementRunAt(
+  frequency: "daily" | "weekly"
+): string {
+  const n = new Date();
+  const y = n.getUTCFullYear();
+  const m = n.getUTCMonth();
+  const d = n.getUTCDate();
+  if (frequency === "daily") {
+    return new Date(Date.UTC(y, m, d + 1)).toISOString();
+  }
+  const day = n.getUTCDay();
+  const addDays = day === 0 ? 7 : 7 - day;
+  return new Date(Date.UTC(y, m, d + addDays)).toISOString();
+}
+
 const VALID_DEPLOYMENT_MODES = ["expo", "custom"] as const;
 
 /** Normalize deployment config: ensure valid mode, merge with defaults (PRD §6.4, §7.5.4) */
@@ -839,11 +855,17 @@ export class ProjectService {
     ]);
     const preferredBaseBranch = settings.worktreeBaseBranch ?? "main";
     const runtime = projectGitRuntimeCache.getSnapshot(projectId, repoPath, preferredBaseBranch);
+    const freq = settings.selfImprovementFrequency ?? "never";
+    const nextRunAt =
+      freq === "daily" || freq === "weekly"
+        ? getNextScheduledSelfImprovementRunAt(freq)
+        : undefined;
     return {
       ...settings,
       worktreeBaseBranch: runtime.worktreeBaseBranch,
       gitRemoteMode: runtime.gitRemoteMode,
       gitRuntimeStatus: runtime.gitRuntimeStatus,
+      ...(nextRunAt !== undefined && { nextRunAt }),
     };
   }
 
@@ -855,14 +877,16 @@ export class ProjectService {
     await this.getRepoPath(projectId);
     const current = await this.getSettings(projectId);
 
-    // Client cannot set self-improvement run metadata; only internal runs update these.
+    // Client cannot set self-improvement run metadata; only internal runs update these. nextRunAt is computed.
     const {
       selfImprovementLastRunAt: _stripLastRunAt,
       selfImprovementLastCommitSha: _stripLastSha,
+      nextRunAt: _stripNextRunAt,
       ...sanitizedUpdates
     } = updates as Partial<ProjectSettings> & {
       selfImprovementLastRunAt?: unknown;
       selfImprovementLastCommitSha?: unknown;
+      nextRunAt?: unknown;
     };
 
     // Validate agent config if provided (accept new or legacy keys)

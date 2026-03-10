@@ -285,6 +285,34 @@ describe("Settings API lifecycle", () => {
     expect(res.body.data.selfImprovementLastCommitSha).toBe("abc123def");
   });
 
+  it("GET /api/v1/projects/:id/settings returns nextRunAt when selfImprovementFrequency is daily or weekly", async () => {
+    await request(app)
+      .put(`${API_PREFIX}/projects/${projectId}/settings`)
+      .send({ selfImprovementFrequency: "daily" });
+
+    const resDaily = await request(app).get(`${API_PREFIX}/projects/${projectId}/settings`);
+    expect(resDaily.status).toBe(200);
+    expect(resDaily.body.data.nextRunAt).toBeDefined();
+    expect(resDaily.body.data.nextRunAt).toMatch(/^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/);
+
+    await request(app)
+      .put(`${API_PREFIX}/projects/${projectId}/settings`)
+      .send({ selfImprovementFrequency: "weekly" });
+
+    const resWeekly = await request(app).get(`${API_PREFIX}/projects/${projectId}/settings`);
+    expect(resWeekly.status).toBe(200);
+    expect(resWeekly.body.data.nextRunAt).toBeDefined();
+    expect(resWeekly.body.data.nextRunAt).toMatch(/^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/);
+
+    await request(app)
+      .put(`${API_PREFIX}/projects/${projectId}/settings`)
+      .send({ selfImprovementFrequency: "never" });
+
+    const resNever = await request(app).get(`${API_PREFIX}/projects/${projectId}/settings`);
+    expect(resNever.status).toBe(200);
+    expect(resNever.body.data.nextRunAt).toBeUndefined();
+  });
+
   it("PUT /api/v1/projects/:id/settings with new field names succeeds", async () => {
     const res = await request(app)
       .put(`${API_PREFIX}/projects/${projectId}/settings`)

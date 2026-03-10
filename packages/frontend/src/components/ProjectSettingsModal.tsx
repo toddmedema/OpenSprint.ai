@@ -1036,6 +1036,18 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                           })}
                         </p>
                       )}
+                      {settings?.nextRunAt && (
+                        <p
+                          className="text-xs text-theme-muted mt-2"
+                          data-testid="self-improvement-next-run"
+                        >
+                          Next run:{" "}
+                          {new Date(settings.nextRunAt).toLocaleString(undefined, {
+                            dateStyle: "short",
+                            timeStyle: "short",
+                          })}
+                        </p>
+                      )}
                     </div>
                     <hr />
                     <div className="flex items-center justify-between gap-4">

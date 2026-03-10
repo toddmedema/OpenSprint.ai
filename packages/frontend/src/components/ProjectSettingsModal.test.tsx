@@ -548,6 +548,24 @@ describe("ProjectSettingsModal", () => {
     expect(lastRun.textContent).toMatch(/\d/);
   });
 
+  it("shows Next run when nextRunAt is set (e.g. daily/weekly frequency)", async () => {
+    mockGetSettings.mockResolvedValue({
+      ...mockSettings,
+      selfImprovementFrequency: "daily",
+      nextRunAt: "2025-03-11T00:00:00.000Z",
+    });
+
+    renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
+    await waitForModalReady();
+
+    const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
+    await userEvent.click(agentConfigTab);
+
+    const nextRun = await screen.findByTestId("self-improvement-next-run");
+    expect(nextRun).toHaveTextContent("Next run:");
+    expect(nextRun.textContent).toMatch(/\d/);
+  });
+
   it("Autonomy tab shows AI Autonomy slider with three levels", async () => {
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
     await waitForModalReady();
