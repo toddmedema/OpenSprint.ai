@@ -263,6 +263,7 @@ describe("Settings API lifecycle", () => {
     expect(res.body.data.mergeStrategy).toBe("per_task");
     expect(res.body.data.selfImprovementFrequency).toBeDefined();
     expect(res.body.data.selfImprovementFrequency).toBe("never");
+    expect(res.body.data.autoExecutePlans).toBe(false);
     // selfImprovementLastRunAt and selfImprovementLastCommitSha are optional; present only when set by internal runs
     expect(res.body.data.gitRuntimeStatus).toEqual({
       lastCheckedAt: null,
@@ -344,6 +345,32 @@ describe("Settings API lifecycle", () => {
 
     const settings = await readProjectFromGlobalStore(tempDir, projectId);
     expect(settings.teamMembers).toEqual(teamMembers);
+  });
+
+  it("PUT /api/v1/projects/:id/settings accepts and persists autoExecutePlans; GET returns it", async () => {
+    const getRes0 = await request(app).get(`${API_PREFIX}/projects/${projectId}/settings`);
+    expect(getRes0.status).toBe(200);
+    expect(getRes0.body.data.autoExecutePlans).toBe(false);
+
+    const putRes = await request(app)
+      .put(`${API_PREFIX}/projects/${projectId}/settings`)
+      .send({ autoExecutePlans: true });
+
+    expect(putRes.status).toBe(200);
+    expect(putRes.body.data.autoExecutePlans).toBe(true);
+
+    const getRes = await request(app).get(`${API_PREFIX}/projects/${projectId}/settings`);
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.data.autoExecutePlans).toBe(true);
+
+    const settings = await readProjectFromGlobalStore(tempDir, projectId);
+    expect(settings.autoExecutePlans).toBe(true);
+
+    await request(app)
+      .put(`${API_PREFIX}/projects/${projectId}/settings`)
+      .send({ autoExecutePlans: false });
+    const getRes2 = await request(app).get(`${API_PREFIX}/projects/${projectId}/settings`);
+    expect(getRes2.body.data.autoExecutePlans).toBe(false);
   });
 
   it("PUT /api/v1/projects/:id/settings accepts and persists enableHumanTeammates; GET returns it", async () => {

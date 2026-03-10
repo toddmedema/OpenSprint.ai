@@ -607,7 +607,7 @@ Stored as `.opensprint/deployments/<deploy-id>.json`. Fields: `id`, `commit_hash
 
 #### ProjectSettings
 
-Stored in global database at `~/.opensprint/settings.json` keyed by project_id. Fields: `planning_agent` ({ type, model, cli_command }), `coding_agent` ({ type, model, cli_command }), `deployment` ({ mode, expo_config, custom_command }), `hil_config` (per-category notification mode), `test_framework`, `test_command` (auto-detected from `package.json`, default: `npm test`, overridable).
+Stored in global database at `~/.opensprint/settings.json` keyed by project_id. Fields: `planning_agent` ({ type, model, cli_command }), `coding_agent` ({ type, model, cli_command }), `deployment` ({ mode, expo_config, custom_command }), `hil_config` (per-category notification mode), `test_framework`, `test_command` (auto-detected from `package.json`, default: `npm test`, overridable), `autoExecutePlans` (boolean, default: false — when true, Plan phase supports single-step Execute; when false, two-step flow: Generate Tasks then Execute).
 
 **UserPreferences** (frontend-only): Theme stored in `localStorage` at `opensprint.theme` (light/dark/system).
 

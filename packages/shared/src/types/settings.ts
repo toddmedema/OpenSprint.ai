@@ -642,6 +642,8 @@ export interface ProjectSettings {
   selfImprovementLastRunAt?: string;
   /** Git commit SHA at last self-improvement run. Set by backend only after a run. */
   selfImprovementLastCommitSha?: string;
+  /** When true, Plan phase supports single-step Execute (generate tasks and run); when false, two-step flow (Generate Tasks then Execute). Default: false. */
+  autoExecutePlans?: boolean;
 }
 
 /** Planning agent roles — Dreamer/Analyst use fixed tiers; others inherit plan complexity */
@@ -795,6 +797,7 @@ export function parseSettings(raw: unknown): ProjectSettings {
       typeof r?.selfImprovementLastCommitSha === "string" && r.selfImprovementLastCommitSha.trim()
         ? (r.selfImprovementLastCommitSha as string).trim()
         : undefined,
+    autoExecutePlans: r?.autoExecutePlans === true,
   };
 
   const { apiKeys: _omitApiKeys, ...rest } = r as Partial<ProjectSettings> & { apiKeys?: unknown };

@@ -142,6 +142,7 @@ function buildDefaultSettings(): ProjectSettings {
     mergeStrategy: "per_task",
     worktreeBaseBranch: "main",
     selfImprovementFrequency: "never",
+    autoExecutePlans: false,
   };
 }
 
@@ -170,6 +171,7 @@ function toCanonicalSettings(s: ProjectSettings): ProjectSettings {
     ...(s.selfImprovementLastCommitSha !== undefined && {
       selfImprovementLastCommitSha: s.selfImprovementLastCommitSha,
     }),
+    autoExecutePlans: s.autoExecutePlans === true,
   };
 }
 
@@ -957,6 +959,10 @@ export class ProjectService {
       )
         ? (sanitizedUpdates.selfImprovementFrequency as SelfImprovementFrequency)
         : (current.selfImprovementFrequency ?? "never");
+    const autoExecutePlans =
+      sanitizedUpdates.autoExecutePlans !== undefined
+        ? sanitizedUpdates.autoExecutePlans === true
+        : (current.autoExecutePlans ?? false);
     const effectiveSettings: ProjectSettings = {
       ...current,
       ...sanitizedUpdates,
@@ -968,6 +974,7 @@ export class ProjectService {
       teamMembers,
       mergeStrategy,
       selfImprovementFrequency,
+      autoExecutePlans,
     };
     const updated: ProjectSettings = {
       ...effectiveSettings,

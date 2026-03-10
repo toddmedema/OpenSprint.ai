@@ -577,6 +577,47 @@ describe("parseSettings", () => {
       expect(parsed.selfImprovementLastCommitSha).toBeUndefined();
     });
   });
+
+  describe("autoExecutePlans", () => {
+    it("should default to false when parseSettings receives empty object", () => {
+      const parsed = parseSettings({});
+      expect(parsed.autoExecutePlans).toBe(false);
+    });
+
+    it("should default to false when autoExecutePlans is missing", () => {
+      const parsed = parseSettings({
+        simpleComplexityAgent: lowAgent,
+        complexComplexityAgent: highAgent,
+      });
+      expect(parsed.autoExecutePlans).toBe(false);
+    });
+
+    it("should preserve true when autoExecutePlans is true", () => {
+      const parsed = parseSettings({
+        simpleComplexityAgent: lowAgent,
+        complexComplexityAgent: highAgent,
+        autoExecutePlans: true,
+      });
+      expect(parsed.autoExecutePlans).toBe(true);
+    });
+
+    it("should normalize non-boolean to false", () => {
+      expect(
+        parseSettings({
+          simpleComplexityAgent: lowAgent,
+          complexComplexityAgent: highAgent,
+          autoExecutePlans: "yes",
+        }).autoExecutePlans
+      ).toBe(false);
+      expect(
+        parseSettings({
+          simpleComplexityAgent: lowAgent,
+          complexComplexityAgent: highAgent,
+          autoExecutePlans: 1,
+        }).autoExecutePlans
+      ).toBe(false);
+    });
+  });
 });
 
 describe("getDefaultDeploymentTarget", () => {
