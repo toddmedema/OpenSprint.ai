@@ -1575,6 +1575,23 @@ export class OrchestratorService {
 
       state.status.queueDepth = readyTasks.length;
 
+      // Block task assignment while a PRD/SPEC HIL approval is open (Harmonizer proposed SPEC changes).
+      // Ensures no work that depends on the PRD runs until the user approves or closes the request.
+      const hasPendingPrdSpecHil = await notificationService.hasOpenPrdSpecHilApproval(projectId);
+      if (hasPendingPrdSpecHil) {
+        log.info("Open PRD/SPEC HIL approval — blocking task assignment until resolved", {
+          projectId,
+        });
+        if (state.loopRunId === myRunId) state.loopActive = false;
+        broadcastToProject(projectId, {
+          type: "execute.status",
+          activeTasks: this.buildActiveTasks(state),
+          queueDepth: state.status.queueDepth,
+          selfImprovementRunInProgress: isSelfImprovementRunInProgress(projectId),
+        });
+        return;
+      }
+
       const slotsAvailable = maxSlots - state.slots.size;
       if (readyTasks.length === 0 || slotsAvailable <= 0) {
         log.info("No ready tasks or no slots available, going idle", {

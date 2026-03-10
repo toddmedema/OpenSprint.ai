@@ -330,6 +330,23 @@ export class NotificationService {
   }
 
   /**
+   * Returns true if the project has any open HIL approval request that is PRD/SPEC scope
+   * (Harmonizer or scope-change proposed SPEC.md updates). Used by the orchestrator to
+   * block task assignment until the user approves or closes the request.
+   */
+  async hasOpenPrdSpecHilApproval(projectId: string): Promise<boolean> {
+    const client = await taskStore.getDb();
+    const rows = await client.query(
+      `SELECT 1 FROM open_questions
+       WHERE project_id = $1 AND status = 'open' AND kind = 'hil_approval'
+       AND scope_change_metadata IS NOT NULL
+       LIMIT 1`,
+      [projectId]
+    );
+    return rows.length > 0;
+  }
+
+  /**
    * List unresolved notifications for a project.
    */
   async listByProject(projectId: string): Promise<Notification[]> {

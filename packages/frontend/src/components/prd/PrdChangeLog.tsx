@@ -7,6 +7,8 @@ export interface PrdHistoryEntry {
   timestamp: string;
   source: string;
   diff: string;
+  /** Document version after this change; for version-diff feature */
+  documentVersion?: number;
 }
 
 export interface PrdChangeLogProps {

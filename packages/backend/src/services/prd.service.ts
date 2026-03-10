@@ -361,6 +361,7 @@ export class PrdService {
       source,
       timestamp: now,
       diff,
+      documentVersion: prd.version,
     });
 
     await this.savePrd(projectId, prd, { source });
@@ -398,6 +399,7 @@ export class PrdService {
         source,
         timestamp: now,
         diff,
+        documentVersion: prd.version + 1,
       });
 
       changes.push({ section: update.section, previousVersion, newVersion });

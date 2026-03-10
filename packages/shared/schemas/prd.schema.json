@@ -92,7 +92,12 @@
           "enum": ["sketch", "plan", "execute", "eval", "deliver"]
         },
         "timestamp": { "type": "string", "format": "date-time" },
-        "diff": { "type": "string", "description": "Summary of changes" }
+        "diff": { "type": "string", "description": "Summary of changes" },
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Document version after this change; optional for legacy entries"
+        }
       }
     }
   }

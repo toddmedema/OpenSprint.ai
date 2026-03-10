@@ -25,6 +25,8 @@ export interface PrdChangeLogEntry {
   source: "sketch" | "plan" | "execute" | "eval" | "deliver";
   timestamp: string;
   diff: string;
+  /** Document version after this change; optional for legacy entries */
+  documentVersion?: number;
 }
 
 /** PRD section update response */

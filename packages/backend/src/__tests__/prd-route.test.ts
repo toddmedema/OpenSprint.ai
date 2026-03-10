@@ -140,6 +140,7 @@ describe.skipIf(!prdPostgresOk)("PRD REST API", () => {
     expect(res.body.data[0].section).toBe("executive_summary");
     expect(res.body.data[0].version).toBe(1);
     expect(res.body.data[0].source).toBe("sketch");
+    expect(res.body.data[0].documentVersion).toBe(1);
     expect(res.body.data[0].timestamp).toBeDefined();
     expect(res.body.data[0].diff).toBeDefined();
   });

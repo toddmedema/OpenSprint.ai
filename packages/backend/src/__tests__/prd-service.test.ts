@@ -157,6 +157,7 @@ describe("PrdService", () => {
     expect(prd.changeLog[0].section).toBe("executive_summary");
     expect(prd.changeLog[0].source).toBe("sketch");
     expect(prd.changeLog[0].version).toBe(2);
+    expect(prd.changeLog[0].documentVersion).toBe(1);
     expect(prd.changeLog[0].timestamp).toBeDefined();
     expect(prd.changeLog[0].diff).toMatch(/lines|chars|Initial content|Content removed|No changes/);
   });
@@ -199,6 +200,8 @@ describe("PrdService", () => {
     expect(prd.changeLog).toHaveLength(2);
     expect(prd.changeLog[0].diff).toBeDefined();
     expect(prd.changeLog[1].diff).toBeDefined();
+    expect(prd.changeLog[0].documentVersion).toBe(1);
+    expect(prd.changeLog[1].documentVersion).toBe(1);
   });
 
   it("should handle PRD without changeLog (backward compatibility)", async () => {
@@ -228,5 +231,7 @@ describe("PrdService", () => {
     expect(history).toHaveLength(2);
     expect(history[0].source).toBe("sketch");
     expect(history[1].source).toBe("plan");
+    expect(history[0].documentVersion).toBe(1);
+    expect(history[1].documentVersion).toBe(2);
   });
 });

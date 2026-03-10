@@ -122,6 +122,63 @@ describe.skipIf(!notifPostgresOk)("NotificationService", () => {
     });
   });
 
+  describe("hasOpenPrdSpecHilApproval", () => {
+    it("returns true when project has open HIL approval with scope_change_metadata", async () => {
+      await service.createHilApproval({
+        projectId: "proj-prd-hil",
+        source: "eval",
+        sourceId: "fb-1",
+        description: "Approve SPEC changes?",
+        category: "scopeChanges",
+        scopeChangeMetadata: {
+          scopeChangeSummary: "Update feature_list",
+          scopeChangeProposedUpdates: [
+            { section: "feature_list", changeLogEntry: "Add item", content: "1. A\n2. B" },
+          ],
+        },
+      });
+
+      const result = await service.hasOpenPrdSpecHilApproval("proj-prd-hil");
+      expect(result).toBe(true);
+    });
+
+    it("returns false when project has no open notifications", async () => {
+      const result = await service.hasOpenPrdSpecHilApproval("proj-empty");
+      expect(result).toBe(false);
+    });
+
+    it("returns false when project has open HIL approval without scope_change_metadata", async () => {
+      await service.createHilApproval({
+        projectId: "proj-hil-no-scope",
+        source: "eval",
+        sourceId: "arch-1",
+        description: "Approve architecture change?",
+        category: "architectureDecisions",
+      });
+
+      const result = await service.hasOpenPrdSpecHilApproval("proj-hil-no-scope");
+      expect(result).toBe(false);
+    });
+
+    it("returns false when PRD/SPEC HIL was resolved", async () => {
+      const notif = await service.createHilApproval({
+        projectId: "proj-resolved",
+        source: "eval",
+        sourceId: "fb-2",
+        description: "Approve scope?",
+        category: "scopeChanges",
+        scopeChangeMetadata: {
+          scopeChangeSummary: "Summary",
+          scopeChangeProposedUpdates: [],
+        },
+      });
+      await service.resolve("proj-resolved", notif.id);
+
+      const result = await service.hasOpenPrdSpecHilApproval("proj-resolved");
+      expect(result).toBe(false);
+    });
+  });
+
   describe("createApiBlocked", () => {
     it("creates API-blocked notification with error code", async () => {
       const result = await service.createApiBlocked({

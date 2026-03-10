@@ -74,6 +74,7 @@ const {
   mockAssertGitIdentityConfigured,
   mockResolveBaseBranch,
   mockIsSelfImprovementRunInProgress,
+  mockHasOpenPrdSpecHilApproval,
 } = vi.hoisted(() => ({
   mockBroadcastToProject: vi.fn(),
   mockSendAgentOutputToProject: vi.fn(),
@@ -140,6 +141,7 @@ const {
   mockAssertGitIdentityConfigured: vi.fn(),
   mockResolveBaseBranch: vi.fn(),
   mockIsSelfImprovementRunInProgress: vi.fn().mockReturnValue(false),
+  mockHasOpenPrdSpecHilApproval: vi.fn().mockResolvedValue(false),
 }));
 
 vi.mock("../websocket/index.js", () => ({
@@ -367,6 +369,16 @@ vi.mock("../services/crash-recovery.service.js", () => ({
     findOrphanedAssignmentsFromWorktrees: mockFindOrphanedAssignmentsFromWorktrees,
     deleteAssignmentAt: mockDeleteAssignmentAt,
   })),
+}));
+
+vi.mock("../services/notification.service.js", () => ({
+  notificationService: {
+    hasOpenPrdSpecHilApproval: (...args: unknown[]) => mockHasOpenPrdSpecHilApproval(...args),
+    listByProject: vi.fn().mockResolvedValue([]),
+    createApiBlocked: vi.fn().mockResolvedValue({ id: "ab-1", projectId: "", source: "execute", sourceId: "", questions: [], status: "open", createdAt: "", resolvedAt: null, kind: "api_blocked" }),
+    create: vi.fn().mockResolvedValue({ id: "oq-1", projectId: "", source: "execute", sourceId: "", questions: [], status: "open", createdAt: "", resolvedAt: null }),
+    resolveRateLimitNotifications: vi.fn().mockResolvedValue([]),
+  },
 }));
 
 const mockListPendingFeedbackIds = vi.fn().mockResolvedValue([]);
@@ -843,6 +855,28 @@ describe("OrchestratorService (slot-based model)", () => {
           branchName: "opensprint/task-1",
           worktreeKey: "task-1",
         })
+      );
+    });
+
+    it("blocks task assignment when open PRD/SPEC HIL approval exists", async () => {
+      mockHasOpenPrdSpecHilApproval.mockResolvedValueOnce(true);
+      const { task } = setupSingleTaskFlow();
+      mockTaskStoreReady.mockResolvedValueOnce([task]);
+
+      await orchestrator.ensureRunning(projectId);
+
+      await vi.waitFor(() => {
+        expect(mockBroadcastToProject).toHaveBeenCalledWith(
+          projectId,
+          expect.objectContaining({ type: "execute.status" })
+        );
+      });
+
+      expect(mockHasOpenPrdSpecHilApproval).toHaveBeenCalledWith(projectId);
+      expect(mockInvokeCodingAgent).not.toHaveBeenCalled();
+      expect(mockWriteJsonAtomic).not.toHaveBeenCalledWith(
+        expect.stringContaining("assignment.json"),
+        expect.anything()
       );
     });
 
