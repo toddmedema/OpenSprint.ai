@@ -4,10 +4,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PlanDetailContent } from "./PlanDetailContent";
 import type { Plan } from "@opensprint/shared";
-import { usePlanVersions } from "../../api/hooks";
+import { usePlanVersions, usePlanVersion } from "../../api/hooks";
 
 vi.mock("../../api/hooks", () => ({
   usePlanVersions: vi.fn(() => ({ data: [] })),
+  usePlanVersion: vi.fn(() => ({ data: undefined, isLoading: false })),
 }));
 
 vi.mock("../prd/PrdSectionEditor", () => ({
@@ -359,6 +360,141 @@ describe("PlanDetailContent", () => {
       const dropdown = screen.getByTestId("plan-version-dropdown");
       await user.selectOptions(dropdown, "1");
       expect(onVersionSelect).toHaveBeenCalledWith(1);
+    });
+
+    it("shows read-only view with Viewing vN and Back to current when viewing a past version", async () => {
+      vi.mocked(usePlanVersions).mockReturnValue({
+        data: [
+          { id: "v1", version_number: 1, created_at: "2025-01-01T00:00:00Z", is_executed_version: false },
+          { id: "v2", version_number: 2, created_at: "2025-01-02T00:00:00Z", is_executed_version: true },
+        ],
+      } as ReturnType<typeof usePlanVersions>);
+      vi.mocked(usePlanVersion).mockReturnValue({
+        data: {
+          version_number: 1,
+          title: "Past version title",
+          content: "# Past version title\n\nOld body content.",
+          created_at: "2025-01-01T00:00:00Z",
+        },
+        isLoading: false,
+      } as ReturnType<typeof usePlanVersion>);
+      const planWithVersion: Plan = {
+        ...mockPlan,
+        currentVersionNumber: 2,
+        lastExecutedVersionNumber: 2,
+      };
+      render(
+        <PlanDetailContent
+          plan={planWithVersion}
+          onContentSave={onContentSave}
+          projectId="proj-1"
+          planId="plan-1"
+          selectedVersionNumber={1}
+          onVersionSelect={vi.fn()}
+        />
+      );
+      expect(screen.getByTestId("plan-viewing-version")).toHaveTextContent("Viewing v1");
+      expect(screen.getByTestId("plan-viewing-title")).toHaveTextContent("Past version title");
+      expect(screen.getByTestId("plan-back-to-current")).toHaveTextContent("Back to current");
+      expect(screen.queryByRole("textbox", { name: /title/i })).not.toBeInTheDocument();
+      const editor = screen.getByTestId("plan-body-editor");
+      expect(editor).toBeInTheDocument();
+      const saveButton = screen.getByRole("button", { name: /save body/i });
+      expect(saveButton).toBeDisabled();
+    });
+
+    it("calls onVersionSelect(null) when Back to current is clicked", async () => {
+      const user = userEvent.setup();
+      const onVersionSelect = vi.fn();
+      vi.mocked(usePlanVersions).mockReturnValue({
+        data: [
+          { id: "v1", version_number: 1, created_at: "2025-01-01T00:00:00Z", is_executed_version: false },
+          { id: "v2", version_number: 2, created_at: "2025-01-02T00:00:00Z", is_executed_version: true },
+        ],
+      } as ReturnType<typeof usePlanVersions>);
+      vi.mocked(usePlanVersion).mockReturnValue({
+        data: {
+          version_number: 1,
+          title: "Past",
+          content: "# Past\n\nBody.",
+          created_at: "2025-01-01T00:00:00Z",
+        },
+        isLoading: false,
+      } as ReturnType<typeof usePlanVersion>);
+      const planWithVersion: Plan = {
+        ...mockPlan,
+        currentVersionNumber: 2,
+        lastExecutedVersionNumber: 2,
+      };
+      render(
+        <PlanDetailContent
+          plan={planWithVersion}
+          onContentSave={onContentSave}
+          projectId="proj-1"
+          planId="plan-1"
+          selectedVersionNumber={1}
+          onVersionSelect={onVersionSelect}
+        />
+      );
+      await user.click(screen.getByTestId("plan-back-to-current"));
+      expect(onVersionSelect).toHaveBeenCalledWith(null);
+    });
+
+    it("shows Loading version when viewing past version and version is loading", () => {
+      vi.mocked(usePlanVersions).mockReturnValue({
+        data: [
+          { id: "v1", version_number: 1, created_at: "2025-01-01T00:00:00Z", is_executed_version: false },
+          { id: "v2", version_number: 2, created_at: "2025-01-02T00:00:00Z", is_executed_version: true },
+        ],
+      } as ReturnType<typeof usePlanVersions>);
+      vi.mocked(usePlanVersion).mockReturnValue({
+        data: undefined,
+        isLoading: true,
+      } as ReturnType<typeof usePlanVersion>);
+      const planWithVersion: Plan = {
+        ...mockPlan,
+        currentVersionNumber: 2,
+        lastExecutedVersionNumber: 2,
+      };
+      render(
+        <PlanDetailContent
+          plan={planWithVersion}
+          onContentSave={onContentSave}
+          projectId="proj-1"
+          planId="plan-1"
+          selectedVersionNumber={1}
+        />
+      );
+      expect(screen.getByTestId("plan-version-loading")).toHaveTextContent("Loading version…");
+    });
+
+    it("keeps current version editable when selectedVersionNumber is null or current", () => {
+      vi.mocked(usePlanVersions).mockReturnValue({
+        data: [
+          { id: "v1", version_number: 1, created_at: "2025-01-01T00:00:00Z", is_executed_version: false },
+          { id: "v2", version_number: 2, created_at: "2025-01-02T00:00:00Z", is_executed_version: true },
+        ],
+      } as ReturnType<typeof usePlanVersions>);
+      const planWithVersion: Plan = {
+        ...mockPlan,
+        currentVersionNumber: 2,
+        lastExecutedVersionNumber: 2,
+      };
+      render(
+        <PlanDetailContent
+          plan={planWithVersion}
+          onContentSave={onContentSave}
+          projectId="proj-1"
+          planId="plan-1"
+          onVersionSelect={vi.fn()}
+        />
+      );
+      expect(screen.getByRole("textbox", { name: /title/i })).toBeInTheDocument();
+      expect(screen.getByRole("textbox", { name: /title/i })).not.toBeDisabled();
+      const saveButton = screen.getByRole("button", { name: /save body/i });
+      expect(saveButton).not.toBeDisabled();
+      expect(screen.queryByTestId("plan-viewing-version")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("plan-back-to-current")).not.toBeInTheDocument();
     });
   });
 });

@@ -3,7 +3,7 @@ import type { Plan } from "@opensprint/shared";
 import { formatPlanIdAsTitle } from "../../lib/formatting";
 import { parsePlanContent, serializePlanContent } from "../../lib/planContentUtils";
 import { PrdSectionEditor } from "../prd/PrdSectionEditor";
-import { usePlanVersions } from "../../api/hooks";
+import { usePlanVersions, usePlanVersion } from "../../api/hooks";
 
 /** Matches PrdSectionEditor / Sketch phase debounce for consistency */
 const DEBOUNCE_MS = 800;
@@ -24,8 +24,8 @@ export interface PlanDetailContentProps {
   planId?: string;
   /** Currently selected version in dropdown; null/undefined = current version. */
   selectedVersionNumber?: number | null;
-  /** Called when user selects a version from the dropdown (loads that version; read-only view in follow-up). */
-  onVersionSelect?: (versionNumber: number) => void;
+  /** Called when user selects a version from the dropdown, or null for "Back to current". */
+  onVersionSelect?: (versionNumber: number | null) => void;
 }
 
 /**
@@ -58,6 +58,29 @@ export function PlanDetailContent({
   const lastExecuted = plan.lastExecutedVersionNumber;
   const showVersionSelector = Boolean(projectId && planId);
   const effectiveSelectedVersion = selectedVersionNumber ?? currentVersion;
+  const isViewingPastVersion =
+    selectedVersionNumber != null && selectedVersionNumber !== currentVersion;
+
+  const versionQuery = usePlanVersion(projectId, planId, selectedVersionNumber ?? undefined, {
+    enabled: Boolean(projectId && planId && isViewingPastVersion),
+  });
+  const versionContent = versionQuery.data;
+
+  const { viewTitle, viewBody, isReadOnly } = useMemo(() => {
+    if (isViewingPastVersion && versionContent) {
+      const parsed = parsePlanContent(versionContent.content ?? "");
+      return {
+        viewTitle: (versionContent.title ?? parsed.title) || formatPlanIdAsTitle(plan.metadata.planId),
+        viewBody: (parsed.body ?? "").trim() || "_No content yet_",
+        isReadOnly: true,
+      };
+    }
+    return {
+      viewTitle: displayTitle,
+      viewBody: (body ?? "").trim() || "_No content yet_",
+      isReadOnly: false,
+    };
+  }, [isViewingPastVersion, versionContent, plan.metadata.planId, displayTitle, body]);
 
   const [titleValue, setTitleValue] = useState(displayTitle);
   const [savedRecently, setSavedRecently] = useState(false);
@@ -146,37 +169,59 @@ export function PlanDetailContent({
     [titleValue, displayTitle, plan.content, onContentSave]
   );
 
-  // Trim body to remove leading/trailing whitespace that causes spurious blank space at top
-  const bodyMarkdown = (body ?? "").trim() || "_No content yet_";
-
   const header = (
     <div className="flex flex-col gap-2 p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1 space-y-1">
-          <input
-            type="text"
-            value={titleValue}
-            onChange={handleTitleChange}
-            onBlur={handleTitleBlur}
-            onKeyDown={handleTitleKeyDown}
-            className="w-full font-semibold text-theme-text bg-transparent border border-transparent rounded px-2 py-1 -ml-2 hover:border-theme-border focus:border-theme-info-border focus:ring-2 focus:ring-theme-info-border/30 outline-none transition-colors"
-            placeholder="Title"
-            aria-label="Title"
-          />
-          {(saving || savedRecently) && (
-            <span className="text-xs text-theme-muted" aria-live="polite">
-              {saving ? "Saving..." : "Saved"}
-            </span>
+          {isReadOnly ? (
+            <h2 className="font-semibold text-theme-text px-2 py-1" data-testid="plan-viewing-title">
+              {viewTitle}
+            </h2>
+          ) : (
+            <>
+              <input
+                type="text"
+                value={titleValue}
+                onChange={handleTitleChange}
+                onBlur={handleTitleBlur}
+                onKeyDown={handleTitleKeyDown}
+                className="w-full font-semibold text-theme-text bg-transparent border border-transparent rounded px-2 py-1 -ml-2 hover:border-theme-border focus:border-theme-info-border focus:ring-2 focus:ring-theme-info-border/30 outline-none transition-colors"
+                placeholder="Title"
+                aria-label="Title"
+              />
+              {(saving || savedRecently) && (
+                <span className="text-xs text-theme-muted" aria-live="polite">
+                  {saving ? "Saving..." : "Saved"}
+                </span>
+              )}
+            </>
           )}
         </div>
-        {headerActions && <div className="shrink-0 flex items-center gap-2">{headerActions}</div>}
+        {headerActions && !isReadOnly && <div className="shrink-0 flex items-center gap-2">{headerActions}</div>}
       </div>
       {showVersionSelector && (
         <div className="flex items-center gap-2 flex-wrap" data-testid="plan-version-selector">
           <span className="text-xs text-theme-muted shrink-0">Version:</span>
-          <span className="text-xs font-medium text-theme-text shrink-0" data-testid="plan-current-version">
-            v{currentVersion}
-          </span>
+          {isViewingPastVersion && (
+            <>
+              <span className="text-xs font-medium text-theme-muted shrink-0" data-testid="plan-viewing-version">
+                Viewing v{effectiveSelectedVersion}
+              </span>
+              <button
+                type="button"
+                onClick={() => onVersionSelect?.(null)}
+                className="text-xs text-theme-info hover:underline shrink-0"
+                data-testid="plan-back-to-current"
+              >
+                Back to current
+              </button>
+            </>
+          )}
+          {!isViewingPastVersion && (
+            <span className="text-xs font-medium text-theme-text shrink-0" data-testid="plan-current-version">
+              v{currentVersion}
+            </span>
+          )}
           {versions.length > 0 && (
             <select
               data-testid="plan-version-dropdown"
@@ -212,12 +257,19 @@ export function PlanDetailContent({
         data-testid="plan-markdown-editor"
         className="prose prose-sm max-w-none bg-theme-surface px-4 pt-4 pb-4 rounded-lg border border-theme-border text-theme-text text-xs [&>div>:first-child]:!mt-0"
       >
-        <PrdSectionEditor
-          sectionKey="plan-body"
-          markdown={bodyMarkdown}
-          onSave={handleBodySave}
-          lightMode
-        />
+        {isViewingPastVersion && versionQuery.isLoading ? (
+          <div className="text-theme-muted text-sm py-2" data-testid="plan-version-loading">
+            Loading version…
+          </div>
+        ) : (
+          <PrdSectionEditor
+            sectionKey="plan-body"
+            markdown={viewBody}
+            onSave={handleBodySave}
+            disabled={isReadOnly}
+            lightMode
+          />
+        )}
       </div>
     </div>
   );
