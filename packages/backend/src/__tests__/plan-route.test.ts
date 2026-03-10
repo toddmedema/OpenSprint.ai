@@ -1261,6 +1261,75 @@ Updated description for task two.`;
       expect(prompt).toContain("Initial (v1)"); // plan_old = v1 content
       expect(prompt).toContain("Edited to v2"); // plan_new = current content
     });
+
+    it("re-execute without version_number uses last_executed_version_number for Auditor plan_old", async () => {
+      mockPlanningAgentInvoke.mockReset();
+      mockPlanningAgentInvoke.mockImplementation((opts: { messages?: Array<{ content: string }> }) => {
+        const content = opts.messages?.[0]?.content ?? "";
+        if (content.includes("plan_old.md") && content.includes("plan_new.md")) {
+          return Promise.resolve({
+            content: JSON.stringify({
+              status: "no_changes_needed",
+              capability_summary: "All done",
+              tasks: [],
+            }),
+          });
+        }
+        return Promise.resolve({ content: '{"status":"no_changes_needed"}' });
+      });
+
+      const planBody = {
+        title: "Re-execute Last Exec Plan",
+        content: "# Re-execute Last Exec\n\n## Overview\n\nExecuted (v1).",
+        complexity: "medium",
+        tasks: [
+          { title: "Task A", description: "First", priority: 0, dependsOn: [] },
+          { title: "Task B", description: "Second", priority: 1, dependsOn: [] },
+        ],
+      };
+      const createRes = await request(app)
+        .post(`${API_PREFIX}/projects/${projectId}/plans`)
+        .send(planBody);
+      expect(createRes.status).toBe(201);
+      const planId = createRes.body.data.metadata.planId;
+      const epicId = createRes.body.data.metadata.epicId;
+
+      await request(app).post(
+        `${API_PREFIX}/projects/${projectId}/plans/${planId}/execute`
+      );
+      await request(app)
+        .put(`${API_PREFIX}/projects/${projectId}/plans/${planId}`)
+        .send({ content: "# Re-execute Last Exec\n\n## Overview\n\nEdited (v2)." });
+
+      const _project = await projectService.getProject(projectId);
+      const allIssues = await taskStore.listAll(projectId);
+      const planTasks = allIssues.filter(
+        (i: { id: string; issue_type?: string; type?: string }) =>
+          i.id.startsWith(epicId + ".") && (i.issue_type ?? i.type) !== "epic"
+      );
+      for (const task of planTasks) {
+        await taskStore.close(projectId, (task as { id: string }).id, "Done");
+      }
+      await request(app).post(
+        `${API_PREFIX}/projects/${projectId}/plans/${planId}/mark-complete`
+      );
+
+      const reshipRes = await request(app).post(
+        `${API_PREFIX}/projects/${projectId}/plans/${planId}/re-execute`
+      );
+      expect(reshipRes.status).toBe(200);
+
+      const auditorCall = mockPlanningAgentInvoke.mock.calls.find(
+        (c) =>
+          (c[0] as { tracking?: { label?: string } })?.tracking?.label ===
+          "Re-execute: audit & delta tasks"
+      );
+      expect(auditorCall).toBeDefined();
+      const prompt = (auditorCall![0] as { messages?: Array<{ content: string }> }).messages?.[0]
+        ?.content ?? "";
+      expect(prompt).toContain("Executed (v1)"); // plan_old = last_executed_version (v1)
+      expect(prompt).toContain("Edited (v2)"); // plan_new = current content
+    });
   });
 
   describe("POST /projects/:id/plans/generate", () => {
@@ -1748,6 +1817,60 @@ Feature that depends on auth.
   });
 
   describe("GET /projects/:id/plans/:planId/versions", () => {
+    it("list versions after create, execute, and update: execute creates v1; updates add v2,v3", async () => {
+      const planBody = {
+        title: "List After Execute Plan",
+        content: "# List After Execute\n\n## Overview\n\nInitial.",
+        complexity: "low",
+        tasks: [
+          { title: "Task A", description: "First", priority: 0, dependsOn: [] },
+          { title: "Task B", description: "Second", priority: 1, dependsOn: [] },
+        ],
+      };
+      const createRes = await request(app)
+        .post(`${API_PREFIX}/projects/${projectId}/plans`)
+        .send(planBody);
+      expect(createRes.status).toBe(201);
+      const planId = createRes.body.data.metadata.planId;
+
+      const listAfterCreate = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/plans/${planId}/versions`
+      );
+      expect(listAfterCreate.status).toBe(200);
+      expect(listAfterCreate.body.data.versions).toHaveLength(0);
+
+      const executeRes = await request(app).post(
+        `${API_PREFIX}/projects/${projectId}/plans/${planId}/execute`
+      );
+      expect(executeRes.status).toBe(200);
+
+      const listAfterExecute = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/plans/${planId}/versions`
+      );
+      expect(listAfterExecute.status).toBe(200);
+      expect(listAfterExecute.body.data.versions).toHaveLength(1);
+      expect(listAfterExecute.body.data.versions[0].version_number).toBe(1);
+      expect(listAfterExecute.body.data.versions[0].is_executed_version).toBe(true);
+
+      await request(app)
+        .put(`${API_PREFIX}/projects/${projectId}/plans/${planId}`)
+        .send({ content: "# List After Execute\n\n## Overview\n\nFirst update." });
+      await request(app)
+        .put(`${API_PREFIX}/projects/${projectId}/plans/${planId}`)
+        .send({ content: "# List After Execute\n\n## Overview\n\nSecond update." });
+
+      const listAfterUpdates = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/plans/${planId}/versions`
+      );
+      expect(listAfterUpdates.status).toBe(200);
+      expect(listAfterUpdates.body.data.versions).toHaveLength(3);
+      const executed = listAfterUpdates.body.data.versions.find(
+        (v: { is_executed_version: boolean }) => v.is_executed_version
+      );
+      expect(executed).toBeDefined();
+      expect(executed.version_number).toBe(1);
+    });
+
     it("returns 200 with empty versions when plan has no versions", async () => {
       const planBody = {
         title: "Versions List Test",
@@ -1825,7 +1948,7 @@ Feature that depends on auth.
   });
 
   describe("GET /projects/:id/plans/:planId/versions/:versionNumber", () => {
-    it("returns 200 with version when version exists", async () => {
+    it("returns 200 with version content (title, content, metadata) when version exists", async () => {
       const planBody = {
         title: "Get Version Test",
         content: "# Get Version Test\n\n## Overview\n\nContent.",
