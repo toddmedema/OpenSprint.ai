@@ -17,6 +17,8 @@ export interface StoredPlan {
   metadata: string;
   shipped_content: string | null;
   updated_at: string;
+  current_version_number: number;
+  last_executed_version_number: number | null;
 }
 
 export interface PlanInsertData {
@@ -32,6 +34,8 @@ export type PlanGetResult = {
   metadata: Record<string, unknown>;
   shipped_content: string | null;
   updated_at: string;
+  current_version_number: number;
+  last_executed_version_number: number | null;
 };
 
 export type PlanGetByEpicIdResult = {
@@ -40,6 +44,8 @@ export type PlanGetByEpicIdResult = {
   metadata: Record<string, unknown>;
   shipped_content: string | null;
   updated_at: string;
+  current_version_number: number;
+  last_executed_version_number: number | null;
 };
 
 export class PlanStore {
@@ -96,14 +102,16 @@ export class PlanStore {
         metadata: metadataJson,
         shippedContent: null,
         updatedAt: now,
+        currentVersionNumber: 1,
+        lastExecutedVersionNumber: null,
       });
       return;
     }
     const client = this.getClient();
     await client.execute(
       toPgParams(
-        `INSERT INTO plans (project_id, plan_id, epic_id, gate_task_id, re_execute_gate_task_id, content, metadata, shipped_content, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)`
+        `INSERT INTO plans (project_id, plan_id, epic_id, gate_task_id, re_execute_gate_task_id, content, metadata, shipped_content, updated_at, current_version_number, last_executed_version_number)
+         VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, 1, NULL)`
       ),
       [
         projectId,
@@ -127,6 +135,8 @@ export class PlanStore {
           metadata: plansTable.metadata,
           shippedContent: plansTable.shippedContent,
           updatedAt: plansTable.updatedAt,
+          currentVersionNumber: plansTable.currentVersionNumber,
+          lastExecutedVersionNumber: plansTable.lastExecutedVersionNumber,
         })
         .from(plansTable)
         .where(and(eq(plansTable.projectId, projectId), eq(plansTable.planId, planId)))
@@ -139,12 +149,14 @@ export class PlanStore {
         metadata,
         shipped_content: row.shippedContent ?? null,
         updated_at: row.updatedAt ?? "",
+        current_version_number: row.currentVersionNumber ?? 1,
+        last_executed_version_number: row.lastExecutedVersionNumber ?? null,
       };
     }
     const client = this.getClient();
     const row = await client.queryOne(
       toPgParams(
-        "SELECT content, metadata, shipped_content, updated_at FROM plans WHERE project_id = ? AND plan_id = ?"
+        "SELECT content, metadata, shipped_content, updated_at, current_version_number, last_executed_version_number FROM plans WHERE project_id = ? AND plan_id = ?"
       ),
       [projectId, planId]
     );
@@ -155,6 +167,8 @@ export class PlanStore {
       metadata,
       shipped_content: (row.shipped_content as string) ?? null,
       updated_at: (row.updated_at as string) ?? "",
+      current_version_number: row.current_version_number != null ? Number(row.current_version_number) : 1,
+      last_executed_version_number: row.last_executed_version_number != null ? Number(row.last_executed_version_number) : null,
     };
   }
 
@@ -168,6 +182,8 @@ export class PlanStore {
           metadata: plansTable.metadata,
           shippedContent: plansTable.shippedContent,
           updatedAt: plansTable.updatedAt,
+          currentVersionNumber: plansTable.currentVersionNumber,
+          lastExecutedVersionNumber: plansTable.lastExecutedVersionNumber,
         })
         .from(plansTable)
         .where(and(eq(plansTable.projectId, projectId), eq(plansTable.epicId, epicId)))
@@ -181,12 +197,14 @@ export class PlanStore {
         metadata,
         shipped_content: row.shippedContent ?? null,
         updated_at: row.updatedAt ?? "",
+        current_version_number: row.currentVersionNumber ?? 1,
+        last_executed_version_number: row.lastExecutedVersionNumber ?? null,
       };
     }
     const client = this.getClient();
     const row = await client.queryOne(
       toPgParams(
-        "SELECT plan_id, content, metadata, shipped_content, updated_at FROM plans WHERE project_id = ? AND epic_id = ?"
+        "SELECT plan_id, content, metadata, shipped_content, updated_at, current_version_number, last_executed_version_number FROM plans WHERE project_id = ? AND epic_id = ?"
       ),
       [projectId, epicId]
     );
@@ -198,6 +216,8 @@ export class PlanStore {
       metadata,
       shipped_content: (row.shipped_content as string) ?? null,
       updated_at: (row.updated_at as string) ?? "",
+      current_version_number: row.current_version_number != null ? Number(row.current_version_number) : 1,
+      last_executed_version_number: row.last_executed_version_number != null ? Number(row.last_executed_version_number) : null,
     };
   }
 

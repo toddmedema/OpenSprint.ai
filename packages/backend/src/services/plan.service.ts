@@ -715,6 +715,8 @@ export class PlanService {
       doneTaskCount: done,
       dependencyCount,
       lastModified,
+      currentVersionNumber: row.current_version_number ?? 1,
+      lastExecutedVersionNumber: row.last_executed_version_number ?? undefined,
     };
   }
 

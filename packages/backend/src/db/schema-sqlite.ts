@@ -145,15 +145,17 @@ CREATE TABLE IF NOT EXISTS deployments (
 CREATE INDEX IF NOT EXISTS idx_deployments_project_id ON deployments(project_id);
 
 CREATE TABLE IF NOT EXISTS plans (
-    project_id              TEXT NOT NULL,
-    plan_id                  TEXT NOT NULL,
-    epic_id                  TEXT NOT NULL,
-    gate_task_id             TEXT,
-    re_execute_gate_task_id  TEXT,
-    content                  TEXT NOT NULL,
-    metadata                 TEXT NOT NULL,
-    shipped_content          TEXT,
-    updated_at               TEXT NOT NULL,
+    project_id                      TEXT NOT NULL,
+    plan_id                         TEXT NOT NULL,
+    epic_id                         TEXT NOT NULL,
+    gate_task_id                    TEXT,
+    re_execute_gate_task_id         TEXT,
+    content                         TEXT NOT NULL,
+    metadata                        TEXT NOT NULL,
+    shipped_content                 TEXT,
+    updated_at                      TEXT NOT NULL,
+    current_version_number          INTEGER NOT NULL DEFAULT 1,
+    last_executed_version_number    INTEGER,
     PRIMARY KEY (project_id, plan_id)
 );
 CREATE INDEX IF NOT EXISTS idx_plans_project_id ON plans(project_id);

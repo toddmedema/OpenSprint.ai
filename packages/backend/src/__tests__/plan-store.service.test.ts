@@ -1,4 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
+
+// Avoid loading drizzle-orm in test (vitest resolution can fail in some workspaces)
+vi.mock("drizzle-orm", () => ({ and: (...args: unknown[]) => args, eq: (a: unknown, b: unknown) => [a, b] }));
+vi.mock("../db/drizzle-schema-pg.js", () => ({ plansTable: {} }));
+
 import { PlanStore } from "../services/plan-store.service.js";
 import type { DrizzlePg } from "../db/app-db.js";
 
@@ -19,6 +24,8 @@ describe("PlanStore", () => {
       metadata: "{invalid",
       shipped_content: null,
       updated_at: "2026-03-03T00:00:00Z",
+      current_version_number: 1,
+      last_executed_version_number: null,
     });
     const store = new PlanStore(() => client);
 
@@ -27,6 +34,8 @@ describe("PlanStore", () => {
       metadata: {},
       shipped_content: null,
       updated_at: "2026-03-03T00:00:00Z",
+      current_version_number: 1,
+      last_executed_version_number: null,
     });
   });
 
@@ -38,6 +47,8 @@ describe("PlanStore", () => {
       metadata: JSON.stringify({ epicId: "epic-1" }),
       shipped_content: "shipped",
       updated_at: "2026-03-03T00:00:00Z",
+      current_version_number: 1,
+      last_executed_version_number: null,
     });
     const store = new PlanStore(() => client);
 
@@ -47,6 +58,8 @@ describe("PlanStore", () => {
       metadata: { epicId: "epic-1" },
       shipped_content: "shipped",
       updated_at: "2026-03-03T00:00:00Z",
+      current_version_number: 1,
+      last_executed_version_number: null,
     });
   });
 
@@ -63,6 +76,8 @@ describe("PlanStore", () => {
       ),
       shipped_content: null,
       updated_at: "2026-03-03T00:00:00Z",
+      current_version_number: 1,
+      last_executed_version_number: null,
     });
     const store = new PlanStore(() => client);
 
@@ -71,6 +86,8 @@ describe("PlanStore", () => {
       metadata: { planId: "plan-1", epicId: "epic-1", reviewedAt: null },
       shipped_content: null,
       updated_at: "2026-03-03T00:00:00Z",
+      current_version_number: 1,
+      last_executed_version_number: null,
     });
   });
 
@@ -92,8 +109,27 @@ describe("PlanStore", () => {
     expect(values).toHaveBeenCalledWith(
       expect.objectContaining({
         metadata,
+        currentVersionNumber: 1,
+        lastExecutedVersionNumber: null,
       })
     );
+  });
+
+  it("inserts new plan with current_version_number=1 and last_executed_version_number=null (raw SQL)", async () => {
+    const client = createDbClient();
+    client.execute.mockResolvedValue(undefined);
+    const store = new PlanStore(() => client);
+
+    await store.planInsert("proj-1", "plan-1", {
+      epic_id: "epic-1",
+      content: "# Plan",
+      metadata: "{}",
+    });
+
+    const sql = (client.execute as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(sql).toContain("current_version_number");
+    expect(sql).toContain("last_executed_version_number");
+    expect(sql).toMatch(/1,\s*NULL/);
   });
 
   it("throws PLAN_NOT_FOUND when updating missing plans", async () => {

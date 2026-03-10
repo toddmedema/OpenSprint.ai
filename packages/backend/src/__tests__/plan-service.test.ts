@@ -16,7 +16,7 @@ const mockTaskStoreAddLabel = vi.fn();
 const mockTaskStoreListAll = vi.fn();
 const mockTaskStoreShow = vi.fn();
 
-/** In-memory plan store for tests: projectId -> planId -> { content, metadata, shipped_content, updated_at } */
+/** In-memory plan store for tests: projectId -> planId -> row with version fields */
 const mockPlanStore = new Map<
   string,
   Map<
@@ -26,6 +26,8 @@ const mockPlanStore = new Map<
       metadata: Record<string, unknown>;
       shipped_content: string | null;
       updated_at: string;
+      current_version_number: number;
+      last_executed_version_number: number | null;
     }
   >
 >();
@@ -45,6 +47,8 @@ const mockPlanInsert = vi
         metadata,
         shipped_content: null,
         updated_at: new Date().toISOString(),
+        current_version_number: 1,
+        last_executed_version_number: null,
       });
     }
   );
@@ -106,6 +110,8 @@ const mockPlanGetByEpicId = vi
           metadata: row.metadata,
           shipped_content: row.shipped_content,
           updated_at: row.updated_at,
+          current_version_number: row.current_version_number,
+          last_executed_version_number: row.last_executed_version_number,
         };
       }
     }
@@ -1414,6 +1420,32 @@ describe("PlanService createWithRetry usage", () => {
 
     const plan = await planService.getPlan(projectId, planId);
     expect(plan.metadata.reviewedAt).toBeNull();
+  });
+
+  it("getPlan returns currentVersionNumber and lastExecutedVersionNumber from store", async () => {
+    const planId = "versioned-plan";
+    const epicId = "epic-versioned";
+    const metadata = {
+      planId,
+      epicId,
+      shippedAt: null,
+      complexity: "medium",
+    };
+    await mockPlanInsert(projectId, planId, {
+      content: "# Versioned Plan\n\n## Overview\n\nContent.",
+      metadata: JSON.stringify(metadata),
+    });
+    const proj = mockPlanStore.get(projectId);
+    const row = proj?.get(planId);
+    if (row) {
+      row.current_version_number = 3;
+      row.last_executed_version_number = 2;
+    }
+    mockTaskStoreListAll.mockResolvedValue([{ id: epicId, status: "open", type: "epic" }]);
+
+    const plan = await planService.getPlan(projectId, planId);
+    expect(plan.currentVersionNumber).toBe(3);
+    expect(plan.lastExecutedVersionNumber).toBe(2);
   });
 
   it("createPlan writes metadata with reviewedAt null", async () => {
