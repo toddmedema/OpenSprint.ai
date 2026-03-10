@@ -62,7 +62,11 @@ export class FinalReviewService {
   private taskStore = taskStoreSingleton;
   private planService: PlanService | null = null;
   private projectService = new ProjectService();
-  private contextAssembler = new ContextAssembler();
+  private _contextAssembler: ContextAssembler | null = null;
+  private get contextAssembler(): ContextAssembler {
+    this._contextAssembler ??= new ContextAssembler();
+    return this._contextAssembler;
+  }
 
   private getPlanService(): PlanService {
     this.planService ??= new PlanService();
