@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppDispatch, useAppSelector } from "../store";
-import { setConnectionError } from "../store/slices/connectionSlice";
+import { setConnectionError, dbStatusRestored } from "../store/slices/connectionSlice";
 import { api } from "../api/client";
 import { DB_STATUS_QUERY_KEY } from "../api/hooks/db-status";
 
@@ -25,8 +25,11 @@ export function ConnectionErrorBanner() {
       if (!api.dbStatus?.get) return;
       api.dbStatus
         .get()
-        .then(() => {
+        .then((result) => {
           dispatch(setConnectionError(false));
+          if (result?.ok) {
+            dispatch(dbStatusRestored());
+          }
           void queryClient.invalidateQueries({ queryKey: DB_STATUS_QUERY_KEY });
         })
         .catch(() => {

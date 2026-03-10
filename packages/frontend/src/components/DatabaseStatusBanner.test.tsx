@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import { MemoryRouter } from "react-router-dom";
+import connectionReducer from "../store/slices/connectionSlice";
 import { DatabaseStatusBanner } from "./DatabaseStatusBanner";
 
 const mockUseDbStatus = vi.fn();
@@ -35,6 +36,24 @@ function renderBanner(
       </MemoryRouter>
     </Provider>
   );
+}
+
+function renderBannerWithConnectionReducer(
+  dbStatus: ReturnType<typeof mockUseDbStatus>,
+  route = "/"
+) {
+  mockUseDbStatus.mockReturnValue(dbStatus);
+  const store = configureStore({
+    reducer: { connection: connectionReducer },
+  });
+  const wrapper = (
+    <Provider store={store}>
+      <MemoryRouter initialEntries={[route]}>
+        <DatabaseStatusBanner />
+      </MemoryRouter>
+    </Provider>
+  );
+  return { ...render(wrapper), store };
 }
 
 describe("DatabaseStatusBanner", () => {
@@ -104,6 +123,34 @@ describe("DatabaseStatusBanner", () => {
       { connection: { connectionError: true } }
     );
 
+    expect(screen.queryByTestId("database-status-banner")).not.toBeInTheDocument();
+  });
+
+  it("hides when db-status transitions to ok (connection restored)", () => {
+    const { rerender, store } = renderBannerWithConnectionReducer({
+      data: {
+        ok: false,
+        state: "connecting",
+        lastCheckedAt: null,
+        message: "Reconnecting to PostgreSQL...",
+      },
+      isPending: false,
+    });
+    expect(screen.getByTestId("database-status-banner")).toHaveTextContent(
+      "Reconnecting to PostgreSQL..."
+    );
+
+    mockUseDbStatus.mockReturnValue({
+      data: { ok: true, state: "connected", lastCheckedAt: null },
+      isPending: false,
+    });
+    rerender(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={["/"]}>
+          <DatabaseStatusBanner />
+        </MemoryRouter>
+      </Provider>
+    );
     expect(screen.queryByTestId("database-status-banner")).not.toBeInTheDocument();
   });
 });

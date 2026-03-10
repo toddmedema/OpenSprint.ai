@@ -2,13 +2,15 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { configureStore } from "@reduxjs/toolkit";
 import { waitFor } from "@testing-library/react";
 import notificationReducer, { addNotification } from "../slices/notificationSlice";
-import connectionReducer, { setConnectionError } from "../slices/connectionSlice";
+import connectionReducer, { setConnectionError, dbStatusRestored } from "../slices/connectionSlice";
 import websocketReducer, { setDeliverToast } from "../slices/websocketSlice";
 import openQuestionsReducer from "../slices/openQuestionsSlice";
-import { notificationListener } from "./notificationListener";
+import { notificationListener, CONNECTION_TOAST_MESSAGE_PATTERN } from "./notificationListener";
+import { DB_STATUS_QUERY_KEY } from "../../api/hooks/db-status";
 
 const mockIsConnectionError = vi.fn();
 const mockListByProject = vi.fn();
+const mockInvalidateQueries = vi.fn();
 
 vi.mock("../../api/client", () => ({
   api: {
@@ -17,6 +19,10 @@ vi.mock("../../api/client", () => ({
     },
   },
   isConnectionError: (...args: unknown[]) => mockIsConnectionError(...args),
+}));
+
+vi.mock("../../queryClient", () => ({
+  getQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
 }));
 
 function createStore(preloadedState?: { connection?: { connectionError: boolean; lastRecoveredAt: number | null } }) {
@@ -38,6 +44,7 @@ describe("notificationListener", () => {
     mockIsConnectionError.mockReset();
     mockListByProject.mockReset();
     mockListByProject.mockResolvedValue([]);
+    mockInvalidateQueries.mockReset();
   });
 
   it("keeps not-found rejections quiet", () => {
@@ -118,6 +125,73 @@ describe("notificationListener", () => {
       meta: { requestStatus: "fulfilled", requestId: "req-recovery" },
       payload: {},
     });
+
+    await waitFor(() => {
+      expect(store.getState().connection.connectionError).toBe(false);
+      expect(store.getState().notification.items).toHaveLength(0);
+    });
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: DB_STATUS_QUERY_KEY });
+  });
+
+  it("dismisses 'Connecting to Postgres' toast when connection is restored", async () => {
+    expect(CONNECTION_TOAST_MESSAGE_PATTERN.test("Connecting to Postgres")).toBe(true);
+    expect(CONNECTION_TOAST_MESSAGE_PATTERN.test("Connecting to database...")).toBe(true);
+    const store = createStore();
+    store.dispatch(setConnectionError(true));
+    store.dispatch(
+      addNotification({
+        message: "Connecting to Postgres",
+        severity: "error",
+      })
+    );
+    expect(store.getState().notification.items).toHaveLength(1);
+
+    store.dispatch({
+      type: "execute/fetchTasks/fulfilled",
+      meta: { requestStatus: "fulfilled", requestId: "req-db" },
+      payload: {},
+    });
+
+    await waitFor(() => {
+      expect(store.getState().connection.connectionError).toBe(false);
+      expect(store.getState().notification.items).toHaveLength(0);
+    });
+  });
+
+  it("dismisses connection toasts when dbStatusRestored is dispatched (health check returned ok)", async () => {
+    const store = createStore();
+    store.dispatch(setConnectionError(true));
+    store.dispatch(
+      addNotification({
+        message: "Connecting to Postgres",
+        severity: "error",
+      })
+    );
+    expect(store.getState().notification.items).toHaveLength(1);
+
+    store.dispatch(dbStatusRestored());
+
+    await waitFor(() => {
+      expect(store.getState().connection.connectionError).toBe(false);
+      expect(store.getState().notification.items).toHaveLength(0);
+    });
+  });
+
+  it("dismisses 'Server is unable to connect to PostgreSQL database' toast when connection is restored", async () => {
+    expect(
+      CONNECTION_TOAST_MESSAGE_PATTERN.test("Server is unable to connect to PostgreSQL database.")
+    ).toBe(true);
+    const store = createStore();
+    store.dispatch(setConnectionError(true));
+    store.dispatch(
+      addNotification({
+        message: "Server is unable to connect to PostgreSQL database.",
+        severity: "error",
+      })
+    );
+    expect(store.getState().notification.items).toHaveLength(1);
+
+    store.dispatch(dbStatusRestored());
 
     await waitFor(() => {
       expect(store.getState().connection.connectionError).toBe(false);

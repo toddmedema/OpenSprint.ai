@@ -1,11 +1,24 @@
+import { useEffect, useRef } from "react";
 import { Link, useMatch } from "react-router-dom";
 import { useDbStatus } from "../api/hooks";
-import { useAppSelector } from "../store";
+import { useAppSelector, useAppDispatch } from "../store";
+import { dbStatusRestored } from "../store/slices/connectionSlice";
 
 export function DatabaseStatusBanner() {
+  const dispatch = useAppDispatch();
   const connectionError = useAppSelector((s) => s.connection?.connectionError ?? false);
   const { data } = useDbStatus();
   const projectMatch = useMatch("/projects/:projectId/*");
+  const prevOkRef = useRef<boolean | null>(null);
+
+  // When db-status health check returns ok, signal so connection/Postgres toasts auto-dismiss.
+  useEffect(() => {
+    const ok = data?.ok === true;
+    if (ok && prevOkRef.current === false) {
+      dispatch(dbStatusRestored());
+    }
+    prevOkRef.current = ok;
+  }, [data?.ok, dispatch]);
 
   if (connectionError || !data || data.ok) {
     return null;

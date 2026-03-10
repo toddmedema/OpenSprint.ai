@@ -2,9 +2,11 @@ import { createListenerMiddleware, isRejected, isFulfilled } from "@reduxjs/tool
 import type { SerializedError } from "@reduxjs/toolkit";
 import { DEDUP_SKIP } from "../dedup";
 import { addNotification, dismissNotification } from "../slices/notificationSlice";
-import { setConnectionError } from "../slices/connectionSlice";
+import { setConnectionError, dbStatusRestored } from "../slices/connectionSlice";
 import { clearDeliverToast } from "../slices/websocketSlice";
 import { isConnectionError } from "../../api/client";
+import { getQueryClient } from "../../queryClient";
+import { DB_STATUS_QUERY_KEY } from "../../api/hooks/db-status";
 import {
   getRejectedActionProjectId,
   isNotificationManagedAgentFailure,
@@ -161,7 +163,20 @@ notificationListener.startListening({
 
 /** Message patterns for connection/DB error toasts that should auto-dismiss when connection is restored. */
 export const CONNECTION_TOAST_MESSAGE_PATTERN =
-  /failed to connect|reconnecting to postgres|postgres.*unavailable|server.*unreachable|open sprint server/i;
+  /failed to connect|reconnecting to postgres|connecting to postgres|connecting to database|postgres.*unavailable|unable to connect.*postgres|server.*unreachable|open sprint server/i;
+
+function clearConnectionErrorAndDismissToasts(
+  dispatch: (action: unknown) => void,
+  getState: () => { notification?: { items: { id: string; message: string }[] } }
+): void {
+  dispatch(setConnectionError(false));
+  const items = getState().notification?.items ?? [];
+  for (const n of items) {
+    if (CONNECTION_TOAST_MESSAGE_PATTERN.test(n.message)) {
+      dispatch(dismissNotification(n.id));
+    }
+  }
+}
 
 /** Clear connection error and dismiss any connection/PostgreSQL toasts when any API thunk succeeds (server is reachable). */
 notificationListener.startListening({
@@ -171,12 +186,20 @@ notificationListener.startListening({
     return API_THUNK_PREFIXES.some((p) => type.startsWith(p));
   },
   effect: (_, listenerApi) => {
-    listenerApi.dispatch(setConnectionError(false));
-    const items = listenerApi.getState().notification?.items ?? [];
-    for (const n of items) {
-      if (CONNECTION_TOAST_MESSAGE_PATTERN.test(n.message)) {
-        listenerApi.dispatch(dismissNotification(n.id));
-      }
+    clearConnectionErrorAndDismissToasts(listenerApi.dispatch, listenerApi.getState);
+    // Refetch db-status so DatabaseStatusBanner (Connecting to Postgres) auto-dismisses when DB is back.
+    try {
+      getQueryClient().invalidateQueries({ queryKey: DB_STATUS_QUERY_KEY });
+    } catch {
+      // QueryClient not set (e.g. in tests)
     }
+  },
+});
+
+/** When db-status health check returns ok, clear connection error and dismiss connection/Postgres toasts so they auto-dismiss without user action. */
+notificationListener.startListening({
+  actionCreator: dbStatusRestored,
+  effect: (_, listenerApi) => {
+    clearConnectionErrorAndDismissToasts(listenerApi.dispatch, listenerApi.getState);
   },
 });

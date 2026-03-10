@@ -22,8 +22,10 @@ export const connectionSlice = createSlice({
         state.lastRecoveredAt = Date.now();
       }
     },
+    /** Signal that db-status health check returned ok; used to auto-dismiss connection/Postgres toasts. */
+    dbStatusRestored() {},
   },
 });
 
-export const { setConnectionError } = connectionSlice.actions;
+export const { setConnectionError, dbStatusRestored } = connectionSlice.actions;
 export default connectionSlice.reducer;
