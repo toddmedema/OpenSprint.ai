@@ -284,7 +284,9 @@ html[data-theme="dark"] {
   }
 
   /* Select chevron: visible down-arrow on all native <select> (Evaluate filter, settings, etc.).
-   * Priority (optional) and custom dropdowns are <button> and use their own chevron. */
+   * Priority (optional) and custom dropdowns are <button> and use their own chevron.
+   * Base64 data URI used so the arrow renders in Electron (percent-encoded SVG can fail there).
+   * Explicit background-color ensures the image layer is visible with appearance:none. */
   select.input,
   [data-testid="settings-modal"] select,
   [data-testid="feedback-status-filter"] {
@@ -292,7 +294,8 @@ html[data-theme="dark"] {
     -webkit-appearance: none;
     -moz-appearance: none;
     padding-right: 2.5rem !important;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239ca3af' d='M6 8L2 4h8z'/%3E%3C/svg%3E") !important;
+    background-color: var(--color-input-bg) !important;
+    background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMiIgaGVpZ2h0PSIxMiIgdmlld0JveD0iMCAwIDEyIDEyIj48cGF0aCBmaWxsPSIjOWNhM2FmIiBkPSJNNiA4TDIgNGg4eiIvPjwvc3ZnPg==") !important;
     background-repeat: no-repeat !important;
     background-position: right 0.75rem center !important;
     background-size: 0.65rem auto !important;
