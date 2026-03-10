@@ -21,6 +21,7 @@ const TABLES = [
   "deployments",
   "plans",
   "auditor_runs",
+  "self_improvement_runs",
   "open_questions",
   "prd_metadata",
   "project_conversations",
@@ -37,6 +38,7 @@ const SERIAL_ID_TABLES = new Set([
   "agent_stats",
   "orchestrator_events",
   "auditor_runs",
+  "self_improvement_runs",
 ]);
 
 function getInsertColumns(table: string, row: DbRow): string[] {

@@ -124,6 +124,41 @@ describe.skipIf(!projectsPostgresOk)("Projects REST API — spec/sketch phase ro
     expect(res.body.data.hasExistingCode).toBe(true);
   });
 
+  it("GET /projects/:id/self-improvement/history returns empty list when no runs", async () => {
+    const res = await request(app).get(
+      `${API_PREFIX}/projects/${projectId}/self-improvement/history`
+    );
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data).toHaveLength(0);
+  });
+
+  it("GET /projects/:id/self-improvement/history returns runs with timestamp, status, tasksCreatedCount", async () => {
+    const { taskStore } = await import("../services/task-store.service.js");
+    const completedAt = "2025-03-10T12:00:00.000Z";
+    await taskStore.insertSelfImprovementRunHistory({
+      projectId,
+      runId: "si-test-1",
+      completedAt,
+      status: "success",
+      tasksCreatedCount: 3,
+    });
+
+    const res = await request(app).get(
+      `${API_PREFIX}/projects/${projectId}/self-improvement/history`
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(1);
+    expect(res.body.data[0]).toMatchObject({
+      timestamp: completedAt,
+      status: "success",
+      tasksCreatedCount: 3,
+    });
+    expect(res.body.data[0].runId).toBe("si-test-1");
+  });
+
   it("POST /projects/:id/archive removes project from list, keeps .opensprint", async () => {
     const repoPath = path.join(tempDir, "my-project");
     const opensprintPath = path.join(repoPath, OPENSPRINT_DIR);

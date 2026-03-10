@@ -26,6 +26,11 @@ import {
   type AuditorRunInsert,
   type AuditorRunRecord,
 } from "./auditor-run-store.service.js";
+import {
+  SelfImprovementRunHistoryStore,
+  type SelfImprovementRunHistoryInsert,
+  type SelfImprovementRunHistoryRecord,
+} from "./self-improvement-run-history.service.js";
 import { toPgParams } from "../db/sql-params.js";
 import { getDatabaseUrl } from "./global-settings.service.js";
 
@@ -142,6 +147,9 @@ export class TaskStoreService {
   private planStore = new PlanStore(() => this.ensureClient(), () => this.getDrizzle());
   private planVersionStore = new PlanVersionStore(() => this.ensureClient());
   private auditorRunStore = new AuditorRunStore(() => this.ensureClient());
+  private selfImprovementRunHistoryStore = new SelfImprovementRunHistoryStore(() =>
+    this.ensureClient()
+  );
 
   constructor(injectedClient?: DbClient) {
     if (injectedClient) {
@@ -1486,6 +1494,9 @@ export class TaskStoreService {
       await client.execute(toPgParams("DELETE FROM auditor_runs WHERE project_id = ?"), [
         projectId,
       ]);
+      await client.execute(toPgParams("DELETE FROM self_improvement_runs WHERE project_id = ?"), [
+        projectId,
+      ]);
       await client.execute(toPgParams("DELETE FROM agent_stats WHERE project_id = ?"), [projectId]);
       await client.execute(toPgParams("DELETE FROM orchestrator_events WHERE project_id = ?"), [
         projectId,
@@ -1854,6 +1865,25 @@ export class TaskStoreService {
   async listAuditorRunsByPlanId(projectId: string, planId: string): Promise<AuditorRunRecord[]> {
     await this.ensureInitialized();
     return this.auditorRunStore.listByPlanId(projectId, planId);
+  }
+
+  // ──── Self-improvement run history ────
+
+  async insertSelfImprovementRunHistory(
+    record: SelfImprovementRunHistoryInsert
+  ): Promise<SelfImprovementRunHistoryRecord> {
+    return this.withWriteLock(async () => {
+      await this.ensureInitialized();
+      return this.selfImprovementRunHistoryStore.insert(record);
+    });
+  }
+
+  async listSelfImprovementRunHistory(
+    projectId: string,
+    limit?: number
+  ): Promise<SelfImprovementRunHistoryRecord[]> {
+    await this.ensureInitialized();
+    return this.selfImprovementRunHistoryStore.listByProjectId(projectId, limit);
   }
 
   private async ensureInitialized(): Promise<void> {

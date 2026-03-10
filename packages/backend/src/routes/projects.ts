@@ -2,6 +2,7 @@ import { Router, Request } from "express";
 import { ProjectService } from "../services/project.service.js";
 import { PlanService } from "../services/plan.service.js";
 import { orchestratorService } from "../services/orchestrator.service.js";
+import { taskStore } from "../services/task-store.service.js";
 import type {
   CreateProjectRequest,
   ApiResponse,
@@ -84,6 +85,28 @@ projectsRouter.get("/:id/sketch-context", async (req: Request<ProjectParams>, re
     next(err);
   }
 });
+
+// GET /projects/:id/self-improvement/history — List recent self-improvement runs (timestamp, status, tasksCreatedCount)
+projectsRouter.get(
+  "/:id/self-improvement/history",
+  async (req: Request<ProjectParams>, res, next) => {
+    try {
+      const projectId = req.params.id;
+      await projectService.getProject(projectId);
+      const limit = req.query.limit != null ? Number(req.query.limit) : undefined;
+      const runs = await taskStore.listSelfImprovementRunHistory(projectId, limit);
+      const data = runs.map((r) => ({
+        timestamp: r.timestamp,
+        status: r.status,
+        tasksCreatedCount: r.tasksCreatedCount,
+        ...(r.runId && { runId: r.runId }),
+      }));
+      res.json({ data });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 // GET /projects/:id — Get project details
 projectsRouter.get("/:id", async (req, res, next) => {

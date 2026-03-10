@@ -9,6 +9,14 @@ import {
 vi.mock("../services/task-store.service.js", () => ({
   taskStore: {
     create: vi.fn().mockResolvedValue({ id: "os-1", title: "Task" }),
+    insertSelfImprovementRunHistory: vi.fn().mockResolvedValue({
+      id: 1,
+      projectId: "proj-1",
+      runId: "si-1",
+      timestamp: new Date().toISOString(),
+      status: "success",
+      tasksCreatedCount: 0,
+    }),
   },
 }));
 

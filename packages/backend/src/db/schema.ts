@@ -204,6 +204,18 @@ CREATE TABLE IF NOT EXISTS auditor_runs (
 );
 CREATE INDEX IF NOT EXISTS idx_auditor_runs_project_plan ON auditor_runs(project_id, plan_id);
 
+-- Self-improvement run history (timestamp, status, tasks_created_count per run)
+CREATE TABLE IF NOT EXISTS self_improvement_runs (
+    id                   SERIAL PRIMARY KEY,
+    project_id           TEXT NOT NULL,
+    run_id               TEXT NOT NULL,
+    completed_at         TEXT NOT NULL,
+    status               TEXT NOT NULL,
+    tasks_created_count  INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_self_improvement_runs_project ON self_improvement_runs(project_id);
+CREATE INDEX IF NOT EXISTS idx_self_improvement_runs_completed ON self_improvement_runs(project_id, completed_at DESC);
+
 -- Open questions / notifications (agent clarification requests + API-blocked human notifications)
 CREATE TABLE IF NOT EXISTS open_questions (
     id           TEXT PRIMARY KEY,
@@ -481,6 +493,17 @@ CREATE TABLE IF NOT EXISTS auditor_runs (
     assessment   TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_auditor_runs_project_plan ON auditor_runs(project_id, plan_id);
+
+CREATE TABLE IF NOT EXISTS self_improvement_runs (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id           TEXT NOT NULL,
+    run_id               TEXT NOT NULL,
+    completed_at         TEXT NOT NULL,
+    status               TEXT NOT NULL,
+    tasks_created_count  INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_self_improvement_runs_project ON self_improvement_runs(project_id);
+CREATE INDEX IF NOT EXISTS idx_self_improvement_runs_completed ON self_improvement_runs(project_id, completed_at DESC);
 
 CREATE TABLE IF NOT EXISTS open_questions (
     id           TEXT PRIMARY KEY,

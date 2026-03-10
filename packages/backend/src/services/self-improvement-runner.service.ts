@@ -350,6 +350,14 @@ Review the codebase and output a structured list of improvement tasks (JSON arra
       }));
     }
 
+    await taskStoreSingleton.insertSelfImprovementRunHistory({
+      projectId,
+      runId,
+      completedAt: new Date().toISOString(),
+      status: "success",
+      tasksCreatedCount: createdCount,
+    });
+
     return { tasksCreated: createdCount, runId };
   }
 }
