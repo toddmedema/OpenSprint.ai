@@ -1138,6 +1138,7 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                         </p>
                       </div>
                       <select
+                        aria-label="Merge strategy"
                         className="input w-48 shrink-0"
                         value={mergeStrategy}
                         onChange={(e) => {
