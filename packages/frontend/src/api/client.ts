@@ -45,6 +45,10 @@ import type {
   PlanVersionContent,
 } from "@opensprint/shared";
 import type { TaskListResponse } from "./taskList";
+import type {
+  PrdProposedDiffResponse,
+  PrdVersionDiffResponse,
+} from "./prdDiffTypes";
 
 /** API base; set VITE_API_BASE for production/staging (e.g. empty for same-origin, or full origin). */
 const BASE_URL = `${(import.meta.env.VITE_API_BASE as string | undefined) ?? ""}/api/v1`;
@@ -265,6 +269,21 @@ export const api = {
       }),
     getHistory: (projectId: string) =>
       request<PrdChangeLogEntry[]>(`/projects/${projectId}/prd/history`),
+    getProposedDiff: (projectId: string, requestId: string) =>
+      request<PrdProposedDiffResponse>(
+        `/projects/${projectId}/prd/proposed-diff?requestId=${encodeURIComponent(requestId)}`
+      ),
+    getVersionDiff: (
+      projectId: string,
+      fromVersion: string,
+      toVersion?: string
+    ) => {
+      const params = new URLSearchParams({ fromVersion });
+      if (toVersion != null && toVersion !== "") params.set("toVersion", toVersion);
+      return request<PrdVersionDiffResponse>(
+        `/projects/${projectId}/prd/diff?${params.toString()}`
+      );
+    },
     upload: async (projectId: string, file: File): Promise<PrdUploadResult> => {
       const formData = new FormData();
       formData.append("file", file);

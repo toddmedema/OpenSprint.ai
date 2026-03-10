@@ -9,6 +9,10 @@ export const queryKeys = {
   prd: {
     detail: (projectId: string) => ["prd", projectId] as const,
     history: (projectId: string) => ["prd", projectId, "history"] as const,
+    proposedDiff: (projectId: string, requestId: string) =>
+      ["prd", projectId, "proposed-diff", requestId] as const,
+    versionDiff: (projectId: string, fromVersion: string, toVersion?: string) =>
+      ["prd", projectId, "version-diff", fromVersion, toVersion ?? "current"] as const,
   },
   chat: {
     history: (projectId: string, context: string) => ["chat", projectId, context] as const,

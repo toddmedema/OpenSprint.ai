@@ -49,3 +49,32 @@ export interface Prd {
   sections: Record<string, PrdSection>;
   changeLog: PrdChangeLogEntry[];
 }
+
+// ─── PRD diff (proposed-diff and version diff API responses) ───
+
+/** Single line in a PRD diff result */
+export interface PrdDiffLine {
+  type: "add" | "remove" | "context";
+  text: string;
+  oldLineNumber?: number;
+  newLineNumber?: number;
+}
+
+/** Result of diffing two text contents (shared format for API responses) */
+export interface PrdDiffResult {
+  lines: PrdDiffLine[];
+  summary?: { additions: number; deletions: number };
+}
+
+/** Response for GET /projects/:id/prd/proposed-diff?requestId= */
+export interface PrdProposedDiffResponse {
+  requestId: string;
+  diff: PrdDiffResult;
+}
+
+/** Response for GET /projects/:id/prd/diff?fromVersion=&toVersion= */
+export interface PrdVersionDiffResponse {
+  fromVersion: string;
+  toVersion: string;
+  diff: PrdDiffResult;
+}
