@@ -33,6 +33,8 @@ export interface RunSelfImprovementOptions {
   runId?: string;
   /** If provided, stored as selfImprovementLastCommitSha on success. If omitted, current HEAD is used. */
   lastCommitSha?: string;
+  /** Caller context: 'scheduled' (daily/weekly tick) or 'after_each_plan'. */
+  trigger?: "scheduled" | "after_each_plan";
 }
 
 /** Result of runSelfImprovement: success with counts or skip when run already in progress. */

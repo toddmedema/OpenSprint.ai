@@ -141,6 +141,45 @@ describe("SelfImprovementService", () => {
     });
   });
 
+  describe("runIfDue", () => {
+    it("runs when trigger is scheduled and frequency is daily", async () => {
+      const { ProjectService } = await import("../services/project.service.js");
+      vi.mocked(ProjectService).mockImplementation(
+        () =>
+          ({
+            getProject: vi.fn().mockResolvedValue({ id: "proj-1", repoPath: "/tmp/repo" }),
+            getSettings: vi.fn()
+              .mockResolvedValueOnce({ selfImprovementFrequency: "daily", selfImprovementLastRunAt: undefined, worktreeBaseBranch: "main" })
+              .mockResolvedValue({ selfImprovementFrequency: "daily", selfImprovementLastRunAt: undefined, selfImprovementLastCommitSha: undefined, worktreeBaseBranch: "main" }),
+          }) as never
+      );
+      service = new SelfImprovementService();
+      const { taskStore } = await import("../services/task-store.service.js");
+      vi.mocked(taskStore.create).mockResolvedValue({ id: "os-1", title: "Task" } as never);
+
+      const result = await service.runIfDue(projectId, { trigger: "scheduled" });
+
+      expect(result).toMatchObject({ tasksCreated: 1, runId: expect.any(String) });
+      expect(taskStore.create).toHaveBeenCalled();
+    });
+
+    it("skips when trigger is scheduled but frequency is never", async () => {
+      const { ProjectService } = await import("../services/project.service.js");
+      vi.mocked(ProjectService).mockImplementation(
+        () =>
+          ({
+            getProject: vi.fn().mockResolvedValue({ id: "proj-1", repoPath: "/tmp/repo" }),
+            getSettings: vi.fn().mockResolvedValue({ selfImprovementFrequency: "never" }),
+          }) as never
+      );
+      service = new SelfImprovementService();
+
+      const result = await service.runIfDue(projectId, { trigger: "scheduled" });
+
+      expect(result).toEqual({ tasksCreated: 0, skipped: "no_changes" });
+    });
+  });
+
   describe("run_in_progress", () => {
     it("returns runner result when runner skips due to run in progress", async () => {
       const runnerMod = await import("../services/self-improvement-runner.service.js");

@@ -20,11 +20,13 @@ export type SelfImprovementRunResult =
   | RunSelfImprovementResult
   | { tasksCreated: 0; skipped: "no_changes" };
 
+/** Trigger for runIfDue: scheduled (daily/weekly tick) or after plan execution. */
+export type SelfImprovementTrigger = "scheduled" | "after_each_plan";
+
 /** Options for runIfDue: trigger and context (e.g. planId when trigger is after_each_plan). */
-export interface RunIfDueOptions {
-  trigger: "after_each_plan";
-  planId: string;
-}
+export type RunIfDueOptions =
+  | { trigger: "after_each_plan"; planId: string }
+  | { trigger: "scheduled" };
 
 /**
  * Self-improvement service: one run per project (in runner), change detection before run,
@@ -32,6 +34,36 @@ export interface RunIfDueOptions {
  */
 export class SelfImprovementService {
   private projectService = new ProjectService();
+
+  /**
+   * Run self-improvement if the trigger matches project frequency, then run change detection and flow.
+   * For trigger 'scheduled': only runs when settings.selfImprovementFrequency is 'daily' or 'weekly'.
+   * For trigger 'after_each_plan': only runs when frequency is 'after_each_plan'.
+   * Otherwise returns without running.
+   */
+  async runIfDue(
+    projectId: string,
+    options: RunIfDueOptions
+  ): Promise<SelfImprovementRunResult | { tasksCreated: 0; skipped: "frequency_not_due" }> {
+    const settings = await this.projectService.getSettings(projectId);
+    const freq = settings.selfImprovementFrequency ?? "never";
+
+    if (options.trigger === "scheduled") {
+      if (freq !== "daily" && freq !== "weekly") return { tasksCreated: 0, skipped: "no_changes" };
+      return this.run(projectId, { trigger: "scheduled" });
+    }
+    if (options.trigger === "after_each_plan") {
+      if (freq !== "after_each_plan") {
+        log.debug("Self-improvement skipped: frequency not after_each_plan", {
+          projectId,
+          frequency: freq,
+        });
+        return { tasksCreated: 0, skipped: "frequency_not_due" };
+      }
+      return this.run(projectId, { planId: options.planId });
+    }
+    return { tasksCreated: 0, skipped: "no_changes" };
+  }
 
   /**
    * Run self-improvement for a project if the repo has changed since last run.
@@ -66,29 +98,6 @@ export class SelfImprovementService {
     }
 
     return runSelfImprovement(projectId, options);
-  }
-
-  /**
-   * Run self-improvement if due for the given trigger (e.g. after_each_plan).
-   * Checks settings.selfImprovementFrequency matches the trigger, then change detection, then runs.
-   * Does not run when user clicks Execute; call only when plan execution is fully complete (epic closed, merged).
-   */
-  async runIfDue(
-    projectId: string,
-    options: RunIfDueOptions
-  ): Promise<SelfImprovementRunResult | { tasksCreated: 0; skipped: "frequency_not_due" }> {
-    if (options.trigger !== "after_each_plan") {
-      return { tasksCreated: 0, skipped: "frequency_not_due" };
-    }
-    const settings = await this.projectService.getSettings(projectId);
-    if (settings.selfImprovementFrequency !== "after_each_plan") {
-      log.debug("Self-improvement skipped: frequency not after_each_plan", {
-        projectId,
-        frequency: settings.selfImprovementFrequency ?? "never",
-      });
-      return { tasksCreated: 0, skipped: "frequency_not_due" };
-    }
-    return this.run(projectId, { planId: options.planId });
   }
 }
 

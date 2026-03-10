@@ -29,6 +29,10 @@ import {
   stopNightlyDeployScheduler,
 } from "./services/nightly-deploy-scheduler.service.js";
 import {
+  startSelfImprovementScheduler,
+  stopSelfImprovementScheduler,
+} from "./services/self-improvement-scheduler.service.js";
+import {
   startBlockedAutoRetry,
   stopBlockedAutoRetry,
 } from "./services/blocked-auto-retry.service.js";
@@ -247,6 +251,7 @@ async function stopDatabaseFeatures(): Promise<void> {
     return;
   }
   stopNightlyDeployScheduler();
+  stopSelfImprovementScheduler();
   stopBlockedAutoRetry();
   watchdogService.stop();
   sessionRetentionService.stop();
@@ -284,6 +289,7 @@ async function startDatabaseFeatures(databaseUrl: string): Promise<void> {
       appDb = nextAppDb;
       databaseFeaturesStarted = true;
       startNightlyDeployScheduler();
+      startSelfImprovementScheduler();
       await initAlwaysOnOrchestrator();
     } catch (err) {
       if (nextAppDb) {
