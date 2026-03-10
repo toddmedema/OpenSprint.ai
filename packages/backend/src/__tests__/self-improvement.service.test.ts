@@ -22,6 +22,7 @@ vi.mock("../services/self-improvement-change-detection.js", () => ({
 vi.mock("../services/task-store.service.js", () => ({
   taskStore: {
     create: vi.fn().mockResolvedValue({ id: "os-1", title: "Task" }),
+    insertSelfImprovementRunHistory: vi.fn().mockResolvedValue(undefined),
   },
 }));
 

@@ -1063,46 +1063,57 @@ function PlanReviewCard({
         <p className="text-xs text-theme-muted font-mono mt-0.5">{planId}</p>
       </div>
       <p className="text-xs text-theme-muted mb-2">{summary}</p>
-      <div className="flex flex-wrap items-center gap-2">
-        {isComplete ? (
-          <span className="text-xs text-theme-success-text">Complete</span>
-        ) : (
-          <button
-            type="button"
-            onClick={onMarkComplete}
-            disabled={isMarking}
-            className="btn-primary text-xs w-full sm:w-auto py-2 px-3 rounded-lg font-medium disabled:opacity-60"
-            data-testid="plan-mark-complete-button"
-            aria-label={`Mark plan complete: ${title}`}
-          >
-            {isMarking ? "Marking…" : "Mark complete"}
-          </button>
-        )}
-        {onReplyToPlan && (
-          <button
-            type="button"
-            onClick={() => onReplyToPlan(planId)}
-            className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs text-theme-muted hover:bg-theme-border-subtle hover:text-theme-text transition-colors"
-            title="Reply to plan (chat with planning agent)"
-            aria-label={`Reply to plan ${title}`}
-            data-testid="plan-reply-to-plan-button"
-          >
-            <ReplyIcon className="w-4 h-4" />
-            Reply to plan
-          </button>
-        )}
-        <a
-          href={getProjectPhasePath(projectId, "plan", { plan: planId })}
-          onClick={(e) => {
-            e.preventDefault();
-            navigate(getProjectPhasePath(projectId, "plan", { plan: planId }));
-          }}
-          className="text-xs text-brand-600 hover:text-theme-info-text hover:underline"
-          title={`Open plan: ${title}`}
-          aria-label={`Open plan ${title} in Plan phase`}
+      {/* Same layout as Feedback card: link left, actions (Resolve-equivalent + Reply) right */}
+      <div
+        className="mt-1 flex flex-wrap items-center justify-between gap-2"
+        data-testid="plan-review-card-actions-row"
+      >
+        <div
+          className="flex gap-1 flex-wrap min-w-0"
+          data-testid="plan-review-card-plan-link"
         >
-          View plan
-        </a>
+          <button
+            type="button"
+            onClick={() =>
+              navigate(getProjectPhasePath(projectId, "plan", { plan: planId }))
+            }
+            className="inline-flex items-center gap-1.5 rounded bg-theme-border-subtle px-1.5 py-0.5 text-xs font-mono text-brand-600 hover:bg-theme-info-bg hover:text-theme-info-text underline transition-colors"
+            title={`View plan: ${title}`}
+            aria-label={`View plan ${title}`}
+          >
+            Plan: {title}
+          </button>
+        </div>
+        <div className="flex gap-2 flex-shrink-0 ml-auto">
+          {isComplete ? (
+            <span className="text-xs text-theme-success-text">Complete</span>
+          ) : (
+            <button
+              type="button"
+              onClick={onMarkComplete}
+              disabled={isMarking}
+              className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs text-theme-success-text hover:bg-theme-success-bg transition-colors"
+              title="Mark as complete"
+              aria-label={`Mark plan complete: ${title}`}
+              data-testid="plan-mark-complete-button"
+            >
+              {isMarking ? "Marking…" : "Mark complete"}
+            </button>
+          )}
+          {onReplyToPlan && (
+            <button
+              type="button"
+              onClick={() => onReplyToPlan(planId)}
+              className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs text-theme-muted hover:bg-theme-border-subtle hover:text-theme-text transition-colors"
+              title="Reply to plan (chat with planning agent)"
+              aria-label={`Reply to plan ${title}`}
+              data-testid="plan-reply-to-plan-button"
+            >
+              <ReplyIcon className="w-4 h-4" />
+              Reply to plan
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
