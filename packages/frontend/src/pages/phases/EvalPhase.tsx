@@ -413,6 +413,7 @@ const FeedbackCard = memo(
     const replyPriorityDropdownRef = useRef<HTMLDivElement>(null);
     const replyPriorityTriggerRef = useRef<HTMLButtonElement>(null);
     const [answerText, setAnswerText] = useState("");
+    const [imageModalSrc, setImageModalSrc] = useState<string | null>(null);
     const replyImages = useImageAttachment();
     const isReplying = replyingToId === item.id;
     const isCollapsed = collapsedIds.has(item.id);
@@ -488,6 +489,15 @@ const FeedbackCard = memo(
         document.removeEventListener("keydown", handleKeyDown);
       };
     }, [replyPriorityDropdownOpen]);
+
+    useEffect(() => {
+      if (!imageModalSrc) return;
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === "Escape") setImageModalSrc(null);
+      };
+      document.addEventListener("keydown", handleKeyDown);
+      return () => document.removeEventListener("keydown", handleKeyDown);
+    }, [imageModalSrc]);
 
     useEffect(() => {
       if (replyPriorityDropdownOpen && replyPriorityTriggerRef.current) {
@@ -645,13 +655,55 @@ const FeedbackCard = memo(
             {item.images && item.images.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
                 {item.images.map((dataUrl, i) => (
-                  <img
+                  <button
                     key={i}
-                    src={dataUrl}
-                    alt={`Attachment ${i + 1}`}
-                    className="h-16 w-16 object-cover rounded border border-theme-border"
-                  />
+                    type="button"
+                    onClick={() => setImageModalSrc(dataUrl)}
+                    className="p-0 border-0 rounded border border-theme-border overflow-hidden cursor-pointer hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-theme-ring"
+                    aria-label={`View attachment ${i + 1} full size`}
+                  >
+                    <img
+                      src={dataUrl}
+                      alt={`Attachment ${i + 1}`}
+                      className="h-16 w-16 object-cover block"
+                    />
+                  </button>
                 ))}
+              </div>
+            )}
+
+            {/* Full-size image modal (lightbox) */}
+            {imageModalSrc && (
+              <div
+                className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+                role="dialog"
+                aria-modal="true"
+                aria-label="View attachment full size"
+                data-testid="feedback-image-modal"
+              >
+                <div
+                  className="absolute inset-0 bg-black/70"
+                  onClick={() => setImageModalSrc(null)}
+                  aria-hidden="true"
+                  data-testid="feedback-image-modal-backdrop"
+                />
+                <div
+                  className="relative z-10 max-w-[90vw] max-h-[90vh] flex items-center justify-center"
+                  onClick={(e) => e.stopPropagation()}
+                  data-testid="feedback-image-modal-content"
+                >
+                  <img
+                    src={imageModalSrc}
+                    alt="Attachment full size"
+                    className="max-w-full max-h-[90vh] w-auto h-auto object-contain rounded shadow-lg"
+                  />
+                </div>
+                <CloseButton
+                  onClick={() => setImageModalSrc(null)}
+                  ariaLabel="Close image"
+                  className="fixed top-4 right-4 z-20 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full bg-theme-bg border border-theme-border text-theme-muted hover:bg-theme-border-subtle hover:text-theme-text shadow transition-colors"
+                  size="w-5 h-5"
+                />
               </div>
             )}
 

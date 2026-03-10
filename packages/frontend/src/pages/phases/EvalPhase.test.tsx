@@ -350,6 +350,21 @@ const mockFeedbackWithCancelled: FeedbackItem[] = [
   },
 ];
 
+/** One feedback item with attached images for image modal tests. */
+const DATA_URL_PLACEHOLDER = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+const mockFeedbackWithImages: FeedbackItem[] = [
+  {
+    id: "fb-img",
+    text: "Bug with screenshot",
+    category: "bug",
+    mappedPlanId: null,
+    createdTaskIds: [],
+    status: "pending",
+    createdAt: "2024-01-01T00:00:00Z",
+    images: [DATA_URL_PLACEHOLDER],
+  },
+];
+
 describe("EvalPhase feedback loading state", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -3822,6 +3837,116 @@ describe("EvalPhase feedback form", () => {
       await waitFor(() => expect(screen.getByText("Reply with priority")).toBeInTheDocument());
       expect(screen.getByText("Critical")).toBeInTheDocument();
       expect(screen.getByLabelText("Priority: Critical")).toBeInTheDocument();
+    });
+  });
+
+  describe("feedback card attached image modal", () => {
+    it("makes attached images clickable and opens modal with full image on click", async () => {
+      const store = createStore({ evalFeedback: mockFeedbackWithImages });
+      const queryClient = createQueryClientWithFeedbackPreloaded(mockFeedbackWithImages);
+      const user = userEvent.setup();
+      renderWithProviders(
+        <MemoryRouter>
+          <EvalPhase projectId="proj-1" />
+        </MemoryRouter>,
+        { store, queryClient }
+      );
+
+      await waitFor(() => expect(screen.getByText("Bug with screenshot")).toBeInTheDocument());
+
+      expect(screen.queryByTestId("feedback-image-modal")).not.toBeInTheDocument();
+      const viewAttachmentButton = screen.getByRole("button", {
+        name: /View attachment 1 full size/i,
+      });
+      await user.click(viewAttachmentButton);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("feedback-image-modal")).toBeInTheDocument();
+      });
+      expect(screen.getByTestId("feedback-image-modal-content")).toBeInTheDocument();
+      const fullSizeImg = within(screen.getByTestId("feedback-image-modal-content")).getByRole(
+        "img",
+        { name: /Attachment full size/i }
+      );
+      expect(fullSizeImg).toHaveAttribute("src", DATA_URL_PLACEHOLDER);
+    });
+
+    it("closes modal when user clicks close button", async () => {
+      const store = createStore({ evalFeedback: mockFeedbackWithImages });
+      const queryClient = createQueryClientWithFeedbackPreloaded(mockFeedbackWithImages);
+      const user = userEvent.setup();
+      renderWithProviders(
+        <MemoryRouter>
+          <EvalPhase projectId="proj-1" />
+        </MemoryRouter>,
+        { store, queryClient }
+      );
+
+      await waitFor(() => expect(screen.getByText("Bug with screenshot")).toBeInTheDocument());
+      await user.click(
+        screen.getByRole("button", { name: /View attachment 1 full size/i })
+      );
+      await waitFor(() => {
+        expect(screen.getByTestId("feedback-image-modal")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByRole("button", { name: /Close image/i }));
+      await waitFor(() => {
+        expect(screen.queryByTestId("feedback-image-modal")).not.toBeInTheDocument();
+      });
+      expect(screen.getByText("Bug with screenshot")).toBeInTheDocument();
+    });
+
+    it("closes modal when user clicks backdrop", async () => {
+      const store = createStore({ evalFeedback: mockFeedbackWithImages });
+      const queryClient = createQueryClientWithFeedbackPreloaded(mockFeedbackWithImages);
+      const user = userEvent.setup();
+      renderWithProviders(
+        <MemoryRouter>
+          <EvalPhase projectId="proj-1" />
+        </MemoryRouter>,
+        { store, queryClient }
+      );
+
+      await waitFor(() => expect(screen.getByText("Bug with screenshot")).toBeInTheDocument());
+      await user.click(
+        screen.getByRole("button", { name: /View attachment 1 full size/i })
+      );
+      await waitFor(() => {
+        expect(screen.getByTestId("feedback-image-modal")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByTestId("feedback-image-modal-backdrop"));
+      await waitFor(() => {
+        expect(screen.queryByTestId("feedback-image-modal")).not.toBeInTheDocument();
+      });
+      expect(screen.getByText("Bug with screenshot")).toBeInTheDocument();
+    });
+
+    it("closes modal when user presses Escape key", async () => {
+      const store = createStore({ evalFeedback: mockFeedbackWithImages });
+      const queryClient = createQueryClientWithFeedbackPreloaded(mockFeedbackWithImages);
+      const user = userEvent.setup();
+      renderWithProviders(
+        <MemoryRouter>
+          <EvalPhase projectId="proj-1" />
+        </MemoryRouter>,
+        { store, queryClient }
+      );
+
+      await waitFor(() => expect(screen.getByText("Bug with screenshot")).toBeInTheDocument());
+      await user.click(
+        screen.getByRole("button", { name: /View attachment 1 full size/i })
+      );
+      await waitFor(() => {
+        expect(screen.getByTestId("feedback-image-modal")).toBeInTheDocument();
+      });
+
+      await user.keyboard("{Escape}");
+      await waitFor(() => {
+        expect(screen.queryByTestId("feedback-image-modal")).not.toBeInTheDocument();
+      });
+      expect(screen.getByText("Bug with screenshot")).toBeInTheDocument();
     });
   });
 
