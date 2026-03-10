@@ -40,6 +40,12 @@ describe("useTaskFilter", () => {
     expect(result.current.statusFilter).toBe("planning");
   });
 
+  it("accepts self_improvement as valid statusFilter", () => {
+    const { result } = renderHook(() => useTaskFilter());
+    act(() => result.current.setStatusFilter("self_improvement"));
+    expect(result.current.statusFilter).toBe("self_improvement");
+  });
+
   it("expands search when handleSearchExpand is called", () => {
     const { result } = renderHook(() => useTaskFilter());
 

@@ -102,6 +102,8 @@ export interface Task {
   lastExecutionAt?: string | null;
   /** Structured latest execution summary. */
   lastExecution?: TaskLastExecutionSummary | null;
+  /** Task source (e.g. 'self-improvement' for tasks created by self-improvement runs). */
+  source?: string;
 }
 
 /** Dependency relationship between tasks */

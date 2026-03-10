@@ -8,7 +8,7 @@ import {
   getTimelineSection,
   TIMELINE_SECTION,
 } from "../../lib/executeTaskSort";
-import { isTaskInPlanningPlan } from "../../lib/executeTaskFilter";
+import { isTaskInPlanningPlan, isSelfImprovementTask } from "../../lib/executeTaskFilter";
 import { getEpicTitleFromPlan } from "../../lib/planContentUtils";
 import { formatUptime, formatTimestamp } from "../../lib/formatting";
 import { TaskStatusBadge, COLUMN_LABELS } from "../kanban";
@@ -105,6 +105,15 @@ function TimelineRow({
           <span className="flex-1 min-w-0 truncate font-medium text-theme-text" title={task.title}>
             {task.title}
           </span>
+          {isSelfImprovementTask(task) && (
+            <span
+              className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium bg-theme-surface-muted text-theme-muted"
+              title="Created by self-improvement"
+              data-testid="task-badge-self-improvement"
+            >
+              Self-improvement
+            </span>
+          )}
           <span className="hidden md:inline text-xs text-theme-muted shrink-0 truncate max-w-[120px]">
             {epicName}
           </span>

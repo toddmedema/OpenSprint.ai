@@ -39,6 +39,7 @@ const createMockTask = (
     updatedAt: string;
     createdAt: string;
     complexity: Task["complexity"];
+    source: string;
   }> = {}
 ): Task =>
   ({
@@ -249,6 +250,28 @@ describe("TimelineList", () => {
     );
 
     expect(screen.getByRole("img", { name: "Complex complexity" })).toBeInTheDocument();
+  });
+
+  it("shows Self-improvement badge for tasks with source self-improvement", () => {
+    const tasks = [
+      createMockTask({
+        id: "task-1",
+        title: "Improve tests",
+        kanbanColumn: "ready",
+        source: "self-improvement",
+      }),
+      createMockTask({ id: "task-2", title: "Regular task", kanbanColumn: "ready" }),
+    ];
+    const plans = [createMockPlan("epic-1", "Auth")];
+
+    renderWithProviders(
+      <TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} {...defaultListProps} />
+    );
+
+    const badges = screen.getAllByTestId("task-badge-self-improvement");
+    expect(badges).toHaveLength(1);
+    expect(badges[0]).toHaveTextContent("Self-improvement");
+    expect(screen.getByText("Improve tests")).toBeInTheDocument();
   });
 
   it("click calls onTaskSelect with correct ID", async () => {

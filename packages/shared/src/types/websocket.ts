@@ -33,6 +33,8 @@ export interface TaskEventPayload {
   updated_at: string;
   close_reason?: string | null;
   parentId?: string | null;
+  /** Task source (e.g. 'self-improvement'). From tasks.extra.source. */
+  source?: string;
 }
 
 export interface TaskCreatedEvent {

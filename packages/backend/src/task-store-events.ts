@@ -8,6 +8,7 @@ import { taskStore, type StoredTask } from "./services/task-store.service.js";
 function storedTaskToPayload(task: StoredTask): TaskEventPayload {
   const parentDep = (task.dependencies ?? []).find((d) => d.type === "parent-child");
   const parentId = parentDep?.depends_on_id ?? null;
+  const source = (task as { source?: string }).source;
   return {
     id: task.id,
     title: task.title,
@@ -21,6 +22,7 @@ function storedTaskToPayload(task: StoredTask): TaskEventPayload {
     updated_at: task.updated_at,
     close_reason: task.close_reason ?? null,
     parentId: parentId ?? null,
+    ...(source ? { source } : {}),
   };
 }
 

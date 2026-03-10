@@ -102,6 +102,22 @@ describe("useExecuteSwimlanes", () => {
     expect(result.current.chipConfig.some((c) => c.filter === "done" && c.count === 1)).toBe(true);
   });
 
+  it("chipConfig includes Self-improvement chip with count when tasks have source self-improvement", () => {
+    const tasks: Task[] = [
+      task({ id: "epic-a.1", kanbanColumn: "ready", source: "self-improvement" }),
+      task({ id: "epic-a.2", kanbanColumn: "done", source: "self-improvement" }),
+      task({ id: "epic-a.3", kanbanColumn: "ready" }),
+    ];
+    const plans: Plan[] = [plan()];
+    const { result } = renderHook(() => useExecuteSwimlanes(tasks, plans, "all", ""));
+    const selfImprovementChip = result.current.chipConfig.find(
+      (c) => c.filter === "self_improvement"
+    );
+    expect(selfImprovementChip).toBeDefined();
+    expect(selfImprovementChip!.label).toBe("Self-improvement");
+    expect(selfImprovementChip!.count).toBe(2);
+  });
+
   it("In Progress chip combines in_progress and in_review counts (no separate In Review chip)", () => {
     const tasks: Task[] = [
       task({ id: "epic-a.1", kanbanColumn: "in_progress" }),

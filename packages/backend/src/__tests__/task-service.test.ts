@@ -225,6 +225,25 @@ describe("TaskService", () => {
     expect(mockTaskStoreState.readyCalls).toBe(0);
   });
 
+  it("listTasks returns task with source when stored issue has source (e.g. from extra.source)", async () => {
+    mockTaskStoreState.listAll = [
+      {
+        id: "task-a",
+        title: "Improvement task",
+        status: "open",
+        issue_type: "task",
+        dependencies: [],
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-01T00:00:00Z",
+        source: "self-improvement",
+      },
+    ] as StoredTask[];
+
+    const tasks = await taskService.listTasks("proj-1");
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].source).toBe("self-improvement");
+  });
+
   it("listTasks does not call taskStore.ready (computes ready from store)", async () => {
     await taskService.listTasks("proj-1");
     expect(mockTaskStoreState.readyCalls).toBe(0);

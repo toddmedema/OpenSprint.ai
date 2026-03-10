@@ -4,6 +4,7 @@ import {
   matchesSearchQuery,
   filterTasksByStatusAndSearch,
   isTaskInPlanningPlan,
+  isSelfImprovementTask,
 } from "./executeTaskFilter";
 import type { Task } from "@opensprint/shared";
 import type { Plan } from "@opensprint/shared";
@@ -62,6 +63,22 @@ describe("executeTaskFilter", () => {
     it("planning filter returns false (planning uses parent plan status, not kanbanColumn)", () => {
       expect(matchesStatusFilter("planning", "planning")).toBe(false);
       expect(matchesStatusFilter("ready", "planning")).toBe(false);
+    });
+
+    it("self_improvement filter returns false (uses task.source, not kanbanColumn)", () => {
+      expect(matchesStatusFilter("ready", "self_improvement")).toBe(false);
+      expect(matchesStatusFilter("done", "self_improvement")).toBe(false);
+    });
+  });
+
+  describe("isSelfImprovementTask", () => {
+    it("returns true when task.source is 'self-improvement'", () => {
+      expect(isSelfImprovementTask({ ...baseTask, source: "self-improvement" })).toBe(true);
+    });
+
+    it("returns false when task.source is missing or other", () => {
+      expect(isSelfImprovementTask(baseTask)).toBe(false);
+      expect(isSelfImprovementTask({ ...baseTask, source: "plan" })).toBe(false);
     });
   });
 
@@ -267,6 +284,27 @@ describe("executeTaskFilter", () => {
       const result = filterTasksByStatusAndSearch(planningTasks, "planning", "", plans);
       expect(result).toHaveLength(2);
       expect(result.map((t) => t.id)).toEqual(["t1", "t2"]);
+    });
+
+    it("self_improvement filter returns only tasks with source 'self-improvement'", () => {
+      const mixedTasks: Task[] = [
+        { ...baseTask, id: "t1", title: "Improve tests", source: "self-improvement" },
+        { ...baseTask, id: "t2", title: "Regular task", kanbanColumn: "ready" as const },
+        { ...baseTask, id: "t3", title: "Refactor API", source: "self-improvement" },
+      ];
+      const result = filterTasksByStatusAndSearch(mixedTasks, "self_improvement", "");
+      expect(result).toHaveLength(2);
+      expect(result.map((t) => t.id)).toEqual(["t1", "t3"]);
+    });
+
+    it("self_improvement filter composes with search", () => {
+      const mixedTasks: Task[] = [
+        { ...baseTask, id: "t1", title: "Improve tests", source: "self-improvement" },
+        { ...baseTask, id: "t2", title: "Refactor API", source: "self-improvement" },
+      ];
+      const result = filterTasksByStatusAndSearch(mixedTasks, "self_improvement", "Refactor");
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe("t2");
     });
   });
 });

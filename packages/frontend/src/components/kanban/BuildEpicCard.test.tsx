@@ -21,6 +21,7 @@ const createMockTask = (
     priority: number;
     assignee: string | null;
     complexity: "simple" | "complex";
+    source: string;
   }> = {}
 ) => ({
   id: "epic-1.1",
@@ -84,6 +85,26 @@ describe("BuildEpicCard", () => {
     expect(screen.getByTitle("Done")).toBeInTheDocument();
     expect(screen.getByTitle("In Progress")).toBeInTheDocument();
     expect(screen.getByTitle("Backlog")).toBeInTheDocument();
+  });
+
+  it("shows Self-improvement badge for tasks with source self-improvement", () => {
+    const onTaskSelect = vi.fn();
+    const tasks = [
+      createMockTask({
+        id: "epic-1.1",
+        title: "Improve tests",
+        kanbanColumn: "ready",
+        source: "self-improvement",
+      }),
+      createMockTask({ id: "epic-1.2", title: "Regular task", kanbanColumn: "backlog" }),
+    ];
+    renderWithStore(
+      <BuildEpicCard epicId="epic-1" epicTitle="Auth" tasks={tasks} onTaskSelect={onTaskSelect} />
+    );
+
+    const badges = screen.getAllByTestId("task-badge-self-improvement");
+    expect(badges).toHaveLength(1);
+    expect(badges[0]).toHaveTextContent("Self-improvement");
   });
 
   it("calls onTaskSelect when a task is clicked", async () => {

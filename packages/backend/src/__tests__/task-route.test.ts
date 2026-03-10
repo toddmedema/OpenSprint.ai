@@ -507,6 +507,26 @@ Test review prompt generation.
   });
 
   it(
+    "GET /tasks list response includes source when task has extra.source (e.g. self-improvement)",
+    { timeout: 20000 },
+    async () => {
+      const improvementTask = await taskStore.create(projectId, "Self-improvement task", {
+        type: "task",
+        priority: 1,
+        extra: { source: "self-improvement" },
+      });
+
+      const res = await request(app).get(`${API_PREFIX}/projects/${projectId}/tasks`);
+      expect(res.status).toBe(200);
+      const data = res.body.data;
+      const list = Array.isArray(data) ? data : data?.items ?? [];
+      const found = list.find((t: { id: string }) => t.id === improvementTask.id);
+      expect(found).toBeDefined();
+      expect(found.source).toBe("self-improvement");
+    }
+  );
+
+  it(
     "GET /tasks/:taskId returns sourceFeedbackIds when task has discovered-from dep to feedback source task",
     {
       timeout: 20000,

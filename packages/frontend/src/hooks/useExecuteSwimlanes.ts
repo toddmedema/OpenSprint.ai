@@ -3,6 +3,7 @@ import type { Task } from "@opensprint/shared";
 import { sortEpicTasksByStatus } from "../lib/executeTaskSort";
 import {
   filterTasksByStatusAndSearch,
+  isSelfImprovementTask,
   isTaskInPlanningPlan,
   matchesSearchQuery,
   type StatusFilter,
@@ -196,6 +197,7 @@ export function useExecuteSwimlanes(
   const inReviewCount = implTasks.filter((t) => t.kanbanColumn === "in_review").length;
   const doneCount = implTasks.filter((t) => t.kanbanColumn === "done").length;
 
+  const selfImprovementCount = implTasks.filter((t) => isSelfImprovementTask(t)).length;
   const chipConfig: { label: string; filter: StatusFilter; count: number }[] = [
     { label: "All", filter: "all", count: totalTasks },
     { label: "Planning", filter: "planning", count: planningCount },
@@ -209,6 +211,15 @@ export function useExecuteSwimlanes(
             label: "⚠️ Failures",
             filter: "blocked" as StatusFilter,
             count: blockedOnHumanCount,
+          },
+        ]
+      : []),
+    ...(selfImprovementCount > 0
+      ? [
+          {
+            label: "Self-improvement",
+            filter: "self_improvement" as StatusFilter,
+            count: selfImprovementCount,
           },
         ]
       : []),

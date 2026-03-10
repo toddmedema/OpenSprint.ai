@@ -52,6 +52,15 @@ const EpicTaskRow = memo(function EpicTaskRow({
           <span className="flex-1 min-w-0 truncate font-medium text-theme-text" title={task.title}>
             {task.title}
           </span>
+          {isSelfImprovementTask(task) && (
+            <span
+              className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium bg-theme-surface-muted text-theme-muted"
+              title="Created by self-improvement"
+              data-testid="task-badge-self-improvement"
+            >
+              Self-improvement
+            </span>
+          )}
           {rightContent ? (
             <span
               className="text-xs text-theme-muted shrink-0 tabular-nums"
@@ -79,7 +88,7 @@ const EpicTaskRow = memo(function EpicTaskRow({
 });
 
 import type { StatusFilter } from "../../lib/executeTaskFilter";
-import { filterTasksByStatusAndSearch } from "../../lib/executeTaskFilter";
+import { filterTasksByStatusAndSearch, isSelfImprovementTask } from "../../lib/executeTaskFilter";
 import type { Plan } from "@opensprint/shared";
 import { sortEpicTasksByStatus } from "../../lib/executeTaskSort";
 import { selectTasksForEpic } from "../../store/slices/executeSlice";

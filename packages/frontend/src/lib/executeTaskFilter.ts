@@ -8,16 +8,23 @@ export type StatusFilter =
   | "ready"
   | "in_progress"
   | "done"
-  | "blocked";
+  | "blocked"
+  | "self_improvement";
 
 /** Blocked-on-human = task status blocked (kanbanColumn "blocked"); excludes planning/backlog. */
 export function matchesStatusFilter(kanbanColumn: string, filter: StatusFilter): boolean {
   if (filter === "all") return true;
+  if (filter === "self_improvement") return false; // self_improvement uses task.source, not kanbanColumn
   if (filter === "planning") return false; // planning filter uses parent plan status, not kanbanColumn
   if (filter === "blocked") return kanbanColumn === "blocked";
   if (filter === "in_line") return kanbanColumn === "backlog" || kanbanColumn === "planning";
   if (filter === "in_progress") return kanbanColumn === "in_progress" || kanbanColumn === "in_review";
   return kanbanColumn === filter;
+}
+
+/** True when task was created by self-improvement (extra.source === 'self-improvement'). */
+export function isSelfImprovementTask(task: Task): boolean {
+  return (task as Task & { source?: string }).source === "self-improvement";
 }
 
 /** Returns true if the task's parent plan has status "planning" (not yet executed). */
@@ -54,6 +61,11 @@ export function filterTasksByStatusAndSearch(
   plans?: Plan[]
 ): Task[] {
   const q = searchQuery.trim().toLowerCase();
+  if (statusFilter === "self_improvement") {
+    return tasks
+      .filter((t) => isSelfImprovementTask(t))
+      .filter((t) => !q || matchesSearchQuery(t, searchQuery));
+  }
   return tasks.filter((t) => {
     if (statusFilter === "planning") {
       if (!plans || !isTaskInPlanningPlan(t, plans)) return false;

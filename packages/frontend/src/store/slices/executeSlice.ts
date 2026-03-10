@@ -344,6 +344,7 @@ function taskEventPayloadToTask(p: TaskEventPayload): Task {
     updatedAt: p.updated_at,
     startedAt: null,
     completedAt: p.status === "closed" ? p.updated_at : null,
+    ...(p.source ? { source: p.source } : {}),
   };
 }
 

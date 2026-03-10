@@ -309,6 +309,7 @@ export class TaskService {
     const lastExecution = parseTaskLastExecutionSummary(
       (issue as { last_execution_summary?: unknown }).last_execution_summary
     );
+    const source = (issue as { source?: string }).source;
 
     return {
       id,
@@ -338,6 +339,7 @@ export class TaskService {
             lastExecutionAt: lastExecution.at,
           }
         : {}),
+      ...(source ? { source } : {}),
     };
   }
 

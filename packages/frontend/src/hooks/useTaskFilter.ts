@@ -12,6 +12,7 @@ const VALID_STATUS_FILTERS: StatusFilter[] = [
   "in_progress",
   "done",
   "blocked",
+  "self_improvement",
 ];
 
 function loadStatusFilter(): StatusFilter {
