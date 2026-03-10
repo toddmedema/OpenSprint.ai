@@ -1187,11 +1187,22 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
                       />
                     )}
 
-                    {/* Auditor runs — historical execution logs */}
-                    <AuditorRunsSection
-                      projectId={projectId}
-                      planId={selectedPlan.metadata.planId}
-                    />
+                    {/* Auditor runs — historical execution logs; hide when selected version is still in Planning */}
+                    {(() => {
+                      const effectiveVersion =
+                        selectedVersionNumber ??
+                        selectedPlan.currentVersionNumber ??
+                        1;
+                      const lastExec = selectedPlan.lastExecutedVersionNumber;
+                      const showAuditorRuns =
+                        lastExec != null && effectiveVersion <= lastExec;
+                      return showAuditorRuns ? (
+                        <AuditorRunsSection
+                          projectId={projectId}
+                          planId={selectedPlan.metadata.planId}
+                        />
+                      ) : null;
+                    })()}
 
                     {/* Open questions block — when planner needs clarification */}
                     {selectedPlanNotification && (

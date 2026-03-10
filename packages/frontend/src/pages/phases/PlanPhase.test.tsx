@@ -149,11 +149,15 @@ const mockMarkPlanComplete = vi.fn().mockResolvedValue({
   doneTaskCount: 2,
   dependencyCount: 0,
 });
+const mockPlansListVersions = vi.fn().mockResolvedValue([]);
+const mockPlansAuditorRuns = vi.fn().mockResolvedValue([]);
 vi.mock("../../api/client", () => ({
   api: {
     plans: {
       list: (...args: unknown[]) => mockPlansList(...args),
       get: (...args: unknown[]) => mockPlansGet(...args),
+      listVersions: (...args: unknown[]) => mockPlansListVersions(...args),
+      getVersion: vi.fn().mockResolvedValue({ version_number: 1, title: "", content: "", created_at: "" }),
       create: (...args: unknown[]) => mockPlansCreate(...args),
       update: (...args: unknown[]) => mockPlansUpdate(...args),
       archive: (...args: unknown[]) => mockArchive(...args),
@@ -164,6 +168,7 @@ vi.mock("../../api/client", () => ({
       generate: (...args: unknown[]) => mockGenerate(...args),
       planTasks: (...args: unknown[]) => mockPlanTasks(...args),
       markPlanComplete: (...args: unknown[]) => mockMarkPlanComplete(...args),
+      auditorRuns: (...args: unknown[]) => mockPlansAuditorRuns(...args),
     },
     tasks: { list: vi.fn().mockResolvedValue([]) },
     chat: {
@@ -1696,6 +1701,86 @@ describe("PlanPhase executePlan thunk", () => {
         version_number: 1,
       });
     });
+  });
+
+  it("hides Auditor Runs section when selected plan version is still in Planning", async () => {
+    const planInPlanning = {
+      ...basePlan,
+      status: "planning" as const,
+      metadata: { ...basePlan.metadata },
+      currentVersionNumber: 1,
+      // no lastExecutedVersionNumber => plan never executed
+    };
+    mockPlansList.mockResolvedValue({ plans: [planInPlanning], edges: [] });
+    const store = createStore([planInPlanning]);
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <PlanPhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>,
+      { wrapper: PlanPhaseWrapper }
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("plan-version-selector")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("auditor-runs-section")).not.toBeInTheDocument();
+  });
+
+  it("shows Auditor Runs section when selected version has been executed", async () => {
+    // Current version is 1 and it has been executed → section visible
+    const planExecuted = {
+      ...basePlan,
+      status: "building" as const,
+      metadata: { ...basePlan.metadata },
+      currentVersionNumber: 1,
+      lastExecutedVersionNumber: 1,
+    };
+    mockPlansList.mockResolvedValue({ plans: [planExecuted], edges: [] });
+    mockPlansListVersions.mockResolvedValue([
+      { id: "v1", version_number: 1, created_at: "", is_executed_version: true },
+    ]);
+    const store = createStore([planExecuted]);
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <PlanPhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>,
+      { wrapper: PlanPhaseWrapper }
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("auditor-runs-section")).toBeInTheDocument();
+    });
+  });
+
+  it("hides Auditor Runs when current version is ahead of last executed (version in Planning)", async () => {
+    // Current v2, only v1 executed → selected (current) version still in Planning
+    const planCurrentInPlanning = {
+      ...basePlan,
+      status: "building" as const,
+      metadata: { ...basePlan.metadata },
+      currentVersionNumber: 2,
+      lastExecutedVersionNumber: 1,
+    };
+    mockPlansList.mockResolvedValue({ plans: [planCurrentInPlanning], edges: [] });
+    mockPlansListVersions.mockResolvedValue([
+      { id: "v1", version_number: 1, created_at: "", is_executed_version: true },
+      { id: "v2", version_number: 2, created_at: "", is_executed_version: false },
+    ]);
+    const store = createStore([planCurrentInPlanning]);
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <PlanPhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>,
+      { wrapper: PlanPhaseWrapper }
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("plan-version-selector")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("auditor-runs-section")).not.toBeInTheDocument();
   });
 
   it("shows cross-epic modal and passes prerequisites when user confirms", async () => {
