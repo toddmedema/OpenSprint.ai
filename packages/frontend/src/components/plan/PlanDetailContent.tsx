@@ -1,8 +1,9 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import type { Plan } from "@opensprint/shared";
 import { formatPlanIdAsTitle } from "../../lib/formatting";
 import { parsePlanContent, serializePlanContent } from "../../lib/planContentUtils";
 import { PrdSectionEditor } from "../prd/PrdSectionEditor";
+import { usePlanVersions } from "../../api/hooks";
 
 /** Matches PrdSectionEditor / Sketch phase debounce for consistency */
 const DEBOUNCE_MS = 800;
@@ -18,6 +19,13 @@ export interface PlanDetailContentProps {
    * so the parent can place the header in a fixed (shrink-0) slot and the body in a scrollable area.
    */
   children?: (slots: { header: React.ReactNode; body: React.ReactNode }) => React.ReactNode;
+  /** When set, show version dropdown (usePlanVersions); requires projectId and planId. */
+  projectId?: string;
+  planId?: string;
+  /** Currently selected version in dropdown; null/undefined = current version. */
+  selectedVersionNumber?: number | null;
+  /** Called when user selects a version from the dropdown (loads that version; read-only view in follow-up). */
+  onVersionSelect?: (versionNumber: number) => void;
 }
 
 /**
@@ -31,9 +39,25 @@ export function PlanDetailContent({
   saving = false,
   headerActions,
   children: renderSlots,
+  projectId,
+  planId,
+  selectedVersionNumber,
+  onVersionSelect,
 }: PlanDetailContentProps) {
   const { title, body } = parsePlanContent(plan.content ?? "");
   const displayTitle = title || formatPlanIdAsTitle(plan.metadata.planId);
+
+  const versionsQuery = usePlanVersions(projectId, planId, {
+    enabled: Boolean(projectId && planId),
+  });
+  const versions = useMemo(() => {
+    const list = versionsQuery.data ?? [];
+    return [...list].sort((a, b) => (b.version_number ?? 0) - (a.version_number ?? 0));
+  }, [versionsQuery.data]);
+  const currentVersion = plan.currentVersionNumber ?? 1;
+  const lastExecuted = plan.lastExecutedVersionNumber;
+  const showVersionSelector = Boolean(projectId && planId);
+  const effectiveSelectedVersion = selectedVersionNumber ?? currentVersion;
 
   const [titleValue, setTitleValue] = useState(displayTitle);
   const [savedRecently, setSavedRecently] = useState(false);
@@ -126,25 +150,59 @@ export function PlanDetailContent({
   const bodyMarkdown = (body ?? "").trim() || "_No content yet_";
 
   const header = (
-    <div className="flex items-start justify-between gap-4 p-4">
-      <div className="min-w-0 flex-1 space-y-1">
-        <input
-          type="text"
-          value={titleValue}
-          onChange={handleTitleChange}
-          onBlur={handleTitleBlur}
-          onKeyDown={handleTitleKeyDown}
-          className="w-full font-semibold text-theme-text bg-transparent border border-transparent rounded px-2 py-1 -ml-2 hover:border-theme-border focus:border-theme-info-border focus:ring-2 focus:ring-theme-info-border/30 outline-none transition-colors"
-          placeholder="Title"
-          aria-label="Title"
-        />
-        {(saving || savedRecently) && (
-          <span className="text-xs text-theme-muted" aria-live="polite">
-            {saving ? "Saving..." : "Saved"}
-          </span>
-        )}
+    <div className="flex flex-col gap-2 p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1 space-y-1">
+          <input
+            type="text"
+            value={titleValue}
+            onChange={handleTitleChange}
+            onBlur={handleTitleBlur}
+            onKeyDown={handleTitleKeyDown}
+            className="w-full font-semibold text-theme-text bg-transparent border border-transparent rounded px-2 py-1 -ml-2 hover:border-theme-border focus:border-theme-info-border focus:ring-2 focus:ring-theme-info-border/30 outline-none transition-colors"
+            placeholder="Title"
+            aria-label="Title"
+          />
+          {(saving || savedRecently) && (
+            <span className="text-xs text-theme-muted" aria-live="polite">
+              {saving ? "Saving..." : "Saved"}
+            </span>
+          )}
+        </div>
+        {headerActions && <div className="shrink-0 flex items-center gap-2">{headerActions}</div>}
       </div>
-      {headerActions && <div className="shrink-0 flex items-center gap-2">{headerActions}</div>}
+      {showVersionSelector && (
+        <div className="flex items-center gap-2 flex-wrap" data-testid="plan-version-selector">
+          <span className="text-xs text-theme-muted shrink-0">Version:</span>
+          <span className="text-xs font-medium text-theme-text shrink-0" data-testid="plan-current-version">
+            v{currentVersion}
+          </span>
+          {versions.length > 0 && (
+            <select
+              data-testid="plan-version-dropdown"
+              aria-label="Select plan version"
+              value={effectiveSelectedVersion}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                if (Number.isFinite(n)) onVersionSelect?.(n);
+              }}
+              className="text-xs bg-theme-surface border border-theme-border rounded px-2 py-1 text-theme-text min-w-0 max-w-[8rem]"
+            >
+              {versions.map((v) => {
+                const num = v.version_number ?? 0;
+                const isExecuted =
+                  num === lastExecuted || (v as { is_executed_version?: boolean }).is_executed_version;
+                const label = isExecuted ? `v${num} (Executed)` : `v${num}`;
+                return (
+                  <option key={v.id ?? num} value={num}>
+                    {label}
+                  </option>
+                );
+              })}
+            </select>
+          )}
+        </div>
+      )}
     </div>
   );
 

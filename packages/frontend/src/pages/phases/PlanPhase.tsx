@@ -272,7 +272,12 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   const [savingPlanContentId, setSavingPlanContentId] = useState<string | null>(null);
   const [planAllInProgress, setPlanAllInProgress] = useState(false);
   const [executeAllInProgress, setExecuteAllInProgress] = useState(false);
+  const [selectedVersionNumber, setSelectedVersionNumber] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setSelectedVersionNumber(null);
+  }, [selectedPlanId]);
 
   const {
     searchExpanded,
@@ -987,6 +992,10 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
               plan={selectedPlan}
               onContentSave={handlePlanContentSave}
               saving={savingPlanContentId === selectedPlan.metadata.planId}
+              projectId={projectId}
+              planId={selectedPlan.metadata.planId}
+              selectedVersionNumber={selectedVersionNumber}
+              onVersionSelect={setSelectedVersionNumber}
               headerActions={
                 <>
                   <button

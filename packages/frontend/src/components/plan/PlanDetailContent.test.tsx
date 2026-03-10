@@ -4,6 +4,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PlanDetailContent } from "./PlanDetailContent";
 import type { Plan } from "@opensprint/shared";
+import { usePlanVersions } from "../../api/hooks";
+
+vi.mock("../../api/hooks", () => ({
+  usePlanVersions: vi.fn(() => ({ data: [] })),
+}));
 
 vi.mock("../prd/PrdSectionEditor", () => ({
   PrdSectionEditor: ({
@@ -255,5 +260,105 @@ describe("PlanDetailContent", () => {
     expect(screen.getByTestId("body-slot")).toContainElement(
       screen.getByTestId("plan-markdown-editor")
     );
+  });
+
+  describe("version selector", () => {
+    it("does not show version selector when projectId and planId are not provided", () => {
+      render(<PlanDetailContent plan={mockPlan} onContentSave={onContentSave} />);
+      expect(screen.queryByTestId("plan-version-selector")).not.toBeInTheDocument();
+    });
+
+    it("shows current version label when projectId and planId are provided", () => {
+      const planWithVersion: Plan = {
+        ...mockPlan,
+        currentVersionNumber: 3,
+        lastExecutedVersionNumber: 2,
+      };
+      render(
+        <PlanDetailContent
+          plan={planWithVersion}
+          onContentSave={onContentSave}
+          projectId="proj-1"
+          planId="plan-1"
+        />
+      );
+      expect(screen.getByTestId("plan-version-selector")).toBeInTheDocument();
+      expect(screen.getByTestId("plan-current-version")).toHaveTextContent("v3");
+    });
+
+    it("shows version dropdown with versions newest first and executed indicator", async () => {
+      vi.mocked(usePlanVersions).mockReturnValue({
+        data: [
+          {
+            id: "v1",
+            version_number: 1,
+            created_at: "2025-01-01T00:00:00Z",
+            is_executed_version: false,
+          },
+          {
+            id: "v2",
+            version_number: 2,
+            created_at: "2025-01-02T00:00:00Z",
+            is_executed_version: true,
+          },
+          {
+            id: "v3",
+            version_number: 3,
+            created_at: "2025-01-03T00:00:00Z",
+            is_executed_version: false,
+          },
+        ],
+      } as ReturnType<typeof usePlanVersions>);
+      const planWithVersion: Plan = {
+        ...mockPlan,
+        currentVersionNumber: 3,
+        lastExecutedVersionNumber: 2,
+      };
+      render(
+        <PlanDetailContent
+          plan={planWithVersion}
+          onContentSave={onContentSave}
+          projectId="proj-1"
+          planId="plan-1"
+          onVersionSelect={vi.fn()}
+        />
+      );
+      const dropdown = screen.getByTestId("plan-version-dropdown");
+      expect(dropdown).toBeInTheDocument();
+      const options = Array.from(dropdown.querySelectorAll("option")).map((o) => ({
+        value: o.value,
+        text: o.textContent,
+      }));
+      expect(options.map((o) => o.value)).toEqual(["3", "2", "1"]);
+      expect(options.find((o) => o.value === "2")?.text).toContain("Executed");
+    });
+
+    it("calls onVersionSelect when user selects a version", async () => {
+      const user = userEvent.setup();
+      const onVersionSelect = vi.fn();
+      vi.mocked(usePlanVersions).mockReturnValue({
+        data: [
+          { id: "v1", version_number: 1, created_at: "2025-01-01T00:00:00Z", is_executed_version: false },
+          { id: "v2", version_number: 2, created_at: "2025-01-02T00:00:00Z", is_executed_version: true },
+        ],
+      } as ReturnType<typeof usePlanVersions>);
+      const planWithVersion: Plan = {
+        ...mockPlan,
+        currentVersionNumber: 2,
+        lastExecutedVersionNumber: 2,
+      };
+      render(
+        <PlanDetailContent
+          plan={planWithVersion}
+          onContentSave={onContentSave}
+          projectId="proj-1"
+          planId="plan-1"
+          onVersionSelect={onVersionSelect}
+        />
+      );
+      const dropdown = screen.getByTestId("plan-version-dropdown");
+      await user.selectOptions(dropdown, "1");
+      expect(onVersionSelect).toHaveBeenCalledWith(1);
+    });
   });
 });
