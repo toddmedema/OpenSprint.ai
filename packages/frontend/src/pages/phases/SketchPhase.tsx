@@ -766,6 +766,7 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
           resizeHandleLabel="Resize table of contents"
           noBorder
           responsive
+          overlayOnMobile={false}
           onClose={() => setTocCollapsed(true)}
         >
           <PrdTocPanel
@@ -860,6 +861,7 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
           defaultWidth={380}
           resizeHandleLabel="Resize Discuss sidebar"
           responsive
+          overlayOnMobile={false}
           onClose={() => setDiscussCollapsed(true)}
         >
           <PrdChatPanel

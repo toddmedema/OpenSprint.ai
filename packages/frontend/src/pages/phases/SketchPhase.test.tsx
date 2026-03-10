@@ -701,7 +701,7 @@ describe("SketchPhase with sketchSlice", () => {
       setItemSpy.mockRestore();
     });
 
-    it("Discuss sidebar scrolls to bottom on Sketch page load", async () => {
+    it("Discuss sidebar scrolls to top on Sketch page load (matches Plan phase)", async () => {
       const store = createStore({
         sketch: {
           prdContent: { overview: "Content" },
@@ -721,7 +721,7 @@ describe("SketchPhase with sketchSlice", () => {
 
       await new Promise((r) => requestAnimationFrame(r));
 
-      expect(scrollEl.scrollTop).toBe(100);
+      expect(scrollEl.scrollTop).toBe(0);
     });
 
     describe("Discuss popover (selection toolbar)", () => {

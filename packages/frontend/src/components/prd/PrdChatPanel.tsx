@@ -85,6 +85,7 @@ export function PrdChatPanel({
   const isInline = variant === "inline";
   const isCollapsed = isInline && collapsed;
   const agentLabel = AGENT_ROLE_LABELS[agentRole];
+  const prevMessageCountRef = useRef(0);
 
   const scrollToBottom = useCallback(() => {
     const scrollEl = scrollContainerRef.current ?? chatMessagesEndRef.current?.parentElement;
@@ -93,22 +94,30 @@ export function PrdChatPanel({
     }
   }, []);
 
-  useLayoutEffect(() => {
-    scrollToBottom();
-    // Run again on next frame in case layout wasn't complete (e.g. parent ResizableSidebar)
-    const id = requestAnimationFrame(scrollToBottom);
-    return () => cancelAnimationFrame(id);
-  }, [messages, open, collapsed, scrollToBottom]);
+  const scrollToTop = useCallback(() => {
+    const scrollEl = scrollContainerRef.current ?? chatMessagesEndRef.current?.parentElement;
+    if (scrollEl) scrollEl.scrollTop = 0;
+  }, []);
 
-  // ResizeObserver: scroll to bottom when scroll container gets real dimensions on mount
-  // (handles delayed layout when nested in ResizableSidebar)
+  // Match Plan phase: scroll to top on open/initial load; scroll to bottom only when new messages arrive
   useLayoutEffect(() => {
-    const el = scrollContainerRef.current ?? chatMessagesEndRef.current?.parentElement;
-    if (!el) return;
-    const ro = new ResizeObserver(() => scrollToBottom());
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [scrollToBottom, isCollapsed]);
+    const scrollEl = scrollContainerRef.current ?? chatMessagesEndRef.current?.parentElement;
+    if (!scrollEl) return;
+    const prev = prevMessageCountRef.current;
+    const curr = messages.length;
+    prevMessageCountRef.current = curr;
+    if (curr > prev && prev > 0) {
+      scrollToBottom();
+    } else {
+      scrollToTop();
+    }
+    const id = requestAnimationFrame(() => {
+      const el = scrollContainerRef.current ?? chatMessagesEndRef.current?.parentElement;
+      if (el && curr > prev && prev > 0) el.scrollTop = el.scrollHeight - el.clientHeight;
+      else if (el) el.scrollTop = 0;
+    });
+    return () => cancelAnimationFrame(id);
+  }, [messages.length, open, collapsed, scrollToBottom, scrollToTop]);
 
   const handleSend = () => {
     const text = chatInput.trim();

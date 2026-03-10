@@ -227,7 +227,7 @@ describe("PrdChatPanel", () => {
   });
 
   describe("Discuss sidebar initial scroll", () => {
-    it("scrolls to bottom on initial render when inline with messages", async () => {
+    it("scrolls to top on initial render when inline with messages (matches Plan phase)", async () => {
       const messages = [
         { role: "user", content: "Hello", timestamp: "" },
         { role: "assistant", content: "Hi there!", timestamp: "" },
@@ -251,10 +251,10 @@ describe("PrdChatPanel", () => {
 
       await new Promise((r) => requestAnimationFrame(r));
 
-      expect(scrollEl.scrollTop).toBe(100);
+      expect(scrollEl.scrollTop).toBe(0);
     });
 
-    it("scrolls to bottom on initial render when inline with empty messages", () => {
+    it("scrolls to top on initial render when inline with empty messages", () => {
       render(<PrdChatPanel {...defaultProps} variant="inline" collapsed={false} messages={[]} />);
 
       const scrollEl = screen.getByTestId("prd-chat-messages");
@@ -262,7 +262,7 @@ describe("PrdChatPanel", () => {
       expect(scrollEl.scrollTop).toBe(0);
     });
 
-    it("scrolls to bottom when expanding sidebar from collapsed", async () => {
+    it("scrolls to top when expanding sidebar from collapsed (matches Plan phase)", async () => {
       const onCollapsedChange = vi.fn();
       const messages = [
         { role: "user", content: "Hello", timestamp: "" },
@@ -305,7 +305,41 @@ describe("PrdChatPanel", () => {
 
       await new Promise((r) => requestAnimationFrame(r));
 
-      expect(scrollEl.scrollTop).toBe(70);
+      expect(scrollEl.scrollTop).toBe(0);
+    });
+
+    it("scrolls to bottom when new message is added", async () => {
+      const messages = [
+        { role: "user", content: "Hello", timestamp: "" },
+        { role: "assistant", content: "Hi!", timestamp: "" },
+      ];
+      const { rerender } = render(
+        <PrdChatPanel {...defaultProps} variant="inline" collapsed={false} messages={messages} />
+      );
+
+      const scrollEl = screen.getByTestId("prd-chat-messages");
+      Object.defineProperty(scrollEl, "scrollHeight", { value: 200, configurable: true });
+      Object.defineProperty(scrollEl, "clientHeight", { value: 100, configurable: true });
+
+      await new Promise((r) => requestAnimationFrame(r));
+      expect(scrollEl.scrollTop).toBe(0);
+
+      const withNewMessage = [
+        ...messages,
+        { role: "assistant", content: "Another reply!", timestamp: "" },
+      ];
+      rerender(
+        <PrdChatPanel
+          {...defaultProps}
+          variant="inline"
+          collapsed={false}
+          messages={withNewMessage}
+        />
+      );
+
+      await new Promise((r) => requestAnimationFrame(r));
+
+      expect(scrollEl.scrollTop).toBe(100);
     });
   });
 
