@@ -1,4 +1,5 @@
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { spawn, type ChildProcess } from "child_process";
 import http from "http";
@@ -18,16 +19,18 @@ import {
 
 const APP_NAME = "Open Sprint";
 const BACKEND_PORT = 3100;
+const BACKEND_ORIGIN = `http://127.0.0.1:${BACKEND_PORT}`;
 const HEALTH_URL = `http://127.0.0.1:${BACKEND_PORT}/health`;
 const HEALTH_POLL_MS = 200;
 const HEALTH_TIMEOUT_MS = 30000;
 const BACKEND_FORCE_KILL_MS = 5000;
-const API_BASE = `http://127.0.0.1:${BACKEND_PORT}/api/v1`;
+const API_BASE = `${BACKEND_ORIGIN}/api/v1`;
 const TRAY_REFRESH_MS = 10000;
 
 let mainWindow: BrowserWindow | null = null;
 let backendProcess: ChildProcess | null = null;
 let backendShutdownPromise: Promise<void> | null = null;
+let backendLaunchError: Error | null = null;
 let tray: Tray | null = null;
 let trayRefreshInterval: ReturnType<typeof setInterval> | null = null;
 let isQuitting = false;
@@ -50,7 +53,7 @@ function getPaths(): {
     const resourcesPath = process.resourcesPath;
     return {
       backendDir: path.join(resourcesPath, "backend"),
-      backendEntry: path.join(resourcesPath, "backend", "dist", "index.js"),
+      backendEntry: path.join(resourcesPath, "backend", "dist", "services", "index.cjs"),
       frontendDist: path.join(resourcesPath, "frontend"),
     };
   }
@@ -136,13 +139,36 @@ function fetchJson(url: string, timeoutMs = 500): Promise<Record<string, unknown
   });
 }
 
-function waitForBackend(): Promise<void> {
+function waitForBackend(child: ChildProcess): Promise<void> {
   return new Promise((resolve, reject) => {
     const start = Date.now();
+    let done = false;
+    const fail = (error: Error): void => {
+      if (done) return;
+      done = true;
+      reject(error);
+    };
+    const succeed = (): void => {
+      if (done) return;
+      done = true;
+      resolve();
+    };
+    const isExited = (): boolean => child.exitCode !== null || child.signalCode !== null;
     function poll(): void {
+      if (isExited()) {
+        fail(
+          backendLaunchError ??
+            new Error(
+              child.signalCode
+                ? `Backend exited before startup (signal ${child.signalCode})`
+                : `Backend exited before startup (code ${child.exitCode ?? "unknown"})`
+            )
+        );
+        return;
+      }
       const req = http.get(HEALTH_URL, (res) => {
         if (res.statusCode === 200) {
-          resolve();
+          succeed();
           return;
         }
         tryNext();
@@ -154,8 +180,23 @@ function waitForBackend(): Promise<void> {
       });
     }
     function tryNext(): void {
+      if (done) return;
+      if (isExited()) {
+        fail(
+          backendLaunchError ??
+            new Error(
+              child.signalCode
+                ? `Backend exited before startup (signal ${child.signalCode})`
+                : `Backend exited before startup (code ${child.exitCode ?? "unknown"})`
+            )
+        );
+        return;
+      }
       if (Date.now() - start >= HEALTH_TIMEOUT_MS) {
-        reject(new Error("Backend failed to start within 30s"));
+        fail(
+          backendLaunchError ??
+            new Error("Backend failed to start within 30s (health check never became ready)")
+        );
         return;
       }
       setTimeout(poll, HEALTH_POLL_MS);
@@ -166,12 +207,33 @@ function waitForBackend(): Promise<void> {
 
 function startBackend(): ChildProcess {
   const { backendDir, backendEntry, frontendDist } = getPaths();
-  const env = {
+  backendLaunchError = null;
+  const pathDelimiter = process.platform === "win32" ? ";" : ":";
+  const existingPath = process.env.PATH ?? "";
+  const preferredPathEntries = [
+    path.join(os.homedir(), ".local", "bin"),
+    path.join(os.homedir(), ".cursor", "bin"),
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    "/usr/bin",
+    "/bin",
+  ];
+  const normalizedPath = [
+    ...new Set([
+      ...preferredPathEntries.filter((entry) => entry.trim().length > 0),
+      ...existingPath.split(pathDelimiter).filter((entry) => entry.trim().length > 0),
+    ]),
+  ].join(pathDelimiter);
+
+  const env: NodeJS.ProcessEnv = {
     ...process.env,
     OPENSPRINT_DESKTOP: "1",
     OPENSPRINT_FRONTEND_DIST: frontendDist,
+    PATH: normalizedPath,
+    // Use Electron's embedded Node runtime so packaged apps do not depend on PATH.
+    ELECTRON_RUN_AS_NODE: "1",
   };
-  const child = spawn("node", [backendEntry], {
+  const child = spawn(process.execPath, [backendEntry], {
     cwd: backendDir,
     env,
     stdio: app.isPackaged ? "ignore" : ["inherit", "pipe", "pipe"],
@@ -183,12 +245,18 @@ function startBackend(): ChildProcess {
     child.stderr.on("data", (data: Buffer) => process.stderr.write(data));
   }
   child.on("error", (err: Error) => {
+    backendLaunchError = new Error(`Backend process error: ${err.message}`);
     console.error("Backend process error:", err);
   });
   child.on("exit", (code, signal) => {
     if (backendProcess === child) {
       backendProcess = null;
       backendShutdownPromise = null;
+    }
+    if (!isQuitting && code !== 0) {
+      backendLaunchError = new Error(`Backend exited with code ${code}`);
+    } else if (!isQuitting && signal) {
+      backendLaunchError = new Error(`Backend exited with signal ${signal}`);
     }
     if (isQuitting) return;
     if (code != null && code !== 0) {
@@ -204,6 +272,99 @@ function startBackend(): ChildProcess {
     }
   });
   return child;
+}
+
+function renderBootHtml(statusText: string): string {
+  const escaped = statusText
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${APP_NAME}</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      html, body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        background: radial-gradient(circle at top, #1e293b 0%, #020617 60%);
+        color: #e2e8f0;
+      }
+      .boot {
+        height: 100%;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+      .card {
+        width: min(420px, 100%);
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.75);
+        padding: 24px;
+        backdrop-filter: blur(3px);
+      }
+      .title {
+        margin: 0 0 8px;
+        font-size: 20px;
+        font-weight: 600;
+      }
+      .status {
+        margin: 0;
+        color: #cbd5e1;
+        font-size: 14px;
+      }
+      .row {
+        margin-top: 16px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(148, 163, 184, 0.45);
+        border-top-color: #38bdf8;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="boot">
+      <section class="card">
+        <h1 class="title">${APP_NAME}</h1>
+        <p class="status">${escaped}</p>
+        <div class="row">
+          <div class="spinner" aria-hidden="true"></div>
+          <p class="status">Preparing local services...</p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>`;
+}
+
+function loadBootScreen(statusText: string): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const html = renderBootHtml(statusText);
+  const bootUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+  void mainWindow.loadURL(bootUrl);
 }
 
 function createWindow(): void {
@@ -243,7 +404,7 @@ function createWindow(): void {
   mainWindow.webContents.on("will-navigate", (event, url) => {
     try {
       const parsed = new URL(url);
-      if (parsed.origin !== `http://127.0.0.1:${BACKEND_PORT}`) {
+      if (parsed.origin !== BACKEND_ORIGIN) {
         event.preventDefault();
         shell.openExternal(url);
       }
@@ -251,7 +412,7 @@ function createWindow(): void {
       event.preventDefault();
     }
   });
-  mainWindow.loadURL(`http://127.0.0.1:${BACKEND_PORT}`);
+  loadBootScreen("Starting backend...");
   mainWindow.on("close", (e) => {
     if (isQuitting) {
       return;
@@ -500,17 +661,16 @@ function setupSessionSecurity(): void {
     callback(allowed.includes(permission));
   });
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    const backendOrigin = `http://127.0.0.1:${BACKEND_PORT}`;
     callback({
       responseHeaders: {
         ...details.responseHeaders,
         "Content-Security-Policy": [
           "default-src 'self' " +
-            backendOrigin +
+            BACKEND_ORIGIN +
             "; script-src 'self'; connect-src 'self' ws://127.0.0.1:" +
             BACKEND_PORT +
             "; style-src 'self' 'unsafe-inline'; img-src 'self' data: " +
-            backendOrigin,
+            BACKEND_ORIGIN,
         ],
       },
     });
@@ -524,24 +684,8 @@ app.whenReady().then(async () => {
 
   setupSessionSecurity();
   applyRuntimeBranding();
-  backendProcess = startBackend();
-  try {
-    await waitForBackend();
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(message);
-    await killBackend();
-    dialog.showErrorBox(
-      "Backend Failed to Start",
-      `The backend could not start: ${message}. Check that port ${BACKEND_PORT} is not in use.`
-    );
-    app.exit(1);
-    return;
-  }
   createWindow();
   setApplicationMenu();
-  createTray();
-  trayRefreshInterval = setInterval(refreshTrayMenu, TRAY_REFRESH_MS);
 
   ipcMain.handle(
     "find-in-page",
@@ -563,6 +707,28 @@ app.whenReady().then(async () => {
   );
 
   globalShortcut.register("CommandOrControl+F", focusAndOpenFindBar);
+
+  backendProcess = startBackend();
+  try {
+    await waitForBackend(backendProcess);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(message);
+    loadBootScreen(`Backend failed to start: ${message}`);
+    await killBackend();
+    dialog.showErrorBox(
+      "Backend Failed to Start",
+      `The backend could not start: ${message}`
+    );
+    app.exit(1);
+    return;
+  }
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    await mainWindow.loadURL(BACKEND_ORIGIN);
+  }
+  createTray();
+  trayRefreshInterval = setInterval(refreshTrayMenu, TRAY_REFRESH_MS);
 });
 
 app.on("activate", () => {

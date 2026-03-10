@@ -1673,6 +1673,8 @@ export class OrchestratorService {
           readyTasks: readyTasks.length,
           activeSlots: state.slots.size,
         });
+        // Ensure UI sees api_blocked when agents stopped due to exhausted API keys (e.g. user was on home/another project when exhaustion was first detected)
+        await this.ensureApiBlockedNotificationsForExhaustedProviders(projectId);
         if (state.loopRunId === myRunId) state.loopActive = false;
         broadcastToProject(projectId, {
           type: "execute.status",
@@ -1755,6 +1757,76 @@ export class OrchestratorService {
     return this.phaseExecutor.executeCodingPhase(projectId, repoPath, task, slot, retryContext);
   }
 
+  /** Provider display name for API-blocked notifications */
+  private static getProviderDisplayName(
+    provider: import("@opensprint/shared").ApiKeyProvider
+  ): string {
+    switch (provider) {
+      case "ANTHROPIC_API_KEY":
+        return "Anthropic";
+      case "CURSOR_API_KEY":
+        return "Cursor";
+      case "OPENAI_API_KEY":
+        return "OpenAI";
+      case "GOOGLE_API_KEY":
+        return "Google";
+      default:
+        return provider;
+    }
+  }
+
+  /**
+   * When the orchestrator has no dispatchable tasks, ensure api_blocked notifications exist
+   * for every exhausted provider so the UI shows the reason (e.g. user wasn't connected to
+   * this project's WebSocket when exhaustion was first detected).
+   */
+  private async ensureApiBlockedNotificationsForExhaustedProviders(
+    projectId: string
+  ): Promise<void> {
+    const providers: import("@opensprint/shared").ApiKeyProvider[] = [
+      "ANTHROPIC_API_KEY",
+      "CURSOR_API_KEY",
+      "OPENAI_API_KEY",
+      "GOOGLE_API_KEY",
+    ];
+    const existing = await notificationService.listByProject(projectId);
+    for (const provider of providers) {
+      if (!isExhausted(projectId, provider)) continue;
+      const alreadyNotified = existing.some(
+        (n) => n.kind === "api_blocked" && n.sourceId === `api-keys-${provider}`
+      );
+      if (alreadyNotified) continue;
+      const providerDisplay = OrchestratorService.getProviderDisplayName(provider);
+      const message = `Your API key(s) for ${providerDisplay} have hit their limit. Please increase your budget or add another key.`;
+      const notification = await notificationService.createApiBlocked({
+        projectId,
+        source: "execute",
+        sourceId: `api-keys-${provider}`,
+        message,
+        errorCode: "rate_limit",
+      });
+      broadcastToProject(projectId, {
+        type: "notification.added",
+        notification: {
+          id: notification.id,
+          projectId: notification.projectId,
+          source: notification.source,
+          sourceId: notification.sourceId,
+          questions: notification.questions,
+          status: notification.status,
+          createdAt: notification.createdAt,
+          resolvedAt: notification.resolvedAt,
+          kind: "api_blocked",
+          errorCode: notification.errorCode,
+        },
+      });
+      log.info("Created API-blocked notification for exhausted provider (no dispatchable tasks)", {
+        projectId,
+        provider,
+      });
+    }
+  }
+
   private async handleApiKeysExhausted(
     projectId: string,
     repoPath: string,
@@ -1766,12 +1838,7 @@ export class OrchestratorService {
     const slot = state.slots.get(task.id);
     if (!slot) return;
 
-    const providerDisplay =
-      provider === "ANTHROPIC_API_KEY"
-        ? "Anthropic"
-        : provider === "CURSOR_API_KEY"
-          ? "Cursor"
-          : "OpenAI";
+    const providerDisplay = OrchestratorService.getProviderDisplayName(provider);
     const message = `Your API key(s) for ${providerDisplay} have hit their limit. Please increase your budget or add another key.`;
 
     // Avoid duplicate notifications for same project+provider

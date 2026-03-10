@@ -8,8 +8,19 @@ const { execSync } = require("child_process");
 const repoRoot = path.resolve(__dirname, "..", "..", "..");
 const backendDir = path.join(repoRoot, "packages", "backend");
 const frontendDir = path.join(repoRoot, "packages", "frontend");
-const sharedDir = path.join(repoRoot, "packages", "shared");
 const outDir = path.join(repoRoot, "packages", "electron", "desktop-resources");
+const backendExternalDeps = ["better-sqlite3", "pdf-parse"];
+const removableDirNames = new Set([
+  "test",
+  "tests",
+  "__tests__",
+  "doc",
+  "docs",
+  "example",
+  "examples",
+  "benchmark",
+  "bench",
+]);
 
 async function run() {
   console.log("Preparing desktop resources...");
@@ -21,25 +32,14 @@ async function run() {
   const frontendOut = path.join(outDir, "frontend");
 
   fs.mkdirSync(backendOut, { recursive: true });
-  fs.cpSync(path.join(backendDir, "dist"), path.join(backendOut, "dist"), { recursive: true });
-  fs.copyFileSync(
-    path.join(backendDir, "package.json"),
-    path.join(backendOut, "package.json")
-  );
+  await bundleBackendRuntime(backendOut);
+  writeBackendRuntimePackageJson(backendOut);
 
-  const sharedDest = path.join(backendOut, "node_modules", "@opensprint", "shared");
-  fs.mkdirSync(sharedDest, { recursive: true });
-  fs.cpSync(path.join(sharedDir, "dist"), path.join(sharedDest, "dist"), { recursive: true });
-  fs.copyFileSync(
-    path.join(sharedDir, "package.json"),
-    path.join(sharedDest, "package.json")
-  );
+  console.log("Installing backend runtime dependencies...");
+  execSync("npm install --omit=dev --ignore-scripts=false", { cwd: backendOut, stdio: "inherit" });
 
-  console.log("Running npm install (production) in backend...");
-  execSync("npm install --omit=dev", {
-    cwd: backendOut,
-    stdio: "inherit",
-  });
+  console.log("Pruning non-runtime files from backend node_modules...");
+  pruneBackendNodeModules(path.join(backendOut, "node_modules"));
 
   fs.cpSync(path.join(frontendDir, "dist"), frontendOut, { recursive: true });
 
@@ -47,6 +47,96 @@ async function run() {
   await generateTrayIcons(frontendOut);
 
   console.log("Desktop resources ready at", outDir);
+}
+
+async function bundleBackendRuntime(backendOut) {
+  const esbuild = require("esbuild");
+  const entryPoint = path.join(backendDir, "dist", "index.js");
+  const outFile = path.join(backendOut, "dist", "services", "index.cjs");
+  fs.mkdirSync(path.dirname(outFile), { recursive: true });
+
+  // Preserve docs path resolution in help-chat service by keeping bundle under dist/services.
+  fs.cpSync(path.join(backendDir, "docs"), path.join(backendOut, "docs"), { recursive: true });
+
+  console.log("Bundling backend runtime...");
+  await esbuild.build({
+    entryPoints: [entryPoint],
+    outfile: outFile,
+    bundle: true,
+    platform: "node",
+    format: "cjs",
+    target: ["node20"],
+    minify: true,
+    sourcemap: false,
+    legalComments: "none",
+    external: backendExternalDeps,
+    logLevel: "info",
+  });
+}
+
+function writeBackendRuntimePackageJson(backendOut) {
+  const backendPkgPath = path.join(backendDir, "package.json");
+  const backendPkg = JSON.parse(fs.readFileSync(backendPkgPath, "utf8"));
+  const dependencies = {};
+  for (const dep of backendExternalDeps) {
+    const version = backendPkg.dependencies?.[dep];
+    if (!version) {
+      throw new Error(`Missing dependency '${dep}' in ${backendPkgPath}`);
+    }
+    dependencies[dep] = version;
+  }
+
+  const runtimePkg = {
+    name: `${backendPkg.name}-desktop-runtime`,
+    version: backendPkg.version,
+    private: true,
+    description: "Desktop runtime dependencies for OpenSprint backend bundle",
+    main: "./dist/services/index.cjs",
+    dependencies,
+  };
+  fs.writeFileSync(path.join(backendOut, "package.json"), JSON.stringify(runtimePkg, null, 2) + "\n");
+}
+
+function pruneBackendNodeModules(nodeModulesDir) {
+  if (!fs.existsSync(nodeModulesDir)) return;
+
+  walk(nodeModulesDir);
+  // Source assets used only for rebuilding native module, not required at runtime.
+  removeIfExists(path.join(nodeModulesDir, "better-sqlite3", "deps"));
+
+  function walk(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isSymbolicLink()) continue;
+      if (entry.isDirectory()) {
+        if (removableDirNames.has(entry.name.toLowerCase())) {
+          removeIfExists(fullPath);
+          continue;
+        }
+        walk(fullPath);
+        continue;
+      }
+      if (entry.isFile() && shouldPruneFile(entry.name)) {
+        fs.rmSync(fullPath, { force: true });
+      }
+    }
+  }
+}
+
+function shouldPruneFile(fileName) {
+  const lower = fileName.toLowerCase();
+  return (
+    lower.endsWith(".map") ||
+    lower.endsWith(".d.ts") ||
+    lower.endsWith(".d.cts") ||
+    lower.endsWith(".d.mts")
+  );
+}
+
+function removeIfExists(targetPath) {
+  if (fs.existsSync(targetPath)) {
+    fs.rmSync(targetPath, { recursive: true, force: true });
+  }
 }
 
 function generateTrayIcons(frontendOut) {

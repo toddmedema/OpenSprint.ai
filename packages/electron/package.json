@@ -26,6 +26,7 @@
     "appId": "com.opensprint.app",
     "productName": "Open Sprint",
     "electronVersion": "35.1.0",
+    "compression": "maximum",
     "directories": {
       "output": "dist"
     },

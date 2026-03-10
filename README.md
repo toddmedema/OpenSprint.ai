@@ -158,7 +158,7 @@ You can run Open Sprint as a desktop app (Electron) or build installable artifac
 **Prerequisites:** Same as Quick Start (Node.js 20+). The desktop app uses SQLite by default; config and data live in `~/.opensprint` (see [Database](#database) and [PostgreSQL Setup FAQ](#postgresql-setup-faq)).
 
 - **Run desktop in development:** From the repo root, run `npm run start:desktop`. This builds the app once, then launches Electron. The window loads the backend-served UI at `http://127.0.0.1:3100`. Only one instance runs; relaunching focuses the existing window.
-- **Build installers:** Run `npm run build:desktop`. This builds shared, backend, and frontend, prepares a self-contained backend and frontend in `packages/electron/desktop-resources/`, then runs electron-builder. Output goes to `packages/electron/dist/` (for example, `.dmg` on macOS, `.exe` installer on Windows, `AppImage` on Linux). The packaged app requires Node.js on the system PATH so the backend process can start.
+- **Build installers:** Run `npm run build:desktop`. This builds shared, backend, and frontend, prepares a self-contained backend and frontend in `packages/electron/desktop-resources/`, then runs electron-builder. Output goes to `packages/electron/dist/` (for example, `.dmg` on macOS, `.exe` installer on Windows, `AppImage` on Linux). The packaged app runs the backend with Electron's embedded Node runtime.
 
 ## Publishing Desktop Releases
 
