@@ -9,6 +9,10 @@ import { TaskStoreService } from "../services/task-store.service.js";
 import { API_PREFIX } from "@opensprint/shared";
 import { DEFAULT_HIL_CONFIG } from "@opensprint/shared";
 
+// Avoid loading drizzle-orm/pg-core when task-store mock uses importOriginal (vitest resolution can fail)
+vi.mock("drizzle-orm", () => ({ and: (...args: unknown[]) => args, eq: (a: unknown, b: unknown) => [a, b] }));
+vi.mock("../db/drizzle-schema-pg.js", () => ({ plansTable: {} }));
+
 const mockSuggestInvoke = vi.fn();
 const mockPlanningAgentInvoke = vi.fn();
 
@@ -376,6 +380,9 @@ describe.skipIf(!planRoutePostgresOk)("Plan REST endpoints - task decomposition"
     expect(typeof getRes.body.data.lastModified).toBe("string");
     // Should be valid ISO date
     expect(new Date(getRes.body.data.lastModified).getTime()).not.toBeNaN();
+    // Version fields from store
+    expect(getRes.body.data.currentVersionNumber).toBe(1);
+    expect(getRes.body.data.lastExecutedVersionNumber).toBeUndefined();
   });
 
   it(
@@ -487,6 +494,8 @@ Updated description for task two.`;
     expect(plan).toBeDefined();
     expect(plan.lastModified).toBeDefined();
     expect(typeof plan.lastModified).toBe("string");
+    expect(plan.currentVersionNumber).toBe(1);
+    expect(plan.lastExecutedVersionNumber === undefined || plan.lastExecutedVersionNumber === null).toBe(true);
   });
 
   it("POST /projects/:id/plans/:planId/plan-tasks invokes Planner and creates tasks", async () => {

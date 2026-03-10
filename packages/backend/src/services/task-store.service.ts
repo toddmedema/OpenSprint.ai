@@ -1698,6 +1698,8 @@ export class TaskStoreService {
     metadata: Record<string, unknown>;
     shipped_content: string | null;
     updated_at: string;
+    current_version_number: number;
+    last_executed_version_number: number | null;
   } | null> {
     await this.ensureInitialized();
     return this.planStore.planGet(projectId, planId);
@@ -1712,6 +1714,8 @@ export class TaskStoreService {
     metadata: Record<string, unknown>;
     shipped_content: string | null;
     updated_at: string;
+    current_version_number: number;
+    last_executed_version_number: number | null;
   } | null> {
     await this.ensureInitialized();
     return this.planStore.planGetByEpicId(projectId, epicId);
