@@ -91,6 +91,9 @@ export function ExecutePhase({
   const tasks = useAppSelector(selectTasks);
   const plans = useAppSelector((s) => s.plan.plans);
   const awaitingApproval = useAppSelector((s) => s.execute.awaitingApproval);
+  const selfImprovementRunInProgress = useAppSelector(
+    (s) => s.execute.selfImprovementRunInProgress ?? false
+  );
   const selectedTask = useAppSelector((s) => s.execute.selectedTaskId);
   /** Resolve selection from Redux or URL so sidebar shows on first paint when opening with ?task= */
   const effectiveSelectedTask = selectedTask ?? initialTaskIdFromUrl ?? null;
@@ -324,6 +327,7 @@ export function ExecutePhase({
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}
           awaitingApproval={awaitingApproval}
+          selfImprovementRunInProgress={selfImprovementRunInProgress}
           searchExpanded={searchExpanded}
           searchInputValue={searchInputValue}
           setSearchInputValue={setSearchInputValue}

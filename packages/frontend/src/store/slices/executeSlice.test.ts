@@ -18,6 +18,8 @@ import executeReducer, {
   appendAgentOutput,
   setOrchestratorRunning,
   setAwaitingApproval,
+  setExecuteStatusPayload,
+  setSelfImprovementRunInProgress,
   setCompletionState,
   taskUpdated,
   taskCreated,
@@ -140,6 +142,7 @@ describe("executeSlice", () => {
       expect(state.archivedSessions).toEqual([]);
       expect(state.async.tasks.loading).toBe(false);
       expect(state.error).toBeNull();
+      expect(state.selfImprovementRunInProgress).toBe(false);
     });
   });
 
@@ -302,6 +305,35 @@ describe("executeSlice", () => {
       const store = createStore();
       store.dispatch(setAwaitingApproval(true));
       expect(store.getState().execute.awaitingApproval).toBe(true);
+    });
+
+    it("setExecuteStatusPayload sets selfImprovementRunInProgress when provided", () => {
+      const store = createStore();
+      expect(store.getState().execute.selfImprovementRunInProgress).toBe(false);
+      store.dispatch(
+        setExecuteStatusPayload({
+          activeTasks: [],
+          queueDepth: 0,
+          selfImprovementRunInProgress: true,
+        })
+      );
+      expect(store.getState().execute.selfImprovementRunInProgress).toBe(true);
+      store.dispatch(
+        setExecuteStatusPayload({
+          activeTasks: [],
+          queueDepth: 0,
+          selfImprovementRunInProgress: false,
+        })
+      );
+      expect(store.getState().execute.selfImprovementRunInProgress).toBe(false);
+    });
+
+    it("setSelfImprovementRunInProgress sets self-improvement run state", () => {
+      const store = createStore();
+      store.dispatch(setSelfImprovementRunInProgress(true));
+      expect(store.getState().execute.selfImprovementRunInProgress).toBe(true);
+      store.dispatch(setSelfImprovementRunInProgress(false));
+      expect(store.getState().execute.selfImprovementRunInProgress).toBe(false);
     });
 
     it("setCompletionState sets completion for selected task", () => {
@@ -620,6 +652,19 @@ describe("executeSlice", () => {
       const store = createStore();
       await store.dispatch(fetchExecuteStatus("proj-1"));
       expect(store.getState().execute.orchestratorRunning).toBe(false);
+    });
+
+    it("sets selfImprovementRunInProgress from API response", async () => {
+      vi.mocked(api.execute.status).mockResolvedValue({
+        activeTasks: [],
+        queueDepth: 0,
+        totalDone: 0,
+        totalFailed: 0,
+        selfImprovementRunInProgress: true,
+      } as never);
+      const store = createStore();
+      await store.dispatch(fetchExecuteStatus("proj-1"));
+      expect(store.getState().execute.selfImprovementRunInProgress).toBe(true);
     });
   });
 

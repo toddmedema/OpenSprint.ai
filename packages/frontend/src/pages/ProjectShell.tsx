@@ -221,6 +221,7 @@ export function ProjectShell() {
         awaitingApproval: executeStatusData.awaitingApproval,
         totalDone: executeStatusData.totalDone ?? 0,
         totalFailed: executeStatusData.totalFailed ?? 0,
+        selfImprovementRunInProgress: executeStatusData.selfImprovementRunInProgress,
       })
     );
   }, [projectId, executeStatusData, dispatch]);

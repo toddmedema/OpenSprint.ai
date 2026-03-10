@@ -80,6 +80,8 @@ export interface ExecuteState {
   totalDone: number;
   totalFailed: number;
   queueDepth: number;
+  /** True when a self-improvement run is in progress (from execute status / WebSocket) */
+  selfImprovementRunInProgress: boolean;
   selectedTaskId: string | null;
   agentOutput: Record<string, string[]>;
   completionStateByTaskId: Record<
@@ -111,6 +113,7 @@ export const initialExecuteState: ExecuteState = {
   totalDone: 0,
   totalFailed: 0,
   queueDepth: 0,
+  selfImprovementRunInProgress: false,
   selectedTaskId: null,
   agentOutput: {},
   completionStateByTaskId: {},
@@ -507,6 +510,7 @@ const executeSlice = createSlice({
         awaitingApproval?: boolean;
         totalDone?: number;
         totalFailed?: number;
+        selfImprovementRunInProgress?: boolean;
       }>
     ) {
       const p = action.payload;
@@ -517,6 +521,12 @@ const executeSlice = createSlice({
       state.totalDone = p.totalDone ?? 0;
       state.totalFailed = p.totalFailed ?? 0;
       state.queueDepth = p.queueDepth ?? 0;
+      if (p.selfImprovementRunInProgress !== undefined) {
+        state.selfImprovementRunInProgress = p.selfImprovementRunInProgress;
+      }
+    },
+    setSelfImprovementRunInProgress(state, action: PayloadAction<boolean>) {
+      state.selfImprovementRunInProgress = action.payload;
     },
     /** Sync from TanStack Query useArchivedSessions. */
     setArchivedSessions(state, action: PayloadAction<AgentSession[]>) {
@@ -611,6 +621,7 @@ const executeSlice = createSlice({
           awaitingApproval?: boolean;
           totalDone?: number;
           totalFailed?: number;
+          selfImprovementRunInProgress?: boolean;
         };
         const activeTasks = payload.activeTasks ?? [];
         state.activeTasks = activeTasks;
@@ -619,6 +630,9 @@ const executeSlice = createSlice({
         state.totalDone = payload.totalDone ?? 0;
         state.totalFailed = payload.totalFailed ?? 0;
         state.queueDepth = payload.queueDepth ?? 0;
+        if (payload.selfImprovementRunInProgress !== undefined) {
+          state.selfImprovementRunInProgress = payload.selfImprovementRunInProgress;
+        }
       },
       onRejected: (state, action) => {
         state.error = action.error?.message ?? "Failed to load execute status";
@@ -812,6 +826,7 @@ export const {
   setTasks,
   setExecuteError,
   setExecuteStatusPayload,
+  setSelfImprovementRunInProgress,
   setArchivedSessions,
   setActiveAgentsPayload,
   resetExecute,

@@ -815,6 +815,24 @@ describe("websocketMiddleware", () => {
       });
     });
 
+    it("sets selfImprovementRunInProgress when execute.status includes selfImprovementRunInProgress: true", async () => {
+      const store = createStore();
+      store.dispatch(wsConnect({ projectId: "proj-1" }));
+      wsInstance!.simulateOpen();
+      await vi.waitFor(() => store.getState().websocket.connected);
+
+      wsInstance!.simulateMessage({
+        type: "execute.status",
+        activeTasks: [],
+        queueDepth: 0,
+        selfImprovementRunInProgress: true,
+      });
+
+      await vi.waitFor(() => {
+        expect(store.getState().execute.selfImprovementRunInProgress).toBe(true);
+      });
+    });
+
     it("dispatches taskUpdated on task.updated for incremental update", async () => {
       const store = createStore();
       const { setTasks } = await import("../slices/executeSlice");

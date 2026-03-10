@@ -22,6 +22,7 @@ import {
   setOrchestratorRunning,
   setAwaitingApproval,
   setActiveTasks,
+  setSelfImprovementRunInProgress,
   setCompletionState,
   setSelectedTaskId,
   taskUpdated,
@@ -410,6 +411,9 @@ export const websocketMiddleware: Middleware = (storeApi) => {
         d(setOrchestratorRunning(running));
         if (statusEv.awaitingApproval !== undefined) {
           d(setAwaitingApproval(Boolean(statusEv.awaitingApproval)));
+        }
+        if (statusEv.selfImprovementRunInProgress !== undefined) {
+          d(setSelfImprovementRunInProgress(Boolean(statusEv.selfImprovementRunInProgress)));
         }
         d(setActiveTasks(activeTasks));
         break;

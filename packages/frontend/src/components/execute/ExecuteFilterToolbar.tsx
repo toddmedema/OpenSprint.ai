@@ -45,6 +45,8 @@ interface ExecuteFilterToolbarProps {
   statusFilter: StatusFilter;
   setStatusFilter: (f: StatusFilter) => void;
   awaitingApproval: boolean;
+  /** When true, show a small non-blocking indicator that self-improvement review is in progress */
+  selfImprovementRunInProgress?: boolean;
   searchExpanded: boolean;
   searchInputValue: string;
   setSearchInputValue: (v: string) => void;
@@ -73,6 +75,7 @@ export function ExecuteFilterToolbar({
   viewMode,
   onViewModeChange,
   mergeStrategy,
+  selfImprovementRunInProgress = false,
 }: ExecuteFilterToolbarProps) {
   const showEpicMergeIndicator = mergeStrategy === "per_epic";
 
@@ -111,6 +114,15 @@ export function ExecuteFilterToolbar({
           {awaitingApproval && (
             <span className="ml-2 text-sm font-medium text-theme-warning-text shrink-0">
               Awaiting approval…
+            </span>
+          )}
+          {selfImprovementRunInProgress && (
+            <span
+              className="ml-2 text-sm text-theme-muted shrink-0"
+              data-testid="execute-self-improvement-indicator"
+              title="New tasks may appear from the self-improvement review"
+            >
+              Self-improvement review in progress
             </span>
           )}
           {showEpicMergeIndicator && (
