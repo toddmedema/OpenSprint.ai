@@ -10,6 +10,7 @@ import {
   selectPhaseUnread,
   EMPTY_PHASE_UNREAD,
   setPhaseUnread,
+  clearPhaseUnread,
 } from "../../store/slices/unreadPhaseSlice";
 import { wsConnectHome } from "../../store/middleware/websocketMiddleware";
 import { getProjectPhasePath } from "../../lib/phaseRouting";
@@ -110,10 +111,13 @@ export function Navbar({
     }
   }, [project, projects.length, dispatch]);
 
-  // Set Execute unread when this project has blocked tasks and user is not on Execute page
+  // Set or clear Execute unread from task list: set when not on Execute and has blocked tasks; clear when on Execute or no blocked tasks
   useEffect(() => {
-    if (project?.id && currentPhase !== "execute" && executeBlockedCount > 0) {
+    if (!project?.id) return;
+    if (currentPhase !== "execute" && executeBlockedCount > 0) {
       dispatch(setPhaseUnread({ projectId: project.id, phase: "execute" }));
+    } else {
+      dispatch(clearPhaseUnread({ projectId: project.id, phase: "execute" }));
     }
   }, [project?.id, currentPhase, executeBlockedCount, dispatch]);
 

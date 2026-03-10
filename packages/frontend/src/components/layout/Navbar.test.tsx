@@ -566,6 +566,44 @@ describe("Navbar", () => {
     expect(executeTab.querySelector("[data-testid=nav-button-unread-dot]")).not.toBeInTheDocument();
   });
 
+  it("clears Execute unread when on Execute phase (effect clears preloaded unread)", () => {
+    const mockProject = {
+      id: "proj-1",
+      name: "Test",
+      repoPath: "/path",
+      currentPhase: "execute" as const,
+      createdAt: "2025-01-01T00:00:00Z",
+      updatedAt: "2025-01-01T00:00:00Z",
+    };
+    const store = createStore([{ ...baseTask, id: "epic-1.1", kanbanColumn: "blocked" } as Task], {
+      unreadPhase: { "proj-1": { execute: true } },
+    });
+    renderNavbar(
+      <Navbar project={mockProject} currentPhase="execute" onPhaseChange={vi.fn()} />,
+      store
+    );
+    expect(screen.getByRole("tab", { name: /Switch to Execute phase/ }).querySelector("[data-testid=nav-button-unread-dot]")).not.toBeInTheDocument();
+  });
+
+  it("clears Execute unread when blocked count is 0 (effect clears even when not on Execute)", () => {
+    const mockProject = {
+      id: "proj-1",
+      name: "Test",
+      repoPath: "/path",
+      currentPhase: "sketch" as const,
+      createdAt: "2025-01-01T00:00:00Z",
+      updatedAt: "2025-01-01T00:00:00Z",
+    };
+    const store = createStore([{ ...baseTask, id: "epic-1.1", kanbanColumn: "ready" } as Task], {
+      unreadPhase: { "proj-1": { execute: true } },
+    });
+    renderNavbar(
+      <Navbar project={mockProject} currentPhase="sketch" onPhaseChange={vi.fn()} />,
+      store
+    );
+    expect(screen.getByRole("tab", { name: /Switch to Execute phase/ }).querySelector("[data-testid=nav-button-unread-dot]")).not.toBeInTheDocument();
+  });
+
   it("shows Plan tab with unread dot when phaseUnread.plan is true for current project", () => {
     const mockProject = {
       id: "proj-1",

@@ -59,7 +59,7 @@ export const EMPTY_PHASE_UNREAD: UnreadPhaseFlags = {
 };
 
 const selectUnreadPhaseByProject = (state: UnreadPhaseRootState, projectId: string) =>
-  state.unreadPhase[projectId];
+  state.unreadPhase?.[projectId];
 
 /**
  * Returns unread flags for a project: { plan, sketch, execute }.
