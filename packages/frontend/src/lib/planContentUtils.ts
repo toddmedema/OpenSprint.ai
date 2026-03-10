@@ -42,6 +42,25 @@ export function getEpicTitleFromPlan(plan: {
   return plan.metadata.planId.replace(/-/g, " ");
 }
 
+/**
+ * Returns a short overview from plan content: first maxSentences sentences of the body.
+ * Used as subtext when all tasks are done (e.g. on the Evaluate plan review card).
+ * Strips leading markdown headers (e.g. "## Overview") and returns empty string if no body.
+ */
+export function getPlanOverview(content: string, maxSentences = 2): string {
+  const { body } = parsePlanContent(content ?? "");
+  const trimmed = body.trim();
+  if (!trimmed) return "";
+  // Strip leading ## / ### lines so we get prose, not section headers
+  const withoutLeadingHeaders = trimmed.replace(/^(#+\s+[^\n]*\n?)+/, "").trim();
+  const prose = withoutLeadingHeaders || trimmed;
+  // Split on sentence boundaries (. ! ? followed by space or end)
+  const sentences = prose.match(/[^.!?]+[.!?]?\s*/g) ?? [];
+  const selected = sentences.slice(0, maxSentences);
+  const overview = selected.join("").trim();
+  return overview || trimmed.slice(0, 200).trim();
+}
+
 export function serializePlanContent(title: string, body: string): string {
   const trimmedTitle = title.trim();
   const trimmedBody = body.trim();

@@ -42,7 +42,7 @@ import { CONTENT_CONTAINER_CLASS, MOBILE_BREAKPOINT } from "../../lib/constants"
 import { shouldRightAlignDropdown } from "../../lib/dropdownViewport";
 import { getProjectPhasePath } from "../../lib/phaseRouting";
 import { formatPlanIdAsTitle } from "../../lib/formatting";
-import { parsePlanContent } from "../../lib/planContentUtils";
+import { parsePlanContent, getPlanOverview } from "../../lib/planContentUtils";
 import { HilApprovalBlock } from "../../components/HilApprovalBlock";
 import { OpenQuestionsBlock } from "../../components/OpenQuestionsBlock";
 import { useViewportWidth } from "../../hooks/useViewportWidth";
@@ -1100,8 +1100,11 @@ function PlanReviewCard({
   const linkTitle = formatPlanIdAsTitle(plan.metadata.planId);
   const total = plan.taskCount ?? 0;
   const done = plan.doneTaskCount ?? 0;
+  const overviewWhenAllDone = getPlanOverview(plan.content ?? "");
   const taskSummary =
-    total > 0 && done === total ? `All ${total} tasks done` : `${done} of ${total} tasks done`;
+    total > 0 && done === total
+      ? overviewWhenAllDone || `All ${total} tasks done`
+      : `${done} of ${total} tasks done`;
 
   return (
     <div

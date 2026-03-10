@@ -1922,7 +1922,8 @@ describe("EvalPhase feedback form", () => {
         await waitFor(() => expect(screen.getByTestId("feedback-status-filter")).toBeInTheDocument());
 
         expect(screen.getByTestId("plan-review-card-title")).toHaveTextContent("Auth And Deploy");
-        expect(screen.getByTestId("plan-review-card-task-summary")).toHaveTextContent("All 3 tasks done");
+        // When all tasks done, subtext is plan overview (first sentences of body)
+        expect(screen.getByTestId("plan-review-card-task-summary")).toHaveTextContent("Do the thing.");
       });
 
       it("combined review list has role list and aria-label for accessibility", async () => {
