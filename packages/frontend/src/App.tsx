@@ -6,6 +6,7 @@ import { CreateNewProjectPage } from "./pages/CreateNewProjectPage";
 import { ProjectShell } from "./pages/ProjectShell";
 import { ProjectView } from "./pages/ProjectView";
 import { GlobalKeyboardShortcuts } from "./components/GlobalKeyboardShortcuts";
+import { FindBar } from "./components/FindBar";
 import { useAppDispatch } from "./store";
 import { setRoute } from "./store/slices/routeSlice";
 
@@ -56,6 +57,7 @@ export function App() {
   return (
     <>
       <RouteSync />
+      <FindBar />
       <GlobalKeyboardShortcuts />
       <Routes>
       <Route path="/" element={<Home />} />

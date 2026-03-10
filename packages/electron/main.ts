@@ -11,6 +11,8 @@ import {
   session,
   shell,
   dialog,
+  globalShortcut,
+  ipcMain,
   type MenuItemConstructorOptions,
 } from "electron";
 
@@ -216,6 +218,17 @@ function createWindow(): void {
   mainWindow.once("ready-to-show", () => {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show();
   });
+  mainWindow.webContents.on(
+    "found-in-page",
+    (
+      _e: Electron.Event,
+      result: { requestId: number; activeMatchOrdinal: number; matches: number; finalUpdate: boolean }
+    ) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("find-result", result);
+      }
+    }
+  );
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: "deny" };
@@ -329,6 +342,14 @@ function createTray(): void {
   });
 }
 
+function focusAndOpenFindBar(): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.webContents.send("open-find-bar");
+  }
+}
+
 function setApplicationMenu(): void {
   const template = [
     ...(process.platform === "darwin"
@@ -353,6 +374,7 @@ function setApplicationMenu(): void {
         { role: "undo" as const },
         { role: "redo" as const },
         { type: "separator" as const },
+        { label: "Find", accelerator: "CommandOrControl+F", click: focusAndOpenFindBar },
         { role: "cut" as const },
         { role: "copy" as const },
         { role: "paste" as const },
@@ -457,6 +479,27 @@ app.whenReady().then(async () => {
   setApplicationMenu();
   createTray();
   trayRefreshInterval = setInterval(refreshTrayMenu, TRAY_REFRESH_MS);
+
+  ipcMain.handle(
+    "find-in-page",
+    (
+      event: Electron.IpcMainInvokeEvent,
+      text: string,
+      options?: { forward?: boolean; findNext?: boolean; caseSensitive?: boolean }
+    ) => {
+      const wc = event.sender;
+      if (wc && !wc.isDestroyed()) wc.findInPage(text, options ?? {});
+    }
+  );
+  ipcMain.handle(
+    "stop-find-in-page",
+    (event: Electron.IpcMainInvokeEvent, action: "clearSelection" | "keepSelection" | "activateSelection") => {
+      const wc = event.sender;
+      if (wc && !wc.isDestroyed()) wc.stopFindInPage(action);
+    }
+  );
+
+  globalShortcut.register("CommandOrControl+F", focusAndOpenFindBar);
 });
 
 app.on("activate", () => {
@@ -474,6 +517,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   isQuitting = true;
+  globalShortcut.unregisterAll();
   if (trayRefreshInterval) {
     clearInterval(trayRefreshInterval);
     trayRefreshInterval = null;
