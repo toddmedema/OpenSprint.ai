@@ -506,7 +506,9 @@ export const api = {
       text: string,
       images?: string[],
       parentId?: string | null,
-      priority?: number | null
+      priority?: number | null,
+      planId?: string | null,
+      planVersionNumber?: number | null
     ) =>
       request<FeedbackItem>(`/projects/${projectId}/feedback`, {
         method: "POST",
@@ -515,6 +517,8 @@ export const api = {
           ...(images?.length ? { images } : {}),
           ...(parentId ? { parent_id: parentId } : {}),
           ...(priority != null && priority >= 0 && priority <= 4 ? { priority } : {}),
+          ...(planId ? { planId } : {}),
+          ...(planVersionNumber != null && planVersionNumber >= 1 ? { planVersionNumber } : {}),
         }),
       }),
     get: (projectId: string, feedbackId: string) =>

@@ -123,6 +123,8 @@ function itemToRow(item: FeedbackItem, projectId: string): Record<string, unknow
         linkInvalidRetryCount: item.linkInvalidRetryCount,
       }),
       ...(item.isLargeScope != null && { isLargeScope: item.isLargeScope }),
+      ...(item.planVersionNumber != null && { planVersionNumber: item.planVersionNumber }),
+      ...(item.submittedPlanId != null && { submittedPlanId: item.submittedPlanId }),
     }),
   };
 }

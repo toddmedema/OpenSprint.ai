@@ -43,14 +43,26 @@ export const submitFeedback = createAsyncThunk(
     images,
     parentId,
     priority,
+    planId,
+    planVersionNumber,
   }: {
     projectId: string;
     text: string;
     images?: string[];
     parentId?: string | null;
     priority?: number | null;
+    planId?: string | null;
+    planVersionNumber?: number | null;
   }) => {
-    return api.feedback.submit(projectId, text, images, parentId, priority);
+    return api.feedback.submit(
+      projectId,
+      text,
+      images,
+      parentId,
+      priority,
+      planId,
+      planVersionNumber
+    );
   }
 );
 

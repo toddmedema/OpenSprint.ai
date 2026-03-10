@@ -720,7 +720,9 @@ describe("EvalPhase feedback form", () => {
         "Critical auth bug",
         undefined,
         undefined,
-        0
+        0,
+        undefined,
+        undefined
       );
     });
   });
@@ -789,6 +791,8 @@ describe("EvalPhase feedback form", () => {
       expect(api.feedback.submit).toHaveBeenCalledWith(
         "proj-1",
         "Feedback without priority",
+        undefined,
+        undefined,
         undefined,
         undefined,
         undefined
@@ -3639,6 +3643,8 @@ describe("EvalPhase feedback form", () => {
           "Here is a screenshot",
           expect.any(Array),
           "fb-1",
+          undefined,
+          undefined,
           undefined
         );
       });
@@ -3741,7 +3747,9 @@ describe("EvalPhase feedback form", () => {
           "Critical fix needed",
           undefined,
           "fb-1",
-          0
+          0,
+          undefined,
+          undefined
         );
       });
     });

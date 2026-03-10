@@ -1357,7 +1357,13 @@ export function EvalPhase({
     imageAttachment.reset();
     setPriority(null);
     const result = await dispatch(
-      submitFeedback({ projectId, text, images: imagePayload, priority: priorityPayload })
+      submitFeedback({
+        projectId,
+        text,
+        images: imagePayload,
+        priority: priorityPayload,
+        planId: planChatPlanId ?? undefined,
+      })
     );
     if (submitFeedback.fulfilled.match(result)) {
       setReconcilingFeedbackIds((prev) => new Set(prev).add(result.payload.id));
@@ -1376,7 +1382,14 @@ export function EvalPhase({
       if (!text.trim() || submitting) return;
       const priorityPayload = priority != null ? priority : undefined;
       const result = await dispatch(
-        submitFeedback({ projectId, text, images, parentId, priority: priorityPayload })
+        submitFeedback({
+          projectId,
+          text,
+          images,
+          parentId,
+          priority: priorityPayload,
+          planId: planChatPlanId ?? undefined,
+        })
       );
       if (submitFeedback.fulfilled.match(result)) {
         setReconcilingFeedbackIds((prev) => new Set(prev).add(result.payload.id));

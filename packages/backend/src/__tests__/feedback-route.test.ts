@@ -203,6 +203,23 @@ describe.skipIf(!feedbackRoutePostgresOk)("Feedback REST API", () => {
     expect(res.body.data.createdTaskIds).toEqual(["bd-xyz.1"]);
   });
 
+  it("POST /projects/:id/feedback should accept planId and planVersionNumber (Reply-to-Plan)", async () => {
+    const res = await request(app)
+      .post(`${API_PREFIX}/projects/${projectId}/feedback`)
+      .send({
+        text: "Add login validation tasks",
+        planId: "auth-plan",
+        planVersionNumber: 2,
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.mappedPlanId).toBe("auth-plan");
+    const stored = await feedbackStore.getFeedback(projectId, res.body.data.id);
+    expect(stored.mappedPlanId).toBe("auth-plan");
+    expect(stored.submittedPlanId).toBe("auth-plan");
+    expect(stored.planVersionNumber).toBe(2);
+  });
+
   it("POST /projects/:id/feedback should create reply with parent_id and depth", async () => {
     await feedbackStore.insertFeedback(
       projectId,

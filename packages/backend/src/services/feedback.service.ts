@@ -236,17 +236,29 @@ export class FeedbackService {
         ? body.priority
         : undefined;
 
+    // Plan context (Evaluate: create tasks from reply to a Plan — tasks created under that plan with versioning)
+    const mappedPlanId =
+      typeof body?.planId === "string" && body.planId.trim()
+        ? body.planId.trim()
+        : null;
+    const planVersionNumber =
+      typeof body?.planVersionNumber === "number" && body.planVersionNumber >= 1
+        ? body.planVersionNumber
+        : undefined;
+
     const item: FeedbackItem = {
       id,
       text,
       category: "bug",
-      mappedPlanId: null,
+      mappedPlanId: mappedPlanId ?? null,
       createdTaskIds: [],
       status: "pending",
       createdAt: new Date().toISOString(),
       parent_id: parentId ?? null,
       depth,
       ...(userPriority !== undefined && { userPriority }),
+      ...(planVersionNumber !== undefined && { planVersionNumber }),
+      ...(mappedPlanId && { submittedPlanId: mappedPlanId }),
     };
 
     const imagePaths = images.length > 0 ? await writeFeedbackImages(projectId, id, images) : null;
@@ -432,14 +444,18 @@ export class FeedbackService {
           validCategories.includes(rawCategory as FeedbackCategory)
             ? (rawCategory as FeedbackCategory)
             : "bug";
-        // mapped_plan_id: respect explicit null — only fallback to firstPlanId when key is missing (legacy)
-        const rawMappedPlanId = parsed.mapped_plan_id ?? parsed.mappedPlanId;
-        item.mappedPlanId =
-          rawMappedPlanId === undefined
-            ? firstPlanId
-            : typeof rawMappedPlanId === "string"
-              ? rawMappedPlanId
-              : null;
+        // mapped_plan_id: preserve when feedback was submitted with planId (Reply-to-Plan); else respect AI or fallback
+        if (item.submittedPlanId) {
+          item.mappedPlanId = item.submittedPlanId;
+        } else {
+          const rawMappedPlanId = parsed.mapped_plan_id ?? parsed.mappedPlanId;
+          item.mappedPlanId =
+            rawMappedPlanId === undefined
+              ? firstPlanId
+              : typeof rawMappedPlanId === "string"
+                ? rawMappedPlanId
+                : null;
+        }
 
         // mapped_epic_id: respect explicit null — only resolve from plan when mappedPlanId is set
         const rawMappedEpicId = parsed.mapped_epic_id ?? parsed.mappedEpicId;
@@ -1007,16 +1023,22 @@ export class FeedbackService {
 
     const project = await this.projectService.getProject(projectId);
 
-    // Resolve parent epic: mappedEpicId (from AI or plan) or look up from plan (PRD §12.3.4)
+    // Resolve parent epic and plan version: mappedEpicId (from AI or plan) or look up from plan (PRD §12.3.4).
+    // When feedback was submitted with planId (Reply-to-Plan), tasks are created under that plan with versioning.
     let parentEpicId: string | undefined;
+    let planVersionNumberForTasks: number | undefined;
     if (item.mappedEpicId) {
       parentEpicId = item.mappedEpicId;
-    } else if (item.mappedPlanId) {
+    }
+    if (item.mappedPlanId) {
       try {
         const plan = await this.getPlanService().getPlan(projectId, item.mappedPlanId);
         if (plan.metadata.epicId) {
           parentEpicId = plan.metadata.epicId;
         }
+        // Associate created tasks with current or submitted plan version (visible under Plan in hierarchy)
+        planVersionNumberForTasks =
+          item.planVersionNumber ?? plan.currentVersionNumber ?? undefined;
       } catch {
         // Plan not found or no epic — create tasks without parent
       }
@@ -1070,6 +1092,11 @@ export class FeedbackService {
                 : raw === "complex" || raw === "high"
                   ? 7
                   : undefined));
+          const taskExtra: Record<string, unknown> = { sourceFeedbackIds: [item.id] };
+          if (item.mappedPlanId && planVersionNumberForTasks != null) {
+            taskExtra.sourcePlanId = item.mappedPlanId;
+            taskExtra.sourcePlanVersionNumber = planVersionNumberForTasks;
+          }
           const issue = await this.taskStore.createWithRetry(
             project.id,
             task.title,
@@ -1079,7 +1106,7 @@ export class FeedbackService {
               description,
               parentId: parentEpicId,
               ...(taskComplexity != null && { complexity: taskComplexity }),
-              extra: { sourceFeedbackIds: [item.id] },
+              extra: taskExtra,
             },
             { fallbackToStandalone: true }
           );
@@ -1136,6 +1163,11 @@ export class FeedbackService {
           const priority = userPriorityOverride ?? (item.category === "bug" ? 0 : 2);
           // Reply-derived tasks: always complex (default agent could not resolve)
           const complexity = item.parent_id ? 7 : undefined;
+          const taskExtra: Record<string, unknown> = { sourceFeedbackIds: [item.id] };
+          if (item.mappedPlanId && planVersionNumberForTasks != null) {
+            taskExtra.sourcePlanId = item.mappedPlanId;
+            taskExtra.sourcePlanVersionNumber = planVersionNumberForTasks;
+          }
           const issue = await this.taskStore.createWithRetry(
             project.id,
             title,
@@ -1144,7 +1176,7 @@ export class FeedbackService {
               priority,
               parentId: parentEpicId,
               ...(complexity && { complexity }),
-              extra: { sourceFeedbackIds: [item.id] },
+              extra: taskExtra,
             },
             { fallbackToStandalone: true }
           );
