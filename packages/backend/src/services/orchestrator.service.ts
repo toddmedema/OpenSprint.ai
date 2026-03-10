@@ -1374,7 +1374,7 @@ export class OrchestratorService {
             label: slot.taskTitle ?? slot.taskId,
             startedAt: slot.agent.startedAt || new Date().toISOString(),
             branchName: slot.branchName,
-            name: "Reviewer (General)",
+            name: "General",
             state: slot.agent.lifecycleState,
             ...(slot.agent.lastOutputAtIso ? { lastOutputAt: slot.agent.lastOutputAtIso } : {}),
             ...(slot.agent.suspendedAtIso ? { suspendedAt: slot.agent.suspendedAtIso } : {}),
@@ -1417,7 +1417,11 @@ export class OrchestratorService {
         label: slot.taskTitle ?? slot.taskId,
         startedAt: slot.agent.startedAt || new Date().toISOString(),
         branchName: slot.branchName,
-        ...(slot.assignee != null && slot.assignee.trim() !== "" && { name: slot.assignee.trim() }),
+        ...(slot.assignee != null && slot.assignee.trim() !== ""
+          ? { name: slot.assignee.trim() }
+          : slot.phase === "review"
+            ? { name: "General" }
+            : {}),
         state: slot.agent.lifecycleState,
         ...(slot.agent.lastOutputAtIso ? { lastOutputAt: slot.agent.lastOutputAtIso } : {}),
         ...(slot.agent.suspendedAtIso ? { suspendedAt: slot.agent.suspendedAtIso } : {}),

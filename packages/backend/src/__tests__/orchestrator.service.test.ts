@@ -1326,6 +1326,83 @@ describe("OrchestratorService (slot-based model)", () => {
       expect(reviewerAgents.every((a) => a.taskId === task.id)).toBe(true);
     });
 
+    it("general reviewer has name General so UI shows Reviewer (General) without duplication", async () => {
+      const { task } = setupSingleTaskFlow("task-general-review");
+      mockTaskStoreReady.mockResolvedValueOnce([task]);
+      mockTaskStoreListAll.mockResolvedValue([task]);
+
+      await orchestrator.ensureRunning(projectId);
+      await vi.waitFor(() => {
+        expect(mockWriteJsonAtomic).toHaveBeenCalled();
+      });
+
+      const state = (
+        orchestrator as unknown as { getState: (id: string) => { slots: Map<string, unknown> } }
+      ).getState(projectId);
+      const slot = state.slots.get(task.id) as {
+        phase: "coding" | "review";
+        includeGeneralReview?: boolean;
+        agent: { startedAt: string; lifecycleState: string; activeProcess: null };
+        reviewAgents?: Map<
+          string,
+          {
+            angle: string;
+            agent: { startedAt: string; activeProcess: null };
+            timers: { clearAll: () => void };
+          }
+        >;
+      };
+      expect(slot).toBeTruthy();
+      slot.phase = "review";
+      slot.includeGeneralReview = true;
+      slot.reviewAgents = new Map([
+        [
+          "security",
+          {
+            angle: "security",
+            agent: { startedAt: "2026-02-20T10:00:00.000Z", activeProcess: null },
+            timers: { clearAll: vi.fn() },
+          },
+        ],
+      ]);
+
+      const agents = await orchestrator.getActiveAgents(projectId);
+      const generalEntry = agents.find((a) => a.id === `${task.id}--review--general`);
+      expect(generalEntry).toBeTruthy();
+      expect(generalEntry!.name).toBe("General");
+    });
+
+    it("single general reviewer (no angles) has name General so UI shows Reviewer (General) without duplication", async () => {
+      const { task } = setupSingleTaskFlow("task-single-general");
+      mockTaskStoreReady.mockResolvedValueOnce([task]);
+      mockTaskStoreListAll.mockResolvedValue([task]);
+
+      await orchestrator.ensureRunning(projectId);
+      await vi.waitFor(() => {
+        expect(mockWriteJsonAtomic).toHaveBeenCalled();
+      });
+
+      const state = (
+        orchestrator as unknown as { getState: (id: string) => { slots: Map<string, unknown> } }
+      ).getState(projectId);
+      const slot = state.slots.get(task.id) as {
+        phase: "coding" | "review";
+        assignee?: string;
+        agent: { startedAt: string; lifecycleState: string; activeProcess: null };
+        reviewAgents?: Map<string, unknown>;
+      };
+      expect(slot).toBeTruthy();
+      slot.phase = "review";
+      slot.assignee = "";
+      slot.reviewAgents = undefined;
+
+      const agents = await orchestrator.getActiveAgents(projectId);
+      const reviewerAgents = agents.filter((a) => a.role === "reviewer");
+      expect(reviewerAgents).toHaveLength(1);
+      expect(reviewerAgents[0].id).toBe(task.id);
+      expect(reviewerAgents[0].name).toBe("General");
+    });
+
     it("getStatus.activeTasks emits one entry per active review agent when multi-angle", async () => {
       const { task } = setupSingleTaskFlow("task-build-active");
       mockTaskStoreReady.mockResolvedValueOnce([task]);
