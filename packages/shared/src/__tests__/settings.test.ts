@@ -892,6 +892,54 @@ describe("parseSettings deployment migration", () => {
     expect(staging?.envVars).toEqual({ API_KEY: "secret" });
     expect(production?.envVars).toEqual({ API_KEY: "secret" });
   });
+
+  it("accepts and persists easProjectId when mode is expo", () => {
+    const raw = {
+      simpleComplexityAgent: lowAgent,
+      complexComplexityAgent: highAgent,
+      deployment: {
+        mode: "expo",
+        easProjectId: "abc123-eas-project-id",
+      },
+      hilConfig: DEFAULT_HIL_CONFIG,
+      testFramework: null,
+    };
+    const parsed = parseSettings(raw);
+    expect(parsed.deployment.easProjectId).toBe("abc123-eas-project-id");
+    expect(parsed.deployment.mode).toBe("expo");
+  });
+
+  it("migrates legacy expoConfig.projectId to easProjectId when mode is expo", () => {
+    const raw = {
+      simpleComplexityAgent: lowAgent,
+      complexComplexityAgent: highAgent,
+      deployment: {
+        mode: "expo",
+        expoConfig: { projectId: "legacy-project-id", channel: "preview" },
+      },
+      hilConfig: DEFAULT_HIL_CONFIG,
+      testFramework: null,
+    };
+    const parsed = parseSettings(raw);
+    expect(parsed.deployment.easProjectId).toBe("legacy-project-id");
+    expect(parsed.deployment.expoConfig?.projectId).toBe("legacy-project-id");
+  });
+
+  it("prefers easProjectId over expoConfig.projectId when both present", () => {
+    const raw = {
+      simpleComplexityAgent: lowAgent,
+      complexComplexityAgent: highAgent,
+      deployment: {
+        mode: "expo",
+        easProjectId: "new-eas-id",
+        expoConfig: { projectId: "legacy-id", channel: "preview" },
+      },
+      hilConfig: DEFAULT_HIL_CONFIG,
+      testFramework: null,
+    };
+    const parsed = parseSettings(raw);
+    expect(parsed.deployment.easProjectId).toBe("new-eas-id");
+  });
 });
 
 describe("getDeploymentTargetsForUi", () => {

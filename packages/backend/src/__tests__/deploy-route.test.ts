@@ -347,6 +347,22 @@ describe.skipIf(!deployRoutePostgresOk)("Deliver API (phase routes for deploymen
           ?.autoDeployTrigger
       ).toBe("eval_resolution");
     });
+
+    it("should accept and persist easProjectId when mode is expo", async () => {
+      const res = await request(app)
+        .put(`${API_PREFIX}/projects/${projectId}/deliver/settings`)
+        .send({
+          mode: "expo",
+          easProjectId: "abc123-eas-project-id",
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.deployment.mode).toBe("expo");
+      expect(res.body.data.deployment.easProjectId).toBe("abc123-eas-project-id");
+
+      const getRes = await request(app).get(`${API_PREFIX}/projects/${projectId}/settings`);
+      expect(getRes.body.data.deployment.easProjectId).toBe("abc123-eas-project-id");
+    });
   });
 
   describe("POST /projects/:projectId/deliver - record fields", () => {

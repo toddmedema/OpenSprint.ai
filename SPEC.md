@@ -55,83 +55,23 @@ A small team that builds software for clients. They need to move quickly from cl
 
 ## Feature List
 
-Add under Sketch Phase (or PRD Storage):
+Add under Deliver Phase:
 
-- **SPEC.md as Sketch output:** The Sketch phase PRD is saved as SPEC.md at the repository root—a flat markdown file with standard section headers. This replaces the previous prd.json format to provide a standardized, AI-agent-friendly specification that tools and agents can consume directly.
+- **Expo readiness flow:** Before deploy, the system runs pre-deploy checks (Expo installed, app.json configured, auth token or eas whoami, EAS project linked). Results are exposed via `GET /projects/:id/deliver/expo-readiness`. Auto-install and auto-configure run when gaps exist; auth and EAS project linking require user input. Optional EAS project ID in deployment settings enables pre-linking before first deploy.
 
-- **PRD change approval diff view:** When a human-in-the-loop request is for PRD/SPEC approval, the approval UI shows a diff of the proposed SPEC.md changes (unified or split view). Users approve or reject from the same screen.
-
-- **Sketch version-list diff:** From the Sketch page version list (PRD history), users can open "Compare to current" or "View diff" for any previous version to see a diff of that version vs current SPEC.md.
-
-Add under Execute Phase (Code Review):
-
-- **Multi-angle parallel review:** When review angles are empty, one general Reviewer runs (scope + code quality). When 1+ angles are selected, N parallel Reviewers run (one per angle); all must approve for overall approval.
-
-Add under Execute Phase (Git / Worktree):
-
-- **Worktree base branch:** When Git working mode is Worktree, a configurable base branch (default `main`) allows users to create task branches from and merge into a non-main branch (e.g. `beta`). Sync and push use `origin/<baseBranch>`. Reviewer diff uses `baseBranch...taskBranch`. Branches mode ignores this setting.
-
-Add under Project Settings:
-
-- **Agent Config and Workflow tab split:** Project settings are organized into two tabs. Agent Config focuses on "who runs the work" (Simple/Complex provider + model rows, Agent Instructions in Advanced). Workflow focuses on "how the work runs" (test command, code review, self-improvement, git, parallelism). URL `?tab=workflow` supported. Provider-specific prerequisite messaging; error copy points to Global Settings.
-
-Add under Agent backends:
-
-- **LM Studio (local):** Users can select LM Studio as an agent type for planning and Execute. Optional base URL (default http://localhost:1234), model selection from models loaded in LM Studio; no API key required. Enables fully offline operation with local models.
+- **Deliver phase setup UX:** When deployment mode is Expo, the Deliver phase shows a "Setup status" or "Ready to deploy" indicator when all readiness checks pass, and actionable setup steps (auth token guidance, Settings link) when they do not. Setup banner appears above deploy buttons when auth is missing.
 
 ## Technical Architecture
 
-Replace all references to `prd.json` with `SPEC.md`. The Sketch phase PRD is stored as **SPEC.md** at the repository root—a flat markdown file with standard section headers (Executive Summary, Problem Statement, User Personas, Goals and Success Metrics, Feature List, Technical Architecture, Data Model, API Contracts, Non-Functional Requirements, Open Questions). This format is standardized and optimized for AI agent consumption. The Dreamer writes SPEC.md directly during conversation (trust boundary exception). The Harmonizer proposes updates; the orchestrator writes and commits SPEC.md. Agent context receives `context/spec.md`. Git commit queue includes SPEC.md. Resolved Decisions table: PRD storage → SPEC.md at repo root (flat markdown) for AI-agent-friendly standardized format.
-
-**Code review flow:** When `reviewAngles` is empty or undefined, one Reviewer runs with a general prompt (scope + code quality). When 1+ angles are selected, N parallel Reviewers run (one per angle); all must approve for overall approval. The single-agent constraint is relaxed for this case: multiple parallel reviewers are allowed for the same task when angles are selected.
-
-**Worktree base branch:** In worktree mode, `worktreeBaseBranch` (project setting, default `main`) controls which branch task branches are created from and merged into. Sync and push use `origin/<baseBranch>`. Reviewer diff uses `baseBranch...taskBranch`. Merger agent prompts reference the configured base branch. Branches mode always uses `main`.
-
-**LM Studio agent:** Agent type `lmstudio` uses the OpenAI-compatible Chat Completions API at a configurable base URL (default `http://localhost:1234`). Optional `baseUrl` in agent config; no API key. Invoke (planning) and spawnWithTaskFile (Coder/Reviewer) use in-process HTTP with custom baseURL. GET /models supports `provider=lmstudio` and optional `baseUrl` query; returns models from the local LM Studio server. Enables fully offline agent execution.
-
-**PRD change approval and version diffs:** When the Harmonizer (or any flow) proposes SPEC.md changes and the user is prompted to approve via the Human Notification System, the UI displays a diff of the proposed changes (GitHub/PR-review style). The backend computes the diff on demand: for HIL approval, between current SPEC.md and the proposed content via `GET /projects/:id/prd/proposed-diff?requestId=<hilRequestId>`; for the Sketch version list, between a selected previous version and current SPEC via `GET /projects/:id/prd/diff?fromVersion=<versionId>`. A line-based diff runs server-side; no diff is embedded in WebSocket payloads. Full SPEC.md snapshots are stored on each write, keyed by version, for version-list diff. A reusable DiffView component is used in the HIL approval UI and in the Sketch page "Compare to current" flow.
-
-**Project settings structure:** Project settings use two tabs: Agent Config (who runs the work) and Workflow (how the work runs). Agent Config contains Simple/Complex provider and model selection, Agent Instructions (collapsed under Advanced), and provider-specific prerequisite messaging. Simple agents handle low/medium complexity tasks; Complex agents handle high/very_high. Workflow tab groups controls into Execution Strategy (git mode, base branch, merge strategy, parallelism, unknown scope), Quality Gates (test command, code review mode + angles), and Continuous Improvement (self-improvement frequency). Error copy for missing API keys points users to Global Settings.
+**Expo readiness:** Before deploy, the system runs readiness checks (Expo installed, app.json configured, auth, EAS project linked). `GET /projects/:id/deliver/expo-readiness` returns status. Auto-install (`ensureExpoInstalled`) and config (`ensureExpoConfig`) run at start of deploy when gaps exist. Auth and EAS project linking require user input; optional `easProjectId` (or `expoConfig.projectId`) in deployment settings enables pre-linking via `eas init` or writing `expo.extra.eas.projectId` into app.json. Deliver phase fetches readiness on mount and shows setup banner when auth or EAS linking is missing. Readiness is informational and does not block deploy attempts; auth failure still returns 400 with existing prompt handling.
 
 ## Data Model
 
-**PRD (PRDDocument):** Stored as `SPEC.md` at repository root. A flat markdown file with standard section headers. The backend parses SPEC.md for API responses and structured editing; the canonical on-disk format is markdown. Optional metadata (version, change_log) may be stored in `.opensprint/spec-metadata.json` for versioning and section-level diffing. Entity relationship: PRD (1:1, SPEC.md).
-
-**Snapshot store (version-list diff):** On each SPEC write, full SPEC.md content is saved keyed by version (e.g. in prd_metadata or a dedicated snapshot store). The version-diff endpoint retrieves the snapshot for the requested fromVersion and diffs it against current SPEC.md.
-
-**HIL proposed-diff:** Pending PRD-approval HIL requests may include a reference (e.g. requestId) and proposal reference so the backend can look up proposed content when `GET /projects/:id/prd/proposed-diff?requestId=...` is called; the full diff is not stored in the payload.
-
-**AgentConfig (shared):** Includes optional `baseUrl?: string` when `type === "lmstudio"` (default `http://localhost:1234`). **AgentType** union includes `"lmstudio"`.
-
-**ProjectSettings:** Includes `worktreeBaseBranch?: string` (default `"main"`). Used when `gitWorkingMode === "worktree"`; controls branch creation, merge, sync, and push. Empty or invalid values normalize to `"main"`. Branches mode ignores this field. Agent config (simpleComplexityAgent, complexComplexityAgent) may use `type: "lmstudio"` with optional baseUrl.
-
-**Storage Strategy:** Per-project data includes SPEC.md at repo root. The backend maintains an in-memory index rebuilt from the filesystem on startup.
+**DeploymentConfig:** When `mode === "expo"`, includes optional `easProjectId` (or `expoConfig.projectId`) for pre-linking before first deploy. Stored in project settings; written to app.json or used with `eas init --id` before first deploy. Not required for backward compatibility.
 
 ## API Contracts
 
-**Projects:** GET/POST `/projects`, GET/PUT/DELETE `/projects/:id`
-
-**Project Settings:** GET/PUT `/projects/:id/settings` — Project settings (agent config, deployment, HIL, worktreeBaseBranch, etc.). Does **not** include apiKeys; API keys are managed via global-settings only.
-
-**Global Settings:** GET/PUT `/global-settings` — Returns and accepts `databaseUrl` (masked in response) and `apiKeys` (masked: `{id, masked, limitHitAt}` per provider). Supports multiple keys per provider (ANTHROPIC_API_KEY, CURSOR_API_KEY); merge semantics on PUT (preserve existing when value omitted).
-
-**PRD:** GET/PUT `/projects/:id/prd`, GET `/projects/:id/prd/:section`, GET `/projects/:id/prd/history`, GET `/projects/:id/prd/proposed-diff?requestId=<hilRequestId>` — returns diff for that PRD-approval HIL request (200: diff lines and summary; 404 if not found or not PRD-approval), GET `/projects/:id/prd/diff?fromVersion=<versionId>&toVersion=<versionId|'current'>` — returns diff between fromVersion and toVersion or current (200: fromVersion, toVersion, diff; 404 if version unavailable).
-
-**Plans:** GET/POST `/projects/:id/plans`, GET/PUT `/projects/:id/plans/:planId`, POST `/projects/:id/plans/:planId/execute`, POST `/projects/:id/plans/:planId/re-execute`, GET `/projects/:id/plans/dependencies`
-
-**Models:** GET `/projects/:id/models` (or GET `/models`) supports `provider=lmstudio` and optional `baseUrl` query (default `http://localhost:1234`). Fetches models from LM Studio local server; no API key. Returns `{ data: ModelOption[] }`; on connection error returns empty data or 502 with user-facing message.
-
-**Tasks:** GET `/projects/:id/tasks`, GET `/projects/:id/tasks/ready`, GET `/projects/:id/tasks/:taskId`, GET `/projects/:id/tasks/:taskId/sessions`, GET `/projects/:id/tasks/:taskId/sessions/:attempt`. Task responses include `sourceFeedbackIds?: string[]` when the task has linked feedback (derived from discovered-from dependencies).
-
-**Execute:** GET `/projects/:id/execute/status` — Returns orchestrator status including `activeTasks`. When multi-angle review is active, `activeTasks` may include multiple entries per task (one per angle).
-
-**Evaluate:** GET/POST `/projects/:id/feedback`, GET `/projects/:id/feedback/:feedbackId`
-
-**Deploy:** POST `/projects/:id/deploy`, GET `/projects/:id/deploy/status`, GET `/projects/:id/deploy/history`, POST `/projects/:id/deploy/:deployId/rollback`, PUT `/projects/:id/deploy/settings`
-
-**Chat:** POST `/projects/:id/chat`, GET `/projects/:id/chat/history`
-
-**Agents:** GET `/projects/:id/agents/instructions` — Returns `{ content: string }` (AGENTS.md). PUT `/projects/:id/agents/instructions` — Body `{ content: string }`, writes to repo root AGENTS.md. GET `/projects/:id/agents/active` — Returns active agents; when multi-angle review is active, multiple entries per task may appear (e.g., `Reviewer (Security)`, `Reviewer (Performance)`).
+**Deploy (Deliver phase):** POST `/projects/:id/deliver`, GET `/projects/:id/deliver/status`, GET `/projects/:id/deliver/history`, POST `/projects/:id/deliver/:deployId/rollback`, PUT `/projects/:id/deliver/settings`. GET `/projects/:id/deliver/expo-readiness` — returns `{ expoInstalled, expoConfigured, authOk, easProjectLinked, missing, prompt? }`; 400 if deployment mode is not expo; 404 if project not found. PUT `/projects/:id/deliver/settings` body accepts `easProjectId` when `deployment.mode === "expo"`.
 
 ## Non-Functional Requirements
 

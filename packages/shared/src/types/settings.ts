@@ -44,6 +44,8 @@ export interface DeploymentTargetConfig {
 /** Deployment configuration */
 export interface DeploymentConfig {
   mode: DeploymentMode;
+  /** EAS project ID (expo mode). When set, used for eas init / app.json expo.extra.eas.projectId before first deploy. */
+  easProjectId?: string;
   /** Target environment (default: production) */
   target?: DeploymentTarget;
   /** Deployment targets with per-target command/webhook (PRD ?7.5.2/7.5.4) */
@@ -156,9 +158,15 @@ interface LegacyDeploymentInput extends Record<string, unknown> {
  */
 function migrateDeploymentConfig(raw: unknown): DeploymentConfig {
   const input = (raw ?? DEFAULT_DEPLOYMENT_CONFIG) as LegacyDeploymentInput & DeploymentConfig;
+  const mode = input.mode ?? "custom";
+  // Legacy migration: expoConfig.projectId → easProjectId when mode is expo
+  const easProjectId =
+    input.easProjectId ??
+    (mode === "expo" && input.expoConfig?.projectId ? input.expoConfig.projectId : undefined);
   const base: DeploymentConfig = {
     ...DEFAULT_DEPLOYMENT_CONFIG,
-    mode: input.mode ?? "custom",
+    mode,
+    easProjectId,
     target: input.target,
     targets: input.targets,
     envVars: input.envVars,
