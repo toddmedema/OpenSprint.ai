@@ -1,7 +1,5 @@
 import { Router, Request } from "express";
 import multer from "multer";
-import mammoth from "mammoth";
-import { PDFParse } from "pdf-parse";
 import { PrdService } from "../services/prd.service.js";
 import { ChatService } from "../services/chat.service.js";
 import { prdFromCodebaseService } from "../services/prd-from-codebase.service.js";
@@ -19,6 +17,20 @@ export const prdRouter = Router({ mergeParams: true });
 
 type ProjectParams = { projectId: string };
 type SectionParams = { projectId: string; section: string };
+
+async function extractDocxText(buffer: Buffer): Promise<string> {
+  const mammothModule = await import("mammoth");
+  const mammoth = "default" in mammothModule ? mammothModule.default : mammothModule;
+  const result = await mammoth.extractRawText({ buffer });
+  return result.value;
+}
+
+async function extractPdfText(buffer: Buffer): Promise<string> {
+  const { PDFParse } = await import("pdf-parse");
+  const parser = new PDFParse({ data: buffer });
+  const result = await parser.getText();
+  return result.text;
+}
 
 // GET /projects/:projectId/prd — Get full PRD
 prdRouter.get("/", async (req: Request<ProjectParams>, res, next) => {
@@ -245,14 +257,11 @@ prdRouter.post("/upload", upload.single("file"), async (req: Request<ProjectPara
         break;
       }
       case "docx": {
-        const result = await mammoth.extractRawText({ buffer: file.buffer });
-        extractedText = result.value;
+        extractedText = await extractDocxText(file.buffer);
         break;
       }
       case "pdf": {
-        const parser = new PDFParse({ data: file.buffer });
-        const result = await parser.getText();
-        extractedText = result.text;
+        extractedText = await extractPdfText(file.buffer);
         break;
       }
       default:

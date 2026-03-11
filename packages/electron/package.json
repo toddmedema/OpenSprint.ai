@@ -12,7 +12,8 @@
     "build": "npm run compile && electron-builder",
     "build:dir": "npm run compile && electron-builder --dir",
     "build:mac": "npm run compile && electron-builder --mac",
-    "build:win": "npm run compile && electron-builder --win",
+    "build:win": "npm run compile && electron-builder --win --x64",
+    "build:win:x64": "npm run compile && electron-builder --win --x64",
     "build:linux": "npm run compile && electron-builder --linux"
   },
   "dependencies": {},
@@ -26,6 +27,7 @@
     "appId": "com.opensprint.app",
     "productName": "Open Sprint",
     "electronVersion": "35.1.0",
+    "afterPack": "./scripts/after-pack-ad-hoc-sign.js",
     "compression": "maximum",
     "directories": {
       "output": "dist"

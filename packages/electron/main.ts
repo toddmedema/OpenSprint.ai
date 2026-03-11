@@ -3,6 +3,7 @@ import os from "os";
 import path from "path";
 import { spawn, type ChildProcess } from "child_process";
 import http from "http";
+import net from "net";
 import {
   app,
   BrowserWindow,
@@ -18,23 +19,26 @@ import {
 } from "electron";
 
 const APP_NAME = "Open Sprint";
-const BACKEND_PORT = 3100;
-const BACKEND_ORIGIN = `http://127.0.0.1:${BACKEND_PORT}`;
-const HEALTH_URL = `http://127.0.0.1:${BACKEND_PORT}/health`;
+const DEFAULT_BACKEND_PORT = 3100;
 const HEALTH_POLL_MS = 200;
 const HEALTH_TIMEOUT_MS = 30000;
+const EXISTING_BACKEND_WAIT_MS = 5000;
+const BACKEND_PORT_SEARCH_LIMIT = 20;
 const BACKEND_FORCE_KILL_MS = 5000;
-const API_BASE = `${BACKEND_ORIGIN}/api/v1`;
 const TRAY_REFRESH_MS = 10000;
 
 let mainWindow: BrowserWindow | null = null;
 let backendProcess: ChildProcess | null = null;
 let backendShutdownPromise: Promise<void> | null = null;
 let backendLaunchError: Error | null = null;
+let backendLogStream: fs.WriteStream | null = null;
+let backendLogPath: string | null = null;
 let tray: Tray | null = null;
 let trayRefreshInterval: ReturnType<typeof setInterval> | null = null;
 let isQuitting = false;
 let quitAfterBackendStop = false;
+let backendStartupInProgress = false;
+let backendPort = DEFAULT_BACKEND_PORT;
 
 app.setName(APP_NAME);
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
@@ -118,6 +122,18 @@ function getTrayIconPaths(): {
   return { normalPath, withDotPath, isTemplate: process.platform === "darwin" };
 }
 
+function getBackendOrigin(): string {
+  return `http://127.0.0.1:${backendPort}`;
+}
+
+function getHealthUrl(): string {
+  return `${getBackendOrigin()}/health`;
+}
+
+function getApiBase(): string {
+  return `${getBackendOrigin()}/api/v1`;
+}
+
 function fetchJson(url: string, timeoutMs = 500): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const req = http.get(url, (res) => {
@@ -137,6 +153,82 @@ function fetchJson(url: string, timeoutMs = 500): Promise<Record<string, unknown
       reject(new Error("Timeout"));
     });
   });
+}
+
+function probeDesktopBackend(timeoutMs = 1000): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (ok: boolean): void => {
+      if (settled) return;
+      settled = true;
+      resolve(ok);
+    };
+    const req = http.get(getBackendOrigin(), (res) => {
+      // Desktop backend serves the bundled frontend at "/" (HTTP 200).
+      // Dev backend returns 404 at "/", which should not be reused by Electron.
+      const desktopReady = res.statusCode === 200;
+      res.resume();
+      finish(desktopReady);
+    });
+    req.on("error", () => finish(false));
+    req.setTimeout(timeoutMs, () => {
+      req.destroy();
+      finish(false);
+    });
+  });
+}
+
+function probeBackendHealth(timeoutMs = 1000): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (ok: boolean): void => {
+      if (settled) return;
+      settled = true;
+      resolve(ok);
+    };
+    const req = http.get(getHealthUrl(), (res) => {
+      const healthy = res.statusCode === 200;
+      res.resume();
+      finish(healthy);
+    });
+    req.on("error", () => finish(false));
+    req.setTimeout(timeoutMs, () => {
+      req.destroy();
+      finish(false);
+    });
+  });
+}
+
+async function waitForExistingDesktopBackend(timeoutMs: number): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (await probeDesktopBackend()) {
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, HEALTH_POLL_MS));
+  }
+  return probeDesktopBackend();
+}
+
+function isPortAvailable(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const tester = net.createServer();
+    tester.once("error", () => resolve(false));
+    tester.once("listening", () => {
+      tester.close(() => resolve(true));
+    });
+    tester.listen(port, "127.0.0.1");
+  });
+}
+
+async function findAvailableBackendPort(): Promise<number | null> {
+  for (let offset = 1; offset <= BACKEND_PORT_SEARCH_LIMIT; offset += 1) {
+    const candidate = DEFAULT_BACKEND_PORT + offset;
+    if (await isPortAvailable(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
 }
 
 function waitForBackend(child: ChildProcess): Promise<void> {
@@ -166,7 +258,7 @@ function waitForBackend(child: ChildProcess): Promise<void> {
         );
         return;
       }
-      const req = http.get(HEALTH_URL, (res) => {
+      const req = http.get(getHealthUrl(), (res) => {
         if (res.statusCode === 200) {
           succeed();
           return;
@@ -205,9 +297,39 @@ function waitForBackend(child: ChildProcess): Promise<void> {
   });
 }
 
+function ensureBackendLogStream(): fs.WriteStream | null {
+  if (backendLogStream) return backendLogStream;
+  try {
+    const logDir = path.join(app.getPath("userData"), "logs");
+    fs.mkdirSync(logDir, { recursive: true });
+    backendLogPath = path.join(logDir, "backend.log");
+    backendLogStream = fs.createWriteStream(backendLogPath, { flags: "a" });
+    backendLogStream.write(`\n[${new Date().toISOString()}] Backend launch attempt\n`);
+    backendLogStream.on("error", (err) => {
+      console.error("Backend log stream error:", err);
+      backendLogStream = null;
+    });
+    return backendLogStream;
+  } catch (err) {
+    console.error("Could not initialize backend log file:", err);
+    return null;
+  }
+}
+
+function closeBackendLogStream(): void {
+  if (!backendLogStream) return;
+  try {
+    backendLogStream.end();
+  } catch {
+    // ignore
+  }
+  backendLogStream = null;
+}
+
 function startBackend(): ChildProcess {
   const { backendDir, backendEntry, frontendDist } = getPaths();
   backendLaunchError = null;
+  const backendLog = app.isPackaged ? ensureBackendLogStream() : null;
   const pathDelimiter = process.platform === "win32" ? ";" : ":";
   const existingPath = process.env.PATH ?? "";
   const preferredPathEntries = [
@@ -227,6 +349,7 @@ function startBackend(): ChildProcess {
 
   const env: NodeJS.ProcessEnv = {
     ...process.env,
+    PORT: String(backendPort),
     OPENSPRINT_DESKTOP: "1",
     OPENSPRINT_FRONTEND_DIST: frontendDist,
     PATH: normalizedPath,
@@ -236,22 +359,38 @@ function startBackend(): ChildProcess {
   const child = spawn(process.execPath, [backendEntry], {
     cwd: backendDir,
     env,
-    stdio: app.isPackaged ? "ignore" : ["inherit", "pipe", "pipe"],
+    stdio: ["ignore", "pipe", "pipe"],
   });
-  if (!app.isPackaged && child.stdout) {
-    child.stdout.on("data", (data: Buffer) => process.stdout.write(data));
+  if (child.stdout) {
+    child.stdout.on("data", (data: Buffer) => {
+      if (!app.isPackaged) {
+        process.stdout.write(data);
+      }
+      if (backendLog) {
+        backendLog.write(data);
+      }
+    });
   }
-  if (!app.isPackaged && child.stderr) {
-    child.stderr.on("data", (data: Buffer) => process.stderr.write(data));
+  if (child.stderr) {
+    child.stderr.on("data", (data: Buffer) => {
+      if (!app.isPackaged) {
+        process.stderr.write(data);
+      }
+      if (backendLog) {
+        backendLog.write(data);
+      }
+    });
   }
   child.on("error", (err: Error) => {
     backendLaunchError = new Error(`Backend process error: ${err.message}`);
     console.error("Backend process error:", err);
   });
   child.on("exit", (code, signal) => {
-    if (backendProcess === child) {
+    const exitedActiveBackend = backendProcess === child;
+    if (exitedActiveBackend) {
       backendProcess = null;
       backendShutdownPromise = null;
+      closeBackendLogStream();
     }
     if (!isQuitting && code !== 0) {
       backendLaunchError = new Error(`Backend exited with code ${code}`);
@@ -259,11 +398,16 @@ function startBackend(): ChildProcess {
       backendLaunchError = new Error(`Backend exited with signal ${signal}`);
     }
     if (isQuitting) return;
+    if (!exitedActiveBackend) return;
     if (code != null && code !== 0) {
       console.error("Backend exited with code", code);
+      if (backendStartupInProgress) {
+        return;
+      }
       dialog.showErrorBox(
         "Backend Error",
-        "The backend process crashed. The app will now quit."
+        "The backend process crashed. The app will now quit." +
+          (backendLogPath ? `\n\nBackend log: ${backendLogPath}` : "")
       );
       app.exit(1);
     }
@@ -404,7 +548,7 @@ function createWindow(): void {
   mainWindow.webContents.on("will-navigate", (event, url) => {
     try {
       const parsed = new URL(url);
-      if (parsed.origin !== BACKEND_ORIGIN) {
+      if (parsed.origin !== getBackendOrigin()) {
         event.preventDefault();
         shell.openExternal(url);
       }
@@ -432,9 +576,9 @@ function refreshTrayMenu(): Promise<void> {
   if (!tray || tray.isDestroyed()) return Promise.resolve();
   const { normalPath, withDotPath, isTemplate } = getTrayIconPaths();
   return Promise.all([
-    fetchJson(`${API_BASE}/agents/active-count`).catch(() => ({ data: { count: 0 } })),
-    fetchJson(`${API_BASE}/notifications/pending-count`).catch(() => ({ data: { count: 0 } })),
-    fetchJson(`${API_BASE}/global-settings`).catch(() => ({
+    fetchJson(`${getApiBase()}/agents/active-count`).catch(() => ({ data: { count: 0 } })),
+    fetchJson(`${getApiBase()}/notifications/pending-count`).catch(() => ({ data: { count: 0 } })),
+    fetchJson(`${getApiBase()}/global-settings`).catch(() => ({
       data: { showNotificationDotInMenuBar: true },
     })),
   ]).then(([agentsRes, notifRes, settingsRes]) => {
@@ -640,6 +784,7 @@ function killBackend(): Promise<void> {
       if (forceKillTimer) clearTimeout(forceKillTimer);
       if (backendProcess === proc) {
         backendProcess = null;
+        closeBackendLogStream();
       }
       backendShutdownPromise = null;
       resolve();
@@ -704,11 +849,11 @@ function setupSessionSecurity(): void {
         ...details.responseHeaders,
         "Content-Security-Policy": [
           "default-src 'self' " +
-            BACKEND_ORIGIN +
+            getBackendOrigin() +
             "; script-src 'self'; connect-src 'self' ws://127.0.0.1:" +
-            BACKEND_PORT +
+            backendPort +
             "; style-src 'self' 'unsafe-inline'; img-src 'self' data: " +
-            BACKEND_ORIGIN,
+            getBackendOrigin(),
         ],
       },
     });
@@ -750,24 +895,73 @@ app.whenReady().then(async () => {
 
   globalShortcut.register("CommandOrControl+F", focusAndOpenFindBar);
 
-  backendProcess = startBackend();
-  try {
-    await waitForBackend(backendProcess);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+  backendPort = DEFAULT_BACKEND_PORT;
+  let backendReady = false;
+  let startupError: unknown = null;
+
+  if (await probeDesktopBackend()) {
+    backendReady = true;
+    loadBootScreen("Connected to an existing backend service.");
+  } else {
+    if (await probeBackendHealth()) {
+      const fallbackPort = await findAvailableBackendPort();
+      if (fallbackPort !== null) {
+        backendPort = fallbackPort;
+        loadBootScreen(`Primary backend port is busy. Retrying on port ${fallbackPort}...`);
+      }
+    }
+
+    backendStartupInProgress = true;
+    backendProcess = startBackend();
+    try {
+      await waitForBackend(backendProcess);
+      backendLaunchError = null;
+      backendReady = true;
+    } catch (err) {
+      startupError = err;
+      const connectedToExistingBackend = await waitForExistingDesktopBackend(EXISTING_BACKEND_WAIT_MS);
+      if (connectedToExistingBackend) {
+        backendLaunchError = null;
+        backendReady = true;
+        loadBootScreen("Connected to an existing backend service.");
+      } else {
+        await killBackend();
+        const fallbackPort = await findAvailableBackendPort();
+        if (fallbackPort !== null && fallbackPort !== backendPort) {
+          backendPort = fallbackPort;
+          loadBootScreen(`Primary backend port is busy. Retrying on port ${fallbackPort}...`);
+          backendProcess = startBackend();
+          try {
+            await waitForBackend(backendProcess);
+            backendLaunchError = null;
+            backendReady = true;
+          } catch (retryErr) {
+            startupError = retryErr;
+            await killBackend();
+          }
+        }
+      }
+    } finally {
+      backendStartupInProgress = false;
+    }
+  }
+
+  if (!backendReady) {
+    const message =
+      startupError instanceof Error ? startupError.message : String(startupError ?? "unknown error");
     console.error(message);
     loadBootScreen(`Backend failed to start: ${message}`);
-    await killBackend();
     dialog.showErrorBox(
       "Backend Failed to Start",
-      `The backend could not start: ${message}`
+      `The backend could not start: ${message}` +
+        (backendLogPath ? `\n\nBackend log: ${backendLogPath}` : "")
     );
     app.exit(1);
     return;
   }
 
   if (mainWindow && !mainWindow.isDestroyed()) {
-    await mainWindow.loadURL(BACKEND_ORIGIN);
+    await mainWindow.loadURL(getBackendOrigin());
   }
   createTray();
   trayRefreshInterval = setInterval(refreshTrayMenu, TRAY_REFRESH_MS);
@@ -795,7 +989,10 @@ app.on("before-quit", (event) => {
   }
 
   if (quitAfterBackendStop) return;
-  if (!backendProcess) return;
+  if (!backendProcess) {
+    closeBackendLogStream();
+    return;
+  }
 
   event.preventDefault();
   quitAfterBackendStop = true;

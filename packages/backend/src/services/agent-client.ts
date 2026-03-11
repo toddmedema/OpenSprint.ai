@@ -159,6 +159,37 @@ function getStructuredAgentErrorMessage(obj: unknown): string | null {
 }
 
 /**
+ * Plain-text Cursor status lines ("S: ...") can contain normal model text.
+ * Only treat them as API failures when they match strong provider-style errors.
+ */
+const CURSOR_PLAINTEXT_API_ERROR_PATTERNS = [
+  /you'?ve hit your usage limit/i,
+  /usage limits? will reset/i,
+  /switch to auto for more usage/i,
+  /set a spend limit/i,
+  /\brate_limit_exceeded\b/i,
+  /\bquota(?:_exceeded| exceeded)\b/i,
+  /\binsufficient_quota\b/i,
+  /\btoo many requests\b/i,
+  /\bresource exhausted\b/i,
+  /\brate limit (?:exceeded|reached|hit)\b/i,
+  /\bhttp(?:\s+status)?\s*429\b/i,
+  /\b429\b.*\btoo many requests\b/i,
+  /authentication required/i,
+  /\bunauthorized\b/i,
+  /\binvalid api key\b/i,
+  /\binvalid token\b/i,
+  /run ['`]?agent login/i,
+  /cursor-access-token/i,
+  /password not found/i,
+];
+
+function isCursorPlaintextApiError(candidate: string): boolean {
+  if (!classifyAgentApiError(candidate)) return false;
+  return CURSOR_PLAINTEXT_API_ERROR_PATTERNS.some((pattern) => pattern.test(candidate));
+}
+
+/**
  * Detached Cursor runs write stdout and stderr into a single log file.
  * Only explicit error records should participate in rate-limit detection.
  */
@@ -182,13 +213,21 @@ function extractExplicitAgentErrors(rawOutput: string): string {
       if (message) errors.push(message);
     } catch {
       const prefixMatch = trimmed.match(/^(S:|Error:)\s*(.+)$/i);
+      const prefix = prefixMatch?.[1]?.toLowerCase() ?? null;
       const candidate = prefixMatch?.[2]?.trim() ?? trimmed;
-      if (
-        (/you'?ve hit your usage limit/i.test(candidate) ||
-          prefixMatch !== null ||
-          candidate !== trimmed) &&
-        classifyAgentApiError(candidate)
-      ) {
+      if (!candidate) continue;
+
+      if (prefix === "error:") {
+        if (classifyAgentApiError(candidate)) errors.push(candidate);
+        continue;
+      }
+
+      if (prefix === "s:") {
+        if (isCursorPlaintextApiError(candidate)) errors.push(candidate);
+        continue;
+      }
+
+      if (/you'?ve hit your usage limit/i.test(candidate) && isCursorPlaintextApiError(candidate)) {
         errors.push(candidate);
       }
     }
