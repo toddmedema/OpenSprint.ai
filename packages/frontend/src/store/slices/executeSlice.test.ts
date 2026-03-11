@@ -30,8 +30,8 @@ import executeReducer, {
   setAgentOutputBackfill,
   selectTasks,
   selectTasksForEpic,
-  type ExecuteState,
 } from "./executeSlice";
+import type { ExecuteState } from "./executeTypes";
 import planReducer from "./planSlice";
 import websocketReducer from "./websocketSlice";
 import type { Plan, PlanDependencyGraph, AgentSession, Task } from "@opensprint/shared";

@@ -103,8 +103,8 @@ export function ExecutePhase({
   /** Resolve selection from Redux or URL so sidebar shows on first paint when opening with ?task= */
   const effectiveSelectedTask = selectedTask ?? initialTaskIdFromUrl ?? null;
   const loading = useAppSelector((s) => s.execute?.async?.tasks?.loading ?? false);
-  const activeTasks = useAppSelector((s) => s.execute.activeTasks);
-  const taskIdToStartedAt = useAppSelector((s) => s.execute.taskIdToStartedAt);
+  const activeTasks = useAppSelector((s) => s.execute?.activeTasks ?? []);
+  const taskIdToStartedAt = useAppSelector((s) => s.execute?.taskIdToStartedAt ?? {});
   const wsConnected = useAppSelector((s) => s.websocket?.connected ?? false);
   const selectedTaskFromStore = useAppSelector((s) =>
     effectiveSelectedTask ? (selectTaskById(s, effectiveSelectedTask) ?? null) : null
