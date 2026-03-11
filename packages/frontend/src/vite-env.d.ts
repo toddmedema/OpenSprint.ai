@@ -4,6 +4,7 @@ declare global {
   interface Window {
     electron?: {
       isElectron: true;
+      platform?: string;
       onNavigateHelp: (callback: () => void) => () => void;
       onNavigateSettings: (callback: () => void) => () => void;
       onOpenFindBar: (callback: () => void) => () => void;
@@ -11,6 +12,13 @@ declare global {
       findInPage: (text: string, options?: { forward?: boolean; findNext?: boolean; caseSensitive?: boolean }) => Promise<void>;
       stopFindInPage: (action: "clearSelection" | "keepSelection" | "activateSelection") => Promise<void>;
       refreshTray?: () => Promise<void>;
+      restartApp?: () => Promise<void>;
+      minimizeWindow?: () => Promise<void>;
+      maximizeWindow?: () => Promise<void>;
+      closeWindow?: () => Promise<void>;
+      getWindowMaximized?: () => Promise<boolean>;
+      onWindowMaximized?: (callback: () => void) => () => void;
+      onWindowUnmaximized?: (callback: () => void) => () => void;
     };
   }
 }

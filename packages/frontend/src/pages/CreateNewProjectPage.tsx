@@ -22,7 +22,20 @@ import { getDefaultProviderFromEnvKeys } from "../utils/agentConfigDefaults";
 import { getRunInstructions } from "../utils/runInstructions";
 
 type Step = "basics" | "agents" | "scaffold";
-type ActionableError = { message: string; commands?: string[] };
+type ActionableError = {
+  message: string;
+  commands?: string[];
+  code?: string;
+  missing?: string[];
+};
+
+/** Download URLs for prerequisite installers; opens in system browser (Electron uses openExternal). */
+function getPrereqInstallUrl(tool: string, platform?: string): string {
+  if (tool === "Git" && platform === "win32") return "https://git-scm.com/download/win";
+  if (tool === "Git") return "https://git-scm.com/";
+  if (tool === "Node.js") return "https://nodejs.org/";
+  return "#";
+}
 
 const STEPS: { key: Step; label: string }[] = [
   { key: "basics", label: "Basics" },
@@ -229,7 +242,12 @@ export function CreateNewProjectPage() {
             err instanceof ApiError && err.details && Array.isArray((err.details as { commands?: unknown }).commands)
               ? (((err.details as { commands?: string[] }).commands as string[]) ?? undefined)
               : undefined;
-          setScaffoldError({ message, commands });
+          const code = err instanceof ApiError ? err.code : undefined;
+          const missing =
+            err instanceof ApiError && err.details && Array.isArray((err.details as { missing?: unknown }).missing)
+              ? ((err.details as { missing: string[] }).missing ?? undefined)
+              : undefined;
+          setScaffoldError({ message, commands, code, missing });
           if (err instanceof ApiError && err.details) {
             const details = err.details as { recovery?: ScaffoldRecoveryInfo };
             if (details.recovery) {
@@ -310,7 +328,12 @@ export function CreateNewProjectPage() {
             err instanceof ApiError && err.details && Array.isArray((err.details as { commands?: unknown }).commands)
               ? (((err.details as { commands?: string[] }).commands as string[]) ?? undefined)
               : undefined;
-          setScaffoldError({ message, commands });
+          const code = err instanceof ApiError ? err.code : undefined;
+          const missing =
+            err instanceof ApiError && err.details && Array.isArray((err.details as { missing?: unknown }).missing)
+              ? ((err.details as { missing: string[] }).missing ?? undefined)
+              : undefined;
+          setScaffoldError({ message, commands, code, missing });
           if (err instanceof ApiError && err.details) {
             const details = err.details as { recovery?: ScaffoldRecoveryInfo };
             if (details.recovery) {
@@ -515,6 +538,24 @@ export function CreateNewProjectPage() {
                           {scaffoldError.commands.join("\n")}
                         </pre>
                       )}
+                      {scaffoldError.code === "SCAFFOLD_PREREQUISITES_MISSING" &&
+                        scaffoldError.missing &&
+                        scaffoldError.missing.length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-2" data-testid="prereq-install-buttons">
+                            {scaffoldError.missing.map((tool) => (
+                              <a
+                                key={tool}
+                                href={getPrereqInstallUrl(tool, backendRuntime?.platform)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn-primary inline-flex items-center gap-1.5"
+                                data-testid={`install-${tool.toLowerCase().replace(".", "")}-button`}
+                              >
+                                Install {tool}
+                              </a>
+                            ))}
+                          </div>
+                        )}
                     </div>
                     {scaffoldRecovery && (
                       <div

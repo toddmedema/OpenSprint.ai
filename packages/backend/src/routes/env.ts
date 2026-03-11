@@ -4,8 +4,9 @@ import path from "path";
 import { randomUUID } from "node:crypto";
 import { readFile, writeFile, access } from "node:fs/promises";
 import { constants } from "node:fs";
-import { execFile } from "node:child_process";
+import { exec, execFile } from "node:child_process";
 import { promisify } from "node:util";
+import type { BackendPlatform } from "@opensprint/shared";
 import type {
   ApiResponse,
   ApiKeys,
@@ -22,7 +23,40 @@ import { validateApiKey } from "./models.js";
 import { getGlobalSettings, updateGlobalSettings } from "../services/global-settings.service.js";
 
 const execFileAsync = promisify(execFile);
+const execAsync = promisify(exec);
 const log = createLogger("env");
+
+/** Check if Git and Node.js are available on PATH (for installation checklist). */
+async function checkPrerequisites(): Promise<{ missing: string[] }> {
+  const missing: string[] = [];
+  const timeout = 5000;
+  const isCommandNotFound = (err: unknown): boolean => {
+    const msg = err instanceof Error ? err.message : String(err);
+    const code =
+      err && typeof err === "object" && "code" in err
+        ? (err as { code?: string }).code
+        : undefined;
+    return (
+      code === "ENOENT" ||
+      /command not found/i.test(msg) ||
+      /not recognized/i.test(msg) ||
+      /not found/i.test(msg)
+    );
+  };
+  try {
+    await execAsync("git --version", { timeout });
+  } catch (err) {
+    if (isCommandNotFound(err)) missing.push("Git");
+    else throw err;
+  }
+  try {
+    await execAsync("node --version", { timeout });
+  } catch (err) {
+    if (isCommandNotFound(err)) missing.push("Node.js");
+    else throw err;
+  }
+  return { missing };
+}
 
 const ALLOWED_KEYS = [
   "ANTHROPIC_API_KEY",
@@ -125,6 +159,18 @@ envRouter.get("/runtime", (_req, res) => {
     data: getBackendRuntimeInfo(),
   } as ApiResponse<EnvRuntimeResponse>);
 });
+
+// GET /env/prerequisites — For installation checklist on home: which of Git/Node are missing + platform for install URLs.
+envRouter.get(
+  "/prerequisites",
+  wrapAsync(async (_req, res) => {
+    const { missing } = await checkPrerequisites();
+    const runtime = getBackendRuntimeInfo();
+    res.json({
+      data: { missing, platform: runtime.platform },
+    } as ApiResponse<{ missing: string[]; platform: BackendPlatform }>);
+  })
+);
 
 envRouter.get(
   "/global-status",

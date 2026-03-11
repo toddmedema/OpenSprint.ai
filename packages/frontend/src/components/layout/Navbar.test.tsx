@@ -243,6 +243,63 @@ describe("Navbar", () => {
     expect(screen.queryByText("Open Sprint")).not.toBeInTheDocument();
   });
 
+  it("on macOS Electron, keeps logo for Home and offsets left slot for traffic lights", () => {
+    const prev =
+      typeof window !== "undefined" && (window as unknown as { electron?: unknown }).electron;
+    if (typeof window !== "undefined") {
+      (window as unknown as { electron: { isElectron: true; platform: string } }).electron = {
+        isElectron: true,
+        platform: "darwin",
+      };
+    }
+    renderNavbar(<Navbar project={null} />);
+    expect(screen.getByTestId("navbar-logo-link")).toBeInTheDocument();
+    expect(screen.getByTestId("navbar-left-slot")).toHaveClass("pl-[62px]");
+    if (typeof window !== "undefined") {
+      if (prev !== undefined) (window as unknown as { electron: unknown }).electron = prev;
+      else delete (window as unknown as { electron?: unknown }).electron;
+    }
+  });
+
+  it("on Windows Electron, shows integrated window controls (minimize, maximize, close) in navbar", async () => {
+    const prev =
+      typeof window !== "undefined" && (window as unknown as { electron?: unknown }).electron;
+    if (typeof window !== "undefined") {
+      (window as unknown as {
+        electron: {
+          isElectron: true;
+          platform: string;
+          getWindowMaximized: () => Promise<boolean>;
+          onWindowMaximized: (cb: () => void) => () => void;
+          onWindowUnmaximized: (cb: () => void) => () => void;
+          minimizeWindow: () => Promise<void>;
+          maximizeWindow: () => Promise<void>;
+          closeWindow: () => Promise<void>;
+        };
+      }).electron = {
+        isElectron: true,
+        platform: "win32",
+        getWindowMaximized: vi.fn().mockResolvedValue(false),
+        onWindowMaximized: vi.fn(() => () => {}),
+        onWindowUnmaximized: vi.fn(() => () => {}),
+        minimizeWindow: vi.fn().mockResolvedValue(undefined),
+        maximizeWindow: vi.fn().mockResolvedValue(undefined),
+        closeWindow: vi.fn().mockResolvedValue(undefined),
+      };
+    }
+    renderNavbar(<Navbar project={null} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("navbar-window-controls")).toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "Minimize" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Maximize" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+    if (typeof window !== "undefined") {
+      if (prev !== undefined) (window as unknown as { electron: unknown }).electron = prev;
+      else delete (window as unknown as { electron?: unknown }).electron;
+    }
+  });
+
   it("hides project select below 800px breakpoint (uses hidden min-[800px]:flex)", () => {
     renderNavbar(<Navbar project={null} />);
     const projectSelect = screen.getByTestId("navbar-project-select");

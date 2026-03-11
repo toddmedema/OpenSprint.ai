@@ -36,6 +36,7 @@ import { broadcastToProject } from "../websocket/index.js";
 import { registerAgentProcess, unregisterAgentProcess } from "./agent-process-registry.js";
 import { createLogger } from "../utils/logger.js";
 import { signalProcessGroup } from "../utils/process-group.js";
+import { normalizeSpawnEnvPath } from "../utils/path-env.js";
 
 const execAsync = promisify(exec);
 const log = createLogger("agent-client");
@@ -1487,7 +1488,7 @@ export class AgentClient {
       mkdirSync(isolatedCursorConfigDir, { recursive: true });
     }
 
-    const spawnEnv =
+    const spawnEnvBase =
       config.type === "cursor" && cursorEnvOverrides
         ? {
             ...process.env,
@@ -1495,6 +1496,7 @@ export class AgentClient {
             ...(isolatedCursorConfigDir ? { CURSOR_CONFIG_DIR: isolatedCursorConfigDir } : {}),
           }
         : { ...process.env };
+    const spawnEnv = normalizeSpawnEnvPath(spawnEnvBase);
 
     const child = spawn(command, args, {
       cwd,
@@ -1720,7 +1722,7 @@ export class AgentClient {
     const child = spawn("claude", args, {
       cwd,
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env },
+      env: normalizeSpawnEnvPath({ ...process.env }),
       detached: true,
     });
 
@@ -1950,7 +1952,7 @@ export class AgentClient {
 
       const child = spawn("agent", args, {
         cwd,
-        env: { ...process.env, CURSOR_API_KEY: cursorApiKey || "" },
+        env: normalizeSpawnEnvPath({ ...process.env, CURSOR_API_KEY: cursorApiKey || "" }),
         stdio: ["ignore", "pipe", "pipe"],
       });
 

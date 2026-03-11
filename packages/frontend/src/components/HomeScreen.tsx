@@ -12,6 +12,15 @@ import { getDropdownPositionLeftAligned } from "../lib/dropdownViewport";
 import { useModalA11y } from "../hooks/useModalA11y";
 import type { Project } from "@opensprint/shared";
 
+const PREREQ_ITEMS = ["Git", "Node.js"] as const;
+
+function getPrereqInstallUrl(tool: string, platform?: string): string {
+  if (tool === "Git" && platform === "win32") return "https://git-scm.com/download/win";
+  if (tool === "Git") return "https://git-scm.com/";
+  if (tool === "Node.js") return "https://nodejs.org/";
+  return "#";
+}
+
 const DROPDOWN_MIN_WIDTH = 140;
 
 function KebabIcon({ className }: { className?: string }) {
@@ -100,6 +109,10 @@ export function HomeScreen() {
   const dispatch = useAppDispatch();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [prerequisites, setPrerequisites] = useState<{
+    missing: string[];
+    platform: string;
+  } | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [menuAnchorRect, setMenuAnchorRect] = useState<DOMRect | null>(null);
   const [archiveModal, setArchiveModal] = useState<Project | null>(null);
@@ -147,6 +160,13 @@ export function HomeScreen() {
       cancelled = true;
       ac.abort();
     };
+  }, []);
+
+  useEffect(() => {
+    api.env
+      .getPrerequisites()
+      .then(setPrerequisites)
+      .catch(() => setPrerequisites(null));
   }, []);
 
   useEffect(() => {
@@ -227,33 +247,90 @@ export function HomeScreen() {
         className={`${HOMEPAGE_CONTAINER_CLASS} py-6 sm:py-10 flex-1 min-h-0 overflow-y-auto`}
         data-testid="project-list-container"
       >
-        {/* Header: stack buttons on narrow screens */}
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 sm:gap-6 mb-10">
-          <h1 className="text-2xl sm:text-3xl font-bold text-theme-text shrink-0">Projects</h1>
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 shrink-0 w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => handleCreateOrAddClick("/projects/add-existing")}
-              className="btn-secondary hover:bg-theme-info-bg min-h-[44px] sm:min-h-0"
-              data-testid="add-existing-button"
-            >
-              Add Existing
-            </button>
-            <button
-              type="button"
-              onClick={() => handleCreateOrAddClick("/projects/create-new")}
-              className="btn-primary min-h-[44px] sm:min-h-0"
-              data-testid="create-new-button"
-            >
-              Create New
-            </button>
+        {prerequisites && prerequisites.missing.length > 0 && (
+          <div
+            className="mb-8 p-4 rounded-xl border border-theme-border bg-theme-surface-muted/50"
+            data-testid="installation-checklist"
+          >
+            <h2 className="text-lg font-semibold text-theme-text mb-3">Installation checklist</h2>
+            <p className="text-sm text-theme-muted mb-4">
+              Install the following so you can create new projects. After installing, restart the
+              app or open a new terminal so they’re available.
+            </p>
+            <ul className="space-y-2">
+              {PREREQ_ITEMS.map((tool) => {
+                const isMissing = prerequisites.missing.includes(tool);
+                return (
+                  <li
+                    key={tool}
+                    className="flex items-center justify-between gap-3 text-sm"
+                    data-testid={`prereq-row-${tool.toLowerCase().replace(".", "")}`}
+                  >
+                    <span className="text-theme-text font-medium">{tool}</span>
+                    {isMissing ? (
+                      <a
+                        href={getPrereqInstallUrl(tool, prerequisites.platform)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-primary text-sm py-1.5 px-3"
+                        data-testid={`prereq-install-${tool.toLowerCase().replace(".", "")}`}
+                      >
+                        Install
+                      </a>
+                    ) : (
+                      <span className="text-theme-muted flex items-center gap-1.5" aria-label={`${tool} installed`}>
+                        <span className="text-green-600 dark:text-green-400" aria-hidden>✓</span>
+                        Installed
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            {typeof window !== "undefined" && window.electron?.restartApp && (
+              <div className="mt-6 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => void window.electron?.restartApp?.()}
+                  className="btn-secondary"
+                  data-testid="restart-app-button"
+                >
+                  Restart Open Sprint
+                </button>
+              </div>
+            )}
           </div>
-        </div>
+        )}
 
-        {loading ? (
-          <div className="text-center py-20 text-theme-muted">Loading projects...</div>
-        ) : (
-          <div className="grid gap-4 w-full" data-testid="projects-grid">
+        {!(prerequisites && prerequisites.missing.length > 0) && (
+          <>
+            {/* Header: stack buttons on narrow screens */}
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 sm:gap-6 mb-10">
+              <h1 className="text-2xl sm:text-3xl font-bold text-theme-text shrink-0">Projects</h1>
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 shrink-0 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => handleCreateOrAddClick("/projects/add-existing")}
+                  className="btn-secondary hover:bg-theme-info-bg min-h-[44px] sm:min-h-0"
+                  data-testid="add-existing-button"
+                >
+                  Add Existing
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCreateOrAddClick("/projects/create-new")}
+                  className="btn-primary min-h-[44px] sm:min-h-0"
+                  data-testid="create-new-button"
+                >
+                  Create New
+                </button>
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="text-center py-20 text-theme-muted">Loading projects...</div>
+            ) : (
+              <div className="grid gap-4 w-full" data-testid="projects-grid">
             {projects.map((project) => (
               <div
                 key={project.id}
@@ -355,7 +432,9 @@ export function HomeScreen() {
                 </div>
               </div>
             ))}
-          </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 

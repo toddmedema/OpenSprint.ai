@@ -313,6 +313,7 @@ describe("ProjectService.scaffoldProject", () => {
         })
         .catch((e) => e);
       expect(err).toMatchObject({ code: "SCAFFOLD_PREREQUISITES_MISSING" });
+      expect((err as { details?: { missing?: string[] } }).details?.missing).toEqual(["Git"]);
       expect(err.message).toContain("Git");
       expect(err.message).toContain("not installed");
       expect(err.message).toContain("https://git-scm.com/");
@@ -333,6 +334,7 @@ describe("ProjectService.scaffoldProject", () => {
         })
         .catch((e) => e);
       expect(err).toMatchObject({ code: "SCAFFOLD_PREREQUISITES_MISSING" });
+      expect((err as { details?: { missing?: string[] } }).details?.missing).toEqual(["Node.js"]);
       expect(err.message).toContain("Node.js");
       expect(err.message).toContain("not installed");
       expect(err.message).toContain("https://nodejs.org/");
@@ -354,6 +356,7 @@ describe("ProjectService.scaffoldProject", () => {
         })
         .catch((e) => e);
       expect(err).toMatchObject({ code: "SCAFFOLD_PREREQUISITES_MISSING" });
+      expect((err as { details?: { missing?: string[] } }).details?.missing).toEqual(["Git", "Node.js"]);
       expect(err.message).toContain("Git");
       expect(err.message).toContain("Node.js");
       expect(err.message).toContain("https://git-scm.com/");

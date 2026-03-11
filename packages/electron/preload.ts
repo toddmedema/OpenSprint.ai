@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("electron", {
   isElectron: true,
+  platform: process.platform,
   onNavigateHelp: (callback: () => void) => {
     const handler = () => callback();
     ipcRenderer.on("navigate-help", handler);
@@ -30,4 +31,19 @@ contextBridge.exposeInMainWorld("electron", {
   stopFindInPage: (action: "clearSelection" | "keepSelection" | "activateSelection") =>
     ipcRenderer.invoke("stop-find-in-page", action),
   refreshTray: () => ipcRenderer.invoke("refresh-tray"),
+  restartApp: () => ipcRenderer.invoke("restart-app"),
+  minimizeWindow: () => ipcRenderer.invoke("window-minimize"),
+  maximizeWindow: () => ipcRenderer.invoke("window-maximize"),
+  closeWindow: () => ipcRenderer.invoke("window-close"),
+  getWindowMaximized: () => ipcRenderer.invoke("window-is-maximized") as Promise<boolean>,
+  onWindowMaximized: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("window-maximized", handler);
+    return () => ipcRenderer.removeListener("window-maximized", handler);
+  },
+  onWindowUnmaximized: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("window-unmaximized", handler);
+    return () => ipcRenderer.removeListener("window-unmaximized", handler);
+  },
 });

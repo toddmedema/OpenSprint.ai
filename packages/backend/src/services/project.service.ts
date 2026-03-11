@@ -576,7 +576,9 @@ export class ProjectService {
               : "Install Node.js from https://nodejs.org/ and ensure it is in your PATH, then try again.")
           : `${list} are not installed or not available in PATH. ` +
             "Install Git from https://git-scm.com/ and Node.js from https://nodejs.org/, ensure both are in your PATH, then try again.";
-      throw new AppError(400, ErrorCodes.SCAFFOLD_PREREQUISITES_MISSING, msg);
+      throw new AppError(400, ErrorCodes.SCAFFOLD_PREREQUISITES_MISSING, msg, {
+        missing: prereq.missing,
+      });
     }
 
     const repoPath = path.resolve(parentPath);

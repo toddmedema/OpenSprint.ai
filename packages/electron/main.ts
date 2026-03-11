@@ -28,6 +28,8 @@ const BACKEND_FORCE_KILL_MS = 5000;
 const TRAY_REFRESH_MS = 10000;
 const DB_STARTUP_POLL_MS = 500;
 const DB_STARTUP_TIMEOUT_MS = 10000;
+const MAC_TRAFFIC_LIGHT_X = 14;
+const MAC_TRAFFIC_LIGHT_Y = 16;
 
 let mainWindow: BrowserWindow | null = null;
 let backendProcess: ChildProcess | null = null;
@@ -435,25 +437,65 @@ function isDirectory(candidate: string): boolean {
   }
 }
 
+type ParsedNodeVersion = {
+  major: number;
+  minor: number;
+  patch: number;
+};
+
+function parseNodeVersionFromDirName(name: string): ParsedNodeVersion | null {
+  const match = name.match(/^v?(\d+)\.(\d+)\.(\d+)$/i);
+  if (!match) return null;
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3]),
+  };
+}
+
+function compareNodeVersionDesc(a: ParsedNodeVersion, b: ParsedNodeVersion): number {
+  if (a.major !== b.major) return b.major - a.major;
+  if (a.minor !== b.minor) return b.minor - a.minor;
+  return b.patch - a.patch;
+}
+
 function getNvmNodeBinPaths(homeDir: string): string[] {
   const nvmDir = process.env.NVM_DIR?.trim() || path.join(homeDir, ".nvm");
   const bins: string[] = [];
   const currentBin = path.join(nvmDir, "current", "bin");
-  if (isDirectory(currentBin)) {
-    bins.push(currentBin);
-  }
 
   const versionsDir = path.join(nvmDir, "versions", "node");
   try {
-    for (const entry of fs.readdirSync(versionsDir, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      const versionBin = path.join(versionsDir, entry.name, "bin");
-      if (isDirectory(versionBin)) {
-        bins.push(versionBin);
-      }
+    const versionBins = fs
+      .readdirSync(versionsDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => {
+        const versionBin = path.join(versionsDir, entry.name, "bin");
+        return {
+          versionBin,
+          parsedVersion: parseNodeVersionFromDirName(entry.name),
+        };
+      })
+      .filter((item) => isDirectory(item.versionBin))
+      .sort((a, b) => {
+        if (a.parsedVersion && b.parsedVersion) {
+          return compareNodeVersionDesc(a.parsedVersion, b.parsedVersion);
+        }
+        if (a.parsedVersion) return -1;
+        if (b.parsedVersion) return 1;
+        return a.versionBin.localeCompare(b.versionBin);
+      });
+
+    for (const item of versionBins) {
+      bins.push(item.versionBin);
     }
   } catch {
     // No nvm directory on this machine.
+  }
+
+  // Keep nvm "current" available, but after explicit version bins so oldest versions do not shadow newer.
+  if (isDirectory(currentBin)) {
+    bins.push(currentBin);
   }
 
   return bins;
@@ -582,14 +624,20 @@ function renderBootHtml(statusText: string): string {
         margin: 0;
         width: 100%;
         height: 100%;
+        min-height: 100vh;
+        overflow: hidden;
+        box-sizing: border-box;
         background: radial-gradient(circle at top, #1e293b 0%, #020617 60%);
         color: #e2e8f0;
       }
+      *, *::before, *::after { box-sizing: inherit; }
       .boot {
         height: 100%;
+        min-height: 0;
         display: grid;
         place-items: center;
         padding: 24px;
+        overflow: hidden;
       }
       .card {
         width: min(420px, 100%);
@@ -657,7 +705,7 @@ function loadBootScreen(statusText: string): void {
 
 function createWindow(): void {
   const appIconPath = getAppIconPath();
-  mainWindow = new BrowserWindow({
+  const windowOptions: Electron.BrowserWindowConstructorOptions = {
     width: 1280,
     height: 800,
     title: APP_NAME,
@@ -670,7 +718,25 @@ function createWindow(): void {
       sandbox: true,
       preload: path.join(__dirname, "preload.js"),
     },
-  });
+  };
+  if (process.platform === "darwin") {
+    // Keep native traffic lights but embed them into app chrome (no separate system title bar).
+    windowOptions.titleBarStyle = "hidden";
+    windowOptions.trafficLightPosition = { x: MAC_TRAFFIC_LIGHT_X, y: MAC_TRAFFIC_LIGHT_Y };
+  }
+  if (process.platform === "win32") {
+    // Hide default title bar; window controls are in the app navbar.
+    windowOptions.titleBarStyle = "hidden";
+  }
+  mainWindow = new BrowserWindow(windowOptions);
+  if (process.platform === "win32" && mainWindow) {
+    mainWindow.on("maximize", () => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("window-maximized");
+    });
+    mainWindow.on("unmaximize", () => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("window-unmaximized");
+    });
+  }
   mainWindow.once("ready-to-show", () => {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show();
   });
@@ -1046,6 +1112,31 @@ app.whenReady().then(async () => {
 
   ipcMain.handle("refresh-tray", () => {
     return refreshTrayMenu();
+  });
+
+  ipcMain.handle("window-minimize", (event: Electron.IpcMainInvokeEvent) => {
+    const w = BrowserWindow.fromWebContents(event.sender);
+    if (w && !w.isDestroyed()) w.minimize();
+  });
+  ipcMain.handle("window-maximize", (event: Electron.IpcMainInvokeEvent) => {
+    const w = BrowserWindow.fromWebContents(event.sender);
+    if (w && !w.isDestroyed()) {
+      if (w.isMaximized()) w.unmaximize();
+      else w.maximize();
+    }
+  });
+  ipcMain.handle("window-close", (event: Electron.IpcMainInvokeEvent) => {
+    const w = BrowserWindow.fromWebContents(event.sender);
+    if (w && !w.isDestroyed()) w.close();
+  });
+  ipcMain.handle("window-is-maximized", (event: Electron.IpcMainInvokeEvent) => {
+    const w = BrowserWindow.fromWebContents(event.sender);
+    return w && !w.isDestroyed() && w.isMaximized();
+  });
+
+  ipcMain.handle("restart-app", () => {
+    app.relaunch();
+    app.quit();
   });
 
   globalShortcut.register("CommandOrControl+F", focusAndOpenFindBar);

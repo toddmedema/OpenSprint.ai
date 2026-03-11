@@ -98,8 +98,23 @@ export function Navbar({
   const showDbBackedChrome = dbStatus?.ok === true;
   const isOffline = useIsOffline();
   const showAgentDropdown = showDbBackedChrome && !isOffline;
+  const isElectron = typeof window !== "undefined" && Boolean(window.electron?.isElectron);
+  const isElectronMac = isElectron && window.electron?.platform === "darwin";
+  const isElectronWin = isElectron && window.electron?.platform === "win32";
   /** In Electron, Help and Settings are in app menus only; hide from nav bar. */
-  const showHelpAndSettingsInNav = typeof window === "undefined" || !window.electron?.isElectron;
+  const showHelpAndSettingsInNav = !isElectron;
+
+  const [isMaximized, setIsMaximized] = useState(false);
+  useEffect(() => {
+    if (!isElectronWin || !window.electron?.getWindowMaximized) return;
+    window.electron.getWindowMaximized().then(setIsMaximized).catch(() => {});
+    const unsubMax = window.electron?.onWindowMaximized?.(() => setIsMaximized(true));
+    const unsubUnmax = window.electron?.onWindowUnmaximized?.(() => setIsMaximized(false));
+    return () => {
+      unsubMax?.();
+      unsubUnmax?.();
+    };
+  }, [isElectronWin]);
 
   // Load projects when on home (no project) so we can show GlobalActiveAgentsList when at least one exists
   useEffect(() => {
@@ -174,7 +189,10 @@ export function Navbar({
   return (
     <nav
       className="relative z-[60] flex items-stretch bg-theme-surface shrink-0 overflow-hidden py-0"
-      style={{ height: NAVBAR_HEIGHT }}
+      style={{
+        height: NAVBAR_HEIGHT,
+        ...(isElectronWin ? { WebkitAppRegion: "drag" } : {}),
+      }}
     >
       {/* Bottom border overlay — ensures continuous line across full width, above phase buttons */}
       <div
@@ -182,10 +200,15 @@ export function Navbar({
         className="absolute bottom-0 left-0 right-0 h-px bg-theme-border pointer-events-none z-10"
         aria-hidden="true"
       />
-      {/* Grid: 1fr auto 1fr so center (phase tabs) is viewport-centered regardless of left content width. */}
-      <div className="grid w-full grid-cols-[1fr_auto_1fr] items-stretch gap-2 min-w-0 py-0 pl-4 md:pl-6 pr-4 md:pr-6">
-        <div className="flex items-center gap-2 md:gap-4 min-w-0">
-          {/* Left: Logo + Project Selector */}
+      {/* Grid: 1fr auto 1fr so center (phase tabs) is viewport-centered regardless of left content width. On Windows Electron, no right padding so window controls sit at the edge. */}
+      <div
+        className={`grid w-full grid-cols-[1fr_auto_1fr] items-stretch gap-2 min-w-0 py-0 pl-4 md:pl-6 ${isElectronWin ? "pr-0" : "pr-4 md:pr-6"}`}
+      >
+        <div
+          data-testid="navbar-left-slot"
+          className={`flex items-center gap-1 md:gap-2 min-w-0 ${isElectronMac ? "pl-[62px] md:pl-[68px]" : ""}`}
+        >
+          {/* On macOS Electron, leave left space for native traffic lights, then show logo + project picker. */}
           <Link to="/" className="flex items-center gap-2" data-testid="navbar-logo-link">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -328,7 +351,7 @@ export function Navbar({
           ) : null}
         </div>
 
-        {/* Right: Active agents + Help + Settings (Help/Settings only in web; in Electron they're in app menus) */}
+        {/* Right: Active agents + Help + Settings (Help/Settings only in web; in Electron they're in app menus). On Windows, window controls at end. */}
         <div className="flex items-center justify-end [&>*:not(:first-child)]:pl-1 md:[&>*:not(:first-child)]:pl-3">
           {project ? (
             <>
@@ -473,6 +496,53 @@ export function Navbar({
                 </>
               )}
             </>
+          )}
+          {isElectronWin && (
+            <div
+              className="flex items-stretch ml-2"
+              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+              data-testid="navbar-window-controls"
+            >
+              <button
+                type="button"
+                onClick={() => window.electron?.minimizeWindow?.()}
+                className="flex items-center justify-center w-[46px] h-full min-h-[44px] text-theme-muted hover:bg-theme-border-subtle hover:text-theme-text transition-colors"
+                aria-label="Minimize"
+              >
+                <svg width={10} height={1} viewBox="0 0 10 1" fill="currentColor" aria-hidden>
+                  <rect width={10} height={1} />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => window.electron?.maximizeWindow?.()}
+                className="flex items-center justify-center w-[46px] h-full min-h-[44px] text-theme-muted hover:bg-theme-border-subtle hover:text-theme-text transition-colors"
+                aria-label={isMaximized ? "Restore" : "Maximize"}
+              >
+                {isMaximized ? (
+                  <svg width={12} height={12} viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.25} strokeLinejoin="round" aria-hidden>
+                    {/* Restore down: back window (L-shaped), front window (full) */}
+                    <path d="M0 0h10v2H2v8H0V0z" />
+                    <path d="M2 2h8v8H2V2z" />
+                  </svg>
+                ) : (
+                  <svg width={12} height={12} viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.25} strokeLinejoin="round" aria-hidden>
+                    {/* Maximize: single square outline */}
+                    <rect x={1} y={1} width={10} height={10} />
+                  </svg>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => window.electron?.closeWindow?.()}
+                className="flex items-center justify-center w-[46px] h-full min-h-[44px] text-theme-muted hover:bg-red-600 hover:text-white transition-colors rounded-tr-lg"
+                aria-label="Close"
+              >
+                <svg width={10} height={10} viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" aria-hidden>
+                  <path d="M1 1l8 8M9 1L1 9" />
+                </svg>
+              </button>
+            </div>
           )}
         </div>
       </div>

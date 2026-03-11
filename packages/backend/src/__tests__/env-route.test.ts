@@ -270,6 +270,26 @@ describe("Env API", () => {
     });
   });
 
+  describe("GET /env/prerequisites", () => {
+    it("returns missing list and platform", async () => {
+      setBackendRuntimeInfoForTesting({
+        platform: "darwin",
+        isWsl: false,
+        wslDistroName: null,
+        repoPathPolicy: "any",
+      });
+
+      const res = await request(app).get(`${API_PREFIX}/env/prerequisites`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toHaveProperty("missing");
+      expect(Array.isArray(res.body.data.missing)).toBe(true);
+      expect(res.body.data.missing.every((s: unknown) => typeof s === "string")).toBe(true);
+      expect(["Git", "Node.js"]).toEqual(expect.arrayContaining(res.body.data.missing as string[]));
+      expect(res.body.data.platform).toBe("darwin");
+    });
+  });
+
   describe("GET /env/runtime", () => {
     it("returns native Linux runtime info", async () => {
       setBackendRuntimeInfoForTesting({

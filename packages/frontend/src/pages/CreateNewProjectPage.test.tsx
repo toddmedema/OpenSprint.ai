@@ -507,7 +507,9 @@ describe("CreateNewProjectPage", () => {
   it("shows clear actionable error when prerequisites (git/node) are missing", async () => {
     const prereqMsg =
       "Git is not installed or not available in PATH. Install Git from https://git-scm.com/ and ensure it is in your PATH, then try again.";
-    mockScaffold.mockRejectedValue(new ApiError(prereqMsg, "SCAFFOLD_PREREQUISITES_MISSING"));
+    mockScaffold.mockRejectedValue(
+      new ApiError(prereqMsg, "SCAFFOLD_PREREQUISITES_MISSING", { missing: ["Git"] })
+    );
     const user = userEvent.setup();
     renderCreateNewProjectPage();
     await user.type(screen.getByLabelText(/project name/i), "My App");
@@ -520,6 +522,28 @@ describe("CreateNewProjectPage", () => {
     expect(errorDetails).toHaveTextContent("https://git-scm.com/");
     expect(errorDetails).toHaveTextContent(/path/i);
     expect(screen.getByTestId("scaffold-retry-button")).toBeInTheDocument();
+    const installGit = screen.getByTestId("install-git-button");
+    expect(installGit).toBeInTheDocument();
+    expect(installGit).toHaveAttribute("href", "https://git-scm.com/");
+    expect(installGit).toHaveAttribute("target", "_blank");
+  });
+
+  it("shows one-click Install buttons for each missing prerequisite", async () => {
+    mockScaffold.mockRejectedValue(
+      new ApiError("Git and Node.js are not installed.", "SCAFFOLD_PREREQUISITES_MISSING", {
+        missing: ["Git", "Node.js"],
+      })
+    );
+    const user = userEvent.setup();
+    renderCreateNewProjectPage();
+    await user.type(screen.getByLabelText(/project name/i), "My App");
+    await user.type(screen.getByPlaceholderText("/Users/you/projects/my-app"), "/path/to/parent");
+    await user.click(screen.getByTestId("next-button"));
+    await user.click(screen.getByTestId("next-button"));
+
+    await screen.findByTestId("prereq-install-buttons");
+    expect(screen.getByTestId("install-git-button")).toHaveAttribute("href", "https://git-scm.com/");
+    expect(screen.getByTestId("install-nodejs-button")).toHaveAttribute("href", "https://nodejs.org/");
   });
 
   it("loads env keys when entering agents step", async () => {

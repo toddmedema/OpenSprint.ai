@@ -179,6 +179,8 @@ export const api = {
   },
   env: {
     getRuntime: () => request<EnvRuntimeResponse>("/env/runtime"),
+    getPrerequisites: () =>
+      request<{ missing: string[]; platform: string }>("/env/prerequisites"),
     getKeys: () =>
       request<{
         anthropic: boolean;

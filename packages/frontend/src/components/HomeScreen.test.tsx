@@ -11,6 +11,7 @@ const mockProjectsList = vi.fn();
 const mockArchive = vi.fn();
 const mockDelete = vi.fn();
 const mockGetGlobalStatus = vi.fn();
+const mockGetPrerequisites = vi.fn();
 const mockValidateKey = vi.fn();
 const mockSaveKey = vi.fn();
 const mockDbStatusGet = vi.fn();
@@ -27,6 +28,7 @@ vi.mock("../api/client", () => ({
     },
     env: {
       getGlobalStatus: (...args: unknown[]) => mockGetGlobalStatus(...args),
+      getPrerequisites: (...args: unknown[]) => mockGetPrerequisites(...args),
       validateKey: (...args: unknown[]) => mockValidateKey(...args),
       saveKey: (...args: unknown[]) => mockSaveKey(...args),
     },
@@ -62,10 +64,12 @@ describe("HomeScreen", () => {
     mockArchive.mockReset();
     mockDelete.mockReset();
     mockGetGlobalStatus.mockReset();
+    mockGetPrerequisites.mockReset();
     mockValidateKey.mockReset();
     mockSaveKey.mockReset();
     mockDbStatusGet.mockReset();
     mockGetGlobalStatus.mockResolvedValue({ hasAnyKey: true, useCustomCli: false });
+    mockGetPrerequisites.mockResolvedValue({ missing: [], platform: "linux" });
     mockDbStatusGet.mockResolvedValue({ ok: true });
   });
 
@@ -85,6 +89,52 @@ describe("HomeScreen", () => {
     await screen.findByTestId("projects-grid");
     expect(screen.getByTestId("create-new-button")).toHaveTextContent("Create New");
     expect(screen.getByTestId("add-existing-button")).toHaveTextContent("Add Existing");
+  });
+
+  it("shows installation checklist when Git or Node.js are missing", async () => {
+    mockProjectsList.mockResolvedValue([]);
+    mockGetPrerequisites.mockResolvedValue({
+      missing: ["Git", "Node.js"],
+      platform: "win32",
+    });
+    renderHomeScreen();
+    await screen.findByTestId("installation-checklist");
+
+    expect(screen.getByText("Installation checklist")).toBeInTheDocument();
+    expect(screen.getByText(/Install the following so you can create new projects/)).toBeInTheDocument();
+    const installGit = screen.getByTestId("prereq-install-git");
+    const installNodejs = screen.getByTestId("prereq-install-nodejs");
+    expect(installGit).toHaveAttribute("href", "https://git-scm.com/download/win");
+    expect(installNodejs).toHaveAttribute("href", "https://nodejs.org/");
+  });
+
+  it("shows Restart Open Sprint button in checklist when running in Electron", async () => {
+    const mockRestartApp = vi.fn().mockResolvedValue(undefined);
+    (window as unknown as { electron?: { restartApp?: () => Promise<void> } }).electron = {
+      restartApp: mockRestartApp,
+    };
+    mockProjectsList.mockResolvedValue([]);
+    mockGetPrerequisites.mockResolvedValue({
+      missing: ["Git"],
+      platform: "win32",
+    });
+    renderHomeScreen();
+    await screen.findByTestId("installation-checklist");
+
+    const restartBtn = screen.getByTestId("restart-app-button");
+    expect(restartBtn).toHaveTextContent("Restart Open Sprint");
+    await userEvent.click(restartBtn);
+    expect(mockRestartApp).toHaveBeenCalledTimes(1);
+    delete (window as unknown as { electron?: unknown }).electron;
+  });
+
+  it("does not show installation checklist when all prerequisites are installed", async () => {
+    mockProjectsList.mockResolvedValue([]);
+    mockGetPrerequisites.mockResolvedValue({ missing: [], platform: "darwin" });
+    renderHomeScreen();
+    await screen.findByTestId("projects-grid");
+
+    expect(screen.queryByTestId("installation-checklist")).not.toBeInTheDocument();
   });
 
   it("renders faint GitHub link at bottom linking to OpenSprint repo", async () => {
