@@ -31,6 +31,13 @@ export interface ScopedTestResult extends TestResults {
  * Parses test output into TestResults structure.
  */
 export class TestRunner {
+  private getShellCommand(command: string): { executable: string; args: string[] } {
+    if (process.platform === "win32") {
+      return { executable: "cmd.exe", args: ["/d", "/s", "/c", command] };
+    }
+    return { executable: "sh", args: ["-c", command] };
+  }
+
   /**
    * Run only tests related to changed files. Falls back to full suite if
    * no test files were changed or if scoping is not possible.
@@ -131,8 +138,9 @@ export class TestRunner {
       let stdout = "";
       let stderr = "";
       let settled = false;
+      const shellCommand = this.getShellCommand(command);
 
-      const child = spawn("sh", ["-c", command], {
+      const child = spawn(shellCommand.executable, shellCommand.args, {
         cwd,
         detached: true,
         stdio: ["ignore", "pipe", "pipe"],

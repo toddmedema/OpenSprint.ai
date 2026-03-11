@@ -163,7 +163,7 @@ function getStructuredAgentErrorMessage(obj: unknown): string | null {
  * Plain-text Cursor status lines ("S: ...") can contain normal model text.
  * Only treat them as API failures when they match strong provider-style errors.
  */
-const CURSOR_PLAINTEXT_API_ERROR_PATTERNS = [
+const CURSOR_PLAINTEXT_RATE_LIMIT_PATTERNS = [
   /you'?ve hit your usage limit/i,
   /usage limits? will reset/i,
   /switch to auto for more usage/i,
@@ -176,18 +176,74 @@ const CURSOR_PLAINTEXT_API_ERROR_PATTERNS = [
   /\brate limit (?:exceeded|reached|hit)\b/i,
   /\bhttp(?:\s+status)?\s*429\b/i,
   /\b429\b.*\btoo many requests\b/i,
+];
+
+/** Cursor session/login failures are auth problems, but not invalid API keys. */
+const CURSOR_SESSION_AUTH_PATTERNS = [
   /authentication required/i,
-  /\bunauthorized\b/i,
-  /\binvalid api key\b/i,
-  /\binvalid token\b/i,
   /run ['`]?agent login/i,
   /cursor-access-token/i,
   /password not found/i,
 ];
 
-function isCursorPlaintextApiError(candidate: string): boolean {
+/** Generic auth phrases are only trusted in Cursor status lines ("S: ..."). */
+const CURSOR_GENERIC_AUTH_PATTERNS = [
+  /\bunauthorized\b/i,
+  /\binvalid api key\b/i,
+  /\binvalid token\b/i,
+];
+
+function isCursorPlaintextApiError(
+  candidate: string,
+  options?: { allowGenericAuth?: boolean }
+): boolean {
   if (!classifyAgentApiError(candidate)) return false;
-  return CURSOR_PLAINTEXT_API_ERROR_PATTERNS.some((pattern) => pattern.test(candidate));
+  if (CURSOR_PLAINTEXT_RATE_LIMIT_PATTERNS.some((pattern) => pattern.test(candidate))) {
+    return true;
+  }
+  if (CURSOR_SESSION_AUTH_PATTERNS.some((pattern) => pattern.test(candidate))) {
+    return true;
+  }
+  if (options?.allowGenericAuth === false) return false;
+  return CURSOR_GENERIC_AUTH_PATTERNS.some((pattern) => pattern.test(candidate));
+}
+
+function getCombinedErrorText(err: unknown): string {
+  const parts: string[] = [];
+  if (typeof err === "string") parts.push(err);
+  if (err instanceof Error) parts.push(err.message);
+
+  const shape = getExecErrorShape(err);
+  if (shape.message) parts.push(shape.message);
+  if (shape.stderr) parts.push(shape.stderr);
+
+  if (err && typeof err === "object") {
+    const obj = err as Record<string, unknown>;
+    if (typeof obj.message === "string") parts.push(obj.message);
+    if (typeof obj.stderr === "string") parts.push(obj.stderr);
+    if (typeof obj.error === "string") parts.push(obj.error);
+
+    if (obj.error && typeof obj.error === "object") {
+      const nestedError = obj.error as Record<string, unknown>;
+      if (typeof nestedError.message === "string") parts.push(nestedError.message);
+      if (typeof nestedError.stderr === "string") parts.push(nestedError.stderr);
+    }
+
+    if (obj.details && typeof obj.details === "object") {
+      const details = obj.details as Record<string, unknown>;
+      if (typeof details.raw === "string") parts.push(details.raw);
+      if (typeof details.message === "string") parts.push(details.message);
+      if (typeof details.stderr === "string") parts.push(details.stderr);
+    }
+  }
+
+  return parts.join("\n");
+}
+
+function isCursorSessionAuthError(err: unknown): boolean {
+  const text = getCombinedErrorText(err);
+  if (!text) return false;
+  return CURSOR_SESSION_AUTH_PATTERNS.some((pattern) => pattern.test(text));
 }
 
 /**
@@ -219,7 +275,11 @@ function extractExplicitAgentErrors(rawOutput: string): string {
       if (!candidate) continue;
 
       if (prefix === "error:") {
-        if (classifyAgentApiError(candidate)) errors.push(candidate);
+        // "Error:" lines can include normal command/test output from task execution.
+        // Ignore generic auth phrases here to avoid false key invalidation.
+        if (isCursorPlaintextApiError(candidate, { allowGenericAuth: false })) {
+          errors.push(candidate);
+        }
         continue;
       }
 
@@ -396,6 +456,13 @@ type RotatableApiErrorKind = "rate_limit" | "auth";
 function toRotatableApiErrorKind(err: unknown): RotatableApiErrorKind | null {
   const kind = classifyAgentApiError(err);
   return kind === "rate_limit" || kind === "auth" ? kind : null;
+}
+
+function toCursorRotatableApiErrorKind(err: unknown): RotatableApiErrorKind | null {
+  const kind = toRotatableApiErrorKind(err);
+  if (kind !== "auth") return kind;
+  // Cursor auth/session failures (login/keychain) are not invalid API keys.
+  return isCursorSessionAuthError(err) ? null : kind;
 }
 
 function getProviderBlockedMessage(
@@ -707,7 +774,7 @@ export class AgentClient {
           return trySpawn();
         }
 
-        const apiErrorKind = toRotatableApiErrorKind(apiErrorOutput);
+        const apiErrorKind = toCursorRotatableApiErrorKind(apiErrorOutput);
         if (apiErrorKind && keyId !== ENV_FALLBACK_KEY_ID) {
           lastApiErrorKind = apiErrorKind;
           if (apiErrorKind === "rate_limit") {
@@ -1764,7 +1831,7 @@ export class AgentClient {
 
       if (!resolved || !resolved.key.trim()) {
         const msg = lastError ? getErrorMessage(lastError) : "No Cursor API key available";
-        const apiErrorKind = toRotatableApiErrorKind(lastError);
+        const apiErrorKind = toCursorRotatableApiErrorKind(lastError);
         throw new AppError(
           400,
           ErrorCodes.AGENT_INVOKE_FAILED,
@@ -1786,7 +1853,7 @@ export class AgentClient {
       const { key, keyId, source } = resolved;
       if (triedKeyIds.has(keyId)) {
         const msg = getErrorMessage(lastError);
-        const apiErrorKind = toRotatableApiErrorKind(lastError);
+        const apiErrorKind = toCursorRotatableApiErrorKind(lastError);
         throw new AppError(
           502,
           ErrorCodes.AGENT_INVOKE_FAILED,
@@ -1815,7 +1882,7 @@ export class AgentClient {
         return { content };
       } catch (error: unknown) {
         lastError = error;
-        const apiErrorKind = toRotatableApiErrorKind(error);
+        const apiErrorKind = toCursorRotatableApiErrorKind(error);
         if (projectId && apiErrorKind && keyId !== ENV_FALLBACK_KEY_ID) {
           if (apiErrorKind === "rate_limit") {
             await recordLimitHit(projectId, "CURSOR_API_KEY", keyId, source);

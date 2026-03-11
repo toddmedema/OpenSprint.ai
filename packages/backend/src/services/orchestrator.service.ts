@@ -73,7 +73,7 @@ import {
   persistTaskLastExecutionSummary,
 } from "./task-execution-summary.js";
 import {
-  assertGitIdentityConfigured,
+  ensureGitIdentityConfigured,
   ensureBaseBranchExists,
   inspectGitRepoState,
   RepoPreflightError,
@@ -2340,7 +2340,7 @@ export class OrchestratorService {
     await this.branchManager.waitForGitReady(wtPath);
     const repoState = await inspectGitRepoState(repoPath, baseBranch);
     try {
-      assertGitIdentityConfigured(repoState.identity, { appError: false });
+      await ensureGitIdentityConfigured(repoPath, { appError: false });
     } catch (error) {
       if (error instanceof RepoPreflightError) {
         throw error;

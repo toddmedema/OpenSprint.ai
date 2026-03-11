@@ -1,0 +1,8 @@
+{
+  "name": "@opensprint/backend-desktop-runtime-deps",
+  "private": true,
+  "description": "Pinned runtime dependency tree for the Electron backend bundle",
+  "dependencies": {
+    "better-sqlite3": "11.10.0"
+  }
+}

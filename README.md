@@ -23,6 +23,8 @@ npm run dev
 
 Then open [http://localhost:5173](http://localhost:5173).
 
+Optional faster source setup (skips Electron/Puppeteer workspace installs): `OPENSPRINT_SETUP_MINIMAL=1 npm run setup`
+
 ### Database
 
 Open Sprint uses **SQLite by default** and stores data at `~/.opensprint/data/opensprint.sqlite`.
@@ -54,6 +56,8 @@ cd opensprint
 npm run setup
 npm run dev
 ```
+
+Optional faster source setup (skips Electron/Puppeteer workspace installs): `OPENSPRINT_SETUP_MINIMAL=1 npm run setup`
 
 _Native Windows Node, PowerShell, and `cmd.exe` execution are unsupported because the orchestration and process-management stack assumes Linux/Unix process behavior. Do not run OpenSprint from `/mnt/c/...` or any other Windows-mounted filesystem._
 
@@ -102,6 +106,7 @@ The product spec for Open Sprint lives in `PRD.md`. Each project's Sketch output
 | Command                 | What it does                                                                                      |
 | ----------------------- | ------------------------------------------------------------------------------------------------- |
 | `npm run setup`         | Install dependencies, create default SQLite DB, and apply schema (optional: `USE_POSTGRES=1`)   |
+| `OPENSPRINT_SETUP_MINIMAL=1 npm run setup` | Install only shared/backend/frontend deps for source development (skips Electron/Puppeteer workspace installs) |
 | `npm run dev`           | Start the backend and frontend                                                                    |
 | `npm run test`          | Run the test suite                                                                                |
 | `npm run lint`          | Run lint checks across workspaces                                                                 |
@@ -129,33 +134,16 @@ This means the **coding agent process** (for example, Cursor CLI) exited before 
 
 ## Contributing
 
-Contribution workflow:
-
-1. Fork the repo and create a branch.
-2. Make changes and add or update tests.
-3. Run quality checks:
-   - `npm run test`
-   - `npm run lint`
-   - `npm run build`
-4. Open a pull request with a clear summary and testing notes.
-
-Bug reports: [GitHub Issues](https://github.com/toddmedema/opensprint/issues)
-
-### Developing on Open Sprint
-
-If you are using Open Sprint to work on Open Sprint itself, use two clones to avoid restarts and git lock contention:
-
-1. Keep a control clone running `npm run dev`.
-2. Create a second clone for agent work.
-3. Point the project at the second clone so orchestrated work happens there.
-
-Run `npm run dev` only from the control clone.
+See **[CONTRIBUTING.md](CONTRIBUTING.md)** for setup, quality checks, submitting pull requests, and the two-clone workflow when developing on this repo with Open Sprint.
 
 ## Building the Desktop App
 
 You can run Open Sprint as a desktop app (Electron) or build installable artifacts.
 
 **Prerequisites:** Same as Quick Start (Node.js 20+). The desktop app uses SQLite by default; config and data live in `~/.opensprint` (see [Database](#database) and [PostgreSQL Setup FAQ](#postgresql-setup-faq)).
+
+**Linux runtime prerequisites (Electron):** Install common desktop libs before running `npm run start:desktop` or launching the Linux AppImage (for example on Ubuntu/Debian: `sudo apt-get install -y libgtk-3-0 libnss3 libasound2 libxss1 libxtst6 libatspi2.0-0 libsecret-1-0 libnotify4 libcups2 libgbm1`).  
+For AppImage specifically, install FUSE2 (`libfuse2`) or AppImage may fail to launch.
 
 - **Run desktop in development:** From the repo root, run `npm run start:desktop`. This builds the app once, then launches Electron. The window loads the backend-served UI at `http://127.0.0.1:3100`. Only one instance runs; relaunching focuses the existing window.
 - **Build installers:** Run `npm run build:desktop`. This builds shared, backend, and frontend, prepares a self-contained backend and frontend in `packages/electron/desktop-resources/`, then runs electron-builder. Output goes to `packages/electron/dist/` (for example, `.dmg` on macOS, `.exe` installer on Windows, `AppImage` on Linux). The packaged app runs the backend with Electron's embedded Node runtime.

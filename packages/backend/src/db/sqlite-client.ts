@@ -52,6 +52,10 @@ async function withErrorHandling<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+function resolvePathForPlatform(value: string): string {
+  return process.platform === "win32" ? path.win32.resolve(value) : path.resolve(value);
+}
+
 /**
  * Resolve a SQLite database URL or path to an absolute file path.
  * Accepts: sqlite:///path, file:///path, or bare path (relative or absolute).
@@ -74,9 +78,9 @@ export function resolveSqlitePath(databaseUrl: string): string {
       const p = u.pathname || u.hostname || "";
       const decoded = decodeURIComponent(p.replace(/^\//, ""));
       if (decoded === ":memory:") return ":memory:";
-      return path.resolve(decoded);
+      return resolvePathForPlatform(decoded);
     } catch {
-      return path.resolve(trimmed.replace(/^sqlite:\/\/\/?/i, ""));
+      return resolvePathForPlatform(trimmed.replace(/^sqlite:\/\/\/?/i, ""));
     }
   }
   if (/^file:\/\//i.test(trimmed)) {
@@ -84,12 +88,26 @@ export function resolveSqlitePath(databaseUrl: string): string {
       const u = new URL(trimmed);
       const decoded = decodeURIComponent(u.pathname);
       if (decoded === ":memory:" || decoded === "/:memory:") return ":memory:";
-      return path.resolve(decoded);
+      if (process.platform === "win32") {
+        // Windows file URLs are typically file:///C:/... where URL.pathname starts with /C:/...
+        if (/^\/[a-zA-Z]:[\\/]/.test(decoded)) {
+          return resolvePathForPlatform(decoded.slice(1));
+        }
+        // file://server/share/path -> UNC path on Windows.
+        if (u.hostname) {
+          const uncPath = `\\\\${u.hostname}${decoded.replace(/\//g, "\\")}`;
+          return resolvePathForPlatform(uncPath);
+        }
+      }
+      if (u.hostname) {
+        return `//${u.hostname}${decoded}`;
+      }
+      return resolvePathForPlatform(decoded);
     } catch {
-      return path.resolve(trimmed.replace(/^file:\/\/\/?/i, ""));
+      return resolvePathForPlatform(trimmed.replace(/^file:\/\/\/?/i, ""));
     }
   }
-  return path.resolve(trimmed);
+  return resolvePathForPlatform(trimmed);
 }
 
 /**

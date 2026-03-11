@@ -53,7 +53,7 @@ import { assertSupportedRepoPath } from "../utils/repo-path-policy.js";
 import { getGitNoHooksPath } from "../utils/git-no-hooks.js";
 import { shellExec } from "../utils/shell-exec.js";
 import {
-  assertGitIdentityConfigured,
+  ensureGitIdentityConfigured,
   ensureBaseBranchExists,
   ensureRepoHasInitialCommit,
   inspectGitRepoState,
@@ -261,7 +261,7 @@ export class ProjectService {
     preferredBaseBranch?: string
   ): Promise<{ hadHead: boolean; baseBranch: string }> {
     const repoState = await inspectGitRepoState(repoPath, preferredBaseBranch);
-    assertGitIdentityConfigured(repoState.identity);
+    await ensureGitIdentityConfigured(repoPath);
     const baseBranch = repoState.baseBranch;
     await ensureBaseBranchExists(repoPath, baseBranch);
     return { hadHead: repoState.hasHead, baseBranch };

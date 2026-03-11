@@ -8,6 +8,8 @@ const GIT_TIMEOUT_MS = 5_000;
 const GIT_COMMIT_TIMEOUT_MS = 30_000;
 
 export const OPENSPRINT_BOOTSTRAP_COMMIT_MESSAGE = "chore: initialize OpenSprint project";
+export const DEFAULT_GIT_IDENTITY_NAME = "OpenSprint";
+export const DEFAULT_GIT_IDENTITY_EMAIL = "example@example.com";
 
 export type GitRemoteMode = "publishable" | "local_only" | "remote_error";
 
@@ -51,6 +53,13 @@ async function runGit(
   } catch {
     return null;
   }
+}
+
+function shellQuote(value: string): string {
+  if (process.platform === "win32") {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 function readIdentityValue(
@@ -125,6 +134,43 @@ export function assertGitIdentityConfigured(
     });
   }
   throw new RepoPreflightError(message, ErrorCodes.GIT_IDENTITY_REQUIRED, commands);
+}
+
+export async function ensureGitIdentityConfigured(
+  repoPath: string,
+  options?: {
+    defaultName?: string;
+    defaultEmail?: string;
+    appError?: boolean;
+  }
+): Promise<GitIdentityState> {
+  const identity = await readGitIdentity(repoPath);
+  if (identity.valid) return identity;
+
+  const fallbackName = options?.defaultName ?? DEFAULT_GIT_IDENTITY_NAME;
+  const fallbackEmail = options?.defaultEmail ?? DEFAULT_GIT_IDENTITY_EMAIL;
+
+  try {
+    if (!identity.name) {
+      await shellExec(`git config user.name ${shellQuote(fallbackName)}`, {
+        cwd: repoPath,
+        timeout: GIT_TIMEOUT_MS,
+      });
+    }
+    if (!identity.email) {
+      await shellExec(`git config user.email ${shellQuote(fallbackEmail)}`, {
+        cwd: repoPath,
+        timeout: GIT_TIMEOUT_MS,
+      });
+    }
+  } catch {
+    // Best effort. If this fails we still surface a clear preflight error below.
+  }
+
+  const updatedIdentity = await readGitIdentity(repoPath);
+  if (updatedIdentity.valid) return updatedIdentity;
+  assertGitIdentityConfigured(updatedIdentity, { appError: options?.appError });
+  return updatedIdentity;
 }
 
 function isValidBranchName(raw: string | null | undefined): raw is string {
@@ -286,7 +332,7 @@ export async function ensureRepoHasInitialCommit(
   preferredBaseBranch?: string | null
 ): Promise<string> {
   const repoState = await inspectGitRepoState(repoPath, preferredBaseBranch);
-  assertGitIdentityConfigured(repoState.identity, { appError: false });
+  await ensureGitIdentityConfigured(repoPath, { appError: false });
   await ensureBaseBranchExists(repoPath, repoState.baseBranch);
   if (repoState.hasHead) {
     return repoState.baseBranch;

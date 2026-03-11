@@ -8,8 +8,10 @@ const { execSync } = require("child_process");
 const repoRoot = path.resolve(__dirname, "..", "..", "..");
 const backendDir = path.join(repoRoot, "packages", "backend");
 const frontendDir = path.join(repoRoot, "packages", "frontend");
+const runtimeDepsTemplateDir = path.join(repoRoot, "packages", "electron", "runtime-deps");
 const outDir = path.join(repoRoot, "packages", "electron", "desktop-resources");
-const backendExternalDeps = ["better-sqlite3", "pdf-parse"];
+// Keep only native modules external; bundle pure JS deps so runtime install is minimal.
+const backendExternalDeps = ["better-sqlite3"];
 const removableDirNames = new Set([
   "test",
   "tests",
@@ -33,10 +35,13 @@ async function run() {
 
   fs.mkdirSync(backendOut, { recursive: true });
   await bundleBackendRuntime(backendOut);
-  writeBackendRuntimePackageJson(backendOut);
+  copyRuntimeDependencyTemplate(backendOut);
 
   console.log("Installing backend runtime dependencies...");
-  execSync("npm install --omit=dev --ignore-scripts=false", { cwd: backendOut, stdio: "inherit" });
+  execSync("npm ci --omit=dev --ignore-scripts=false --no-audit --no-fund", {
+    cwd: backendOut,
+    stdio: "inherit",
+  });
 
   console.log("Pruning non-runtime files from backend node_modules...");
   pruneBackendNodeModules(path.join(backendOut, "node_modules"));
@@ -74,27 +79,33 @@ async function bundleBackendRuntime(backendOut) {
   });
 }
 
-function writeBackendRuntimePackageJson(backendOut) {
-  const backendPkgPath = path.join(backendDir, "package.json");
-  const backendPkg = JSON.parse(fs.readFileSync(backendPkgPath, "utf8"));
-  const dependencies = {};
-  for (const dep of backendExternalDeps) {
-    const version = backendPkg.dependencies?.[dep];
-    if (!version) {
-      throw new Error(`Missing dependency '${dep}' in ${backendPkgPath}`);
-    }
-    dependencies[dep] = version;
+function copyRuntimeDependencyTemplate(backendOut) {
+  const templatePackagePath = path.join(runtimeDepsTemplateDir, "package.json");
+  const templateLockPath = path.join(runtimeDepsTemplateDir, "package-lock.json");
+  if (!fs.existsSync(templatePackagePath) || !fs.existsSync(templateLockPath)) {
+    throw new Error(
+      "Missing runtime dependency template. Expected package.json and package-lock.json in packages/electron/runtime-deps."
+    );
   }
 
-  const runtimePkg = {
-    name: `${backendPkg.name}-desktop-runtime`,
-    version: backendPkg.version,
-    private: true,
-    description: "Desktop runtime dependencies for OpenSprint backend bundle",
-    main: "./dist/services/index.cjs",
-    dependencies,
-  };
-  fs.writeFileSync(path.join(backendOut, "package.json"), JSON.stringify(runtimePkg, null, 2) + "\n");
+  const backendPkgPath = path.join(backendDir, "package.json");
+  const backendPkg = JSON.parse(fs.readFileSync(backendPkgPath, "utf8"));
+  const templatePkg = JSON.parse(fs.readFileSync(templatePackagePath, "utf8"));
+
+  for (const dep of backendExternalDeps) {
+    if (!backendPkg.dependencies?.[dep]) {
+      throw new Error(`Missing dependency '${dep}' in ${backendPkgPath}`);
+    }
+    const pinned = templatePkg.dependencies?.[dep];
+    if (typeof pinned !== "string" || /[~^*><= ]/.test(pinned)) {
+      throw new Error(
+        `packages/electron/runtime-deps/package.json must pin '${dep}' to an exact version (no ranges).`
+      );
+    }
+  }
+
+  fs.copyFileSync(templatePackagePath, path.join(backendOut, "package.json"));
+  fs.copyFileSync(templateLockPath, path.join(backendOut, "package-lock.json"));
 }
 
 function pruneBackendNodeModules(nodeModulesDir) {

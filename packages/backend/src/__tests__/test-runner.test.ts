@@ -84,6 +84,23 @@ describe("TestRunner", () => {
       expect(mockSpawn).toHaveBeenCalledWith("sh", ["-c", "npm test"], expect.any(Object));
     });
 
+    it("uses cmd.exe shell invocation on Windows", async () => {
+      const platformSpy = vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+      const output = "Tests: 1 passed, 0 failed, 0 skipped, 1 total";
+      mockSpawn.mockReturnValue(createMockChild(output, "", 0));
+      try {
+        await runner.runTestsWithOutput("C:\\repo", "npm test");
+      } finally {
+        platformSpy.mockRestore();
+      }
+
+      expect(mockSpawn).toHaveBeenCalledWith(
+        "cmd.exe",
+        ["/d", "/s", "/c", "npm test"],
+        expect.any(Object)
+      );
+    });
+
     it("parses Jest-style summary and handles failed tests", async () => {
       const output = "Tests: 3 passed, 2 failed, 1 skipped, 6 total";
       mockSpawn.mockReturnValue(createMockChild(output, "Some error", 1));

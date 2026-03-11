@@ -29,6 +29,12 @@ import { getErrorMessage } from "./utils/error-utils.js";
 import { databaseRuntime } from "./services/database-runtime.service.js";
 import { openBrowser } from "./utils/open-browser.js";
 
+// Electron launches backend with ELECTRON_RUN_AS_NODE=1 so process.execPath can run JS.
+// Clear it immediately so backend child processes (agent CLIs) are not forced into Node mode.
+if (process.env.OPENSPRINT_DESKTOP === "1") {
+  delete process.env.ELECTRON_RUN_AS_NODE;
+}
+
 const logStartup = createLogger("startup");
 const logShutdown = createLogger("shutdown");
 

@@ -9,16 +9,38 @@ set -e
 
 echo "==> OpenSprint setup"
 
-# Ensure git user identity is set so commits work (required by AGENTS.md workflow)
-if ! git config --get user.name >/dev/null 2>&1 || ! git config --get user.email >/dev/null 2>&1; then
-  echo "==> Git user identity is not set. Set it so that 'git commit' works:"
-  echo "    git config --global user.name \"Your Name\""
-  echo "    git config --global user.email \"you@example.com\""
-  echo "Then run: npm run setup"
+if ! command -v git >/dev/null 2>&1; then
+  echo "==> Git is required for setup but was not found in PATH."
   exit 1
 fi
 
-npm install
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "==> Run setup from the repository root (inside a git working tree)."
+  exit 1
+fi
+
+# Ensure repository-local git user identity exists so automated commits can run on fresh machines.
+DEFAULT_GIT_NAME="${OPENSPRINT_DEFAULT_GIT_NAME:-OpenSprint}"
+DEFAULT_GIT_EMAIL="${OPENSPRINT_DEFAULT_GIT_EMAIL:-example@example.com}"
+if ! git config --get user.name >/dev/null 2>&1; then
+  git config user.name "$DEFAULT_GIT_NAME"
+  echo "==> Set local git user.name to \"$DEFAULT_GIT_NAME\""
+fi
+if ! git config --get user.email >/dev/null 2>&1; then
+  git config user.email "$DEFAULT_GIT_EMAIL"
+  echo "==> Set local git user.email to \"$DEFAULT_GIT_EMAIL\""
+fi
+
+MINIMAL_SETUP=0
+if [ "${OPENSPRINT_SETUP_MINIMAL:-0}" = "1" ]; then
+  MINIMAL_SETUP=1
+  echo "==> Minimal setup mode: installing shared/backend/frontend deps only (skipping Electron/Puppeteer workspace deps)"
+  npm install --include-workspace-root=false -w packages/shared -w packages/backend -w packages/frontend
+  # Keep root `npm run dev` usable without installing the full root dependency set.
+  npm install --no-save concurrently
+else
+  npm install
+fi
 
 # Ensure ~/.opensprint exists and global-settings has default databaseUrl if missing
 npx tsx scripts/ensure-global-settings.ts
@@ -303,5 +325,8 @@ if [ "$IS_WSL" -eq 1 ]; then
   echo "==> Setup complete. Run: npm run dev from your WSL terminal"
 else
   echo "==> Setup complete. Run: npm run dev"
+fi
+if [ "$MINIMAL_SETUP" -eq 1 ]; then
+  echo "==> Minimal mode skipped desktop/tooling packages. For desktop builds or full tooling, run: npm install"
 fi
 echo "==> To use PostgreSQL instead of SQLite, see Settings in the app or set databaseUrl in ~/.opensprint/global-settings.json"

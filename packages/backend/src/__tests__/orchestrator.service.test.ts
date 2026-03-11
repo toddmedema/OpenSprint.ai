@@ -79,7 +79,7 @@ const {
   mockRunFullRecovery,
   mockInspectGitRepoState,
   mockEnsureBaseBranchExists,
-  mockAssertGitIdentityConfigured,
+  mockEnsureGitIdentityConfigured,
   mockResolveBaseBranch,
   mockIsSelfImprovementRunInProgress,
   mockHasOpenPrdSpecHilApproval,
@@ -146,7 +146,7 @@ const {
   mockRunFullRecovery: vi.fn(),
   mockInspectGitRepoState: vi.fn(),
   mockEnsureBaseBranchExists: vi.fn(),
-  mockAssertGitIdentityConfigured: vi.fn(),
+  mockEnsureGitIdentityConfigured: vi.fn(),
   mockResolveBaseBranch: vi.fn(),
   mockIsSelfImprovementRunInProgress: vi.fn().mockReturnValue(false),
   mockHasOpenPrdSpecHilApproval: vi.fn().mockResolvedValue(false),
@@ -366,7 +366,7 @@ vi.mock("../utils/git-repo-state.js", async (importOriginal) => {
     ...actual,
     inspectGitRepoState: (...args: unknown[]) => mockInspectGitRepoState(...args),
     ensureBaseBranchExists: (...args: unknown[]) => mockEnsureBaseBranchExists(...args),
-    assertGitIdentityConfigured: (...args: unknown[]) => mockAssertGitIdentityConfigured(...args),
+    ensureGitIdentityConfigured: (...args: unknown[]) => mockEnsureGitIdentityConfigured(...args),
     resolveBaseBranch: (...args: unknown[]) => mockResolveBaseBranch(...args),
   };
 });
@@ -490,7 +490,11 @@ describe("OrchestratorService (slot-based model)", () => {
       identity: { name: "Test User", email: "test@example.com" },
     });
     mockEnsureBaseBranchExists.mockResolvedValue(undefined);
-    mockAssertGitIdentityConfigured.mockReturnValue(undefined);
+    mockEnsureGitIdentityConfigured.mockResolvedValue({
+      name: "Test",
+      email: "test@test.com",
+      valid: true,
+    });
     mockResolveBaseBranch.mockResolvedValue("main");
     mockTaskStoreGetStatusMap.mockResolvedValue(new Map());
     mockTaskStoreListAll.mockResolvedValue([]);
