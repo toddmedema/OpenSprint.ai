@@ -39,11 +39,11 @@ export function TaskDetailMetadata({
   const displayLabel = task ? complexityToDisplay(task.complexity) : null;
 
   return (
-    <div className="px-4 pt-2 pb-4">
+    <div className="px-4 pt-2 pb-0">
       {task && (
         <>
           <div
-            className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5 mb-3 text-xs text-theme-muted"
+            className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5 mb-1 text-xs text-theme-muted"
             data-testid="task-detail-priority-state-row"
           >
             <span className="inline-flex items-center gap-1.5">
