@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, type ReactNode } from "react";
 import { Routes, Route, Navigate, useLocation, useParams } from "react-router-dom";
 import { Home } from "./pages/Home";
+import { OnboardingPage } from "./pages/OnboardingPage";
 import { ProjectSetup } from "./pages/ProjectSetup";
 import { CreateNewProjectPage } from "./pages/CreateNewProjectPage";
 import { ProjectShell } from "./pages/ProjectShell";
@@ -74,6 +75,7 @@ export function App() {
       <GlobalKeyboardShortcuts />
       <Routes>
       <Route path="/" element={<Home />} />
+      <Route path="/onboarding" element={<OnboardingPage />} />
       <Route
         path="/settings"
         element={
