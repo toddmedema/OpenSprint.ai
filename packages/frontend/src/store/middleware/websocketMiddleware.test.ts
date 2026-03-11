@@ -105,8 +105,10 @@ describe("websocketMiddleware", () => {
   let MockWS: typeof MockWebSocket;
   let wsInstance: MockWebSocket | null = null;
 
+  const focusListeners: Array<() => void> = [];
   beforeEach(() => {
     wsInstance = null;
+    focusListeners.length = 0;
     mockInvalidateQueries.mockClear();
     mockSetQueryData.mockClear();
     MockWS = class extends MockWebSocket {
@@ -119,6 +121,13 @@ describe("websocketMiddleware", () => {
     vi.stubGlobal("window", {
       ...globalThis.window,
       location: { protocol: "http:", host: "localhost:3100" },
+      addEventListener: (event: string, handler: () => void) => {
+        if (event === "focus") focusListeners.push(handler);
+      },
+      dispatchEvent: (event: Event) => {
+        if (event.type === "focus") focusListeners.forEach((h) => h());
+        return true;
+      },
     });
   });
 
@@ -1512,6 +1521,67 @@ describe("websocketMiddleware", () => {
         });
       });
       vi.useRealTimers();
+    });
+
+    it("invalidates project queries when window returns to focus (visibility visible) so UI updates", async () => {
+      const store = createStore();
+      store.dispatch(wsConnect({ projectId: "proj-1" }));
+      wsInstance!.simulateOpen();
+      await vi.waitFor(() => store.getState().websocket.connected);
+
+      mockInvalidateQueries.mockClear();
+      Object.defineProperty(document, "visibilityState", {
+        value: "visible",
+        configurable: true,
+        writable: true,
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+
+      await vi.waitFor(() => {
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.prd.detail("proj-1"),
+        });
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.plans.list("proj-1"),
+        });
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.plans.status("proj-1"),
+        });
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.tasks.list("proj-1"),
+        });
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.feedback.list("proj-1"),
+        });
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.deliver.status("proj-1"),
+        });
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.execute.status("proj-1"),
+        });
+      });
+    });
+
+    it("invalidates project queries when window focus fires (Electron fallback when visibilitychange is unreliable)", async () => {
+      const store = createStore();
+      store.dispatch(wsConnect({ projectId: "proj-1" }));
+      wsInstance!.simulateOpen();
+      await vi.waitFor(() => store.getState().websocket.connected);
+
+      mockInvalidateQueries.mockClear();
+      window.dispatchEvent(new Event("focus"));
+
+      await vi.waitFor(() => {
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.prd.detail("proj-1"),
+        });
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.plans.list("proj-1"),
+        });
+        expect(mockInvalidateQueries).toHaveBeenCalledWith({
+          queryKey: queryKeys.execute.status("proj-1"),
+        });
+      });
     });
   });
 

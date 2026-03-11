@@ -227,14 +227,53 @@ export const websocketMiddleware: Middleware = (storeApi) => {
     socket.onerror = () => {};
   }
 
-  // Reconnect immediately when tab becomes visible (helps after server restart; avoids throttled timers in background)
+  /** Invalidate project queries so UI refetches when window returns to focus (Electron or browser tab). */
+  function invalidateProjectQueriesOnFocus(projectId: string) {
+    try {
+      const qc = getQueryClient();
+      void qc.invalidateQueries({ queryKey: queryKeys.prd.detail(projectId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.prd.history(projectId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.plans.list(projectId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.plans.status(projectId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.tasks.list(projectId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.feedback.list(projectId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.deliver.status(projectId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.execute.status(projectId) });
+    } catch {
+      // QueryClient may not be set in tests
+    }
+  }
+
+  /** Run when window/tab becomes visible or window gains focus (Electron often does not fire visibilitychange on focus). */
+  function onWindowReturn() {
+    if (intentionalClose) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      if (currentProjectId === HOME_SENTINEL) connectHome();
+      else if (currentProjectId) connect(currentProjectId);
+    } else if (currentProjectId && currentProjectId !== HOME_SENTINEL) {
+      invalidateProjectQueriesOnFocus(currentProjectId);
+    }
+  }
+
+  // Reconnect immediately when tab becomes visible (helps after server restart; avoids throttled timers in background).
+  // Also invalidate project queries so UI updates when window returns to focus (Electron or browser).
   if (typeof document !== "undefined") {
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState !== "visible" || intentionalClose) return;
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
-        if (currentProjectId === HOME_SENTINEL) connectHome();
-        else if (currentProjectId) connect(currentProjectId);
-      }
+      if (document.visibilityState !== "visible") return;
+      onWindowReturn();
+    });
+  }
+
+  // Electron often does not fire visibilitychange when the window regains focus; listen for window focus and debounce to avoid refetch on every internal focus.
+  const FOCUS_DEBOUNCE_MS = 2000;
+  let lastFocusRefreshAt = 0;
+  if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+    window.addEventListener("focus", () => {
+      if (intentionalClose) return;
+      const now = Date.now();
+      if (now - lastFocusRefreshAt < FOCUS_DEBOUNCE_MS) return;
+      lastFocusRefreshAt = now;
+      onWindowReturn();
     });
   }
 
