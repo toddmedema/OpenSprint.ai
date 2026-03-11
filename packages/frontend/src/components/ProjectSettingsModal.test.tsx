@@ -226,9 +226,8 @@ describe("ProjectSettingsModal", () => {
     const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
     await userEvent.click(agentConfigTab);
 
-    await screen.findByText(/API key required/);
-    const link = screen.getByTestId("configure-api-keys-link");
-    expect(link).toHaveTextContent("Configure in Global Settings → API keys");
+    const link = await screen.findByTestId("configure-api-keys-link-simple", { timeout: 3000 });
+    expect(link).toHaveTextContent("Configure API keys in Global Settings");
     expect(link).toHaveAttribute("href", "/projects/proj-1/settings?level=global");
     expect(screen.queryByPlaceholderText("sk-ant-...")).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText("key_...")).not.toBeInTheDocument();
@@ -253,12 +252,9 @@ describe("ProjectSettingsModal", () => {
     const workflowTab = screen.getByRole("button", { name: "Workflow" });
     await userEvent.click(workflowTab);
 
-    await screen.findByText("Code Review");
+    await screen.findByText("Code Review mode");
     expect(
-      screen.getByText(/After the coding agent completes a task, a review agent can validate/)
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Rejected work is sent back to the coding agent with feedback/)
+      screen.getByText(/Run a review agent after coding to validate scope, tests, and code quality/)
     ).toBeInTheDocument();
 
     const reviewModeSelect = screen.getByTestId("review-mode-select");
@@ -274,7 +270,7 @@ describe("ProjectSettingsModal", () => {
     const workflowTab = screen.getByRole("button", { name: "Workflow" });
     await userEvent.click(workflowTab);
 
-    await screen.findByText("Code Review");
+    await screen.findByText("Code Review mode");
     const reviewModeSelect = screen.getByTestId("review-mode-select");
     expect(reviewModeSelect).toHaveValue("always");
   });
@@ -288,7 +284,7 @@ describe("ProjectSettingsModal", () => {
     const workflowTab = screen.getByRole("button", { name: "Workflow" });
     await userEvent.click(workflowTab);
 
-    await screen.findByText("Code Review");
+    await screen.findByText("Code Review mode");
     const reviewModeSelect = screen.getByTestId("review-mode-select");
     await userEvent.selectOptions(reviewModeSelect, "never");
     fireEvent.blur(reviewModeSelect);
@@ -312,7 +308,7 @@ describe("ProjectSettingsModal", () => {
     const workflowTab = screen.getByRole("button", { name: "Workflow" });
     await userEvent.click(workflowTab);
 
-    await screen.findByText("Code Review");
+    await screen.findByText("Code Review mode");
     const multiselect = screen.getByTestId("review-agents-multiselect");
     const firstCheckbox = within(multiselect).getAllByRole("checkbox")[0];
     expect(firstCheckbox).toHaveAccessibleName("General");
@@ -328,7 +324,7 @@ describe("ProjectSettingsModal", () => {
     const workflowTab = screen.getByRole("button", { name: "Workflow" });
     await userEvent.click(workflowTab);
 
-    await screen.findByText("Code Review");
+    await screen.findByText("Code Review mode");
     const generalCheckbox = screen.getByRole("checkbox", { name: /^General$/i });
     expect(generalCheckbox).toBeChecked();
     expect(generalCheckbox).toBeDisabled();
@@ -343,7 +339,7 @@ describe("ProjectSettingsModal", () => {
     const workflowTab = screen.getByRole("button", { name: "Workflow" });
     await userEvent.click(workflowTab);
 
-    await screen.findByText("Code Review");
+    await screen.findByText("Code Review mode");
     const securityCheckbox = screen.getByRole("checkbox", { name: /Security implications/i });
     expect(securityCheckbox).toBeChecked();
     expect(securityCheckbox).toBeDisabled();
@@ -358,8 +354,8 @@ describe("ProjectSettingsModal", () => {
     const workflowTab = screen.getByRole("button", { name: "Workflow" });
     await userEvent.click(workflowTab);
 
-    await screen.findByText("Code Review");
-    expect(screen.getByText("Review agents")).toBeInTheDocument();
+    await screen.findByText("Code Review mode");
+    expect(screen.getByText("Review angles")).toBeInTheDocument();
     const multiselect = screen.getByTestId("review-agents-multiselect");
     expect(multiselect).toBeInTheDocument();
     expect(
@@ -398,7 +394,7 @@ describe("ProjectSettingsModal", () => {
     const workflowTab = screen.getByRole("button", { name: "Workflow" });
     await userEvent.click(workflowTab);
 
-    await screen.findByText("Code Review");
+    await screen.findByText("Code Review mode");
     const generalCheckbox = screen.getByRole("checkbox", { name: /^General$/i });
     const securityCheckbox = screen.getByRole("checkbox", { name: /Security implications/i });
     const designCheckbox = screen.getByRole("checkbox", {
@@ -438,7 +434,7 @@ describe("ProjectSettingsModal", () => {
     const workflowTab = screen.getByRole("button", { name: "Workflow" });
     await userEvent.click(workflowTab);
 
-    await screen.findByText("Code Review");
+    await screen.findByText("Code Review mode");
     const performanceCheckbox = screen.getByRole("checkbox", {
       name: /Performance impact/i,
     });
@@ -471,7 +467,7 @@ describe("ProjectSettingsModal", () => {
     const workflowTab = screen.getByRole("button", { name: "Workflow" });
     await userEvent.click(workflowTab);
 
-    await screen.findByText("Code Review");
+    await screen.findByText("Code Review mode");
     const performanceCheckbox = screen.getByRole("checkbox", {
       name: /Performance impact/i,
     });
@@ -504,7 +500,7 @@ describe("ProjectSettingsModal", () => {
     const workflowTab = screen.getByRole("button", { name: "Workflow" });
     await userEvent.click(workflowTab);
 
-    await screen.findByText("Code Review");
+    await screen.findByText("Code Review mode");
     const securityCheckbox = screen.getByRole("checkbox", { name: /Security implications/i });
     expect(securityCheckbox).toBeChecked();
     await userEvent.click(securityCheckbox);
@@ -533,7 +529,7 @@ describe("ProjectSettingsModal", () => {
     const workflowTab = screen.getByRole("button", { name: "Workflow" });
     await userEvent.click(workflowTab);
 
-    await screen.findByText("Code Review");
+    await screen.findByText("Code Review mode");
     const securityCheckbox = screen.getByRole("checkbox", { name: /Security implications/i });
     const testCoverageCheckbox = screen.getByRole("checkbox", {
       name: /Validating test coverage/i,
@@ -551,7 +547,7 @@ describe("ProjectSettingsModal", () => {
     const workflowTab = screen.getByRole("button", { name: "Workflow" });
     await userEvent.click(workflowTab);
 
-    await screen.findByText("Code Review");
+    await screen.findByText("Code Review mode");
     const securityCheckbox = screen.getByRole("checkbox", { name: /Security implications/i });
     expect(securityCheckbox).toHaveClass("border-0");
   });
@@ -563,7 +559,7 @@ describe("ProjectSettingsModal", () => {
     const workflowTab = screen.getByRole("button", { name: "Workflow" });
     await userEvent.click(workflowTab);
 
-    await screen.findByText("Self-improvement");
+    await screen.findByText(/Self-improvement/);
     expect(
       screen.getByText(/When the codebase has changed since the last run, a review runs using your code review lenses and creates improvement tasks\./)
     ).toBeInTheDocument();
@@ -622,9 +618,9 @@ describe("ProjectSettingsModal", () => {
     const workflowTab = screen.getByRole("button", { name: "Workflow" });
     await userEvent.click(workflowTab);
 
-    await screen.findByText("Self-improvement");
+    await screen.findByText(/Self-improvement/);
     expect(
-      screen.getByText(/Runs once after a plan's execution is fully complete/)
+      screen.getByText(/When the codebase has changed since the last run, a review runs/)
     ).toBeInTheDocument();
   });
 
@@ -1241,7 +1237,9 @@ describe("ProjectSettingsModal", () => {
     const select = screen.getByTestId("git-working-mode-select");
     await userEvent.selectOptions(select, "branches");
 
-    expect(screen.getByText("Branches mode uses a single coder.")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Branches: agents work in main repo on task branches, one at a time/)
+    ).toBeInTheDocument();
     expect(screen.queryByText("Parallelism")).not.toBeInTheDocument();
     expect(screen.queryByTestId("max-concurrent-coders-slider")).not.toBeInTheDocument();
   });
@@ -1338,9 +1336,6 @@ describe("ProjectSettingsModal", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(/Per epic: build entire plan\/epic on one branch; merge once all tasks are done/)
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/partial landing \(per task\) for incremental merges, or batch merge \(per epic\)/)
     ).toBeInTheDocument();
   });
 

@@ -891,7 +891,6 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                               />
                             </div>
                           )}
-                          </div>
                         </div>
                         {renderProviderPrerequisite(
                           "simple",
@@ -989,7 +988,6 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                               />
                             </div>
                           )}
-                          </div>
                         </div>
                         {renderProviderPrerequisite(
                           "complex",
@@ -1015,14 +1013,16 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                 )}
 
                 {activeTab === "workflow" && settings && (
-                  <WorkflowSettingsContent
-                    settings={settings}
-                    projectId={project.id}
-                    persistSettings={persistSettings}
-                    scheduleSaveOnBlur={scheduleSaveOnBlur}
-                    lastReviewAnglesRef={lastReviewAnglesRef}
-                    onSettingsChange={updateWorkflowSettings}
-                  />
+                  <div data-testid="workflow-tab-content">
+                    <WorkflowSettingsContent
+                      settings={settings}
+                      projectId={project.id}
+                      persistSettings={persistSettings}
+                      scheduleSaveOnBlur={scheduleSaveOnBlur}
+                      lastReviewAnglesRef={lastReviewAnglesRef}
+                      onSettingsChange={updateWorkflowSettings}
+                    />
+                  </div>
                 )}
 
                 {activeTab === "deployment" && (
