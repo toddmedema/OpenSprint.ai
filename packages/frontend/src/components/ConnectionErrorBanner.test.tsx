@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Provider } from "react-redux";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { configureStore } from "@reduxjs/toolkit";
@@ -51,10 +52,16 @@ describe("ConnectionErrorBanner", () => {
     expect(banner).toHaveTextContent("Failed to connect to Open Sprint server - try restarting it");
   });
 
-  it("banner has no dismiss button (non-closable)", () => {
+  it("shows countdown text 'Checking again in Xs'", () => {
     renderWithStore(true);
-    const banner = screen.getByTestId("connection-error-banner");
-    expect(banner.querySelector("button")).toBeNull();
+    expect(screen.getByText(/Checking again in \d+s/)).toBeInTheDocument();
+  });
+
+  it("banner has Check again button but no dismiss/close button (non-closable)", () => {
+    renderWithStore(true);
+    const checkAgainBtn = screen.getByRole("button", { name: "Check again" });
+    expect(checkAgainBtn).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /dismiss|close/i })).not.toBeInTheDocument();
   });
 
   it("banner has role alert", () => {
@@ -81,6 +88,28 @@ describe("ConnectionErrorBanner", () => {
       expect(store.getState().connection.connectionError).toBe(false);
     });
     expect(screen.queryByTestId("connection-error-banner")).not.toBeInTheDocument();
+  });
+
+  it("Check again button triggers immediate poll", async () => {
+    mockDbStatusGet.mockRejectedValue(new Error("Failed to fetch"));
+    renderWithStore(true);
+    const initialCalls = mockDbStatusGet.mock.calls.length;
+    expect(initialCalls).toBeGreaterThanOrEqual(1);
+
+    const checkAgainBtn = screen.getByRole("button", { name: "Check again" });
+    await userEvent.click(checkAgainBtn);
+
+    await waitFor(() => {
+      expect(mockDbStatusGet.mock.calls.length).toBeGreaterThan(initialCalls);
+    });
+  });
+
+  it("Check again button resets countdown to 3s", async () => {
+    mockDbStatusGet.mockRejectedValue(new Error("Failed to fetch"));
+    renderWithStore(true);
+    const checkAgainBtn = screen.getByRole("button", { name: "Check again" });
+    await userEvent.click(checkAgainBtn);
+    expect(screen.getByText(/Checking again in 3s/)).toBeInTheDocument();
   });
 
   it("keeps polling until backend responds when connectionError is true", async () => {
