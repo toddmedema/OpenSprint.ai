@@ -424,6 +424,102 @@ describe("ProjectSettingsModal", () => {
     expect(call[1].reviewAngles).toContain("design_ux_accessibility");
   });
 
+  it("persists single angle when unselecting second-to-last (only one angle remains)", async () => {
+    mockGetSettings.mockResolvedValue({
+      ...mockSettings,
+      reviewAngles: ["security", "performance"],
+      includeGeneralReview: false,
+    });
+
+    renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} onSaved={onSaved} />);
+    await waitForModalReady();
+
+    const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
+    await userEvent.click(agentConfigTab);
+
+    await screen.findByText("Code Review");
+    const performanceCheckbox = screen.getByRole("checkbox", {
+      name: /Performance impact/i,
+    });
+    expect(performanceCheckbox).toBeChecked();
+    await userEvent.click(performanceCheckbox);
+
+    await waitFor(() =>
+      expect(mockUpdateSettings).toHaveBeenCalledWith(
+        "proj-1",
+        expect.objectContaining({
+          reviewAngles: ["security"],
+        })
+      )
+    );
+    const call = mockUpdateSettings.mock.calls[mockUpdateSettings.mock.calls.length - 1];
+    expect(call[1].reviewAngles).toHaveLength(1);
+    expect(call[1].reviewAngles).toContain("security");
+  });
+
+  it("persists single angle when switching tab after unselecting second-to-last", async () => {
+    mockGetSettings.mockResolvedValue({
+      ...mockSettings,
+      reviewAngles: ["security", "performance"],
+      includeGeneralReview: false,
+    });
+
+    renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} onSaved={onSaved} />);
+    await waitForModalReady();
+
+    const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
+    await userEvent.click(agentConfigTab);
+
+    await screen.findByText("Code Review");
+    const performanceCheckbox = screen.getByRole("checkbox", {
+      name: /Performance impact/i,
+    });
+    await userEvent.click(performanceCheckbox);
+
+    const basicsTab = screen.getByRole("button", { name: "Project Info" });
+    await userEvent.click(basicsTab);
+
+    await waitFor(() => {
+      const callsWithSingleAngle = mockUpdateSettings.mock.calls.filter(
+        (c) => Array.isArray(c[1]?.reviewAngles) && c[1].reviewAngles.length === 1
+      );
+      expect(callsWithSingleAngle.length).toBeGreaterThanOrEqual(1);
+      expect(callsWithSingleAngle[callsWithSingleAngle.length - 1][1].reviewAngles).toEqual([
+        "security",
+      ]);
+    });
+  });
+
+  it("persists empty angles when unselecting last angle (general only)", async () => {
+    mockGetSettings.mockResolvedValue({
+      ...mockSettings,
+      reviewAngles: ["security"],
+      includeGeneralReview: true,
+    });
+
+    renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} onSaved={onSaved} />);
+    await waitForModalReady();
+
+    const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
+    await userEvent.click(agentConfigTab);
+
+    await screen.findByText("Code Review");
+    const securityCheckbox = screen.getByRole("checkbox", { name: /Security implications/i });
+    expect(securityCheckbox).toBeChecked();
+    await userEvent.click(securityCheckbox);
+
+    await waitFor(() =>
+      expect(mockUpdateSettings).toHaveBeenCalledWith(
+        "proj-1",
+        expect.objectContaining({
+          reviewAngles: [],
+        })
+      )
+    );
+    const call = mockUpdateSettings.mock.calls[mockUpdateSettings.mock.calls.length - 1];
+    expect(call[1].reviewAngles).toHaveLength(0);
+  });
+
   it("shows pre-selected review agents when settings have them", async () => {
     mockGetSettings.mockResolvedValue({
       ...mockSettings,

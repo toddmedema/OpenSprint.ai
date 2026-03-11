@@ -125,6 +125,8 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
     const saveGenerationRef = useRef(0);
     const saveCompleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    /** Tracks latest intended reviewAngles so tab switch / close persist uses it before state flushes (fixes single-angle not saving). */
+    const lastReviewAnglesRef = useRef<ProjectSettings["reviewAngles"] | undefined>(undefined);
     const loadRequestRef = useRef(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -196,6 +198,7 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
           const data = await api.projects.getSettings(project.id);
           if (loadRequestRef.current !== requestId) return;
           setSettings(data);
+          lastReviewAnglesRef.current = data.reviewAngles;
           clearPollTimeout();
           if (data.gitRuntimeStatus?.refreshing) {
             pollTimeoutRef.current = setTimeout(() => {
@@ -348,7 +351,12 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
               aiAutonomyLevel: effAiAutonomy,
               testCommand: overrides?.testCommand ?? effSettings?.testCommand ?? undefined,
               reviewMode: overrides?.reviewMode ?? effSettings?.reviewMode ?? DEFAULT_REVIEW_MODE,
-              reviewAngles: overrides?.reviewAngles ?? effSettings?.reviewAngles ?? undefined,
+              // Send [] when empty so backend receives it (undefined is omitted from JSON and would keep old value)
+              reviewAngles:
+                overrides?.reviewAngles ??
+                lastReviewAnglesRef.current ??
+                effSettings?.reviewAngles ??
+                [],
               includeGeneralReview: overrides?.includeGeneralReview ?? effSettings?.includeGeneralReview ?? undefined,
               maxConcurrentCoders:
                 effGitMode === "branches"
@@ -961,16 +969,24 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                                         : angleValue
                                           ? [...current, angleValue]
                                           : current;
+                                      // Update ref immediately so tab switch / close persist uses correct value (fixes single-angle not saving)
+                                      lastReviewAnglesRef.current =
+                                        next.length > 0 ? next : undefined;
                                       if (next.length === 0 && selected && !includeGeneral) return;
                                       const wasGeneralOnly = current.length === 0 && generalSelected;
+                                      const nextReviewAngles =
+                                        next.length > 0 ? next : ([] as ReviewAngle[]);
                                       setSettings((s) => {
                                         if (!s) return null;
-                                        const nextSettings = { ...s, reviewAngles: next };
+                                        const nextSettings = {
+                                          ...s,
+                                          reviewAngles: next.length > 0 ? next : undefined,
+                                        };
                                         if (wasGeneralOnly) nextSettings.includeGeneralReview = true;
                                         return nextSettings;
                                       });
                                       void persistSettings(undefined, {
-                                        reviewAngles: next.length > 0 ? next : undefined,
+                                        reviewAngles: nextReviewAngles,
                                         ...(wasGeneralOnly && { includeGeneralReview: true }),
                                       });
                                     }

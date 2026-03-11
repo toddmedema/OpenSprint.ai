@@ -610,6 +610,39 @@ describe("ProjectService", () => {
     expect(settings.mergeStrategy).toBe("per_epic");
   });
 
+  it("should persist reviewAngles (single, multiple, and empty) in updateSettings", async () => {
+    const repoPath = path.join(tempDir, "review-angles");
+    const project = await projectService.createProject({
+      name: "Review Angles",
+      repoPath,
+      simpleComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      complexComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    const withTwo = await projectService.updateSettings(project.id, {
+      reviewAngles: ["security", "performance"],
+    });
+    expect(withTwo.reviewAngles).toEqual(["security", "performance"]);
+
+    const withOne = await projectService.updateSettings(project.id, {
+      reviewAngles: ["security"],
+    });
+    expect(withOne.reviewAngles).toEqual(["security"]);
+
+    const reloadedOne = await projectService.getSettings(project.id);
+    expect(reloadedOne.reviewAngles).toEqual(["security"]);
+
+    const withEmpty = await projectService.updateSettings(project.id, {
+      reviewAngles: [],
+    });
+    expect(withEmpty.reviewAngles).toBeUndefined();
+
+    const reloadedEmpty = await projectService.getSettings(project.id);
+    expect(reloadedEmpty.reviewAngles).toBeUndefined();
+  });
+
   it("should reject invalid mergeStrategy in updateSettings", async () => {
     const repoPath = path.join(tempDir, "merge-strategy-invalid");
     const project = await projectService.createProject({
