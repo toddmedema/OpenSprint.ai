@@ -4,11 +4,18 @@ import { api } from "../client";
 import { queryKeys } from "../queryKeys";
 import { normalizeTaskListResponse } from "../taskList";
 
-export function useTasks(projectId: string | undefined, options?: { enabled?: boolean }) {
+/** Poll interval (ms) when WebSocket is disconnected so Execute page still gets task status updates from other clients/agents. */
+export const TASKS_LIVE_POLL_MS = 4000;
+
+export function useTasks(
+  projectId: string | undefined,
+  options?: { enabled?: boolean; refetchInterval?: number | false }
+) {
   return useQuery({
     queryKey: queryKeys.tasks.list(projectId ?? ""),
     queryFn: async () => normalizeTaskListResponse(await api.tasks.list(projectId!)),
     enabled: Boolean(projectId) && options?.enabled !== false,
+    refetchInterval: options?.refetchInterval,
   });
 }
 

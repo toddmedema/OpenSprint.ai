@@ -22,6 +22,7 @@ import {
   useDeleteTask,
   useTasks,
   useProjectSettings,
+  TASKS_LIVE_POLL_MS,
 } from "../../api/hooks";
 import { usePhaseLoadingState } from "../../hooks/usePhaseLoadingState";
 import { PhaseLoadingSpinner } from "../../components/PhaseLoadingSpinner";
@@ -264,7 +265,10 @@ export function ExecutePhase({
     chipConfig,
   } = useExecuteSwimlanes(tasks, plans, statusFilter, searchQuery);
 
-  const tasksQuery = useTasks(projectId);
+  // Poll task list when WebSocket is disconnected so status changes from other tabs/agents appear without manual refresh
+  const tasksQuery = useTasks(projectId, {
+    refetchInterval: wsConnected ? false : TASKS_LIVE_POLL_MS,
+  });
   const tasksEmpty = implTasks.length === 0;
   const { showSpinner: showTasksSpinner, showEmptyState: showTasksEmptyState } =
     usePhaseLoadingState(tasksQuery.isLoading, tasksEmpty);
