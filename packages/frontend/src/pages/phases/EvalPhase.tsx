@@ -648,31 +648,26 @@ const FeedbackCard = memo(
         onTransitionEnd={handleTransitionEnd}
       >
         <div ref={innerRef} style={innerStyle}>
+          {/* Nested buttons/inputs prevent using a native <button>; role=button + keyboard support provided */}
           <div
             className="card p-4"
-            role={onCardTap ? "button" : undefined}
-            tabIndex={onCardTap ? 0 : undefined}
-            onClick={
-              onCardTap
-                ? (e) => {
-                    const closest = (e.target as HTMLElement).closest(
-                      "button, a, [role='button'], input, select, textarea"
-                    );
-                    if (closest && closest !== (e.currentTarget as HTMLElement)) return;
-                    onCardTap();
-                  }
-                : undefined
-            }
-            onKeyDown={
-              onCardTap
-                ? (e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      onCardTap();
-                    }
-                  }
-                : undefined
-            }
+            {...(onCardTap && {
+              role: "button" as const,
+              tabIndex: 0,
+              onClick: (e: React.MouseEvent<HTMLDivElement>) => {
+                const closest = (e.target as HTMLElement).closest(
+                  "button, a, [role='button'], input, select, textarea"
+                );
+                if (closest && closest !== (e.currentTarget as HTMLElement)) return;
+                onCardTap();
+              },
+              onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onCardTap();
+                }
+              },
+            })}
           >
             {/* Category badge/spinner floats top-right */}
             <div className="mb-2 overflow-hidden">
@@ -764,15 +759,15 @@ const FeedbackCard = memo(
                 aria-label="View attachment full size"
                 data-testid="feedback-image-modal"
               >
-                <div
-                  className="absolute inset-0 bg-black/70"
+                <button
+                  type="button"
+                  className="absolute inset-0 w-full h-full bg-black/70 border-0 cursor-default"
                   onClick={() => setImageModalSrc(null)}
-                  aria-hidden="true"
+                  aria-label="Close (backdrop)"
                   data-testid="feedback-image-modal-backdrop"
                 />
                 <div
                   className="relative z-10 max-w-[90vw] max-h-[90vh] flex items-center justify-center"
-                  onClick={(e) => e.stopPropagation()}
                   data-testid="feedback-image-modal-content"
                 >
                   <img
@@ -1008,7 +1003,6 @@ const FeedbackCard = memo(
               }}
               placeholder="Write a reply..."
               disabled={submitting}
-              autoFocus
             />
             <ImageAttachmentThumbnails attachment={replyImages} className="mb-2" />
             <div className="flex justify-end items-stretch gap-2 flex-wrap">
@@ -1051,7 +1045,7 @@ const FeedbackCard = memo(
                     className={`absolute top-full mt-1 z-50 min-w-[10rem] rounded-lg border border-theme-border bg-theme-surface shadow-lg py-1 ${replyPriorityAlignRight ? "right-0 left-auto" : "left-0 right-auto"}`}
                     data-testid="reply-priority-dropdown"
                   >
-                    <li role="option">
+                    <li role="option" aria-selected={replyPriority == null}>
                       <button
                         type="button"
                         onClick={() => {
@@ -1065,7 +1059,7 @@ const FeedbackCard = memo(
                       </button>
                     </li>
                     {([0, 1, 2, 3, 4] as const).map((p) => (
-                      <li key={p} role="option">
+                      <li key={p} role="option" aria-selected={replyPriority === p}>
                         <button
                           type="button"
                           onClick={() => {
@@ -1371,7 +1365,6 @@ function PlanReplyComposer({
         }}
         placeholder="Write a reply..."
         disabled={submitting}
-        autoFocus
         data-testid={`plan-inline-reply-input-${plan.metadata.planId}`}
       />
       <ImageAttachmentThumbnails attachment={replyImages} className="mb-2" />
@@ -1415,7 +1408,7 @@ function PlanReplyComposer({
               className={`absolute top-full mt-1 z-50 min-w-[10rem] rounded-lg border border-theme-border bg-theme-surface shadow-lg py-1 ${replyPriorityAlignRight ? "right-0 left-auto" : "left-0 right-auto"}`}
               data-testid="plan-inline-reply-priority-dropdown"
             >
-              <li role="option">
+              <li role="option" aria-selected={replyPriority == null}>
                 <button
                   type="button"
                   onClick={() => {
@@ -1429,7 +1422,7 @@ function PlanReplyComposer({
                 </button>
               </li>
               {([0, 1, 2, 3, 4] as const).map((p) => (
-                <li key={p} role="option">
+                <li key={p} role="option" aria-selected={replyPriority === p}>
                   <button
                     type="button"
                     onClick={() => {
@@ -2149,7 +2142,7 @@ export function EvalPhase({
                     className={`absolute top-full mt-1 z-50 min-w-[10rem] rounded-lg border border-theme-border bg-theme-surface shadow-lg py-1 ${feedbackPriorityAlignRight ? "right-0 left-auto" : "left-0 right-auto"}`}
                     data-testid="feedback-priority-dropdown"
                   >
-                    <li role="option">
+                    <li role="option" aria-selected={priority == null}>
                       <button
                         type="button"
                         onClick={() => {
@@ -2163,7 +2156,7 @@ export function EvalPhase({
                       </button>
                     </li>
                     {([0, 1, 2, 3, 4] as const).map((p) => (
-                      <li key={p} role="option">
+                      <li key={p} role="option" aria-selected={priority === p}>
                         <button
                           type="button"
                           onClick={() => {

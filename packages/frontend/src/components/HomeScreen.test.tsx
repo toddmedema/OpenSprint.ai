@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Routes, Route, useLocation } from "react-router-dom";
 import { HomeScreen } from "./HomeScreen";
@@ -401,7 +401,9 @@ describe("HomeScreen", () => {
 
     await user.keyboard("{Escape}");
 
-    expect(screen.queryByTestId("project-card-dropdown-proj-1")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByTestId("project-card-dropdown-proj-1")).not.toBeInTheDocument();
+    });
     expect(document.activeElement).toBe(menuButton);
   });
 

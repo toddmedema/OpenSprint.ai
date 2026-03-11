@@ -673,6 +673,10 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
         <div className="w-full max-w-2xl">
           <div
             className="relative"
+            role="button"
+            tabIndex={0}
+            aria-label="Drop zone for images"
+            onKeyDown={() => {}}
             onDragOver={imageAttachment.handleDragOver}
             onDrop={imageAttachment.handleDrop}
           >

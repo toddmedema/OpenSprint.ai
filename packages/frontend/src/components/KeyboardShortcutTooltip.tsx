@@ -45,8 +45,11 @@ export function KeyboardShortcutTooltip({ children }: KeyboardShortcutTooltipPro
   return (
     <span
       className="relative inline-flex"
+      role="presentation"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onKeyDown={() => {}}
+      tabIndex={-1}
     >
       {children}
       {tooltipVisible && (

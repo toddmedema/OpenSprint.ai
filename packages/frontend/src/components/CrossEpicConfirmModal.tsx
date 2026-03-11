@@ -25,7 +25,12 @@ export function CrossEpicConfirmModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-theme-overlay backdrop-blur-sm" onClick={onCancel} />
+      <button
+        type="button"
+        className="absolute inset-0 w-full h-full bg-theme-overlay backdrop-blur-sm border-0 cursor-default"
+        onClick={onCancel}
+        aria-label="Close"
+      />
 
       {/* Modal */}
       <div
@@ -34,7 +39,6 @@ export function CrossEpicConfirmModal({
         aria-modal="true"
         aria-labelledby="cross-epic-modal-title"
         className="relative bg-theme-surface rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col"
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-theme-border">

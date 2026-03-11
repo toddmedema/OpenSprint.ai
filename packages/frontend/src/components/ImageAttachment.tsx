@@ -156,6 +156,7 @@ export function ImageAttachmentButton({
       {showTooltip ? (
         <span
           className="relative inline-flex"
+          role="presentation"
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >

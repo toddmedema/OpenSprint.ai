@@ -57,7 +57,7 @@ describe("ServerDiffView", () => {
 
   it("uses aria labels for added/removed/context lines", () => {
     render(<ServerDiffView diff={mockDiff} />);
-    const list = screen.getByRole("list", { name: "Diff lines" });
+    const list = screen.getByRole("textbox", { name: "Diff lines" });
     expect(list).toBeInTheDocument();
     const items = within(list).getAllByRole("listitem");
     expect(items).toHaveLength(4);
@@ -77,7 +77,7 @@ describe("ServerDiffView", () => {
   it("supports keyboard navigation (ArrowDown, ArrowUp)", async () => {
     const user = userEvent.setup();
     render(<ServerDiffView diff={mockDiff} />);
-    const container = screen.getByRole("list", { name: "Diff lines" });
+    const container = screen.getByRole("textbox", { name: "Diff lines" });
     container.focus();
     expect(container).toHaveFocus();
 
@@ -95,7 +95,7 @@ describe("ServerDiffView", () => {
   it("supports Home and End keys", async () => {
     const user = userEvent.setup();
     render(<ServerDiffView diff={mockDiff} />);
-    const container = screen.getByRole("list", { name: "Diff lines" });
+    const container = screen.getByRole("textbox", { name: "Diff lines" });
     container.focus();
     await user.keyboard("{End}");
     const items = within(container).getAllByRole("listitem");

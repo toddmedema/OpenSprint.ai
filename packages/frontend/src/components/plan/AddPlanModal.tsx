@@ -28,14 +28,18 @@ export function AddPlanModal({ onGenerate, onClose }: AddPlanModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-theme-overlay backdrop-blur-sm" onClick={onClose} />
+      <button
+        type="button"
+        className="absolute inset-0 w-full h-full bg-theme-overlay backdrop-blur-sm border-0 cursor-default"
+        onClick={onClose}
+        aria-label="Close"
+      />
       <div
         ref={containerRef}
         role="dialog"
         aria-modal="true"
         aria-label="Add Plan"
         className="relative bg-theme-surface rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col"
-        onClick={(e) => e.stopPropagation()}
         data-testid="add-plan-modal"
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-theme-border">
@@ -57,7 +61,6 @@ export function AddPlanModal({ onGenerate, onClose }: AddPlanModalProps) {
             onKeyDown={onKeyDown}
             placeholder="Describe your feature idea…"
             data-testid="feature-description-input"
-            autoFocus
           />
         </div>
         <div className="flex justify-end gap-2 px-5 py-4 border-t border-theme-border bg-theme-bg rounded-b-xl">

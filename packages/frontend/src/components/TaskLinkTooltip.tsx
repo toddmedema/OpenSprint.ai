@@ -85,8 +85,11 @@ export function TaskLinkTooltip({
     <span
       ref={anchorRef}
       className="relative inline-flex"
+      role="presentation"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onKeyDown={() => {}}
+      tabIndex={-1}
     >
       {children}
       {showTooltip && (

@@ -530,14 +530,13 @@ export function GlobalSettingsContent({ onSaveStateChange }: GlobalSettingsConte
           className="fixed inset-0 z-50 flex items-center justify-center"
           data-testid="setup-tables-dialog"
         >
-          <div
-            className="absolute inset-0 bg-theme-overlay backdrop-blur-sm"
+          <button
+            type="button"
+            className="absolute inset-0 w-full h-full bg-theme-overlay backdrop-blur-sm border-0 cursor-default"
             onClick={() => !setupTablesLoading && setSetupTablesDialogOpen(false)}
+            aria-label="Close"
           />
-          <div
-            className="relative bg-theme-surface rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="relative bg-theme-surface rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col">
             <div className="flex items-center justify-between px-5 py-4 border-b border-theme-border">
               <h2 className="text-lg font-semibold text-theme-text">Set up tables</h2>
               <CloseButton
@@ -583,14 +582,13 @@ export function GlobalSettingsContent({ onSaveStateChange }: GlobalSettingsConte
           className="fixed inset-0 z-50 flex items-center justify-center"
           data-testid="upgrade-to-postgres-dialog"
         >
-          <div
-            className="absolute inset-0 bg-theme-overlay backdrop-blur-sm"
+          <button
+            type="button"
+            className="absolute inset-0 w-full h-full bg-theme-overlay backdrop-blur-sm border-0 cursor-default"
             onClick={() => !upgradeLoading && setUpgradeDialogOpen(false)}
+            aria-label="Close"
           />
-          <div
-            className="relative bg-theme-surface rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="relative bg-theme-surface rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col">
             <div className="flex items-center justify-between px-5 py-4 border-b border-theme-border">
               <h2 className="text-lg font-semibold text-theme-text">Upgrade to PostgreSQL</h2>
               <CloseButton

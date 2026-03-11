@@ -162,6 +162,12 @@ export function AddLinkFlow({
                       : "hover:bg-theme-border-subtle/50"
                   }`}
                   onClick={() => selectTask(t)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      selectTask(t);
+                    }
+                  }}
                   onMouseEnter={() => setHighlightedIndex(i)}
                 >
                   <span className="font-mono text-theme-muted">{t.id}</span>

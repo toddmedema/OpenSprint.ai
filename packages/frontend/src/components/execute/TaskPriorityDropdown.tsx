@@ -111,7 +111,7 @@ export function TaskPriorityDropdown({
           data-testid="priority-dropdown"
         >
           {([0, 1, 2, 3, 4] as const).map((p) => (
-            <li key={p} role="option">
+            <li key={p} role="option" aria-selected={displayPriority === p}>
               <button
                 type="button"
                 onClick={() => handlePrioritySelect(p)}

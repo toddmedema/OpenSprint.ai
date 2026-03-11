@@ -672,9 +672,12 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
     return (
       <div className={wrapperClass}>
         {!fullScreen && (
-          <div
-            className="absolute inset-0 bg-theme-overlay backdrop-blur-sm"
+          <button
+            type="button"
+            tabIndex={-1}
+            className="absolute inset-0 w-full h-full bg-theme-overlay backdrop-blur-sm border-0 cursor-default"
             onClick={() => void handleClose()}
+            aria-label="Close"
           />
         )}
 

@@ -82,7 +82,12 @@ export function FolderBrowser({ initialPath, onSelect, onCancel }: FolderBrowser
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-theme-overlay backdrop-blur-sm" onClick={onCancel} />
+      <button
+        type="button"
+        className="absolute inset-0 w-full h-full bg-theme-overlay backdrop-blur-sm border-0 cursor-default"
+        onClick={onCancel}
+        aria-label="Close"
+      />
 
       {/* Dialog */}
       <div
@@ -149,7 +154,6 @@ export function FolderBrowser({ initialPath, onSelect, onCancel }: FolderBrowser
                   setCreateError(null);
                 }}
                 placeholder="Folder name"
-                autoFocus
               />
               <button
                 type="submit"

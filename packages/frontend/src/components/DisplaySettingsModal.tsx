@@ -13,7 +13,12 @@ interface DisplaySettingsModalProps {
 export function DisplaySettingsModal({ onClose }: DisplaySettingsModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-theme-overlay backdrop-blur-sm" onClick={onClose} />
+      <button
+        type="button"
+        className="absolute inset-0 w-full h-full bg-theme-overlay backdrop-blur-sm border-0 cursor-default"
+        onClick={onClose}
+        aria-label="Close"
+      />
       <div
         className="relative bg-theme-surface rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col"
         data-testid="display-settings-modal"

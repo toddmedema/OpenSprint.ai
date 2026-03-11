@@ -122,7 +122,10 @@ function TimelineRow({
         <span
           className="shrink-0 w-fit max-w-fit tabular-nums inline-flex items-center min-w-0"
           data-testid="task-row-assignee"
+          role="presentation"
           onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          tabIndex={-1}
         >
           {enableHumanTeammates ? (
             <AssigneeSelector

@@ -156,7 +156,7 @@ export function AssigneeSelector({
       style={dropdownStyle}
       data-testid="assignee-dropdown"
     >
-      <li role="option">
+      <li role="option" aria-selected={!currentAssignee}>
             <button
               type="button"
               onClick={() => handleSelect(null)}
@@ -172,7 +172,7 @@ export function AssigneeSelector({
             const label = m.name || m.id;
             const isSelected = currentAssignee === m.id || currentAssignee === m.name;
             return (
-              <li key={m.id} role="option">
+              <li key={m.id} role="option" aria-selected={isSelected}>
                 <button
                   type="button"
                   onClick={() => handleSelect(m.name || m.id)}
@@ -204,7 +204,6 @@ export function AssigneeSelector({
                   placeholder="Enter name…"
                   className="flex-1 text-xs px-2 py-1 rounded border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-500"
                   data-testid="assignee-other-input"
-                  autoFocus
                 />
                 <button
                   type="button"
@@ -218,7 +217,7 @@ export function AssigneeSelector({
               </div>
             </li>
           ) : (
-            <li role="option">
+            <li role="option" aria-selected={false}>
               <button
                 type="button"
                 onClick={() => setShowOtherInput(true)}

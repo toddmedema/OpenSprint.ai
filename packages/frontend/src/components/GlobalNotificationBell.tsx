@@ -145,7 +145,7 @@ export function GlobalNotificationBell() {
         </div>
         <ul className="divide-y divide-theme-border-subtle">
           {notifications.map((n) => (
-            <li key={n.id} role="option">
+            <li key={n.id} role="option" aria-selected={false}>
               <button
                 type="button"
                 className="w-full text-left px-4 py-2.5 text-sm hover:bg-theme-border transition-colors"

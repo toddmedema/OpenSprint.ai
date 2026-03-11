@@ -132,8 +132,10 @@ export function PrdSectionEditor({
   return (
     <div
       ref={elRef}
+      role="textbox"
       contentEditable={!disabled}
       suppressContentEditableWarning
+      tabIndex={0}
       onInput={handleInput}
       onBlur={flushDebounce}
       data-prd-section={sectionKey}

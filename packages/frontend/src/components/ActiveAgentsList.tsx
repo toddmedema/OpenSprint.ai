@@ -100,7 +100,7 @@ const AgentDropdownItem = memo(function AgentDropdownItem({
   }, [performKill]);
 
   return (
-    <li role="option" className="group flex items-stretch">
+    <li role="option" aria-selected={false} className="group flex items-stretch">
       <button
         type="button"
         className="flex-1 min-w-0 px-4 py-2.5 text-sm text-left hover:bg-theme-border group-hover:bg-theme-border focus-visible:bg-theme-border transition-colors flex items-start gap-3 cursor-pointer"

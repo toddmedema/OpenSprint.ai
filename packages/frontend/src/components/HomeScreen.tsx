@@ -67,14 +67,18 @@ function ProjectActionConfirmModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-theme-overlay backdrop-blur-sm" onClick={onCancel} />
+      <button
+        type="button"
+        className="absolute inset-0 w-full h-full bg-theme-overlay backdrop-blur-sm border-0 cursor-default"
+        onClick={onCancel}
+        aria-label="Close"
+      />
       <div
         ref={containerRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="project-action-modal-title"
         className="relative bg-theme-surface rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto flex flex-col"
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-theme-border shrink-0">
           <h2 id="project-action-modal-title" className="text-lg font-semibold text-theme-text">
@@ -361,7 +365,13 @@ export function HomeScreen() {
                   <div
                     className="relative flex items-center flex-shrink-0"
                     ref={menuOpenId === project.id ? menuRef : undefined}
+                    role="button"
+                    tabIndex={-1}
+                    aria-label="Project card menu wrapper"
                     onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Escape") e.stopPropagation();
+                    }}
                   >
                     <button
                       type="button"

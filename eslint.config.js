@@ -78,12 +78,11 @@ export default [
       ...reactHooks.configs.recommended.rules,
       ...jsxA11y.configs.recommended.rules,
       "react/react-in-jsx-scope": "off",
-      // Defer fixes; can enable as "error" once addressed
-      "jsx-a11y/no-autofocus": "warn",
-      "jsx-a11y/no-static-element-interactions": "warn",
-      "jsx-a11y/click-events-have-key-events": "warn",
-      "jsx-a11y/label-has-associated-control": "warn",
-      "jsx-a11y/role-has-required-aria-props": "warn",
+      "jsx-a11y/no-autofocus": "error",
+      "jsx-a11y/no-static-element-interactions": "error",
+      "jsx-a11y/click-events-have-key-events": "error",
+      "jsx-a11y/label-has-associated-control": "error",
+      "jsx-a11y/role-has-required-aria-props": "error",
     },
   },
   // Root scripts (Node.js)

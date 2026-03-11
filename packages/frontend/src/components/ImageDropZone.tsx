@@ -38,7 +38,11 @@ export function ImageDropZone({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={label}
       className={`relative ${className}`.trim()}
+      onKeyDown={() => {}}
       onDragOver={onDragOver}
       onDrop={onDrop}
       data-testid={dataTestId}

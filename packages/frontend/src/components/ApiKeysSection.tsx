@@ -339,8 +339,12 @@ export function ApiKeysSection({
                   return (
                     <div
                       key={entry.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-label="Drop target for reordering"
                       className={`space-y-1 rounded-md transition-colors ${isDropTarget ? "ring-1 ring-brand-500 bg-theme-bg-elevated/50" : ""} ${isDragging ? "opacity-50" : ""}`}
                       data-index={index}
+                      onKeyDown={() => {}}
                       onDragOver={(e) => {
                         e.preventDefault();
                         e.dataTransfer.dropEffect = "move";
