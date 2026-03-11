@@ -212,7 +212,7 @@ describe("ProjectSettingsModal", () => {
     expect(screen.queryByPlaceholderText("key_...")).not.toBeInTheDocument();
   });
 
-  it("shows configure-in-settings link when claude is selected and key is missing", async () => {
+  it("shows Anthropic-specific banner when Anthropic is selected and key is missing", async () => {
     mockGlobalSettingsGet.mockResolvedValue({
       databaseUrl: "",
       apiKeys: {
@@ -226,11 +226,63 @@ describe("ProjectSettingsModal", () => {
     const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
     await userEvent.click(agentConfigTab);
 
+    const simpleBanner = await screen.findByTestId("simple-provider-prerequisite", { timeout: 3000 });
+    expect(simpleBanner).toHaveTextContent(/Anthropic API key required/);
     const link = await screen.findByTestId("configure-api-keys-link-simple", { timeout: 3000 });
-    expect(link).toHaveTextContent("Configure API keys in Global Settings");
+    expect(link).toHaveTextContent("add in Global Settings");
     expect(link).toHaveAttribute("href", "/projects/proj-1/settings?level=global");
     expect(screen.queryByPlaceholderText("sk-ant-...")).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText("key_...")).not.toBeInTheDocument();
+  });
+
+  it("shows Claude CLI not found when claude-cli is selected and CLI is unavailable", async () => {
+    mockGetSettings.mockResolvedValue({
+      ...mockSettings,
+      simpleComplexityAgent: { type: "claude-cli" as const, model: null, cliCommand: null },
+      complexComplexityAgent: { type: "claude-cli" as const, model: null, cliCommand: null },
+    });
+    mockGetKeys.mockResolvedValue({
+      anthropic: true,
+      cursor: true,
+      openai: true,
+      claudeCli: false,
+      useCustomCli: false,
+    });
+
+    renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
+    await waitForModalReady();
+
+    const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
+    await userEvent.click(agentConfigTab);
+
+    const simpleBanner = await screen.findByTestId("simple-provider-prerequisite", { timeout: 3000 });
+    expect(simpleBanner).toHaveTextContent(/Claude CLI not found/);
+  });
+
+  it("shows Cursor-specific banner when Cursor is selected and key is missing", async () => {
+    mockGetSettings.mockResolvedValue({
+      ...mockSettings,
+      simpleComplexityAgent: { type: "cursor" as const, model: null, cliCommand: null },
+      complexComplexityAgent: { type: "cursor" as const, model: null, cliCommand: null },
+    });
+    mockGlobalSettingsGet.mockResolvedValue({
+      databaseUrl: "",
+      apiKeys: {
+        ANTHROPIC_API_KEY: [{ id: "a", masked: "••••••••" }],
+      },
+    });
+
+    renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
+    await waitForModalReady();
+
+    const agentConfigTab = screen.getByRole("button", { name: "Agent Config" });
+    await userEvent.click(agentConfigTab);
+
+    const simpleBanner = await screen.findByTestId("simple-provider-prerequisite", { timeout: 3000 });
+    expect(simpleBanner).toHaveTextContent(/Cursor API key required/);
+    const link = await screen.findByTestId("configure-api-keys-link-simple", { timeout: 3000 });
+    expect(link).toHaveTextContent("add in Global Settings");
+    expect(link).toHaveAttribute("href", "/projects/proj-1/settings?level=global");
   });
 
   it("Agent Config tab does not show ApiKeysSection (API keys managed in Global Settings only)", async () => {

@@ -555,16 +555,14 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
             data-testid={`${rowKey}-provider-prerequisite`}
           >
             <p className="text-sm text-theme-warning-text">
-              <strong>Anthropic API key required.</strong> {rowLabel} uses Claude.
-              {" "}
+              <strong>Anthropic API key required</strong> —{" "}
               <Link
                 to={`/projects/${project.id}/settings?level=global`}
                 className="underline hover:opacity-80"
                 data-testid={`configure-api-keys-link-${rowKey}`}
               >
-                Configure API keys in Global Settings
+                add in Global Settings
               </Link>
-              .
             </p>
           </div>
         );
@@ -577,16 +575,14 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
             data-testid={`${rowKey}-provider-prerequisite`}
           >
             <p className="text-sm text-theme-warning-text">
-              <strong>Cursor API key required.</strong> {rowLabel} uses Cursor.
-              {" "}
+              <strong>Cursor API key required</strong> —{" "}
               <Link
                 to={`/projects/${project.id}/settings?level=global`}
                 className="underline hover:opacity-80"
                 data-testid={`configure-api-keys-link-${rowKey}`}
               >
-                Configure API keys in Global Settings
+                add in Global Settings
               </Link>
-              .
             </p>
           </div>
         );
@@ -599,16 +595,14 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
             data-testid={`${rowKey}-provider-prerequisite`}
           >
             <p className="text-sm text-theme-warning-text">
-              <strong>OpenAI API key required.</strong> {rowLabel} uses OpenAI.
-              {" "}
+              <strong>OpenAI API key required</strong> —{" "}
               <Link
                 to={`/projects/${project.id}/settings?level=global`}
                 className="underline hover:opacity-80"
                 data-testid={`configure-api-keys-link-${rowKey}`}
               >
-                Configure API keys in Global Settings
+                add in Global Settings
               </Link>
-              .
             </p>
           </div>
         );
@@ -621,16 +615,14 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
             data-testid={`${rowKey}-provider-prerequisite`}
           >
             <p className="text-sm text-theme-warning-text">
-              <strong>Google API key required.</strong> {rowLabel} uses Google.
-              {" "}
+              <strong>Google API key required</strong> —{" "}
               <Link
                 to={`/projects/${project.id}/settings?level=global`}
                 className="underline hover:opacity-80"
                 data-testid={`configure-api-keys-link-${rowKey}`}
               >
-                Configure API keys in Global Settings
+                add in Global Settings
               </Link>
-              .
             </p>
           </div>
         );
@@ -643,15 +635,14 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
             data-testid={`${rowKey}-provider-prerequisite`}
           >
             <p className="text-sm text-theme-warning-text">
-              <strong>Claude CLI required.</strong> {rowLabel} uses Claude CLI.
-              {" "}
+              <strong>Claude CLI not found.</strong> Install it from{" "}
               <a
                 href="https://docs.anthropic.com/en/docs/claude-code/getting-started"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline hover:opacity-80"
               >
-                Install Claude CLI
+                docs.anthropic.com
               </a>{" "}
               and run <code className="font-mono text-xs">claude</code> to complete authentication.
             </p>
