@@ -1,9 +1,11 @@
 export const DESIGN_TOKEN_CONTRACT = {
   surface: ["page", "raised", "muted", "code"] as const,
-  text: ["primary", "secondary", "inverse"] as const,
-  stroke: ["soft", "strong", "focus"] as const,
+  text: ["primary", "secondary", "inverse", "placeholder", "code"] as const,
+  stroke: ["soft", "strong", "focus", "subtle"] as const,
   accent: ["primary", "strong", "tint"] as const,
   status: ["info", "success", "warning", "error"] as const,
+  overlay: ["default"] as const,
+  scrollbar: ["track", "thumb", "thumb-hover"] as const,
 } as const;
 
 export type DesignTokenGroup = keyof typeof DESIGN_TOKEN_CONTRACT;

@@ -47,12 +47,19 @@ describe("theme tokens", () => {
     expect(cssContent).toContain("--color-code-bg:");
   });
 
+  it("legacy --color-* semantic tokens are aliased to --ui-* design token contract", () => {
+    expect(cssContent).toContain("--color-error-bg: var(--ui-status-error-bg)");
+    expect(cssContent).toContain("--color-success-bg: var(--ui-status-success-bg)");
+    expect(cssContent).toContain("--color-graph-edge: var(--ui-graph-edge)");
+    expect(cssContent).toContain("--color-status-ready: var(--ui-status-info)");
+  });
+
   it("index.css defines scrollbar variables for light and dark themes", () => {
-    expect(cssContent).toContain("--color-scrollbar-track:");
-    expect(cssContent).toContain("--color-scrollbar-thumb:");
-    expect(cssContent).toContain("--color-scrollbar-thumb-hover:");
-    expect(cssContent).toMatch(/--color-scrollbar-track:\s*#[0-9a-fA-F]+/);
-    expect(cssContent).toMatch(/--color-scrollbar-thumb:\s*#[0-9a-fA-F]+/);
+    expect(cssContent).toContain("--ui-scrollbar-track:");
+    expect(cssContent).toContain("--ui-scrollbar-thumb:");
+    expect(cssContent).toContain("--ui-scrollbar-thumb-hover:");
+    expect(cssContent).toMatch(/--ui-scrollbar-track:\s*#[0-9a-fA-F]+/);
+    expect(cssContent).toMatch(/--ui-scrollbar-thumb:\s*#[0-9a-fA-F]+/);
   });
 });
 
@@ -60,8 +67,8 @@ describe("scrollbar styling", () => {
   it("index.css applies scrollbar styles globally for Firefox (scrollbar-color, scrollbar-width)", () => {
     expect(cssContent).toContain("scrollbar-width:");
     expect(cssContent).toContain("scrollbar-color:");
-    expect(cssContent).toContain("var(--color-scrollbar-thumb)");
-    expect(cssContent).toContain("var(--color-scrollbar-track)");
+    expect(cssContent).toContain("var(--ui-scrollbar-thumb)");
+    expect(cssContent).toContain("var(--ui-scrollbar-track)");
   });
 
   it("index.css applies scrollbar styles for WebKit (Chrome, Safari) via pseudo-elements", () => {
@@ -73,8 +80,8 @@ describe("scrollbar styling", () => {
   });
 
   it("dark mode defines scrollbar track (surface) and muted thumb (not white)", () => {
-    expect(cssContent).toContain("--color-scrollbar-track: #1f2937");
-    expect(cssContent).toContain("--color-scrollbar-thumb: #6b7280");
+    expect(cssContent).toContain("--ui-scrollbar-track: #1f2937");
+    expect(cssContent).toContain("--ui-scrollbar-thumb: #6b7280");
   });
 });
 

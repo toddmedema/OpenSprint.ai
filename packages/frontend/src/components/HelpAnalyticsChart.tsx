@@ -68,7 +68,7 @@ export function HelpAnalyticsChart({ data, totalTasks }: HelpAnalyticsChartProps
       .attr("y", (d) => yTimeScale(d.avgCompletionTimeMs))
       .attr("width", barWidth)
       .attr("height", (d) => innerHeight - yTimeScale(d.avgCompletionTimeMs))
-      .attr("fill", "var(--color-accent, #6366f1)")
+      .attr("fill", "var(--ui-accent-primary)")
       .attr("opacity", 0.8);
 
     // Line (task count)
@@ -81,7 +81,7 @@ export function HelpAnalyticsChart({ data, totalTasks }: HelpAnalyticsChartProps
       .datum(data)
       .attr("class", "line")
       .attr("fill", "none")
-      .attr("stroke", "var(--color-text, #1f2937)")
+      .attr("stroke", "var(--ui-text-primary)")
       .attr("stroke-width", 2)
       .attr("stroke-linecap", "round")
       .attr("stroke-linejoin", "round")
@@ -94,13 +94,13 @@ export function HelpAnalyticsChart({ data, totalTasks }: HelpAnalyticsChartProps
       .attr("cx", (d) => (xScale(String(d.complexity)) ?? 0) + (xScale.bandwidth() ?? 0) / 2)
       .attr("cy", (d) => yCountScale(d.taskCount))
       .attr("r", 4)
-      .attr("fill", "var(--color-text, #1f2937)");
+      .attr("fill", "var(--ui-text-primary)");
 
     // X axis
     g.append("g")
       .attr("transform", `translate(0,${innerHeight})`)
       .call(d3.axisBottom(xScale).tickFormat((v) => v))
-      .attr("color", "var(--color-text-muted, #6b7280)")
+      .attr("color", "var(--ui-text-secondary)")
       .selectAll("text")
       .attr("font-size", "11px");
 
@@ -112,7 +112,7 @@ export function HelpAnalyticsChart({ data, totalTasks }: HelpAnalyticsChartProps
           .ticks(5)
           .tickFormat((v) => formatDuration(Number(v)))
       )
-      .attr("color", "var(--color-text-muted, #6b7280)")
+      .attr("color", "var(--ui-text-secondary)")
       .selectAll("text")
       .attr("font-size", "10px");
 
@@ -120,7 +120,7 @@ export function HelpAnalyticsChart({ data, totalTasks }: HelpAnalyticsChartProps
     g.append("g")
       .attr("transform", `translate(${innerWidth},0)`)
       .call(d3.axisRight(yCountScale).ticks(5))
-      .attr("color", "var(--color-text-muted, #6b7280)")
+      .attr("color", "var(--ui-text-secondary)")
       .selectAll("text")
       .attr("font-size", "10px");
 
@@ -145,7 +145,7 @@ export function HelpAnalyticsChart({ data, totalTasks }: HelpAnalyticsChartProps
       </div>
       <div className="flex gap-6 mt-2 text-xs text-theme-muted">
         <span>
-          <span className="inline-block w-3 h-3 rounded-sm bg-[var(--color-accent,#6366f1)] opacity-80 mr-1" />
+          <span className="inline-block w-3 h-3 rounded-sm bg-accent-primary opacity-80 mr-1" />
           Avg completion time (left axis)
         </span>
         <span>

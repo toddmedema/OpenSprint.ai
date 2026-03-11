@@ -24,81 +24,131 @@ html:not([data-theme]) {
   --ui-status-success: #30d158;
   --ui-status-warning: #ff9f0a;
   --ui-status-error: #ff453a;
+  --ui-stroke-subtle: #ececf1;
+  --ui-text-placeholder: #8e8e93;
+  --ui-text-code: #c4f2d6;
+  --ui-overlay-default: rgba(0, 0, 0, 0.4);
+  --ui-scrollbar-track: #e5e7eb;
+  --ui-scrollbar-thumb: #9ca3af;
+  --ui-scrollbar-thumb-hover: #6b7280;
 
-  /* Backward-compatible aliases for existing components */
+  /* Semantic status tokens (error/success/warning/info) */
+  --ui-status-error-bg: #fff1f0;
+  --ui-status-error-text: #a11c15;
+  --ui-status-error-border: #ffd2cf;
+  --ui-status-error-solid-hover: #d43b31;
+  --ui-status-success-bg: #edfcef;
+  --ui-status-success-text: #0f6b2f;
+  --ui-status-success-border: #c9f4d3;
+  --ui-status-success-muted: #18a44d;
+  --ui-status-warning-bg: #fff9ef;
+  --ui-status-warning-text: #8a5400;
+  --ui-status-warning-border: #ffe5b3;
+  --ui-status-info-text: #0051a8;
+  --ui-status-info-border: #b9d7ff;
+  /* Notification (toast) severity */
+  --ui-notification-error: #d43b31;
+  --ui-notification-warning: #bd7a07;
+  --ui-notification-info: #0062c9;
+  --ui-notification-success: #208946;
+  /* Feedback category */
+  --ui-feedback-bug-bg: #fff1f0;
+  --ui-feedback-bug-text: #a11c15;
+  --ui-feedback-feature-bg: #eef4ff;
+  --ui-feedback-feature-text: #1554a8;
+  --ui-feedback-ux-bg: #eff6ff;
+  --ui-feedback-ux-text: #1554a8;
+  --ui-feedback-scope-bg: #fffaee;
+  --ui-feedback-scope-text: #8a5400;
+  /* Status indicator (badges) */
+  --ui-status-indicator-backlog: #bf8b2c;
+  --ui-status-indicator-in-progress: #3f8cff;
+  --ui-status-indicator-in-review: #ff9f0a;
+  /* Graph (DependencyGraph D3/SVG) */
+  --ui-graph-edge: #d1d5db;
+  --ui-graph-edge-critical: #dc2626;
+  --ui-graph-text: #111827;
+  --ui-graph-node-default-fill: #f9fafb;
+  --ui-graph-node-default-stroke: #e5e7eb;
+  --ui-graph-status-planning-fill: #fef3c7;
+  --ui-graph-status-planning-stroke: #f59e0b;
+  --ui-graph-status-building-fill: #dbeafe;
+  --ui-graph-status-building-stroke: #3b82f6;
+  --ui-graph-status-complete-fill: #d1fae5;
+  --ui-graph-status-complete-stroke: #10b981;
+  --ui-graph-arrow: #9ca3af;
+  --ui-graph-arrow-critical: #dc2626;
+
+  /* Backward-compatible aliases (legacy --color-* → --ui-*) */
   --color-bg: var(--ui-surface-page);
   --color-bg-elevated: var(--ui-surface-raised);
   --color-text: var(--ui-text-primary);
   --color-text-muted: var(--ui-text-secondary);
   --color-surface: var(--ui-surface-raised);
   --color-border: var(--ui-stroke-soft);
-  --color-border-subtle: #ececf1;
+  --color-border-subtle: var(--ui-stroke-subtle);
   --color-ring: var(--ui-stroke-strong);
   --color-input-bg: var(--ui-surface-raised);
   --color-input-text: var(--ui-text-primary);
-  --color-input-placeholder: #8e8e93;
+  --color-input-placeholder: var(--ui-text-placeholder);
   --color-code-bg: var(--ui-surface-code);
-  --color-code-text: #c4f2d6;
-  --color-overlay: rgba(0, 0, 0, 0.4);
+  --color-code-text: var(--ui-text-code);
+  --color-overlay: var(--ui-overlay-default);
   --color-surface-muted: var(--ui-surface-muted);
-  /* Semantic theme tokens */
-  --color-error-bg: #fff1f0;
-  --color-error-text: #a11c15;
-  --color-error-border: #ffd2cf;
+  /* Semantic (aliased to --ui-*) */
+  --color-error-bg: var(--ui-status-error-bg);
+  --color-error-text: var(--ui-status-error-text);
+  --color-error-border: var(--ui-status-error-border);
   --color-error-solid: var(--ui-status-error);
-  --color-error-solid-hover: #d43b31;
-  --color-success-bg: #edfcef;
-  --color-success-text: #0f6b2f;
-  --color-success-border: #c9f4d3;
+  --color-error-solid-hover: var(--ui-status-error-solid-hover);
+  --color-success-bg: var(--ui-status-success-bg);
+  --color-success-text: var(--ui-status-success-text);
+  --color-success-border: var(--ui-status-success-border);
   --color-success-solid: var(--ui-status-success);
-  --color-success-muted: #18a44d;
-  --color-warning-bg: #fff9ef;
-  --color-warning-text: #8a5400;
-  --color-warning-border: #ffe5b3;
+  --color-success-muted: var(--ui-status-success-muted);
+  --color-warning-bg: var(--ui-status-warning-bg);
+  --color-warning-text: var(--ui-status-warning-text);
+  --color-warning-border: var(--ui-status-warning-border);
   --color-warning-solid: var(--ui-status-warning);
   --color-info-bg: var(--ui-accent-tint);
-  --color-info-text: #0051a8;
-  --color-info-border: #b9d7ff;
+  --color-info-text: var(--ui-status-info-text);
+  --color-info-border: var(--ui-status-info-border);
   --color-info-solid: var(--ui-accent-primary);
-  /* Notification/toast severity (solid bg, white text) */
-  --color-notification-error: #d43b31;
-  --color-notification-warning: #bd7a07;
-  --color-notification-info: #0062c9;
-  --color-notification-success: #208946;
-  /* Feedback category tokens */
-  --color-feedback-bug-bg: #fff1f0;
-  --color-feedback-bug-text: #a11c15;
-  --color-feedback-feature-bg: #eef4ff;
-  --color-feedback-feature-text: #1554a8;
-  --color-feedback-ux-bg: #eff6ff;
-  --color-feedback-ux-text: #1554a8;
-  --color-feedback-scope-bg: #fffaee;
-  --color-feedback-scope-text: #8a5400;
-  /* Status indicator tokens (dots, badges) */
-  --color-status-backlog: #bf8b2c;
+  --color-notification-error: var(--ui-notification-error);
+  --color-notification-warning: var(--ui-notification-warning);
+  --color-notification-info: var(--ui-notification-info);
+  --color-notification-success: var(--ui-notification-success);
+  --color-feedback-bug-bg: var(--ui-feedback-bug-bg);
+  --color-feedback-bug-text: var(--ui-feedback-bug-text);
+  --color-feedback-feature-bg: var(--ui-feedback-feature-bg);
+  --color-feedback-feature-text: var(--ui-feedback-feature-text);
+  --color-feedback-ux-bg: var(--ui-feedback-ux-bg);
+  --color-feedback-ux-text: var(--ui-feedback-ux-text);
+  --color-feedback-scope-bg: var(--ui-feedback-scope-bg);
+  --color-feedback-scope-text: var(--ui-feedback-scope-text);
+  --color-status-backlog: var(--ui-status-indicator-backlog);
   --color-status-ready: var(--ui-status-info);
-  --color-status-in-progress: #3f8cff;
-  --color-status-in-review: #ff9f0a;
+  --color-status-in-progress: var(--ui-status-indicator-in-progress);
+  --color-status-in-review: var(--ui-status-indicator-in-review);
   --color-status-done: var(--ui-status-success);
   --color-status-blocked: var(--ui-status-error);
-  /* DependencyGraph D3/SVG theme tokens */
-  --color-graph-edge: #d1d5db;
-  --color-graph-edge-critical: #dc2626;
-  --color-graph-text: #111827;
-  --color-graph-node-default-fill: #f9fafb;
-  --color-graph-node-default-stroke: #e5e7eb;
-  --color-graph-status-planning-fill: #fef3c7;
-  --color-graph-status-planning-stroke: #f59e0b;
-  --color-graph-status-building-fill: #dbeafe;
-  --color-graph-status-building-stroke: #3b82f6;
-  --color-graph-status-complete-fill: #d1fae5;
-  --color-graph-status-complete-stroke: #10b981;
-  --color-graph-arrow: #9ca3af;
-  --color-graph-arrow-critical: #dc2626;
-  /* Scrollbar (light mode) */
-  --color-scrollbar-track: #e5e7eb;
-  --color-scrollbar-thumb: #9ca3af;
-  --color-scrollbar-thumb-hover: #6b7280;
+  --color-graph-edge: var(--ui-graph-edge);
+  --color-graph-edge-critical: var(--ui-graph-edge-critical);
+  --color-graph-text: var(--ui-graph-text);
+  --color-graph-node-default-fill: var(--ui-graph-node-default-fill);
+  --color-graph-node-default-stroke: var(--ui-graph-node-default-stroke);
+  --color-graph-status-planning-fill: var(--ui-graph-status-planning-fill);
+  --color-graph-status-planning-stroke: var(--ui-graph-status-planning-stroke);
+  --color-graph-status-building-fill: var(--ui-graph-status-building-fill);
+  --color-graph-status-building-stroke: var(--ui-graph-status-building-stroke);
+  --color-graph-status-complete-fill: var(--ui-graph-status-complete-fill);
+  --color-graph-status-complete-stroke: var(--ui-graph-status-complete-stroke);
+  --color-graph-arrow: var(--ui-graph-arrow);
+  --color-graph-arrow-critical: var(--ui-graph-arrow-critical);
+  /* Scrollbar (light mode) — aliased to --ui-scrollbar-* */
+  --color-scrollbar-track: var(--ui-scrollbar-track);
+  --color-scrollbar-thumb: var(--ui-scrollbar-thumb);
+  --color-scrollbar-thumb-hover: var(--ui-scrollbar-thumb-hover);
 }
 
 html[data-theme="dark"] {
@@ -119,6 +169,56 @@ html[data-theme="dark"] {
   --ui-status-success: #30d158;
   --ui-status-warning: #ff9f0a;
   --ui-status-error: #ff6961;
+  --ui-stroke-subtle: #2a2b31;
+  --ui-text-placeholder: #8a8a95;
+  --ui-text-code: #9de7bd;
+  --ui-overlay-default: rgba(0, 0, 0, 0.6);
+  --ui-scrollbar-track: #1f2937;
+  --ui-scrollbar-thumb: #6b7280;
+  --ui-scrollbar-thumb-hover: #9ca3af;
+
+  /* Semantic status tokens (dark mode) */
+  --ui-status-error-bg: #3a1717;
+  --ui-status-error-text: #ffb8b3;
+  --ui-status-error-border: #66302d;
+  --ui-status-error-solid-hover: #ff7a73;
+  --ui-status-success-bg: #142d1d;
+  --ui-status-success-text: #9de7bd;
+  --ui-status-success-border: #29563a;
+  --ui-status-success-muted: #6ddb98;
+  --ui-status-warning-bg: #3a2a16;
+  --ui-status-warning-text: #ffd38a;
+  --ui-status-warning-border: #66481f;
+  --ui-status-info-text: #9ac9ff;
+  --ui-status-info-border: #26476e;
+  --ui-notification-error: #b53e38;
+  --ui-notification-warning: #b17a2a;
+  --ui-notification-info: #2f78d8;
+  --ui-notification-success: #247f44;
+  --ui-feedback-bug-bg: #3a1717;
+  --ui-feedback-bug-text: #ffb8b3;
+  --ui-feedback-feature-bg: #13263d;
+  --ui-feedback-feature-text: #9ac9ff;
+  --ui-feedback-ux-bg: #13263d;
+  --ui-feedback-ux-text: #9ac9ff;
+  --ui-feedback-scope-bg: #3a2a16;
+  --ui-feedback-scope-text: #ffd38a;
+  --ui-status-indicator-backlog: #bf8b2c;
+  --ui-status-indicator-in-progress: #78b6ff;
+  --ui-status-indicator-in-review: #ff9f0a;
+  --ui-graph-edge: #4b5563;
+  --ui-graph-edge-critical: #ef4444;
+  --ui-graph-text: #f3f4f6;
+  --ui-graph-node-default-fill: #374151;
+  --ui-graph-node-default-stroke: #4b5563;
+  --ui-graph-status-planning-fill: #78350f;
+  --ui-graph-status-planning-stroke: #f59e0b;
+  --ui-graph-status-building-fill: #1e3a8a;
+  --ui-graph-status-building-stroke: #60a5fa;
+  --ui-graph-status-complete-fill: #064e3b;
+  --ui-graph-status-complete-stroke: #34d399;
+  --ui-graph-arrow: #6b7280;
+  --ui-graph-arrow-critical: #ef4444;
 
   --color-bg: var(--ui-surface-page);
   --color-bg-elevated: var(--ui-surface-raised);
@@ -126,73 +226,69 @@ html[data-theme="dark"] {
   --color-text-muted: var(--ui-text-secondary);
   --color-surface: var(--ui-surface-raised);
   --color-border: var(--ui-stroke-soft);
-  --color-border-subtle: #2a2b31;
+  --color-border-subtle: var(--ui-stroke-subtle);
   --color-ring: var(--ui-stroke-strong);
   --color-input-bg: var(--ui-surface-raised);
   --color-input-text: var(--ui-text-primary);
-  --color-input-placeholder: #8a8a95;
+  --color-input-placeholder: var(--ui-text-placeholder);
   --color-code-bg: var(--ui-surface-code);
-  --color-code-text: #9de7bd;
-  --color-overlay: rgba(0, 0, 0, 0.6);
+  --color-code-text: var(--ui-text-code);
+  --color-overlay: var(--ui-overlay-default);
   --color-surface-muted: var(--ui-surface-muted);
-  /* Semantic theme tokens (dark mode) */
-  --color-error-bg: #3a1717;
-  --color-error-text: #ffb8b3;
-  --color-error-border: #66302d;
+  /* Semantic (aliased to --ui-*) */
+  --color-error-bg: var(--ui-status-error-bg);
+  --color-error-text: var(--ui-status-error-text);
+  --color-error-border: var(--ui-status-error-border);
   --color-error-solid: var(--ui-status-error);
-  --color-error-solid-hover: #ff7a73;
-  --color-success-bg: #142d1d;
-  --color-success-text: #9de7bd;
-  --color-success-border: #29563a;
+  --color-error-solid-hover: var(--ui-status-error-solid-hover);
+  --color-success-bg: var(--ui-status-success-bg);
+  --color-success-text: var(--ui-status-success-text);
+  --color-success-border: var(--ui-status-success-border);
   --color-success-solid: var(--ui-status-success);
-  --color-success-muted: #6ddb98;
-  --color-warning-bg: #3a2a16;
-  --color-warning-text: #ffd38a;
-  --color-warning-border: #66481f;
+  --color-success-muted: var(--ui-status-success-muted);
+  --color-warning-bg: var(--ui-status-warning-bg);
+  --color-warning-text: var(--ui-status-warning-text);
+  --color-warning-border: var(--ui-status-warning-border);
   --color-warning-solid: var(--ui-status-warning);
-  --color-info-bg: #10243d;
-  --color-info-text: #9ac9ff;
-  --color-info-border: #26476e;
+  --color-info-bg: var(--ui-accent-tint);
+  --color-info-text: var(--ui-status-info-text);
+  --color-info-border: var(--ui-status-info-border);
   --color-info-solid: var(--ui-accent-primary);
-  /* Notification severity (dark mode) */
-  --color-notification-error: #b53e38;
-  --color-notification-warning: #b17a2a;
-  --color-notification-info: #2f78d8;
-  --color-notification-success: #247f44;
-  /* Feedback category tokens (dark mode) */
-  --color-feedback-bug-bg: #3a1717;
-  --color-feedback-bug-text: #ffb8b3;
-  --color-feedback-feature-bg: #13263d;
-  --color-feedback-feature-text: #9ac9ff;
-  --color-feedback-ux-bg: #13263d;
-  --color-feedback-ux-text: #9ac9ff;
-  --color-feedback-scope-bg: #3a2a16;
-  --color-feedback-scope-text: #ffd38a;
-  /* Status indicator tokens (dark mode) */
-  --color-status-backlog: #bf8b2c;
+  --color-notification-error: var(--ui-notification-error);
+  --color-notification-warning: var(--ui-notification-warning);
+  --color-notification-info: var(--ui-notification-info);
+  --color-notification-success: var(--ui-notification-success);
+  --color-feedback-bug-bg: var(--ui-feedback-bug-bg);
+  --color-feedback-bug-text: var(--ui-feedback-bug-text);
+  --color-feedback-feature-bg: var(--ui-feedback-feature-bg);
+  --color-feedback-feature-text: var(--ui-feedback-feature-text);
+  --color-feedback-ux-bg: var(--ui-feedback-ux-bg);
+  --color-feedback-ux-text: var(--ui-feedback-ux-text);
+  --color-feedback-scope-bg: var(--ui-feedback-scope-bg);
+  --color-feedback-scope-text: var(--ui-feedback-scope-text);
+  --color-status-backlog: var(--ui-status-indicator-backlog);
   --color-status-ready: var(--ui-status-info);
-  --color-status-in-progress: #78b6ff;
-  --color-status-in-review: var(--ui-status-warning);
+  --color-status-in-progress: var(--ui-status-indicator-in-progress);
+  --color-status-in-review: var(--ui-status-indicator-in-review);
   --color-status-done: var(--ui-status-success);
   --color-status-blocked: var(--ui-status-error);
-  /* DependencyGraph D3/SVG theme tokens (dark mode) */
-  --color-graph-edge: #4b5563;
-  --color-graph-edge-critical: #ef4444;
-  --color-graph-text: #f3f4f6;
-  --color-graph-node-default-fill: #374151;
-  --color-graph-node-default-stroke: #4b5563;
-  --color-graph-status-planning-fill: #78350f;
-  --color-graph-status-planning-stroke: #f59e0b;
-  --color-graph-status-building-fill: #1e3a8a;
-  --color-graph-status-building-stroke: #60a5fa;
-  --color-graph-status-complete-fill: #064e3b;
-  --color-graph-status-complete-stroke: #34d399;
-  --color-graph-arrow: #6b7280;
-  --color-graph-arrow-critical: #ef4444;
-  /* Scrollbar (dark mode) — track uses surface, thumb muted (not white) */
-  --color-scrollbar-track: #1f2937;
-  --color-scrollbar-thumb: #6b7280;
-  --color-scrollbar-thumb-hover: #9ca3af;
+  --color-graph-edge: var(--ui-graph-edge);
+  --color-graph-edge-critical: var(--ui-graph-edge-critical);
+  --color-graph-text: var(--ui-graph-text);
+  --color-graph-node-default-fill: var(--ui-graph-node-default-fill);
+  --color-graph-node-default-stroke: var(--ui-graph-node-default-stroke);
+  --color-graph-status-planning-fill: var(--ui-graph-status-planning-fill);
+  --color-graph-status-planning-stroke: var(--ui-graph-status-planning-stroke);
+  --color-graph-status-building-fill: var(--ui-graph-status-building-fill);
+  --color-graph-status-building-stroke: var(--ui-graph-status-building-stroke);
+  --color-graph-status-complete-fill: var(--ui-graph-status-complete-fill);
+  --color-graph-status-complete-stroke: var(--ui-graph-status-complete-stroke);
+  --color-graph-arrow: var(--ui-graph-arrow);
+  --color-graph-arrow-critical: var(--ui-graph-arrow-critical);
+  /* Scrollbar (dark mode) — aliased to --ui-scrollbar-* */
+  --color-scrollbar-track: var(--ui-scrollbar-track);
+  --color-scrollbar-thumb: var(--ui-scrollbar-thumb);
+  --color-scrollbar-thumb-hover: var(--ui-scrollbar-thumb-hover);
 }
 
 @layer base {
@@ -224,7 +320,7 @@ html[data-theme="dark"] {
 /* Firefox: scrollbar-color(thumb track) and scrollbar-width */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-scrollbar-thumb) var(--color-scrollbar-track);
+  scrollbar-color: var(--ui-scrollbar-thumb) var(--ui-scrollbar-track);
 }
 
 /* WebKit (Chrome, Safari, Edge): pseudo-elements */
@@ -234,20 +330,20 @@ html[data-theme="dark"] {
 }
 
 *::-webkit-scrollbar-track {
-  background: var(--color-scrollbar-track);
+  background: var(--ui-scrollbar-track);
 }
 
 *::-webkit-scrollbar-thumb {
-  background: var(--color-scrollbar-thumb);
+  background: var(--ui-scrollbar-thumb);
   border-radius: 4px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: var(--color-scrollbar-thumb-hover);
+  background: var(--ui-scrollbar-thumb-hover);
 }
 
 *::-webkit-scrollbar-corner {
-  background: var(--color-scrollbar-track);
+  background: var(--ui-scrollbar-track);
 }
 
 @layer components {
@@ -303,7 +399,7 @@ html[data-theme="dark"] {
     -webkit-appearance: none;
     -moz-appearance: none;
     padding-right: 2.5rem !important;
-    background-color: var(--color-input-bg) !important;
+    background-color: var(--ui-surface-raised) !important;
     background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMiIgaGVpZ2h0PSIxMiIgdmlld0JveD0iMCAwIDEyIDEyIj48cGF0aCBmaWxsPSIjOWNhM2FmIiBkPSJNNiA4TDIgNGg4eiIvPjwvc3ZnPg==") !important;
     background-repeat: no-repeat !important;
     background-position: right 0.75rem center !important;
@@ -322,24 +418,24 @@ html[data-theme="dark"] {
    * Uses explicit text-gray-900/dark:text-gray-100 (feedback kutduv) so text is readable.
    * Higher specificity (.prose.prose-execute-task) ensures our variables override prose defaults. */
   .prose.prose-execute-task {
-    --tw-prose-body: var(--color-text);
-    --tw-prose-headings: var(--color-text);
-    --tw-prose-lead: var(--color-text);
-    --tw-prose-links: var(--color-text);
-    --tw-prose-bold: var(--color-text);
-    --tw-prose-counters: var(--color-text);
-    --tw-prose-bullets: var(--color-border);
-    --tw-prose-hr: var(--color-border);
-    --tw-prose-quotes: var(--color-text);
-    --tw-prose-quote-borders: var(--color-border);
-    --tw-prose-captions: var(--color-text);
-    --tw-prose-code: var(--color-text);
-    --tw-prose-pre-code: var(--color-code-text);
-    --tw-prose-pre-bg: var(--color-code-bg);
-    --tw-prose-kbd: var(--color-text);
+    --tw-prose-body: var(--ui-text-primary);
+    --tw-prose-headings: var(--ui-text-primary);
+    --tw-prose-lead: var(--ui-text-primary);
+    --tw-prose-links: var(--ui-text-primary);
+    --tw-prose-bold: var(--ui-text-primary);
+    --tw-prose-counters: var(--ui-text-primary);
+    --tw-prose-bullets: var(--ui-stroke-soft);
+    --tw-prose-hr: var(--ui-stroke-soft);
+    --tw-prose-quotes: var(--ui-text-primary);
+    --tw-prose-quote-borders: var(--ui-stroke-soft);
+    --tw-prose-captions: var(--ui-text-primary);
+    --tw-prose-code: var(--ui-text-primary);
+    --tw-prose-pre-code: var(--ui-text-code);
+    --tw-prose-pre-bg: var(--ui-surface-code);
+    --tw-prose-kbd: var(--ui-text-primary);
     --tw-prose-kbd-shadows: rgba(0, 0, 0, 0.1);
-    --tw-prose-th-borders: var(--color-border);
-    --tw-prose-td-borders: var(--color-border);
+    --tw-prose-th-borders: var(--ui-stroke-soft);
+    --tw-prose-td-borders: var(--ui-stroke-soft);
   }
   /* Execute task description markdown: prose + layout + explicit high-contrast text (feedback kutduv).
    * Uses !important to override prose-neutral/prose-invert defaults for WCAG AA contrast.
@@ -390,24 +486,24 @@ html[data-theme="dark"] {
   }
 
   html[data-theme="dark"] .prose.prose-execute-task {
-    --tw-prose-invert-body: var(--color-text);
-    --tw-prose-invert-headings: var(--color-text);
-    --tw-prose-invert-lead: var(--color-text);
-    --tw-prose-invert-links: var(--color-text);
-    --tw-prose-invert-bold: var(--color-text);
-    --tw-prose-invert-counters: var(--color-text);
-    --tw-prose-invert-bullets: var(--color-border);
-    --tw-prose-invert-hr: var(--color-border);
-    --tw-prose-invert-quotes: var(--color-text);
-    --tw-prose-invert-quote-borders: var(--color-border);
-    --tw-prose-invert-captions: var(--color-text);
-    --tw-prose-invert-code: var(--color-text);
-    --tw-prose-invert-pre-code: var(--color-code-text);
-    --tw-prose-invert-pre-bg: var(--color-code-bg);
-    --tw-prose-invert-kbd: var(--color-text);
+    --tw-prose-invert-body: var(--ui-text-primary);
+    --tw-prose-invert-headings: var(--ui-text-primary);
+    --tw-prose-invert-lead: var(--ui-text-primary);
+    --tw-prose-invert-links: var(--ui-text-primary);
+    --tw-prose-invert-bold: var(--ui-text-primary);
+    --tw-prose-invert-counters: var(--ui-text-primary);
+    --tw-prose-invert-bullets: var(--ui-stroke-soft);
+    --tw-prose-invert-hr: var(--ui-stroke-soft);
+    --tw-prose-invert-quotes: var(--ui-text-primary);
+    --tw-prose-invert-quote-borders: var(--ui-stroke-soft);
+    --tw-prose-invert-captions: var(--ui-text-primary);
+    --tw-prose-invert-code: var(--ui-text-primary);
+    --tw-prose-invert-pre-code: var(--ui-text-code);
+    --tw-prose-invert-pre-bg: var(--ui-surface-code);
+    --tw-prose-invert-kbd: var(--ui-text-primary);
     --tw-prose-invert-kbd-shadows: rgba(255, 255, 255, 0.1);
-    --tw-prose-invert-th-borders: var(--color-border);
-    --tw-prose-invert-td-borders: var(--color-border);
+    --tw-prose-invert-th-borders: var(--ui-stroke-soft);
+    --tw-prose-invert-td-borders: var(--ui-stroke-soft);
   }
 }
 

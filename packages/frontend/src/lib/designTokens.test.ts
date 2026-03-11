@@ -9,6 +9,8 @@ describe("designTokens", () => {
       "stroke",
       "accent",
       "status",
+      "overlay",
+      "scrollbar",
     ]);
   });
 
@@ -16,6 +18,10 @@ describe("designTokens", () => {
     expect(getDesignTokenVar("surface", "page")).toBe("--ui-surface-page");
     expect(getDesignTokenVar("accent", "primary")).toBe("--ui-accent-primary");
     expect(getDesignTokenVar("status", "error")).toBe("--ui-status-error");
+    expect(getDesignTokenVar("stroke", "subtle")).toBe("--ui-stroke-subtle");
+    expect(getDesignTokenVar("text", "placeholder")).toBe("--ui-text-placeholder");
+    expect(getDesignTokenVar("scrollbar", "track")).toBe("--ui-scrollbar-track");
+    expect(getDesignTokenVar("overlay", "default")).toBe("--ui-overlay-default");
   });
 });
 

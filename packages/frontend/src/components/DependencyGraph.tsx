@@ -15,7 +15,7 @@ interface Dimensions {
 }
 
 /** Read theme token from CSS variable (D3/SVG cannot inherit Tailwind classes). */
-function getThemeColor(varName: string, fallbackVar = "--color-text-muted"): string {
+function getThemeColor(varName: string, fallbackVar = "--ui-text-secondary"): string {
   if (typeof document === "undefined") return "currentColor";
   const value = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
   if (value) return value;
@@ -333,19 +333,19 @@ export function DependencyGraph({ graph, onPlanClick, fillHeight }: DependencyGr
       .filter((l) => planById.has(l.source) && planById.has(l.target));
 
     const tokens = {
-      edge: getThemeColor("--color-graph-edge"),
-      edgeCritical: getThemeColor("--color-graph-edge-critical"),
-      text: getThemeColor("--color-graph-text"),
-      nodeDefaultFill: getThemeColor("--color-graph-node-default-fill"),
-      nodeDefaultStroke: getThemeColor("--color-graph-node-default-stroke"),
-      planningFill: getThemeColor("--color-graph-status-planning-fill"),
-      planningStroke: getThemeColor("--color-graph-status-planning-stroke"),
-      buildingFill: getThemeColor("--color-graph-status-building-fill"),
-      buildingStroke: getThemeColor("--color-graph-status-building-stroke"),
-      completeFill: getThemeColor("--color-graph-status-complete-fill"),
-      completeStroke: getThemeColor("--color-graph-status-complete-stroke"),
-      arrow: getThemeColor("--color-graph-arrow"),
-      arrowCritical: getThemeColor("--color-graph-arrow-critical"),
+      edge: getThemeColor("--ui-graph-edge"),
+      edgeCritical: getThemeColor("--ui-graph-edge-critical"),
+      text: getThemeColor("--ui-graph-text"),
+      nodeDefaultFill: getThemeColor("--ui-graph-node-default-fill"),
+      nodeDefaultStroke: getThemeColor("--ui-graph-node-default-stroke"),
+      planningFill: getThemeColor("--ui-graph-status-planning-fill"),
+      planningStroke: getThemeColor("--ui-graph-status-planning-stroke"),
+      buildingFill: getThemeColor("--ui-graph-status-building-fill"),
+      buildingStroke: getThemeColor("--ui-graph-status-building-stroke"),
+      completeFill: getThemeColor("--ui-graph-status-complete-fill"),
+      completeStroke: getThemeColor("--ui-graph-status-complete-stroke"),
+      arrow: getThemeColor("--ui-graph-arrow"),
+      arrowCritical: getThemeColor("--ui-graph-arrow-critical"),
     };
 
     const simulation = d3

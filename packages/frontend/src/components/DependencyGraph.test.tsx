@@ -39,15 +39,15 @@ const TRANSLATE_PATTERN = /^translate\((-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)\)$/;
 
 function setThemeTokens(tokens: typeof LIGHT_THEME_TOKENS) {
   const root = document.documentElement;
-  root.style.setProperty("--color-graph-status-planning-fill", tokens.planningFill);
-  root.style.setProperty("--color-graph-status-planning-stroke", "#f59e0b");
-  root.style.setProperty("--color-graph-status-building-fill", tokens.buildingFill);
-  root.style.setProperty("--color-graph-status-building-stroke", "#3b82f6");
-  root.style.setProperty("--color-graph-status-complete-fill", tokens.completeFill);
-  root.style.setProperty("--color-graph-status-complete-stroke", "#10b981");
-  root.style.setProperty("--color-graph-text", tokens.text);
-  root.style.setProperty("--color-graph-node-default-fill", tokens.nodeDefaultFill);
-  root.style.setProperty("--color-graph-node-default-stroke", tokens.nodeDefaultStroke);
+  root.style.setProperty("--ui-graph-status-planning-fill", tokens.planningFill);
+  root.style.setProperty("--ui-graph-status-planning-stroke", "#f59e0b");
+  root.style.setProperty("--ui-graph-status-building-fill", tokens.buildingFill);
+  root.style.setProperty("--ui-graph-status-building-stroke", "#3b82f6");
+  root.style.setProperty("--ui-graph-status-complete-fill", tokens.completeFill);
+  root.style.setProperty("--ui-graph-status-complete-stroke", "#10b981");
+  root.style.setProperty("--ui-graph-text", tokens.text);
+  root.style.setProperty("--ui-graph-node-default-fill", tokens.nodeDefaultFill);
+  root.style.setProperty("--ui-graph-node-default-stroke", tokens.nodeDefaultStroke);
 }
 
 function getNodePositions(nodes: NodeListOf<Element>): Array<{ x: number; y: number }> {
@@ -412,27 +412,27 @@ describe("DependencyGraph", () => {
     };
     document.documentElement.setAttribute("data-theme", "dark");
     document.documentElement.style.setProperty(
-      "--color-graph-status-planning-fill",
+      "--ui-graph-status-planning-fill",
       darkTokens.planningFill
     );
-    document.documentElement.style.setProperty("--color-graph-status-planning-stroke", "#f59e0b");
+    document.documentElement.style.setProperty("--ui-graph-status-planning-stroke", "#f59e0b");
     document.documentElement.style.setProperty(
-      "--color-graph-status-building-fill",
+      "--ui-graph-status-building-fill",
       darkTokens.buildingFill
     );
-    document.documentElement.style.setProperty("--color-graph-status-building-stroke", "#60a5fa");
+    document.documentElement.style.setProperty("--ui-graph-status-building-stroke", "#60a5fa");
     document.documentElement.style.setProperty(
-      "--color-graph-status-complete-fill",
+      "--ui-graph-status-complete-fill",
       darkTokens.completeFill
     );
-    document.documentElement.style.setProperty("--color-graph-status-complete-stroke", "#34d399");
-    document.documentElement.style.setProperty("--color-graph-text", darkTokens.text);
+    document.documentElement.style.setProperty("--ui-graph-status-complete-stroke", "#34d399");
+    document.documentElement.style.setProperty("--ui-graph-text", darkTokens.text);
     document.documentElement.style.setProperty(
-      "--color-graph-node-default-fill",
+      "--ui-graph-node-default-fill",
       darkTokens.nodeDefaultFill
     );
     document.documentElement.style.setProperty(
-      "--color-graph-node-default-stroke",
+      "--ui-graph-node-default-stroke",
       darkTokens.nodeDefaultStroke
     );
 
