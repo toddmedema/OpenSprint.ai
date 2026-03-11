@@ -274,6 +274,26 @@ describe("TimelineList", () => {
     expect(screen.getByText("Improve tests")).toBeInTheDocument();
   });
 
+  it("hides Self-improvement badge on small screens (same breakpoint as Epic/Plan name)", () => {
+    const tasks = [
+      createMockTask({
+        id: "task-1",
+        title: "Improve tests",
+        kanbanColumn: "ready",
+        source: "self-improvement",
+      }),
+    ];
+    const plans = [createMockPlan("epic-1", "Auth Epic")];
+
+    renderWithProviders(
+      <TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} {...defaultListProps} />
+    );
+
+    const badge = screen.getByTestId("task-badge-self-improvement");
+    expect(badge).toHaveClass("hidden");
+    expect(badge).toHaveClass("md:inline");
+  });
+
   it("click calls onTaskSelect with correct ID", async () => {
     const user = userEvent.setup();
     const onTaskSelect = vi.fn();
