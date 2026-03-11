@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
+import { CriticalStateView } from "./CriticalStateView";
 
+/** Critical-state view: one h1, one primary action, concise aria-describedby for screen readers. */
 export function DatabaseUnavailableState({
   message,
   settingsHref,
@@ -7,21 +9,18 @@ export function DatabaseUnavailableState({
   message: string;
   settingsHref: string;
 }) {
+  const summary = `${message} Project phase content is unavailable until the database reconnects.`;
   return (
-    <div
-      className="flex flex-1 items-center justify-center px-6 py-12"
+    <CriticalStateView
       data-testid="database-unavailable-state"
-    >
-      <div className="max-w-xl rounded-2xl border border-theme-error-border bg-theme-surface p-6 text-center shadow-sm">
-        <h2 className="text-xl font-semibold text-theme-text">PostgreSQL unavailable</h2>
-        <p className="mt-3 text-sm text-theme-muted">{message}</p>
-        <p className="mt-3 text-sm text-theme-muted">
-          Project phase content is unavailable until PostgreSQL reconnects.
-        </p>
-        <Link to={settingsHref} className="btn-primary mt-5 inline-flex">
+      heading="Database unavailable"
+      summary={summary}
+      role="region"
+      primaryAction={
+        <Link to={settingsHref} className="btn-primary inline-flex">
           Open Settings
         </Link>
-      </div>
-    </div>
+      }
+    />
   );
 }

@@ -1,5 +1,5 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { CriticalStateView } from "./CriticalStateView";
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -13,6 +13,7 @@ interface ErrorBoundaryState {
 /**
  * Catches uncaught render errors in the tree and shows a fallback UI
  * so the app does not unmount entirely.
+ * Uses CriticalStateView: one h1, one primary action, aria-describedby for screen readers.
  */
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
@@ -34,30 +35,22 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
         return this.props.fallback;
       }
       return (
-        <div
-          className="flex min-h-screen flex-col items-center justify-center gap-4 bg-theme-surface p-6 text-theme-text"
-          role="alert"
-        >
-          <h1 className="text-xl font-semibold">Something went wrong</h1>
-          <p className="max-w-md text-center text-theme-text-muted">
-            An unexpected error occurred. You can try reloading the page or return to the home page.
-          </p>
-          <div className="flex gap-3">
+        <CriticalStateView
+          data-testid="error-boundary"
+          heading="Something went wrong"
+          summary="An unexpected error occurred. Reload the page to try again."
+          primaryAction={
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="rounded-lg bg-theme-primary px-4 py-2 text-theme-primary-inverse hover:opacity-90"
+              className="btn-primary inline-flex"
             >
               Reload
             </button>
-            <Link
-              to="/"
-              className="rounded-lg border border-theme-border px-4 py-2 hover:bg-theme-surface-muted"
-            >
-              Go home
-            </Link>
-          </div>
-        </div>
+          }
+          role="alert"
+          className="min-h-screen bg-theme-surface"
+        />
       );
     }
     return this.props.children;

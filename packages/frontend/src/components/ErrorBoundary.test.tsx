@@ -24,8 +24,23 @@ describe("ErrorBoundary", () => {
     );
 
     expect(screen.getByRole("alert")).toBeInTheDocument();
-    expect(screen.getByText("Something went wrong")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Go home" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("heading", { level: 1, name: "Something went wrong" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
+  });
+
+  it("uses aria-describedby for screen readers", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    render(
+      <MemoryRouter>
+        <ErrorBoundary>
+          <Thrower />
+        </ErrorBoundary>
+      </MemoryRouter>
+    );
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveAttribute("aria-describedby", "error-boundary-summary");
+    expect(alert).toHaveAttribute("aria-labelledby", "error-boundary-heading");
   });
 
   it("renders a custom fallback when provided", () => {
@@ -40,6 +55,23 @@ describe("ErrorBoundary", () => {
 
     expect(screen.getByText("Custom fallback")).toBeInTheDocument();
     expect(screen.queryByText("Something went wrong")).not.toBeInTheDocument();
+  });
+
+  it("has exactly one h1 per view and one primary action for scannable structure", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { container } = render(
+      <MemoryRouter>
+        <ErrorBoundary>
+          <Thrower />
+        </ErrorBoundary>
+      </MemoryRouter>
+    );
+    const h1s = container.querySelectorAll("h1");
+    expect(h1s).toHaveLength(1);
+    expect(h1s[0]).toHaveTextContent("Something went wrong");
+    const buttons = screen.getAllByRole("button");
+    const links = screen.queryAllByRole("link");
+    expect(buttons.length + links.length).toBe(1);
   });
 
   it("reloads the page when the reload button is clicked", async () => {

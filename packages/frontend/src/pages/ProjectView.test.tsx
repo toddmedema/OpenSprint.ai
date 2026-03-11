@@ -1050,7 +1050,8 @@ describe("ProjectShell degraded database mode", () => {
     await waitFor(() => {
       const unavailableState = screen.getByTestId("database-unavailable-state");
       expect(unavailableState).toBeInTheDocument();
-      expect(within(unavailableState).getByText(message)).toBeInTheDocument();
+      expect(within(unavailableState).getByText(message, { exact: false })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 1, name: "Database unavailable" })).toBeInTheDocument();
     });
   });
 });

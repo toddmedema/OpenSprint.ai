@@ -1,7 +1,8 @@
 import type { ProjectPhase } from "@opensprint/shared";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Layout } from "../components/layout/Layout";
 import { ProjectSettingsModal } from "../components/ProjectSettingsModal";
+import { ProjectNotFoundState } from "../components/ProjectNotFoundState";
 import { useProject } from "../api/hooks";
 import { getProjectPhasePath } from "../lib/phaseRouting";
 import { queryKeys } from "../api/queryKeys";
@@ -44,12 +45,7 @@ export function ProjectSettingsPage() {
   if (error || !project) {
     return (
       <Layout>
-        <div className="flex flex-col items-center justify-center h-full gap-2 text-theme-muted">
-          <p>Project not found or failed to load.</p>
-          <Link to="/" className="text-brand-600 hover:text-brand-700 font-medium">
-            Return to home
-          </Link>
-        </div>
+        <ProjectNotFoundState />
       </Layout>
     );
   }

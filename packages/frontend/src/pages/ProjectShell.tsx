@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
-import { useParams, useLocation, useNavigate, Outlet, Link } from "react-router-dom";
+import { useParams, useLocation, useNavigate, Outlet } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppDispatch, useAppSelector } from "../store";
 import { resetProject } from "../store/slices/projectSlice";
@@ -41,6 +41,7 @@ import {
 import { queryKeys } from "../api/queryKeys";
 import { Layout } from "../components/layout/Layout";
 import { DatabaseUnavailableState } from "../components/DatabaseUnavailableState";
+import { ProjectNotFoundState } from "../components/ProjectNotFoundState";
 import { getProjectPhasePath } from "../lib/phaseRouting";
 import { VALID_PHASE_SLUGS } from "../lib/phaseRouting";
 import type { ProjectPhase } from "@opensprint/shared";
@@ -363,14 +364,7 @@ export function ProjectShell() {
   }
 
   if (projectError || (!projectLoading && !project)) {
-    return renderShellContent(
-      <div className="flex flex-col items-center justify-center h-full gap-2 text-theme-muted">
-        <p>Project not found or failed to load.</p>
-        <Link to="/" className="text-brand-600 hover:text-brand-700 font-medium">
-          Return to home
-        </Link>
-      </div>
-    );
+    return renderShellContent(<ProjectNotFoundState />);
   }
 
   if (!project) {
@@ -382,7 +376,7 @@ export function ProjectShell() {
   if (phaseRoute && dbStatus.isPending) {
     return renderShellContent(
       <div className="flex items-center justify-center h-full text-theme-muted">
-        Checking PostgreSQL...
+        Checking database...
       </div>
     );
   }
