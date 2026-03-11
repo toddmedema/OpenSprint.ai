@@ -364,7 +364,7 @@ describe("OnboardingPage", () => {
     expect(api.env.validateKey).not.toHaveBeenCalled();
   });
 
-  it("Cloud flow: network error shows connection message", async () => {
+  it("Cloud flow: network error shows connection message and Try again", async () => {
     const user = userEvent.setup();
     vi.mocked(api.env.validateKey).mockRejectedValue(new Error("Failed to fetch"));
     renderOnboarding();
@@ -378,8 +378,70 @@ describe("OnboardingPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Unable to connect. Please check your network and try again.")).toBeInTheDocument();
     });
+    expect(screen.getByTestId("onboarding-try-again")).toBeInTheDocument();
     expect(api.env.saveKey).not.toHaveBeenCalled();
     expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("Cloud flow: network error on save shows connection message and does not navigate", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.env.validateKey).mockResolvedValue({ valid: true });
+    vi.mocked(api.env.saveKey).mockRejectedValue(new Error("Network request failed"));
+    renderOnboarding();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("prereq-row-git")).toBeInTheDocument();
+    });
+    await user.type(screen.getByTestId("onboarding-api-key-input"), "sk-ant-valid");
+    await user.click(screen.getByTestId("onboarding-continue-button"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Unable to connect. Please check your network and try again.")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("onboarding-try-again")).toBeInTheDocument();
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("Cancel button navigates to home without saving", async () => {
+    const user = userEvent.setup();
+    renderOnboarding(["/onboarding?intended=/projects/create-new"]);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("prereq-row-git")).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId("onboarding-cancel-button"));
+
+    expect(mockNavigate).toHaveBeenCalledWith("/");
+    expect(api.env.validateKey).not.toHaveBeenCalled();
+    expect(api.env.saveKey).not.toHaveBeenCalled();
+    expect(api.env.setGlobalSettings).not.toHaveBeenCalled();
+  });
+
+  it("Try again clears connection error so user can retry", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.env.validateKey)
+      .mockRejectedValueOnce(new Error("Failed to fetch"))
+      .mockResolvedValueOnce({ valid: true });
+    vi.mocked(api.env.saveKey).mockResolvedValue({ saved: true });
+    renderOnboarding(["/onboarding?intended=/projects/create-new"]);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("prereq-row-git")).toBeInTheDocument();
+    });
+    await user.type(screen.getByTestId("onboarding-api-key-input"), "sk-ant-retry");
+    await user.click(screen.getByTestId("onboarding-continue-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("onboarding-try-again")).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId("onboarding-try-again"));
+
+    expect(screen.queryByTestId("onboarding-key-error")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("onboarding-continue-button"));
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith("/projects/create-new");
+    });
   });
 
   it("eye toggle switches password visibility", async () => {

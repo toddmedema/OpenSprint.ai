@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Layout } from "../components/layout/Layout";
 import { api, isConnectionError } from "../api/client";
@@ -11,6 +11,8 @@ import {
 type PrerequisitesState = { missing: string[]; platform: string } | null;
 
 const NO_KEY_MESSAGE = "No API key needed — you're good to go.";
+const CONNECTION_ERROR_MESSAGE =
+  "Unable to connect. Please check your network and try again.";
 
 /**
  * Sanitize intended redirect path to prevent open redirect.
@@ -82,9 +84,12 @@ export function OnboardingPage() {
   const [showKey, setShowKey] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const keyInputRef = useRef<HTMLInputElement>(null);
 
   const providerOption = AGENT_PROVIDER_OPTIONS.find((o) => o.value === provider);
   const needsKeyInput = providerOption?.needsKeyInput ?? true;
+  const isConnectionErr =
+    error !== null && error === CONNECTION_ERROR_MESSAGE;
 
   useEffect(() => {
     api.env
@@ -140,7 +145,7 @@ export function OnboardingPage() {
       navigate(intended);
     } catch (err) {
       const message = isConnectionError(err)
-        ? "Unable to connect. Please check your network and try again."
+        ? CONNECTION_ERROR_MESSAGE
         : err instanceof Error
           ? err.message
           : "Failed to save";
@@ -154,6 +159,15 @@ export function OnboardingPage() {
     provider === "custom" ||
     provider === "lmstudio" ||
     (needsKeyInput && keyValue.trim().length > 0);
+
+  const handleCancel = () => {
+    navigate("/");
+  };
+
+  const handleTryAgain = () => {
+    setError(null);
+    keyInputRef.current?.focus();
+  };
 
   return (
     <Layout>
@@ -269,9 +283,12 @@ export function OnboardingPage() {
                     </label>
                     <div className="relative flex">
                       <input
+                        ref={keyInputRef}
                         id="onboarding-api-key"
                         type={showKey ? "text" : "password"}
                         className="input font-mono text-sm w-full pr-10"
+                        aria-describedby={error ? "onboarding-key-error" : undefined}
+                        aria-invalid={!!error}
                         placeholder={
                           provider === "claude"
                             ? "sk-ant-..."
@@ -305,6 +322,7 @@ export function OnboardingPage() {
                     </div>
                     {error && (
                       <p
+                        id="onboarding-key-error"
                         className="mt-1.5 text-sm text-theme-error-text"
                         role="alert"
                         data-testid="onboarding-key-error"
@@ -312,10 +330,21 @@ export function OnboardingPage() {
                         {error}
                       </p>
                     )}
+                    {isConnectionErr && needsKeyInput && (
+                      <button
+                        type="button"
+                        onClick={handleTryAgain}
+                        className="mt-2 text-sm text-theme-accent hover:underline focus:outline-none focus:ring-2 focus:ring-theme-accent focus:ring-offset-2 rounded"
+                        data-testid="onboarding-try-again"
+                      >
+                        Try again
+                      </button>
+                    )}
                   </>
                 )}
                 {error && !needsKeyInput && (
                   <p
+                    id="onboarding-key-error"
                     className="mt-1.5 text-sm text-theme-error-text"
                     role="alert"
                     data-testid="onboarding-key-error"
@@ -325,7 +354,15 @@ export function OnboardingPage() {
                 )}
               </div>
             </div>
-            <div className="mt-4">
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="btn-secondary"
+                data-testid="onboarding-cancel-button"
+              >
+                Cancel
+              </button>
               <button
                 type="button"
                 onClick={handleContinue}
