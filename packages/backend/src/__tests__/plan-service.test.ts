@@ -1609,7 +1609,7 @@ describe("PlanService createWithRetry usage", () => {
     row!.last_executed_version_number = 1;
     if (row!.metadata) (row!.metadata as Record<string, unknown>).reviewedAt = new Date().toISOString();
 
-    // None started: all children open; getPlan must return complete so we need to mock it
+    // None started: all children open; reshipPlan uses crudService.getPlan internally, so mock that
     mockTaskStoreListAll.mockResolvedValue([
       { id: "epic-123", status: "open", type: "epic" },
       { id: "epic-123.1", status: "open", type: "task" },
@@ -1621,7 +1621,9 @@ describe("PlanService createWithRetry usage", () => {
       status: "complete" as const,
       lastExecutedVersionNumber: 1,
     };
-    const getPlanSpy = vi.spyOn(planService, "getPlan").mockResolvedValue(completePlan);
+    const crudService = (planService as { planCrudService: { getPlan: PlanService["getPlan"] } })
+      .planCrudService;
+    const getPlanSpy = vi.spyOn(crudService, "getPlan").mockResolvedValue(completePlan);
     const shipPlanSpy = vi
       .spyOn(planService, "shipPlan")
       .mockResolvedValue(completePlan as Awaited<ReturnType<PlanService["shipPlan"]>>);
