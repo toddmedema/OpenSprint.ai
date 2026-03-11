@@ -2,14 +2,30 @@ import { useEffect, useRef } from "react";
 import { Link, useMatch } from "react-router-dom";
 import { useDbStatus } from "../api/hooks";
 import { useAppSelector, useAppDispatch } from "../store";
+import { CONNECTION_TOAST_MESSAGE_PATTERN } from "../lib/connectionNotificationConstants";
 import { dbStatusRestored } from "../store/slices/connectionSlice";
+import { dismissNotification } from "../store/slices/notificationSlice";
 
 export function DatabaseStatusBanner() {
   const dispatch = useAppDispatch();
   const connectionError = useAppSelector((s) => s.connection?.connectionError ?? false);
+  const notificationItems = useAppSelector((s) => s.notification?.items);
   const { data } = useDbStatus();
   const projectMatch = useMatch("/projects/:projectId/*");
   const prevOkRef = useRef<boolean | null>(null);
+
+  const isVisible = !connectionError && data && !data.ok;
+
+  // Deduplicate: when this banner is shown, dismiss any connection-in-progress toasts so only one instance is visible.
+  useEffect(() => {
+    if (!isVisible) return;
+    const items = notificationItems ?? [];
+    for (const n of items) {
+      if (CONNECTION_TOAST_MESSAGE_PATTERN.test(n.message)) {
+        dispatch(dismissNotification(n.id));
+      }
+    }
+  }, [isVisible, notificationItems, dispatch]);
 
   // When db-status health check returns ok, signal so connection/Postgres toasts auto-dismiss.
   useEffect(() => {

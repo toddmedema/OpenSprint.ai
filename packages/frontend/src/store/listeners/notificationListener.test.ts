@@ -240,6 +240,42 @@ describe("notificationListener", () => {
     expect(store.getState().connection.connectionError).toBe(false);
   });
 
+  it("does not add toast for DATABASE_UNAVAILABLE (banner handles it; deduplicate)", async () => {
+    const store = createStore();
+    mockIsConnectionError.mockReturnValue(false);
+
+    store.dispatch({
+      type: "execute/fetchTasks/rejected",
+      meta: { requestStatus: "rejected", requestId: "req-db-unavail" },
+      error: { message: "Rejected" },
+      payload: {
+        message: "Connecting to database...",
+        code: "DATABASE_UNAVAILABLE",
+      },
+    });
+
+    await waitFor(() => {
+      expect(mockIsConnectionError).toHaveBeenCalled();
+    });
+    expect(store.getState().notification.items).toHaveLength(0);
+  });
+
+  it("does not add toast for connection-pattern messages (banner handles it; deduplicate)", async () => {
+    const store = createStore();
+    mockIsConnectionError.mockReturnValue(false);
+
+    store.dispatch({
+      type: "plan/fetchPlans/rejected",
+      meta: { requestStatus: "rejected", requestId: "req-conn-msg" },
+      error: { message: "Reconnecting to PostgreSQL..." },
+    });
+
+    await waitFor(() => {
+      expect(mockIsConnectionError).toHaveBeenCalled();
+    });
+    expect(store.getState().notification.items).toHaveLength(0);
+  });
+
   it("re-shows connection banner when connection error occurs after debounce window", async () => {
     const store = createStore({
       connection: { connectionError: false, lastRecoveredAt: Date.now() - 3000 },

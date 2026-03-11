@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppDispatch, useAppSelector } from "../store";
+import { CONNECTION_TOAST_MESSAGE_PATTERN } from "../lib/connectionNotificationConstants";
 import { setConnectionError, dbStatusRestored } from "../store/slices/connectionSlice";
+import { dismissNotification } from "../store/slices/notificationSlice";
 import { api } from "../api/client";
 import { DB_STATUS_QUERY_KEY } from "../api/hooks/db-status";
 
@@ -17,6 +19,7 @@ export function ConnectionErrorBanner() {
   const dispatch = useAppDispatch();
   const queryClient = useQueryClient();
   const connectionError = useAppSelector((s) => s.connection?.connectionError ?? false);
+  const notificationItems = useAppSelector((s) => s.notification?.items);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastPollAtRef = useRef<number>(0);
   const [secondsUntilNextCheck, setSecondsUntilNextCheck] = useState(3);
@@ -37,6 +40,17 @@ export function ConnectionErrorBanner() {
         // Still down; next poll will retry
       });
   }, [dispatch, queryClient]);
+
+  // Deduplicate: when this banner is shown, dismiss any connection-in-progress toasts so only one instance is visible.
+  useEffect(() => {
+    if (!connectionError) return;
+    const items = notificationItems ?? [];
+    for (const n of items) {
+      if (CONNECTION_TOAST_MESSAGE_PATTERN.test(n.message)) {
+        dispatch(dismissNotification(n.id));
+      }
+    }
+  }, [connectionError, notificationItems, dispatch]);
 
   useEffect(() => {
     if (!connectionError) return;

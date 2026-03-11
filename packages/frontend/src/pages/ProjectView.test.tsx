@@ -6,6 +6,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { configureStore } from "@reduxjs/toolkit";
 import { ThemeProvider } from "../contexts/ThemeContext";
 import { DisplayPreferencesProvider } from "../contexts/DisplayPreferencesContext";
+import { ConnectionErrorBanner } from "../components/ConnectionErrorBanner";
+import { DatabaseStatusBanner } from "../components/DatabaseStatusBanner";
 import { ProjectView } from "./ProjectView";
 import { ProjectShell } from "./ProjectShell";
 import { api } from "../api/client";
@@ -144,6 +146,8 @@ function renderWithRouter(
         <ThemeProvider>
           <DisplayPreferencesProvider>
             <MemoryRouter initialEntries={[initialPath]}>
+              <ConnectionErrorBanner />
+              <DatabaseStatusBanner />
               <LocationDisplay />
               <Routes>
                 <Route path="/projects/:projectId" element={<ProjectShell />}>

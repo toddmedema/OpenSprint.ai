@@ -7,6 +7,7 @@ import { clearDeliverToast } from "../slices/websocketSlice";
 import { isConnectionError } from "../../api/client";
 import { getQueryClient } from "../../queryClient";
 import { DB_STATUS_QUERY_KEY } from "../../api/hooks/db-status";
+import { CONNECTION_TOAST_MESSAGE_PATTERN } from "../../lib/connectionNotificationConstants";
 import {
   getRejectedActionProjectId,
   isNotificationManagedAgentFailure,
@@ -140,6 +141,9 @@ notificationListener.startListening({
       return;
     }
 
+    // Connection/DB-in-progress errors → single banner only; no duplicate toasts.
+    if (isConnectionOrDbBannerError(code, msg)) return;
+
     // Skip notifications for missing task/session/project — common after archiving or reconciliation; would flood the UI.
     if (code && QUIET_NOT_FOUND_CODES.has(code)) return;
     if (typeof msg === "string" && /Issue .+ not found/.test(msg)) return;
@@ -164,9 +168,13 @@ notificationListener.startListening({
   },
 });
 
-/** Message patterns for connection/DB error toasts that should auto-dismiss when connection is restored. */
-export const CONNECTION_TOAST_MESSAGE_PATTERN =
-  /failed to connect|reconnecting to postgres|connecting to postgres|connecting to database|postgres.*unavailable|unable to connect.*postgres|could not connect|server.*unreachable|open sprint server/i;
+/** Re-export for consumers (e.g. DatabaseStatusBanner, tests). */
+export { CONNECTION_TOAST_MESSAGE_PATTERN };
+
+/** Error codes/messages that are shown by the connection/DB banner; do not add duplicate toasts. */
+function isConnectionOrDbBannerError(code: string | undefined, msg: string): boolean {
+  return code === "DATABASE_UNAVAILABLE" || CONNECTION_TOAST_MESSAGE_PATTERN.test(msg);
+}
 
 type NotificationState = { notification?: { items: { id: string; message: string }[] } };
 

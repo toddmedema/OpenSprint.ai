@@ -1,10 +1,12 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act, waitFor } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import { MemoryRouter } from "react-router-dom";
 import connectionReducer from "../store/slices/connectionSlice";
+import notificationReducer from "../store/slices/notificationSlice";
+import { notificationListener } from "../store/listeners/notificationListener";
 import { DatabaseStatusBanner } from "./DatabaseStatusBanner";
 
 const mockUseDbStatus = vi.fn();
@@ -141,6 +143,53 @@ describe("DatabaseStatusBanner", () => {
     );
 
     expect(screen.queryByTestId("database-status-banner")).not.toBeInTheDocument();
+  });
+
+  it("deduplicates: dismisses connection-in-progress toasts when banner is shown", async () => {
+    const store = configureStore({
+      reducer: {
+        connection: connectionReducer,
+        notification: notificationReducer,
+      },
+      preloadedState: {
+        notification: {
+          items: [
+            {
+              id: "conn-1",
+              message: "Reconnecting to PostgreSQL...",
+              severity: "error",
+              presentation: "toast",
+              timeout: 0,
+              createdAt: Date.now(),
+            },
+          ],
+        },
+      },
+      middleware: (getDefaultMiddleware) =>
+        getDefaultMiddleware().prepend(notificationListener.middleware),
+    });
+    mockUseDbStatus.mockReturnValue({
+      data: {
+        ok: false,
+        state: "connecting",
+        lastCheckedAt: null,
+        message: "Reconnecting to PostgreSQL...",
+      },
+      isPending: false,
+    });
+    expect(store.getState().notification.items).toHaveLength(1);
+
+    render(
+      <Provider store={store}>
+        <MemoryRouter>
+          <DatabaseStatusBanner />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    await waitFor(() => {
+      expect(store.getState().notification.items).toHaveLength(0);
+    });
   });
 
   it("hides when db-status transitions to ok (connection restored)", () => {

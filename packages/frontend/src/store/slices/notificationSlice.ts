@@ -1,4 +1,5 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
+import { CONNECTION_TOAST_MESSAGE_PATTERN } from "../../lib/connectionNotificationConstants";
 
 export type NotificationSeverity = "error" | "warning" | "info" | "success";
 export type NotificationPresentation = "toast" | "inline";
@@ -46,6 +47,13 @@ export const notificationSlice = createSlice({
   reducers: {
     addNotification(state, action: PayloadAction<AddNotificationPayload>) {
       const { message, severity = "info", presentation = "toast", timeout } = action.payload;
+      // Deduplicate: at most one connection-in-progress toast; banner handles it.
+      if (CONNECTION_TOAST_MESSAGE_PATTERN.test(message)) {
+        const hasConnectionToast = state.items.some((n) =>
+          CONNECTION_TOAST_MESSAGE_PATTERN.test(n.message)
+        );
+        if (hasConnectionToast) return;
+      }
       const effectiveTimeout = timeout !== undefined ? timeout : getDefaultTimeout(severity);
       state.items.push({
         id: nextId(),

@@ -71,4 +71,22 @@ describe("notificationSlice", () => {
     store.dispatch(clearAllNotifications());
     expect(store.getState().notification.items).toEqual([]);
   });
+
+  it("deduplicates connection-in-progress toasts: at most one visible", () => {
+    const store = createStore();
+    store.dispatch(
+      addNotification({ message: "Reconnecting to PostgreSQL...", severity: "error" })
+    );
+    expect(store.getState().notification.items).toHaveLength(1);
+
+    // Second connection toast should be skipped (banner already shown)
+    store.dispatch(
+      addNotification({ message: "Connecting to database...", severity: "error" })
+    );
+    expect(store.getState().notification.items).toHaveLength(1);
+
+    // Non-connection toast should still be added
+    store.dispatch(addNotification({ message: "Something else failed", severity: "error" }));
+    expect(store.getState().notification.items).toHaveLength(2);
+  });
 });
