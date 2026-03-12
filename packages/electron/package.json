@@ -3,8 +3,8 @@
   "productName": "Open Sprint",
   "version": "0.3.0",
   "private": true,
-  "description": "Desktop packaging workspace for OpenSprint",
-  "author": "OpenSprint Team",
+  "description": "Desktop packaging workspace for Open Sprint",
+  "author": "Open Sprint Team",
   "main": "dist/main.js",
   "scripts": {
     "compile": "tsc",

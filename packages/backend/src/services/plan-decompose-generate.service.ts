@@ -342,7 +342,7 @@ export class PlanDecomposeGenerateService {
     const settings = await this.deps.projectService.getSettings(projectId);
     const prdContext = await this.buildPrdContext(projectId);
 
-    const systemPrompt = `You are an AI planning assistant for OpenSprint. The user will describe a feature idea in freeform text. Your job is to produce a complete feature plan (markdown and mockups only; no subtasks).
+    const systemPrompt = `You are an AI planning assistant for Open Sprint. The user will describe a feature idea in freeform text. Your job is to produce a complete feature plan (markdown and mockups only; no subtasks).
 
 ## Output requirement (mandatory)
 Your entire response MUST be the plan as a single JSON object. Do NOT write the plan to a file. Do NOT respond with a summary, description, or "here's what I created" text — the system parses your message for JSON only; any prose instead of JSON will cause failure.

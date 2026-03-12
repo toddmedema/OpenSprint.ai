@@ -43,7 +43,7 @@ export function HelpContent({ project, onClose }: HelpContentProps) {
     if (tabParam && VALID_TAB_IDS.includes(tabParam as TabId) && tabParam !== activeTab) {
       setActiveTab(tabParam as TabId);
     }
-  }, [tabParam]);
+  }, [activeTab, tabParam]);
 
   const setTab = useCallback(
     (tab: TabId) => {

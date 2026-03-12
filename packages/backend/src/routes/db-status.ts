@@ -18,7 +18,7 @@ dbStatusRouter.get("/", async (_req, res) => {
       data: {
         ok: false,
         message:
-          "OpenSprint could not connect to the database; check that the server is running and your connection settings are correct.",
+          "Open Sprint could not connect to the database; check that the server is running and your connection settings are correct.",
         state: "disconnected",
         lastCheckedAt: null,
       },

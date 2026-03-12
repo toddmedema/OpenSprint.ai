@@ -2,11 +2,11 @@
 
 ## Executive Summary
 
-OpenSprint is a web application that guides users through the complete software development lifecycle using AI agents. It provides a structured, five-phase workflow — **SPEED**: Sketch, Plan, Execute, Evaluate, and Deliver — that transforms high-level product ideas into working software with minimal manual intervention.
+Open Sprint is a web application that guides users through the complete software development lifecycle using AI agents. It provides a structured, five-phase workflow — **SPEED**: Sketch, Plan, Execute, Evaluate, and Deliver — that transforms high-level product ideas into working software with minimal manual intervention.
 
 The platform pairs a browser-based interface with a background agent CLI, enabling AI to autonomously execute development tasks while keeping the user in control of strategy and direction. The core philosophy is that humans should focus on _what_ to build and _why_, while AI handles _how_ to build it.
 
-OpenSprint supports multiple agent backends (Claude, Cursor, OpenAI, LM Studio for local models, and custom CLI agents), comprehensive automated testing including end-to-end and integration tests, configurable human-in-the-loop thresholds, and full offline operation for users with local agent setups (including LM Studio).
+Open Sprint supports multiple agent backends (Claude, Cursor, OpenAI, LM Studio for local models, and custom CLI agents), comprehensive automated testing including end-to-end and integration tests, configurable human-in-the-loop thresholds, and full offline operation for users with local agent setups (including LM Studio).
 
 ## Problem Statement
 
@@ -17,7 +17,7 @@ Building software with AI today is fragmented and unstructured. Developers use A
 - **Manual orchestration overhead:** Users spend significant time managing prompts, context windows, and task sequencing rather than focusing on product decisions.
 - **No feedback loop:** There is no structured way to validate completed work and feed findings back into the development process.
 
-OpenSprint solves these problems by providing an end-to-end platform that maintains context across the entire lifecycle and automates the orchestration of AI development agents.
+Open Sprint solves these problems by providing an end-to-end platform that maintains context across the entire lifecycle and automates the orchestration of AI development agents.
 
 ## User Personas
 
@@ -95,26 +95,26 @@ All previously identified questions have been resolved and documented in the Res
 
 ### Overview
 
-OpenSprint sits in the “AI-assisted product development” space. Alternatives range from no-code chat-to-app builders to IDE-centric coding agents. The comparison below focuses on full-lifecycle and “idea to working product” tools rather than single-step UI generators (e.g. v0, Locofy).
+Open Sprint sits in the “AI-assisted product development” space. Alternatives range from no-code chat-to-app builders to IDE-centric coding agents. The comparison below focuses on full-lifecycle and “idea to working product” tools rather than single-step UI generators (e.g. v0, Locofy).
 
 ### Lovable (lovable.dev)
 
 - **Positioning:** No-code app builder; “build apps and websites by chatting with AI.”
 - **Strengths:** Fast iteration, low friction for non-engineers, chat-first UX.
 - **Limitations:** Centered on UI/app generation from conversation; no explicit PRD/spec phase, no dependency-aware task graph or Evaluate → Execute feedback loop. Tied to their hosted experience.
-- **OpenSprint differentiator:** Full SPEED lifecycle with a written spec (SPEC.md), dependency-aware planning, human-in-the-loop, and optional use of your repo + local or custom agents (including offline).
+- **Open Sprint differentiator:** Full SPEED lifecycle with a written spec (SPEC.md), dependency-aware planning, human-in-the-loop, and optional use of your repo + local or custom agents (including offline).
 
 ### Bolt (bolt.new)
 
 - **Positioning:** “Vibe coding” and professional coding agents; chat-to-build with integrated frontier models, testing/refactoring, and Bolt Cloud (hosting, DB, auth, SEO).
 - **Strengths:** Single UI for multiple AI backends, built-in testing and iteration, cloud backend and scaling story.
 - **Limitations:** Emphasis on “build in one place” with their stack; less focus on a formal spec phase or on flowing a single PRD through plan → execute → evaluate. Primarily cloud-hosted.
-- **OpenSprint differentiator:** SPEC.md as the single source of truth, explicit Sketch → Plan → Execute → Evaluate → Deliver workflow, worktree/branch-based workflow with merger handling, and ability to run fully offline with LM Studio or other local agents.
+- **Open Sprint differentiator:** SPEC.md as the single source of truth, explicit Sketch → Plan → Execute → Evaluate → Deliver workflow, worktree/branch-based workflow with merger handling, and ability to run fully offline with LM Studio or other local agents.
 
 ### Gas Town (gastown.io)
 
 - **Positioning:** AI-powered product or development workflow tool in the idea-to-ship space.
-- **OpenSprint differentiator:** OpenSprint emphasizes a phased lifecycle (Sketch/Plan/Execute/Evaluate/Deliver), a file-based spec at repo root, and orchestration that respects task dependencies and feedback loops rather than ad-hoc prompting.
+- **Open Sprint differentiator:** Open Sprint emphasizes a phased lifecycle (Sketch/Plan/Execute/Evaluate/Deliver), a file-based spec at repo root, and orchestration that respects task dependencies and feedback loops rather than ad-hoc prompting.
 
 ### Other Adjacent Tools
 
@@ -123,7 +123,7 @@ OpenSprint sits in the “AI-assisted product development” space. Alternatives
 
 ### Summary Table
 
-| Dimension            | OpenSprint                    | Lovable / Bolt-style builders   |
+| Dimension            | Open Sprint                    | Lovable / Bolt-style builders   |
 |---------------------|-------------------------------|----------------------------------|
 | Spec / PRD          | SPEC.md at repo root; first-class phase | Implicit or lightweight         |
 | Lifecycle           | Sketch → Plan → Execute → Evaluate → Deliver | Chat → build (and optionally ship) |

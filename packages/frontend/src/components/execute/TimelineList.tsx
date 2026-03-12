@@ -194,12 +194,15 @@ export function TimelineList({
   }, [plans]);
 
   const sorted = useMemo(() => sortTasksForTimeline(tasks), [tasks]);
-  const blockedTasks =
-    statusFilter === "all"
-      ? sorted.filter((t) => t.kanbanColumn === "blocked")
-      : statusFilter === "blocked"
-        ? sorted
-        : [];
+  const blockedTasks = useMemo(
+    () =>
+      statusFilter === "all"
+        ? sorted.filter((t) => t.kanbanColumn === "blocked")
+        : statusFilter === "blocked"
+          ? sorted
+          : [],
+    [sorted, statusFilter]
+  );
   const showBlockedSection = blockedTasks.length > 0;
 
   const bySection = useMemo(
@@ -249,16 +252,15 @@ export function TimelineList({
     [showBlockedSection, bySection]
   );
 
-  const getRelativeTime = (task: Task): string => {
-    const isActive = task.kanbanColumn === "in_progress" || task.kanbanColumn === "in_review";
-    if (isActive && taskIdToStartedAt[task.id]) {
-      return formatUptime(taskIdToStartedAt[task.id]);
-    }
-    return formatTimestamp(task.updatedAt || task.createdAt || "");
-  };
-
   const items = useMemo((): TimelineItem[] => {
     const result: TimelineItem[] = [];
+    const getRelativeTime = (task: Task): string => {
+      const isActive = task.kanbanColumn === "in_progress" || task.kanbanColumn === "in_review";
+      if (isActive && taskIdToStartedAt[task.id]) {
+        return formatUptime(taskIdToStartedAt[task.id]);
+      }
+      return formatTimestamp(task.updatedAt || task.createdAt || "");
+    };
     for (const { key, tasks: sectionTasks } of sections) {
       if (sectionTasks.length === 0) continue;
       result.push({ type: "header", key, label: SECTION_LABELS[key] });

@@ -1,4 +1,4 @@
-/** The five lifecycle phases of an OpenSprint project (SPEED) */
+/** The five lifecycle phases of an Open Sprint project (SPEED) */
 export type ProjectPhase = "sketch" | "plan" | "execute" | "eval" | "deliver";
 
 /** Core project entity */

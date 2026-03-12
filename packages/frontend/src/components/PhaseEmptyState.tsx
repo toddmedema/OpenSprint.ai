@@ -8,7 +8,7 @@ export interface PhaseEmptyStateProps {
   title: string;
   /** Supporting copy explaining what to do next */
   description: string;
-  /** Optional illustration (e.g. phase icon or OpenSprint logo) */
+  /** Optional illustration (e.g. phase icon or Open Sprint logo) */
   illustration?: React.ReactNode;
   /** Primary action button — makes the empty state actionable */
   primaryAction?: {
@@ -53,7 +53,7 @@ export function PhaseEmptyState({
   );
 }
 
-/** Optional OpenSprint logo illustration for empty states */
+/** Optional Open Sprint logo illustration for empty states */
 export function PhaseEmptyStateLogo({ className = "w-10 h-10" }: { className?: string }) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" className={className} aria-hidden>

@@ -75,6 +75,7 @@ const EVAL_SEARCH_DEBOUNCE_MS = 150;
 /** Reconcile feedback list while Analyst categorization is still in flight. */
 export const FEEDBACK_CATEGORIZATION_POLL_INTERVAL_MS = 2000;
 const SHOULD_LOG_FEEDBACK_TASK_FETCH_FAILURES = import.meta.env.MODE !== "test";
+const EMPTY_PLANS: Plan[] = [];
 
 function getFeedbackCollapsedKey(projectId: string): string {
   return `${FEEDBACK_COLLAPSED_KEY_PREFIX}-${projectId}`;
@@ -1475,7 +1476,7 @@ export function EvalPhase({
   const { data: tasksList = [] } = useTasks(projectId);
   const plansQuery = usePlans(projectId);
   const markPlanCompleteMutation = useMarkPlanComplete(projectId);
-  const plans = plansQuery.data?.plans ?? [];
+  const plans = plansQuery.data?.plans ?? EMPTY_PLANS;
   const plansInReview = useMemo(
     () => plans.filter((p) => (p.status as string) === "in_review"),
     [plans]

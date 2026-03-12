@@ -13,7 +13,7 @@ import { getCombinedInstructions } from "./agent-instructions.service.js";
 
 const log = createLogger("prd-from-codebase");
 
-const CODEBASE_TO_PRD_SYSTEM_PROMPT = `You are an AI assistant for OpenSprint. Your task is to analyze an existing codebase and produce a Product Requirements Document (PRD) that describes what the application does, its main features, technical stack, and architecture.
+const CODEBASE_TO_PRD_SYSTEM_PROMPT = `You are an AI assistant for Open Sprint. Your task is to analyze an existing codebase and produce a Product Requirements Document (PRD) that describes what the application does, its main features, technical stack, and architecture.
 
 You will receive:
 1. A file tree of the repository (excluding node_modules, .git, etc.)

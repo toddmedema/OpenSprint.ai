@@ -20,7 +20,7 @@ export const PHASE_TOOLBAR_HEIGHT = 48;
 /** Button/min-height in px for phase toolbar controls — proportionally smaller than nav for bar height match. */
 export const PHASE_TOOLBAR_BUTTON_SIZE = 32;
 
-/** OpenSprint GitHub repository URL. */
+/** Open Sprint GitHub repository URL. */
 export const GITHUB_REPO_URL = "https://github.com/toddmedema/opensprint.dev";
 
 /**

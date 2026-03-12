@@ -27,8 +27,12 @@ payload="$(cat <<'JSON'
     "strict": true,
     "contexts": ["build", "lint", "test"]
   },
-  "enforce_admins": false,
-  "required_pull_request_reviews": null,
+  "enforce_admins": true,
+  "required_pull_request_reviews": {
+    "dismiss_stale_reviews": true,
+    "require_code_owner_reviews": false,
+    "required_approving_review_count": 1
+  },
   "restrictions": null
 }
 JSON

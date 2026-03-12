@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import type { Project, ProjectPhase } from "@opensprint/shared";
 import { Navbar } from "./Navbar";
 import { NotificationBar } from "../NotificationBar";
+import { ConnectionErrorBanner } from "../ConnectionErrorBanner";
+import { DatabaseStatusBanner } from "../DatabaseStatusBanner";
 
 interface LayoutProps {
   children: ReactNode;
@@ -32,6 +34,8 @@ export function Layout({
         onPhaseChange={onPhaseChange}
         onProjectSaved={onProjectSaved}
       />
+      <ConnectionErrorBanner />
+      <DatabaseStatusBanner />
       <NotificationBar />
       <main id="main" className="flex-1 min-h-0 flex flex-col overflow-hidden bg-theme-bg">{children}</main>
     </div>

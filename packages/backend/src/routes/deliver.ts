@@ -527,7 +527,7 @@ router.get(
  * PRD §7.5.2: Runs pre-deploy test suite first. If tests fail, creates fix epic via Planner and aborts.
  * Exported for use by deploy-trigger.service (auto-deploy on epic completion / Evaluate resolution).
  * @param targetName — Target name from targets array; defaults to getDefaultDeploymentTarget when not provided.
- * @param projectName — OpenSprint project name; used to auto-configure Expo (app.json name/slug) when not configured.
+ * @param projectName — Open Sprint project name; used to auto-configure Expo (app.json name/slug) when not configured.
  */
 export async function runDeployAsync(
   projectId: string,

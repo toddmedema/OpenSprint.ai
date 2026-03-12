@@ -54,7 +54,7 @@ prdRouter.get(
 );
 
 // POST /projects/:projectId/prd/generate-from-codebase — Generate PRD from existing codebase (before /:section).
-// projectId from params ensures PRD is written to the project's repo, not the OpenSprint server repo.
+// projectId from params ensures PRD is written to the project's repo, not the Open Sprint server repo.
 prdRouter.post(
   "/generate-from-codebase",
   wrapAsync(async (req: Request<ProjectParams>, res) => {

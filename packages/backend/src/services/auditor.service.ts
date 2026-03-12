@@ -31,7 +31,7 @@ export function buildAuditorPrompt(planId: string, epicId: string): string {
   return `# Auditor: Audit capabilities and generate delta tasks for Re-execute
 
 ## Purpose
-You are the Auditor agent for OpenSprint (PRD §12.3.6). Your task is two-fold:
+You are the Auditor agent for Open Sprint (PRD §12.3.6). Your task is two-fold:
 1. Produce a structured summary of the application's current capabilities relevant to the Plan epic being re-built.
 2. Compare the original Plan with the updated Plan using that capability summary to determine what delta work is needed.
 

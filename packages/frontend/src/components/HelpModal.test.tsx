@@ -131,15 +131,15 @@ describe("HelpModal", () => {
     expect(screen.getByTestId("help-chat-messages")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Ask a question...")).toBeInTheDocument();
 
-    await user.type(screen.getByPlaceholderText("Ask a question..."), "What is OpenSprint?");
+    await user.type(screen.getByPlaceholderText("Ask a question..."), "What is Open Sprint?");
     await user.click(screen.getByRole("button", { name: "Send" }));
 
     expect(api.help.chat).toHaveBeenCalledWith({
-      message: "What is OpenSprint?",
+      message: "What is Open Sprint?",
       projectId: null,
       messages: [],
     });
-    expect(await screen.findByText("What is OpenSprint?")).toBeInTheDocument();
+    expect(await screen.findByText("What is Open Sprint?")).toBeInTheDocument();
     expect(await screen.findByText("Here is my response.")).toBeInTheDocument();
   });
 
@@ -161,16 +161,16 @@ describe("HelpModal", () => {
   it("Ask a Question tab loads persisted chat history on mount", async () => {
     vi.mocked(api.help.history).mockResolvedValue({
       messages: [
-        { role: "user", content: "What is OpenSprint?" },
-        { role: "assistant", content: "OpenSprint is an AI-powered workflow tool." },
+        { role: "user", content: "What is Open Sprint?" },
+        { role: "assistant", content: "Open Sprint is an AI-powered workflow tool." },
       ],
     });
     renderHelpModal({ onClose: vi.fn() });
 
     await waitFor(() => {
-      expect(screen.getByText("What is OpenSprint?")).toBeInTheDocument();
+      expect(screen.getByText("What is Open Sprint?")).toBeInTheDocument();
     });
-    expect(screen.getByText("OpenSprint is an AI-powered workflow tool.")).toBeInTheDocument();
+    expect(screen.getByText("Open Sprint is an AI-powered workflow tool.")).toBeInTheDocument();
     expect(api.help.history).toHaveBeenCalledWith(null);
   });
 

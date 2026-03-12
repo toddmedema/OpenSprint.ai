@@ -7,8 +7,8 @@ import { shellExec } from "./shell-exec.js";
 const GIT_TIMEOUT_MS = 5_000;
 const GIT_COMMIT_TIMEOUT_MS = 30_000;
 
-export const OPENSPRINT_BOOTSTRAP_COMMIT_MESSAGE = "chore: initialize OpenSprint project";
-export const DEFAULT_GIT_IDENTITY_NAME = "OpenSprint";
+export const OPENSPRINT_BOOTSTRAP_COMMIT_MESSAGE = "chore: initialize Open Sprint project";
+export const DEFAULT_GIT_IDENTITY_NAME = "Open Sprint";
 export const DEFAULT_GIT_IDENTITY_EMAIL = "example@example.com";
 
 export type GitRemoteMode = "publishable" | "local_only" | "remote_error";
@@ -129,7 +129,7 @@ function throwGitIdentityPreflightError(
   appError?: boolean
 ): never {
   const message =
-    "Git author identity is required before OpenSprint can create commits. Configure user.name and user.email, then try again.";
+    "Git author identity is required before Open Sprint can create commits. Configure user.name and user.email, then try again.";
   const commands = buildGitIdentityCommands();
   if (appError !== false) {
     throw new AppError(400, ErrorCodes.GIT_IDENTITY_REQUIRED, message, {

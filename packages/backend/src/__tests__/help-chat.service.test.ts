@@ -190,6 +190,6 @@ describe("HelpChatService", () => {
     const call = mockInvokePlanningAgent.mock.calls[0][0];
     expect(call.projectId).toBe("help-homepage");
     expect(call.systemPrompt).toContain("## Homepage View");
-    expect(call.systemPrompt).not.toContain("## OpenSprint Internal Documentation");
+    expect(call.systemPrompt).not.toContain("## Open Sprint Internal Documentation");
   });
 });

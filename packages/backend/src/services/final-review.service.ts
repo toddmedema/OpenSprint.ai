@@ -34,7 +34,7 @@ export interface FinalReviewResult {
   proposedTasks: FinalReviewProposedTask[];
 }
 
-const FINAL_REVIEW_SYSTEM_PROMPT = `You are the Final Review agent for OpenSprint. When all implementation tasks of a plan/epic are completed, you perform a final assessment before the epic can be closed.
+const FINAL_REVIEW_SYSTEM_PROMPT = `You are the Final Review agent for Open Sprint. When all implementation tasks of a plan/epic are completed, you perform a final assessment before the epic can be closed.
 
 Your task: Given the plan scope, full implementation context (completed task summaries, codebase state), assess:
 1. **Missing or incorrect functionality** — Does the implementation match the plan scope? Are there gaps or deviations?
@@ -214,7 +214,7 @@ Assess the implementation against the plan scope. Return JSON with status, asses
     reviewAngles: ReviewAngle[],
     settings: import("@opensprint/shared").ProjectSettings
   ): Promise<FinalReviewResult | null> {
-    const EPIC_ANGLE_SYSTEM = `You are a Final Review angle reviewer for OpenSprint. Focus ONLY on your assigned angle. Assess the epic implementation from that lens.
+    const EPIC_ANGLE_SYSTEM = `You are a Final Review angle reviewer for Open Sprint. Focus ONLY on your assigned angle. Assess the epic implementation from that lens.
 
 Respond with ONLY valid JSON (no markdown):
 {"status":"pass"|"issues","assessment":"Brief summary for this angle","proposedTasks":[{"title":"...","description":"...","priority":0-4}]}
@@ -290,7 +290,7 @@ Respond with ONLY valid JSON (no markdown):
     repoPath: string,
     settings: import("@opensprint/shared").ProjectSettings
   ): Promise<FinalReviewResult> {
-    const EPIC_SYNTHESIZER_PROMPT = `You are the Final Review Lead for OpenSprint. Multiple angle reviewers have assessed an epic. Synthesize their findings into one report.
+    const EPIC_SYNTHESIZER_PROMPT = `You are the Final Review Lead for Open Sprint. Multiple angle reviewers have assessed an epic. Synthesize their findings into one report.
 
 Rules:
 - If ANY angle returned "issues", overall status MUST be "issues". Merge proposedTasks from all angles; deduplicate by title/description.

@@ -37,12 +37,13 @@ export function PrdTocPanel({
   useEffect(() => {
     const scrollEl = scrollContainerRef.current;
     if (!scrollEl || sections.length === 0) return;
+    const visibleSections = visibleSectionsRef.current;
 
     const sectionElements = scrollEl.querySelectorAll<HTMLElement>("[data-prd-section]");
     if (sectionElements.length === 0) return;
 
     const updateActiveSection = () => {
-      const entries = Array.from(visibleSectionsRef.current.entries());
+      const entries = Array.from(visibleSections.entries());
       if (entries.length === 0) {
         setActiveSection((prev) =>
           prev && sections.includes(prev) ? prev : (sections[0] ?? null)
@@ -70,9 +71,9 @@ export function PrdTocPanel({
           const rect = entry.boundingClientRect;
           const rootRect = entry.rootBounds;
           if (entry.isIntersecting && rootRect) {
-            visibleSectionsRef.current.set(key, { top: rect.top, ratio: entry.intersectionRatio });
+            visibleSections.set(key, { top: rect.top, ratio: entry.intersectionRatio });
           } else {
-            visibleSectionsRef.current.delete(key);
+            visibleSections.delete(key);
           }
         }
         updateActiveSection();
@@ -97,7 +98,7 @@ export function PrdTocPanel({
       observer.disconnect();
       observerRef.current = null;
       scrollEl.removeEventListener("scroll", handleScroll);
-      visibleSectionsRef.current.clear();
+      visibleSections.clear();
     };
   }, [prdContent, scrollContainerRef, sections]);
 

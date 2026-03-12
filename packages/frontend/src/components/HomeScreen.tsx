@@ -118,6 +118,7 @@ export function HomeScreen() {
   const menuRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const modalTriggerRef = useRef<HTMLElement | null>(null);
+  const missingPrereqCount = prerequisites?.missing.length ?? 0;
 
   const handleCreateOrAddClick = async (
     route: "/projects/create-new" | "/projects/add-existing"
@@ -174,7 +175,7 @@ export function HomeScreen() {
 
   // Poll when prerequisites are missing. In Electron, use fresh check; when all met, restart backend with refreshed PATH.
   useEffect(() => {
-    if (!prerequisites || prerequisites.missing.length === 0) return;
+    if (missingPrereqCount === 0) return;
     const isElectron = typeof window !== "undefined" && window.electron?.checkPrerequisitesFresh;
     const intervalId = setInterval(async () => {
       try {
@@ -206,7 +207,7 @@ export function HomeScreen() {
       }
     }, 3000);
     return () => clearInterval(intervalId);
-  }, [prerequisites?.missing.length]);
+  }, [missingPrereqCount]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -503,7 +504,7 @@ export function HomeScreen() {
       {deleteModal && (
         <ProjectActionConfirmModal
           title="Delete project"
-          message="This will remove the project from the UI and permanently delete all OpenSprint data for this project: tasks, plans, settings, feedback, and all data in the project folder."
+          message="This will remove the project from the UI and permanently delete all Open Sprint data for this project: tasks, plans, settings, feedback, and all data in the project folder."
           onConfirm={handleDelete}
           onCancel={() => setDeleteModal(null)}
           confirming={confirming}

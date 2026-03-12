@@ -1,7 +1,7 @@
 /** Maximum length for commit message title / task title display (e.g. "Closed <id>: <title>"). */
 export const COMMIT_MESSAGE_TITLE_MAX_LENGTH = 45;
 
-/** OpenSprint directory within project repos */
+/** Open Sprint directory within project repos */
 export const OPENSPRINT_DIR = ".opensprint";
 
 /** Sketch phase output: flat markdown at repo root. Metadata (version, changeLog) in .opensprint. */

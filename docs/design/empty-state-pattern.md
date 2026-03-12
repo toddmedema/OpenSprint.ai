@@ -15,7 +15,7 @@ Empty states appear when a phase has no content yet (e.g. no plans, no tasks, no
 Each empty state has three elements:
 
 1. **Copy** — A short title and supporting description explaining what to do next
-2. **Optional illustration** — Phase icon or OpenSprint logo (keeps layout light; use `PhaseEmptyStateLogo` for consistency)
+2. **Optional illustration** — Phase icon or Open Sprint logo (keeps layout light; use `PhaseEmptyStateLogo` for consistency)
 3. **Primary action** — A clear button that advances the user (omit only when the user cannot take action)
 
 ## Copy Constants

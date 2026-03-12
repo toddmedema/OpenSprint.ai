@@ -6,8 +6,6 @@ import { ProjectSetup } from "./pages/ProjectSetup";
 import { CreateNewProjectPage } from "./pages/CreateNewProjectPage";
 import { ProjectShell } from "./pages/ProjectShell";
 import { ProjectView } from "./pages/ProjectView";
-import { ConnectionErrorBanner } from "./components/ConnectionErrorBanner";
-import { DatabaseStatusBanner } from "./components/DatabaseStatusBanner";
 import { GlobalKeyboardShortcuts } from "./components/GlobalKeyboardShortcuts";
 import { FindBar } from "./components/FindBar";
 import { useAppDispatch } from "./store";
@@ -69,8 +67,6 @@ export function App() {
   return (
     <>
       <RouteSync />
-      <ConnectionErrorBanner />
-      <DatabaseStatusBanner />
       <FindBar />
       <GlobalKeyboardShortcuts />
       <Routes>

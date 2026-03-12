@@ -88,7 +88,7 @@ export async function getExpoConfigStatus(repoPath: string): Promise<ExpoConfigS
  * Ensure Expo app config is present and populated with project context.
  * Creates app.json if missing; updates name/slug/version if empty or default.
  * @param repoPath — Project root
- * @param projectName — OpenSprint project name (used as app name and slug base)
+ * @param projectName — Open Sprint project name (used as app name and slug base)
  * @param emit — Optional callback for status messages
  */
 export async function ensureExpoConfig(

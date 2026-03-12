@@ -287,7 +287,7 @@ envRouter.post(
                 data: {
                   success: true,
                   message:
-                    "Cursor CLI install finished. Restart your terminal or OpenSprint so the agent command is available.",
+                    "Cursor CLI install finished. Restart your terminal or Open Sprint so the agent command is available.",
                 },
               } as ApiResponse<{ success: boolean; message?: string }>);
             }
@@ -311,7 +311,7 @@ envRouter.post(
                 data: {
                   success: true,
                   message:
-                    "Cursor CLI install finished. Restart your terminal or OpenSprint so the agent command is available.",
+                    "Cursor CLI install finished. Restart your terminal or Open Sprint so the agent command is available.",
                 },
               } as ApiResponse<{ success: boolean; message?: string }>);
             }

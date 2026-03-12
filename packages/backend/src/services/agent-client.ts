@@ -332,7 +332,7 @@ function safeGeminiText(obj: { text?: string | (() => string) }): string {
 
 /**
  * Cursor CLI supports an explicit "auto" model id.
- * When OpenSprint stores model=null (UI "Auto"), pass --model auto to avoid
+ * When Open Sprint stores model=null (UI "Auto"), pass --model auto to avoid
  * inheriting a user-level default model from Cursor CLI config.
  */
 function resolveCursorModel(model: string | null | undefined): string {

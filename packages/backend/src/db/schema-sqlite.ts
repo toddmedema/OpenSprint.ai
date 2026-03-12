@@ -1,5 +1,5 @@
 /**
- * SQLite-compatible schema for OpenSprint.
+ * SQLite-compatible schema for Open Sprint.
  * Uses INTEGER PRIMARY KEY AUTOINCREMENT for auto-increment; same TEXT/INTEGER as Postgres.
  * Run on init when dialect is sqlite.
  */

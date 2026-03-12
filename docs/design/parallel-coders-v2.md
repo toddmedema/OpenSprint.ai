@@ -1,7 +1,7 @@
 # Design: Concurrent Multi-Coder Execution (v2)
 
 **Status:** Draft  
-**Author:** OpenSprint Design  
+**Author:** Open Sprint Design  
 **PRD Reference:** §5.7, §15, §17 (v2.0 milestone)
 
 ---

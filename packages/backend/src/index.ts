@@ -110,7 +110,7 @@ server.on("error", (err: NodeJS.ErrnoException) => {
 const FRONTEND_PORT = parseInt(process.env.FRONTEND_PORT || "5173", 10);
 
 server.listen(port, () => {
-  logStartup.info("OpenSprint backend listening", { url: `http://localhost:${port}` });
+  logStartup.info("Open Sprint backend listening", { url: `http://localhost:${port}` });
   logStartup.info("WebSocket server ready", { url: `ws://localhost:${port}/ws` });
   startProcessReaper();
   databaseRuntime.start();

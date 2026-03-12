@@ -131,13 +131,13 @@ describe("expo-config", () => {
         JSON.stringify({ version: "1.0.0" })
       );
 
-      const result = await ensureExpoConfig(tempDir, "OpenSprint Demo", () => {});
+      const result = await ensureExpoConfig(tempDir, "Open Sprint Demo", () => {});
       expect(result).toEqual({ ok: true });
 
       const content = await fs.readFile(path.join(tempDir, "app.json"), "utf-8");
       const parsed = JSON.parse(content);
-      expect(parsed.expo.name).toBe("OpenSprint Demo");
-      expect(parsed.expo.slug).toBe("opensprint-demo");
+      expect(parsed.expo.name).toBe("Open Sprint Demo");
+      expect(parsed.expo.slug).toBe("open-sprint-demo");
       expect(parsed.expo.version).toBe("1.0.0");
     });
 

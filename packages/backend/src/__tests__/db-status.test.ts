@@ -40,7 +40,7 @@ describe("classifyDbConnectionError", () => {
 
   it("returns default message for unknown errors", () => {
     expect(classifyDbConnectionError(new Error("Something else"))).toBe(
-      "OpenSprint could not connect to the database; check that the server is running and your connection settings are correct."
+      "Open Sprint could not connect to the database; check that the server is running and your connection settings are correct."
     );
   });
 
@@ -67,13 +67,13 @@ describe("classifyDbConnectionError", () => {
         "sqlite"
       )
     ).toBe(
-      "OpenSprint could not load its SQLite runtime. The desktop installation may be incomplete or built for the wrong CPU architecture. Reinstall OpenSprint using the installer that matches your machine (x64 or arm64)."
+      "Open Sprint could not load its SQLite runtime. The desktop installation may be incomplete or built for the wrong CPU architecture. Reinstall Open Sprint using the installer that matches your machine (x64 or arm64)."
     );
   });
 
   it("returns sqlite permission guidance for EACCES", () => {
     expect(classifyDbConnectionError({ code: "EACCES" }, "sqlite")).toBe(
-      "OpenSprint could not open the database file because of file permissions. Check that the configured folder is writable."
+      "Open Sprint could not open the database file because of file permissions. Check that the configured folder is writable."
     );
   });
 });
@@ -110,7 +110,7 @@ describe("GET /db-status", () => {
     vi.spyOn(databaseRuntime, "getStatus").mockResolvedValue({
       ok: false,
       message:
-        "OpenSprint could not connect to the database; check that the server is running and your connection settings are correct.",
+        "Open Sprint could not connect to the database; check that the server is running and your connection settings are correct.",
       state: "disconnected",
       lastCheckedAt: "2026-03-03T00:00:00.000Z",
     });
@@ -121,7 +121,7 @@ describe("GET /db-status", () => {
     expect(res.body.data).toEqual({
       ok: false,
       message:
-        "OpenSprint could not connect to the database; check that the server is running and your connection settings are correct.",
+        "Open Sprint could not connect to the database; check that the server is running and your connection settings are correct.",
       state: "disconnected",
       lastCheckedAt: "2026-03-03T00:00:00.000Z",
     });

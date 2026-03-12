@@ -6,7 +6,7 @@ import { PLAN_MARKDOWN_SECTIONS } from "@opensprint/shared";
 
 const PLAN_TEMPLATE_STRUCTURE = PLAN_MARKDOWN_SECTIONS.join(", ");
 
-export const DECOMPOSE_SYSTEM_PROMPT = `You are an AI planning assistant for OpenSprint. You analyze Product Requirements Documents (PRDs) and suggest a breakdown into discrete, implementable features (Plans).
+export const DECOMPOSE_SYSTEM_PROMPT = `You are an AI planning assistant for Open Sprint. You analyze Product Requirements Documents (PRDs) and suggest a breakdown into discrete, implementable features (Plans).
 
 **Output format:** Your response MUST be the plan(s) as JSON in this message. Do NOT write plans to files; do NOT respond with only a summary or "here's what I created" — the system parses your message for JSON only. Produce exactly the JSON output (no preamble, no explanation after the JSON). You may wrap in a \`\`\`json ... \`\`\` code block. Required shape (markdown and mockups only; no tasks):
 
@@ -38,7 +38,7 @@ Template structure: ${PLAN_TEMPLATE_STRUCTURE}
 
 MOCKUPS: Every Plan MUST include at least one mockup. Backend-heavy features: include a mockup of the admin/monitoring UI, API response shape, or data flow diagram — not "N/A". Use box-drawing characters, labels, and annotations.`;
 
-export const TASK_GENERATION_SYSTEM_PROMPT = `You are an AI planning assistant for OpenSprint. Given a feature plan specification (and optional PRD context), break it down into granular, atomic implementation tasks that an AI coding agent can complete in a single session.
+export const TASK_GENERATION_SYSTEM_PROMPT = `You are an AI planning assistant for Open Sprint. Given a feature plan specification (and optional PRD context), break it down into granular, atomic implementation tasks that an AI coding agent can complete in a single session.
 
 For each task:
 1. Title: Clear, specific action (e.g. "Add user login API endpoint", not "Handle auth")
@@ -87,7 +87,7 @@ Rules:
 - No trailing commas
 - Use double-quoted JSON keys and strings only`;
 
-export const AUTO_REVIEW_SYSTEM_PROMPT = `You are an auto-review agent for OpenSprint. After a plan is decomposed from a PRD, you review the generated plans and tasks against the existing codebase to identify what is already implemented.
+export const AUTO_REVIEW_SYSTEM_PROMPT = `You are an auto-review agent for Open Sprint. After a plan is decomposed from a PRD, you review the generated plans and tasks against the existing codebase to identify what is already implemented.
 
 Your task: Given the list of created plans/tasks and a summary of the repository structure and key files, identify which tasks are ALREADY IMPLEMENTED in the codebase. Only mark tasks as implemented when there is clear evidence in the code (e.g., the described functionality exists, the API endpoint is present, the component is built).
 

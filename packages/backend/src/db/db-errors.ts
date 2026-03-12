@@ -94,31 +94,31 @@ export function classifyDbConnectionError(
   const msg = getErrorMessage(err);
 
   if ((code === "ERR_DLOPEN_FAILED" || code === "MODULE_NOT_FOUND") && SQLITE_NATIVE_LOAD_RE.test(msg)) {
-    return "OpenSprint could not load its SQLite runtime. The desktop installation may be incomplete or built for the wrong CPU architecture. Reinstall OpenSprint using the installer that matches your machine (x64 or arm64).";
+    return "Open Sprint could not load its SQLite runtime. The desktop installation may be incomplete or built for the wrong CPU architecture. Reinstall Open Sprint using the installer that matches your machine (x64 or arm64).";
   }
   if (SQLITE_NATIVE_LOAD_RE.test(msg)) {
-    return "OpenSprint could not load its SQLite runtime. The desktop installation may be incomplete or built for the wrong CPU architecture. Reinstall OpenSprint using the installer that matches your machine (x64 or arm64).";
+    return "Open Sprint could not load its SQLite runtime. The desktop installation may be incomplete or built for the wrong CPU architecture. Reinstall Open Sprint using the installer that matches your machine (x64 or arm64).";
   }
 
   if (isSqliteConnectionCode(code)) {
     if (code === "SQLITE_CANTOPEN")
       return "The database file could not be opened; check that the path exists and this app has permission to access it.";
     if (code === "SQLITE_READONLY")
-      return "The database file is read-only; check file permissions so OpenSprint can save data.";
+      return "The database file is read-only; check file permissions so Open Sprint can save data.";
     if (code.startsWith("SQLITE_BUSY") || code.startsWith("SQLITE_LOCKED"))
       return "The database is in use or locked; wait a moment or close other programs that might be using it.";
     return "The database file could not be used; it may be corrupted or the path in settings may be wrong.";
   }
   if (SQLITE_FILESYSTEM_CODES.has(code)) {
     if (code === "ENOSPC")
-      return "OpenSprint could not open the database because the disk is full. Free up disk space and relaunch.";
+      return "Open Sprint could not open the database because the disk is full. Free up disk space and relaunch.";
     if (code === "EACCES" || code === "EPERM")
-      return "OpenSprint could not open the database file because of file permissions. Check that the configured folder is writable.";
+      return "Open Sprint could not open the database file because of file permissions. Check that the configured folder is writable.";
     if (code === "ENOENT" || code === "ENOTDIR")
-      return "OpenSprint could not open the database file because the configured path does not exist. Verify the database path in Settings.";
+      return "Open Sprint could not open the database file because the configured path does not exist. Verify the database path in Settings.";
     if (code === "EROFS")
-      return "OpenSprint could not open the database file because the configured location is read-only.";
-    return "OpenSprint could not open the database file; check the configured path and filesystem permissions.";
+      return "Open Sprint could not open the database file because the configured location is read-only.";
+    return "Open Sprint could not open the database file; check the configured path and filesystem permissions.";
   }
 
   if (DB_UNREACHABLE_CODES.has(code)) {
@@ -140,7 +140,7 @@ export function classifyDbConnectionError(
   }
   if (/permission denied/i.test(msg)) {
     return dialect === "sqlite"
-      ? "OpenSprint could not open the database file because of file permissions. Check that the configured folder is writable."
+      ? "Open Sprint could not open the database file because of file permissions. Check that the configured folder is writable."
       : "The database rejected the connection; check the username, password, and database name in your settings.";
   }
   if (/password authentication failed|role .* does not exist|database .* does not exist|relation .* does not exist/i.test(msg)) {
@@ -148,11 +148,11 @@ export function classifyDbConnectionError(
   }
   if (/EACCES|EPERM|ENOENT|ENOTDIR|ENOSPC|EROFS/i.test(msg)) {
     return dialect === "sqlite"
-      ? "OpenSprint could not open the database file; check the configured path, permissions, and available disk space."
-      : "OpenSprint could not connect to the database; check that the server is running and your connection settings are correct.";
+      ? "Open Sprint could not open the database file; check the configured path, permissions, and available disk space."
+      : "Open Sprint could not connect to the database; check that the server is running and your connection settings are correct.";
   }
 
   return dialect === "sqlite"
-    ? "OpenSprint could not connect to the database; check the file path and permissions in your settings."
-    : "OpenSprint could not connect to the database; check that the server is running and your connection settings are correct.";
+    ? "Open Sprint could not connect to the database; check the file path and permissions in your settings."
+    : "Open Sprint could not connect to the database; check that the server is running and your connection settings are correct.";
 }

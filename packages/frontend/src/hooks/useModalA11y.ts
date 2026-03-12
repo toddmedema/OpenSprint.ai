@@ -41,6 +41,7 @@ export function useModalA11y({
 
     // Store the element that had focus when the modal opened (for fallback restore)
     previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
+    const triggerElement = triggerRef?.current;
 
     // Focus first focusable element inside the modal
     const focusable = getFocusableElements(container);
@@ -87,7 +88,7 @@ export function useModalA11y({
 
       // Restore focus to trigger or previously focused element
       requestAnimationFrame(() => {
-        const target = triggerRef?.current ?? previouslyFocusedRef.current;
+        const target = triggerElement ?? previouslyFocusedRef.current;
         if (target && typeof target.focus === "function") {
           target.focus();
         }

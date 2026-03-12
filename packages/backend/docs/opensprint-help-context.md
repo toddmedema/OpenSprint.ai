@@ -1,6 +1,6 @@
-# OpenSprint Internal Documentation
+# Open Sprint Internal Documentation
 
-This document provides context for the Help Chat agent to answer questions about OpenSprint's scheduling, configuration, orchestrator logic, and task runnability.
+This document provides context for the Help Chat agent to answer questions about Open Sprint's scheduling, configuration, orchestrator logic, and task runnability.
 
 ---
 
@@ -8,11 +8,11 @@ This document provides context for the Help Chat agent to answer questions about
 
 Task tracking is handled internally by `TaskStoreService` backed by PostgreSQL. The connection URL is resolved in order: `DATABASE_URL`, then `databaseUrl` in `~/.opensprint/global-settings.json`, then the default local URL. There is no external CLI for task management.
 
-**Project Overview:** OpenSprint is a web application that guides users through the full software development lifecycle using AI agents. It has five phases — SPEED: Sketch, Plan, Execute, Evaluate, and Deliver.
+**Project Overview:** Open Sprint is a web application that guides users through the full software development lifecycle using AI agents. It has five phases — SPEED: Sketch, Plan, Execute, Evaluate, and Deliver.
 
 **Tech stack:** Node.js + TypeScript (backend), React + TypeScript (frontend).
 
-**Windows runtime policy:** OpenSprint is supported on Windows only when `npm run setup` and `npm run dev` are run inside WSL2. Project repos must live in the WSL filesystem (for example `/home/<user>/src/app`), not under `/mnt/c/...`. Native Windows execution is unsupported because orchestration and process-management paths assume Linux/Unix shell and process semantics.
+**Windows runtime policy:** Open Sprint is supported on Windows only when `npm run setup` and `npm run dev` are run inside WSL2. Project repos must live in the WSL filesystem (for example `/home/<user>/src/app`), not under `/mnt/c/...`. Native Windows execution is unsupported because orchestration and process-management paths assume Linux/Unix shell and process semantics.
 
 ### Orchestrator Recovery (GUPP-style)
 

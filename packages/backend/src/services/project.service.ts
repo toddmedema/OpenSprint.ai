@@ -248,7 +248,7 @@ function toCanonicalSettings(s: ProjectSettings): ProjectSettings {
 
 export class ProjectService {
   private taskStore = taskStoreSingleton;
-  private static readonly BOOTSTRAP_COMMIT_MESSAGE = "chore: initialize OpenSprint project";
+  private static readonly BOOTSTRAP_COMMIT_MESSAGE = "chore: initialize Open Sprint project";
   /** In-memory cache for listProjects() so GET /projects returns instantly when the event loop is busy (e.g. orchestrator). Invalidated on create/update/delete. */
   private listCache: Project[] | null = null;
 
@@ -379,7 +379,7 @@ export class ProjectService {
     const id = randomUUID();
     const now = new Date().toISOString();
 
-    // If path already has OpenSprint, return the existing project instead of creating
+    // If path already has Open Sprint, return the existing project instead of creating
     const opensprintDir = path.join(repoPath, OPENSPRINT_DIR);
     try {
       await fs.access(opensprintDir);

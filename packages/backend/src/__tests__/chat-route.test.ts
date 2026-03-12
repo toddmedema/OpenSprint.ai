@@ -490,7 +490,7 @@ Let me know if you want to refine further.`,
 [PRD_UPDATE:executive_summary]
 ## Executive Summary
 
-OpenSprint is a web application that guides users through the full software development lifecycle using AI agents.
+Open Sprint is a web application that guides users through the full software development lifecycle using AI agents.
 [/PRD_UPDATE]
 
 Let me know if you'd like to refine this further.`;
@@ -514,7 +514,7 @@ Let me know if you'd like to refine this further.`;
     );
     expect(prdRes.status).toBe(200);
     expect(prdRes.body.data.content).toContain(
-      "OpenSprint is a web application that guides users through the full software development lifecycle using AI agents"
+      "Open Sprint is a web application that guides users through the full software development lifecycle using AI agents"
     );
 
     // Verify prd.updated broadcast so UI can refresh via WebSocket
@@ -528,7 +528,7 @@ Let me know if you'd like to refine this further.`;
     const specRaw = await fs.readFile(specPath, "utf-8");
     const prdOnDisk = specMarkdownToPrd(specRaw);
     expect(prdOnDisk.sections.executive_summary?.content).toContain(
-      "OpenSprint is a web application that guides users through the full software development lifecycle using AI agents"
+      "Open Sprint is a web application that guides users through the full software development lifecycle using AI agents"
     );
   });
 
@@ -675,11 +675,11 @@ Let me know if you'd like to expand this.`,
       content: `Here are some sections for your marketing site.
 
 [PRD_UPDATE:api_contracts]
-No APIs. The marketing site does not call the OpenSprint backend.
+No APIs. The marketing site does not call the Open Sprint backend.
 [/PRD_UPDATE]
 
 [PRD_UPDATE:executive_summary]
-A simple marketing site for OpenSprint.
+A simple marketing site for Open Sprint.
 [/PRD_UPDATE]`,
     });
 

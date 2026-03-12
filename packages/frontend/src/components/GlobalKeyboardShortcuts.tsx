@@ -126,7 +126,7 @@ export function GlobalKeyboardShortcuts() {
         }
       }
     },
-    [navigate, projectId]
+    [isElectron, navigate, projectId]
   );
 
   useEffect(() => {

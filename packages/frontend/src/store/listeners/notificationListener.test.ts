@@ -191,7 +191,7 @@ describe("notificationListener", () => {
 
   it("dismisses database connection error toast when connection is restored", async () => {
     const msg =
-      "OpenSprint could not connect to the database; check that the server is running and your connection settings are correct.";
+      "Open Sprint could not connect to the database; check that the server is running and your connection settings are correct.";
     expect(CONNECTION_TOAST_MESSAGE_PATTERN.test(msg)).toBe(true);
     const store = createStore();
     store.dispatch(setConnectionError(true));

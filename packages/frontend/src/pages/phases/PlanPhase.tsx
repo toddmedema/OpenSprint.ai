@@ -204,7 +204,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
 
   useEffect(() => {
     dispatch(clearPhaseUnread({ projectId, phase: "plan" }));
-  }, [dispatch, projectId]);
+  }, [dispatch, projectId, queryClient]);
 
   /* ── TanStack Query for loading state (data synced to Redux by ProjectShell) ── */
   const plansQuery = usePlans(projectId);
@@ -615,7 +615,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
       processingQueueRef.current = false;
       setPlanAllInProgress(false);
     }
-  }, [dispatch, projectId]);
+  }, [dispatch, projectId, queryClient]);
 
   const enqueuePlan = useCallback(
     (planId: string) => {
@@ -795,7 +795,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
         void queryClient.invalidateQueries({ queryKey: queryKeys.plans.list(projectId) });
       }
     },
-    [dispatch, projectId, selectedPlanId]
+    [dispatch, projectId, queryClient, selectedPlanId]
   );
 
   const handleSendChat = async () => {

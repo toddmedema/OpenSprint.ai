@@ -48,7 +48,7 @@ perf-baseline.json
 # Vite
 packages/frontend/.vite/
 
-# OpenSprint runtime data (local only); feedback/counters/events/stats/deployments are in DB
+# Open Sprint runtime data (local only); feedback/counters/events/stats/deployments are in DB
 # Settings live in global store (~/.opensprint/settings.json), not per-repo
 .opensprint/settings.json
 .opensprint/active/
@@ -65,3 +65,6 @@ packages/backend/.opensprint/
 *.bak
 
 .opensprint/worktrees/
+
+# SQLite in-memory DB artifact (must never be tracked; breaks Windows checkout)
+:memory:

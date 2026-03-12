@@ -59,7 +59,7 @@ npm run dev
 
 Optional faster source setup (skips Electron/Puppeteer workspace installs): `OPENSPRINT_SETUP_MINIMAL=1 npm run setup`
 
-_Native Windows Node, PowerShell, and `cmd.exe` execution are unsupported because the orchestration and process-management stack assumes Linux/Unix process behavior. Do not run OpenSprint from `/mnt/c/...` or any other Windows-mounted filesystem._
+_Native Windows Node, PowerShell, and `cmd.exe` execution are unsupported because the orchestration and process-management stack assumes Linux/Unix process behavior. Do not run Open Sprint from `/mnt/c/...` or any other Windows-mounted filesystem._
 
 ### Upgrading to PostgreSQL
 

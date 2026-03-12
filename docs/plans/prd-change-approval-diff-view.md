@@ -68,8 +68,8 @@ When the Harmonizer (or any flow) proposes changes to the PRD (SPEC.md) and the 
 |  Review proposed SPEC.md changes         |
 +------------------------------------------+
 | 1  - | Executive Summary                 |
-| 2  - | OpenSprint is a web application…  |
-| 3  + | OpenSprint is a web application   |
+| 2  - | Open Sprint is a web application…  |
+| 3  + | Open Sprint is a web application   |
 | 4  + | that guides users through the…    |
 | 5    | ...                               |
 +------------------------------------------+

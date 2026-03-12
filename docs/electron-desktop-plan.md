@@ -1,4 +1,4 @@
-# Plan: Exportable Electron Desktop Version of OpenSprint
+# Plan: Exportable Electron Desktop Version of Open Sprint
 
 ## 1. Current Architecture Summary
 
@@ -9,7 +9,7 @@
 
 ## 2. Goals for the Electron Build
 
-- **Single installable app**: User downloads one artifact (e.g. `.dmg` / `.exe` / `.AppImage`) and runs OpenSprint without installing Node or running `npm run dev`.
+- **Single installable app**: User downloads one artifact (e.g. `.dmg` / `.exe` / `.AppImage`) and runs Open Sprint without installing Node or running `npm run dev`.
 - **Same behavior as web**: All SPEED phases, WebSockets, projects, and agent orchestration work as today.
 - **Exportable**: Build produces distributable installers for macOS, Windows, and Linux (as desired).
 
@@ -96,7 +96,7 @@
 **D.1 – Single instance (required)**
 
 - Use `app.requestSingleInstanceLock()`. If the lock is not acquired, call `app.quit()` and exit.
-- On `second-instance`, focus and restore the existing window (e.g. `win.show()`, `win.focus()`). This ensures only one OpenSprint desktop instance runs; relaunching focuses the existing window.
+- On `second-instance`, focus and restore the existing window (e.g. `win.show()`, `win.focus()`). This ensures only one Open Sprint desktop instance runs; relaunching focuses the existing window.
 
 **D.2 – Menu / dev tools**
 
@@ -139,7 +139,7 @@ Implement in this order. Each task is self-contained so the next agent can execu
 | # | Task | Location | Details |
 |---|------|----------|---------|
 | 10 | DevTools in dev only | `packages/electron/main.js` | When creating the BrowserWindow, if not `app.isPackaged` (or a dev flag), call `win.webContents.openDevTools()`. In production, do not open DevTools by default (optional: open on a shortcut). |
-| 11 | README desktop section | Root `README.md` | Add a "Desktop build" or "Building the desktop app" section: (1) Prereqs: Node, npm. (2) Commands: `npm run build:desktop` (and optionally `npm run start:desktop` for development). (3) Output: where installers or unpacked app are written. (4) Note that OpenSprint Desktop uses `~/.opensprint` for config and data (SQLite by default). |
+| 11 | README desktop section | Root `README.md` | Add a "Desktop build" or "Building the desktop app" section: (1) Prereqs: Node, npm. (2) Commands: `npm run build:desktop` (and optionally `npm run start:desktop` for development). (3) Output: where installers or unpacked app are written. (4) Note that Open Sprint Desktop uses `~/.opensprint` for config and data (SQLite by default). |
 
 ### Verification checklist
 

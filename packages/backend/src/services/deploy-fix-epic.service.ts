@@ -18,7 +18,7 @@ const projectService = new ProjectService();
 // taskStore imported as singleton from task-store.service.js
 const agentClient = new AgentClient();
 
-const FIX_EPIC_SYSTEM_PROMPT = `You are the Planner agent for OpenSprint (PRD §12.3.2). Your task is to analyze failed test output and produce a structured list of fix tasks.
+const FIX_EPIC_SYSTEM_PROMPT = `You are the Planner agent for Open Sprint (PRD §12.3.2). Your task is to analyze failed test output and produce a structured list of fix tasks.
 
 Focus on failure messages and stack traces; skip verbose setup logs when possible.
 

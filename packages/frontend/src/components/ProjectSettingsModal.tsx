@@ -2,6 +2,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useMemo,
   useRef,
   useImperativeHandle,
   forwardRef,
@@ -247,17 +248,28 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
         .catch(() => setEnvKeys(null));
     }, [activeTab]);
 
-    const simpleComplexityAgent = settings?.simpleComplexityAgent ?? {
-      type: "cursor" as AgentType,
-      model: null,
-      cliCommand: null,
-    };
-    const complexComplexityAgent = settings?.complexComplexityAgent ?? {
-      type: "cursor" as AgentType,
-      model: null,
-      cliCommand: null,
-    };
-    const deployment = settings?.deployment ?? { mode: "custom" as DeploymentMode };
+    const simpleComplexityAgent = useMemo(
+      () =>
+        settings?.simpleComplexityAgent ?? {
+          type: "cursor" as AgentType,
+          model: null,
+          cliCommand: null,
+        },
+      [settings?.simpleComplexityAgent]
+    );
+    const complexComplexityAgent = useMemo(
+      () =>
+        settings?.complexComplexityAgent ?? {
+          type: "cursor" as AgentType,
+          model: null,
+          cliCommand: null,
+        },
+      [settings?.complexComplexityAgent]
+    );
+    const deployment = useMemo(
+      () => settings?.deployment ?? { mode: "custom" as DeploymentMode },
+      [settings?.deployment]
+    );
     const aiAutonomyLevel = settings?.aiAutonomyLevel ?? DEFAULT_AI_AUTONOMY_LEVEL;
     const gitWorkingMode = settings?.gitWorkingMode ?? "worktree";
     const mergeStrategy = settings?.mergeStrategy ?? "per_task";
@@ -479,7 +491,7 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
           );
         }
       },
-      [settings, persistSettings, fullScreen, setSearchParams]
+      [settings, persistSettings, fullScreen, setSearchParams, setActiveTab]
     );
 
     const defaultAgent = { type: "cursor" as AgentType, model: null, cliCommand: null };
@@ -618,7 +630,7 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
             data-testid={`${rowKey}-provider-prerequisite`}
           >
             <p className="text-sm text-theme-warning-text mb-2">
-              <strong>Cursor CLI not found.</strong> The <code className="font-mono text-xs">agent</code> command is required for Cursor. Install it, then restart your terminal or OpenSprint.
+              <strong>Cursor CLI not found.</strong> The <code className="font-mono text-xs">agent</code> command is required for Cursor. Install it, then restart your terminal or Open Sprint.
             </p>
             <button
               type="button"

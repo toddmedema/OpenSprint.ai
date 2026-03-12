@@ -72,7 +72,7 @@ describe("constants", () => {
   });
 
   describe("GITHUB_REPO_URL", () => {
-    it("points to OpenSprint GitHub repository", () => {
+    it("points to Open Sprint GitHub repository", () => {
       expect(GITHUB_REPO_URL).toContain("github.com");
       expect(GITHUB_REPO_URL).toContain("opensprint");
     });

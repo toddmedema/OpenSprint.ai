@@ -1,10 +1,10 @@
-# Agent Instructions — OpenSprint
+# Agent Instructions — Open Sprint
 
 Task tracking is handled internally by `TaskStoreService` backed by **SQLite (default)** or **PostgreSQL**. The connection is resolved in order: **`DATABASE_URL`** env (12-factor), then **`databaseUrl`** in `~/.opensprint/global-settings.json`, then the default SQLite path (`~/.opensprint/data/opensprint.sqlite`). Use a Postgres URL (`postgres://` or `postgresql://`) for PostgreSQL, or a SQLite path/URL (`sqlite://<path>`, `file://<path>`, or a path ending in `.sqlite`/`.db`) for SQLite. There is no external CLI for task management.
 
 ## Project Overview
 
-OpenSprint is a web application that guides users through the full software development lifecycle using AI agents. It has five phases — SPEED: Sketch, Plan, Execute, Evaluate, and Deliver. The product spec is at `PRD.md`; the Sketch phase output is `SPEC.md` at project repo root.
+Open Sprint is a web application that guides users through the full software development lifecycle using AI agents. It has five phases — SPEED: Sketch, Plan, Execute, Evaluate, and Deliver. The product spec is at `PRD.md`; the Sketch phase output is `SPEC.md` at project repo root.
 
 **Tech stack:** Node.js + TypeScript (backend), React + TypeScript (frontend).
 

@@ -327,7 +327,7 @@ ${planNew}`;
     let auditorResponse: { content: string };
     try {
       const auditorSystemPrompt =
-        "You are the Auditor agent for OpenSprint (PRD §12.3.6). Audit the app's current capabilities and generate delta tasks for re-execution.\n\n" +
+        "You are the Auditor agent for Open Sprint (PRD §12.3.6). Audit the app's current capabilities and generate delta tasks for re-execution.\n\n" +
         (await getCombinedInstructions(repoPath, "auditor"));
       auditorResponse = await agentService.invokePlanningAgent({
         projectId,

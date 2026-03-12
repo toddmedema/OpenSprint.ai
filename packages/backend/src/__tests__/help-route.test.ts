@@ -146,13 +146,13 @@ describe.skipIf(!helpPostgresOk)("Help chat API", () => {
     );
   });
 
-  it("POST /help/chat injects OpenSprint internal docs into system prompt", async () => {
+  it("POST /help/chat injects Open Sprint internal docs into system prompt", async () => {
     await request(app)
       .post(`${API_PREFIX}/help/chat`)
       .send({ message: "Why is only one coder active?", projectId });
 
     const systemPrompt = mockInvokePlanningAgent.mock.calls[0]![0].systemPrompt as string;
-    expect(systemPrompt).toContain("OpenSprint Internal Documentation");
+    expect(systemPrompt).toContain("Open Sprint Internal Documentation");
     expect(systemPrompt).toContain("TaskStoreService");
     expect(systemPrompt).toContain("ready()");
     expect(systemPrompt).toContain("maxConcurrentCoders");

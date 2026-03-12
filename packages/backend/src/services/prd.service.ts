@@ -268,7 +268,7 @@ export class PrdService {
       (await fs.stat(path.join(cwd, "packages", "backend")).catch(() => null))?.isDirectory();
     if (looksLikeServerRepo) {
       log.warn(
-        "SPEC is being written to the OpenSprint server repo (project repoPath equals server cwd). " +
+        "SPEC is being written to the Open Sprint server repo (project repoPath equals server cwd). " +
           "Ensure the dreamer/chat is running in the intended project, not the dev server repo.",
         { projectId, repoPath: project.repoPath }
       );

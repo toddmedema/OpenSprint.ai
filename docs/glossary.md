@@ -1,4 +1,4 @@
-# OpenSprint Glossary
+# Open Sprint Glossary
 
 Orchestrator and execution concepts. See [AGENTS.md](../AGENTS.md) for workflow details.
 

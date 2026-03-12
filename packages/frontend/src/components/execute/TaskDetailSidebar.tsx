@@ -264,7 +264,7 @@ function TaskDetailSidebarInner({
     const hasSourceFeedback =
       (task.sourceFeedbackIds?.length ?? (task.sourceFeedbackId ? 1 : 0)) > 0;
     return hasSourceFeedback && isOnlyFeedbackId ? "" : desc;
-  }, [task?.description, task?.sourceFeedbackIds, task?.sourceFeedbackId]);
+  }, [task]);
 
   const feedbackIds = useMemo(
     () => task?.sourceFeedbackIds ?? (task?.sourceFeedbackId ? [task.sourceFeedbackId] : []),

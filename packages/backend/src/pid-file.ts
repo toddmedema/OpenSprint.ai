@@ -47,7 +47,7 @@ export function acquirePidFile(port: number): void {
       // Wait briefly before giving up.
       log.info("Waiting for previous process to exit", { pid: oldPid });
       if (!waitForProcessExit(oldPid, 3000)) {
-        log.error("Another OpenSprint server is already running", {
+        log.error("Another Open Sprint server is already running", {
           port,
           pid: oldPid,
           hint: `Kill it with: kill ${oldPid} or kill -9 ${oldPid}`,

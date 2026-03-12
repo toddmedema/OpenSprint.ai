@@ -2375,7 +2375,7 @@ export class OrchestratorService {
     const depCount = context.dependencyOutputs.length;
     const planWordCount = countWords(context.planContent);
     const summarizerPrompt = buildSummarizerPrompt(taskId, context, depCount, planWordCount);
-    const baseSystemPrompt = `You are the Summarizer agent for OpenSprint (PRD §12.3.5). Condense context into a focused summary when it exceeds size thresholds. Produce JSON only. No markdown outside the summary field.`;
+    const baseSystemPrompt = `You are the Summarizer agent for Open Sprint (PRD §12.3.5). Condense context into a focused summary when it exceeds size thresholds. Produce JSON only. No markdown outside the summary field.`;
     const systemPrompt = `${baseSystemPrompt}\n\n${await getCombinedInstructions(repoPath, "summarizer")}`;
     const summarizerId = `summarizer-${projectId}-${taskId}-${Date.now()}`;
 

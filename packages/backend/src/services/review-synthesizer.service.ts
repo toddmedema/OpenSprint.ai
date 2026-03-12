@@ -24,7 +24,7 @@ export interface AngleReviewInput {
   result: ReviewAgentResult;
 }
 
-const SYNTHESIZER_SYSTEM_PROMPT = `You are the Review Lead for OpenSprint. Multiple parallel reviewers have each assessed a code change from a distinct angle (security, performance, test coverage, code quality, design/UX/accessibility). Your job is to synthesize their findings into a single coherent report.
+const SYNTHESIZER_SYSTEM_PROMPT = `You are the Review Lead for Open Sprint. Multiple parallel reviewers have each assessed a code change from a distinct angle (security, performance, test coverage, code quality, design/UX/accessibility). Your job is to synthesize their findings into a single coherent report.
 
 Rules:
 - If ANY angle rejected, the overall status MUST be "rejected". Synthesize all rejection feedback into a clear, actionable report. Combine issues from multiple angles; deduplicate where appropriate.

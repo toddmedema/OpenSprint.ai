@@ -82,7 +82,7 @@ export async function checkExpoAuth(repoPath: string): Promise<ExpoAuthCheck> {
       "",
       "How to provide:",
       "  • Add the token in Settings → Expo API Token (recommended), or",
-      "  • Set the EXPO_TOKEN environment variable when running OpenSprint",
+      "  • Set the EXPO_TOKEN environment variable when running Open Sprint",
       "",
       "Alternatively, run `npx eas login` in your project directory to authenticate interactively (session stored locally).",
     ].join("\n"),

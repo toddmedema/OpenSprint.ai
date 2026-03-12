@@ -23,7 +23,7 @@ import { getCombinedInstructions } from "./agent-instructions.service.js";
 
 const log = createLogger("help-chat");
 
-const HELP_SYSTEM_PROMPT = `You are the Help assistant for OpenSprint, an AI-powered software development workflow tool.
+const HELP_SYSTEM_PROMPT = `You are the Help assistant for Open Sprint, an AI-powered software development workflow tool.
 
 **CRITICAL: Ask-only mode.** You must ONLY answer questions. You must NEVER:
 - Change project state, PRD, plans, or tasks
@@ -36,22 +36,22 @@ Your role is to help users understand their projects, tasks, plans, and currentl
 **How to help:**
 - Explain what you see in the context (PRD, plans, tasks, active agents)
 - When asked "how many agents are running" or similar, report the exact count and list each agent from the "Currently Running Agents" section — never say "(None)" if the context shows agents
-- Answer questions about OpenSprint workflow (Sketch, Plan, Execute, Evaluate, Deliver)
+- Answer questions about Open Sprint workflow (Sketch, Plan, Execute, Evaluate, Deliver)
 - Point users to where they can take action (e.g. "Use the Execute tab to run tasks")
 - Describe agent roles and phases when asked
-- Use the "OpenSprint Internal Documentation" section to explain internal behavior (scheduling, task runnability, why one coder is active, epic-blocked logic, loop kicker vs watchdog). Never say "I don't have access" — you have the docs.`;
+- Use the "Open Sprint Internal Documentation" section to explain internal behavior (scheduling, task runnability, why one coder is active, epic-blocked logic, loop kicker vs watchdog). Never say "I don't have access" — you have the docs.`;
 
 /** Max chars per section in context to avoid token overflow */
 const MAX_CONTEXT_CHARS = 8000;
 
-/** Max chars for OpenSprint internal docs section */
+/** Max chars for Open Sprint internal docs section */
 const MAX_DOCS_CHARS = 12000;
 
-/** Path to bundled OpenSprint internal docs (relative to backend package) */
+/** Path to bundled Open Sprint internal docs (relative to backend package) */
 const OPENSPRINT_HELP_DOCS_PATH = "docs/opensprint-help-context.md";
 
-/** Load OpenSprint internal docs for Help Chat context. Returns empty string if file not found. */
-async function loadOpenSprintDocs(): Promise<string> {
+/** Load Open Sprint internal docs for Help Chat context. Returns empty string if file not found. */
+async function loadOpen SprintDocs(): Promise<string> {
   try {
     const servicesDir = path.dirname(fileURLToPath(import.meta.url));
     const docsPath = path.resolve(servicesDir, "..", "..", OPENSPRINT_HELP_DOCS_PATH);
@@ -291,12 +291,12 @@ export class HelpChatService {
       isProjectView && projectId
         ? this.buildProjectContext(projectId)
         : this.buildHomepageContext(),
-      loadOpenSprintDocs(),
+      loadOpen SprintDocs(),
     ]);
 
     const docsSection =
       opensprintDocs.length > 0
-        ? `\n\n---\n\n## OpenSprint Internal Documentation\n\nThe following describes OpenSprint's internal behavior. Use it to answer questions about scheduling, config, orchestrator logic, task runnability, epic-blocked behavior, and why agents run (or don't run).\n\n${opensprintDocs}`
+        ? `\n\n---\n\n## Open Sprint Internal Documentation\n\nThe following describes Open Sprint's internal behavior. Use it to answer questions about scheduling, config, orchestrator logic, task runnability, epic-blocked behavior, and why agents run (or don't run).\n\n${opensprintDocs}`
         : "";
 
     let systemPrompt = `${HELP_SYSTEM_PROMPT}\n\n---\n\n## Current Context\n\nThe following context is provided for answering the user's question. Use it to give accurate, helpful answers.\n\n${context}${docsSection}`;

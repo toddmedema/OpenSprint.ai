@@ -2,7 +2,7 @@
 
 ## Problem
 
-When the OpenSprint backend restarts while a task is **in review** (Reviewer agent running), crash recovery requeues the task and spawns a **new Coder** instead of resuming with a new Reviewer. The Coder's prior work is preserved (branch with commits) but the user expected the review to continue.
+When the Open Sprint backend restarts while a task is **in review** (Reviewer agent running), crash recovery requeues the task and spawns a **new Coder** instead of resuming with a new Reviewer. The Coder's prior work is preserved (branch with commits) but the user expected the review to continue.
 
 **Root cause:** `CrashRecoveryService.performCrashRecovery` only has a special path for `currentPhase === "coding"` (`tryAdvanceToReview`). When `currentPhase === "review"` and the Reviewer PID is dead, it falls through to the generic requeue path.
 

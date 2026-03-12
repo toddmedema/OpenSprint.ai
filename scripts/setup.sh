@@ -7,7 +7,7 @@
 
 set -e
 
-echo "==> OpenSprint setup"
+echo "==> Open Sprint setup"
 
 if ! command -v git >/dev/null 2>&1; then
   echo "==> Git is required for setup but was not found in PATH."
@@ -20,7 +20,7 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 fi
 
 # Ensure repository-local git user identity exists so automated commits can run on fresh machines.
-DEFAULT_GIT_NAME="${OPENSPRINT_DEFAULT_GIT_NAME:-OpenSprint}"
+DEFAULT_GIT_NAME="${OPENSPRINT_DEFAULT_GIT_NAME:-Open Sprint}"
 DEFAULT_GIT_EMAIL="${OPENSPRINT_DEFAULT_GIT_EMAIL:-example@example.com}"
 if ! git config --get user.name >/dev/null 2>&1; then
   git config user.name "$DEFAULT_GIT_NAME"
@@ -57,7 +57,7 @@ is_wsl() {
 
 print_wsl_setup_guidance() {
   cat <<'EOF'
-==> OpenSprint Windows support requires running npm run setup and npm run dev inside WSL2.
+==> Open Sprint Windows support requires running npm run setup and npm run dev inside WSL2.
 ==> PostgreSQL must already be reachable from WSL before continuing.
 ==> Supported database options:
     - PostgreSQL running inside your WSL distro on localhost:5432

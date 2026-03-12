@@ -1,7 +1,7 @@
 import type { DatabaseDialect } from "@opensprint/shared";
 
 /**
- * Postgres-compatible schema for OpenSprint.
+ * Postgres-compatible schema for Open Sprint.
  * Uses SERIAL/BIGSERIAL for auto-increment; TEXT/INTEGER for standard types.
  * Run on init.
  */

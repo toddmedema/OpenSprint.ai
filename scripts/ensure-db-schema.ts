@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * Ensures the database has the OpenSprint schema (tables and indexes).
+ * Ensures the database has the Open Sprint schema (tables and indexes).
  * Reads databaseUrl from ~/.opensprint/global-settings.json and runs the backend schema.
  * Supports both SQLite (default) and PostgreSQL. Idempotent; safe to run multiple times.
  *

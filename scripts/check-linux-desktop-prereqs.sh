@@ -66,7 +66,7 @@ fi
 # AppImage-specific prerequisites are warnings here (desktop dev mode does not require AppImage).
 if ! ldconfig -p 2>/dev/null | grep -Fq "libfuse.so.2"; then
   echo "==> Warning: libfuse2 (libfuse.so.2) is not installed."
-  echo "==> OpenSprint AppImage may not start until FUSE2 is installed."
+  echo "==> Open Sprint AppImage may not start until FUSE2 is installed."
 fi
 
 if [ -r /proc/sys/kernel/unprivileged_userns_clone ]; then

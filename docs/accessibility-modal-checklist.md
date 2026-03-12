@@ -1,6 +1,6 @@
 # Modal Accessibility Checklist
 
-Use this checklist when implementing or reviewing modal dialogs and dropdown menus in OpenSprint.
+Use this checklist when implementing or reviewing modal dialogs and dropdown menus in Open Sprint.
 
 ## Modal Dialogs
 

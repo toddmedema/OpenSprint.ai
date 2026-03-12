@@ -137,7 +137,7 @@ describe("HomeScreen", () => {
     expect(screen.queryByTestId("installation-checklist")).not.toBeInTheDocument();
   });
 
-  it("renders faint GitHub link at bottom linking to OpenSprint repo", async () => {
+  it("renders faint GitHub link at bottom linking to Open Sprint repo", async () => {
     mockProjectsList.mockResolvedValue([]);
     renderHomeScreen();
     await screen.findByTestId("projects-grid");
@@ -422,7 +422,7 @@ describe("HomeScreen", () => {
     expect(screen.getByRole("heading", { name: /delete project/i })).toBeInTheDocument();
     expect(
       screen.getByText(
-        /permanently delete all OpenSprint data for this project: tasks, plans, settings, feedback/i
+        /permanently delete all Open Sprint data for this project: tasks, plans, settings, feedback/i
       )
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /cancel/i })).toBeInTheDocument();

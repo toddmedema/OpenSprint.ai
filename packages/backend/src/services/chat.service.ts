@@ -103,7 +103,7 @@ function normalizePlannerOpenQuestions(
     .filter((item) => item.text.length > 0);
 }
 
-const DREAM_SYSTEM_PROMPT = `You are the Sketch phase AI assistant for OpenSprint. You help users define their product vision and create a comprehensive Product Requirements Document (PRD).
+const DREAM_SYSTEM_PROMPT = `You are the Sketch phase AI assistant for Open Sprint. You help users define their product vision and create a comprehensive Product Requirements Document (PRD).
 
 Your role is to:
 1. Ask clarifying questions about the user's product vision
@@ -138,7 +138,7 @@ When refining an existing section, output the full section if rewriting signific
 
 You can include multiple PRD_UPDATE blocks in a single response. Only include updates when you have substantive content to add or modify.`;
 
-const PLAN_REFINEMENT_SYSTEM_PROMPT = `You are an AI planning assistant for OpenSprint. You help users refine individual feature Plans through conversation.
+const PLAN_REFINEMENT_SYSTEM_PROMPT = `You are an AI planning assistant for Open Sprint. You help users refine individual feature Plans through conversation.
 
 Your role is to:
 1. Answer questions about the Plan
@@ -163,7 +163,7 @@ If the user references a specific section (e.g., "update the acceptance criteria
 
 Only include a PLAN_UPDATE block when you are making substantive changes to the Plan. For questions, suggestions, or discussion, respond in natural language without a PLAN_UPDATE block.`;
 
-const PLAN_DRAFT_GENERATION_SYSTEM_PROMPT = `You are an AI planning assistant for OpenSprint. You are continuing a draft plan-generation conversation after asking the user clarifying questions.
+const PLAN_DRAFT_GENERATION_SYSTEM_PROMPT = `You are an AI planning assistant for Open Sprint. You are continuing a draft plan-generation conversation after asking the user clarifying questions.
 
 ## Output requirement (mandatory)
 Your entire response MUST be a single JSON object. Do NOT write files. Do NOT include prose before or after the JSON. The system parses your message for JSON only.
@@ -196,7 +196,7 @@ Plan markdown MUST include these sections in order:
 
 MOCKUPS: Include at least one mockup in the final plan JSON.`;
 
-const EXECUTE_TASK_CHAT_SYSTEM_PROMPT = `You are the Analyst agent for OpenSprint Execute phase task chat. You process user feedback in response to a Coder's open questions about a task.
+const EXECUTE_TASK_CHAT_SYSTEM_PROMPT = `You are the Analyst agent for Open Sprint Execute phase task chat. You process user feedback in response to a Coder's open questions about a task.
 
 Your role is to:
 1. Acknowledge the user's answer to the Coder's clarification question
@@ -765,7 +765,7 @@ export class ChatService {
     const prdContext = await this.buildPrdContext(projectId);
 
     const prompt = buildHarmonizerPromptBuildIt(planId, planContent);
-    let systemPrompt = `You are the Harmonizer agent for OpenSprint (PRD §12.3.3). Review shipped Plans against the PRD and propose section updates.\n\n## Current PRD\n\n${prdContext}`;
+    let systemPrompt = `You are the Harmonizer agent for Open Sprint (PRD §12.3.3). Review shipped Plans against the PRD and propose section updates.\n\n## Current PRD\n\n${prdContext}`;
     systemPrompt += `\n\n${await getCombinedInstructions(repoPath, "harmonizer")}`;
 
     const agentId = `harmonizer-build-it-${projectId}-${planId}-${Date.now()}`;
@@ -826,7 +826,7 @@ export class ChatService {
     const prdContext = await this.buildPrdContext(projectId);
 
     const prompt = buildHarmonizerPromptScopeChange(feedbackText);
-    let systemPrompt = `You are the Harmonizer agent for OpenSprint (PRD §12.3.3). Review scope-change feedback against the PRD and propose section updates.\n\n## Current PRD\n\n${prdContext}`;
+    let systemPrompt = `You are the Harmonizer agent for Open Sprint (PRD §12.3.3). Review scope-change feedback against the PRD and propose section updates.\n\n## Current PRD\n\n${prdContext}`;
     systemPrompt += `\n\n${await getCombinedInstructions(repoPath, "harmonizer")}`;
 
     const agentId = `harmonizer-scope-preview-${projectId}-${Date.now()}`;
@@ -906,7 +906,7 @@ export class ChatService {
     const prdContext = await this.buildPrdContext(projectId);
 
     const prompt = buildHarmonizerPromptScopeChange(feedbackText);
-    let systemPrompt = `You are the Harmonizer agent for OpenSprint (PRD §12.3.3). Review scope-change feedback against the PRD and propose section updates.\n\n## Current PRD\n\n${prdContext}`;
+    let systemPrompt = `You are the Harmonizer agent for Open Sprint (PRD §12.3.3). Review scope-change feedback against the PRD and propose section updates.\n\n## Current PRD\n\n${prdContext}`;
     systemPrompt += `\n\n${await getCombinedInstructions(repoPath, "harmonizer")}`;
 
     const agentId = `harmonizer-scope-change-${projectId}-${Date.now()}`;

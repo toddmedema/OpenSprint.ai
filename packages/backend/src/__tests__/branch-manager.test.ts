@@ -378,7 +378,7 @@ describe("BranchManager", () => {
       expect(headSha.trim()).toMatch(/^[0-9a-f]{40}$/);
 
       const { stdout: headMessage } = await execAsync("git log -1 --pretty=%s", { cwd: repoPath });
-      expect(headMessage.trim()).toBe("chore: initialize OpenSprint project");
+      expect(headMessage.trim()).toBe("chore: initialize Open Sprint project");
 
       const { stdout: wtBranch } = await execAsync("git rev-parse --abbrev-ref HEAD", { cwd: wtPath });
       expect(wtBranch.trim()).toBe(`opensprint/${taskId}`);

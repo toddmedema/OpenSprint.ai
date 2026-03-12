@@ -1,4 +1,4 @@
-/** Centered animated OpenSprint logo for phase pages during initial fetch.
+/** Centered animated Open Sprint logo for phase pages during initial fetch.
  * Three arrows pulse to indicate loading. No fake/placeholder content. */
 export function PhaseLoadingSpinner({
   "data-testid": dataTestId = "phase-loading-spinner",

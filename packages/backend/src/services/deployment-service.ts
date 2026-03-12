@@ -94,7 +94,7 @@ export class DeploymentService {
       await ensureEasConfig(repoPath);
 
       const channel = config.expoConfig?.channel ?? "preview";
-      const message = `OpenSprint preview ${new Date().toISOString().slice(0, 19)}`;
+      const message = `Open Sprint preview ${new Date().toISOString().slice(0, 19)}`;
 
       // Run EAS Update for OTA preview deployment
       const { stdout } = await execAsync(

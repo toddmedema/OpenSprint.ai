@@ -55,7 +55,7 @@ export type RunSelfImprovementResult =
   | { tasksCreated: number; runId: string }
   | { tasksCreated: 0; skipped: "run_in_progress" };
 
-const SELF_IMPROVEMENT_SYSTEM_PROMPT = `You are the Self-Improvement reviewer for OpenSprint. Your job is to review the codebase (SPEC, file tree, and key files) and produce a structured list of improvement tasks.
+const SELF_IMPROVEMENT_SYSTEM_PROMPT = `You are the Self-Improvement reviewer for Open Sprint. Your job is to review the codebase (SPEC, file tree, and key files) and produce a structured list of improvement tasks.
 
 **CRITICAL:** Every improvement task MUST have both priority and complexity assigned by you. Tasks without these fields will not be created.
 

@@ -54,7 +54,7 @@ export function ProjectSettingsContent() {
 
   useEffect(() => {
     if (tabFromUrl !== activeTab) setActiveTab(tabFromUrl);
-  }, [tabFromUrl]);
+  }, [activeTab, tabFromUrl]);
 
   const handleClose = () => {
     navigate(getProjectPhasePath(projectId, "sketch"));
