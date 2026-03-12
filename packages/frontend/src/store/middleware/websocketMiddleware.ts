@@ -73,6 +73,25 @@ function syncTasksToQueryCache(qc: QueryClient, projectId: string, tasks: Task[]
   }
 }
 
+/**
+ * Sync a single task from Redux execute state into React Query caches.
+ * Returns true when task exists in state and cache sync was applied.
+ */
+function syncTaskFromExecuteStateToQueryCache(
+  qc: QueryClient,
+  getState: () => unknown,
+  projectId: string,
+  taskId: string
+): boolean {
+  const root = getState() as {
+    execute?: { tasksById?: Record<string, Task | undefined> };
+  };
+  const task = root.execute?.tasksById?.[taskId];
+  if (!task) return false;
+  syncTasksToQueryCache(qc, projectId, [task]);
+  return true;
+}
+
 export const wsConnect = createAction<{ projectId: string }>("ws/connect");
 export const wsConnectHome = createAction("ws/connectHome");
 export const wsDisconnect = createAction("ws/disconnect");
@@ -335,6 +354,15 @@ export const websocketMiddleware: Middleware = (storeApi) => {
         const created = event as { type: "task.created"; task: TaskEventPayload };
         if (created.task) {
           d(taskCreated(created.task));
+          const synced = syncTaskFromExecuteStateToQueryCache(
+            qc,
+            getState,
+            projectId,
+            created.task.id
+          );
+          if (!synced) {
+            void qc.invalidateQueries({ queryKey: queryKeys.tasks.list(projectId) });
+          }
         } else {
           void qc.invalidateQueries({ queryKey: queryKeys.tasks.list(projectId) });
         }
@@ -344,6 +372,15 @@ export const websocketMiddleware: Middleware = (storeApi) => {
         const closed = event as { type: "task.closed"; task: TaskEventPayload };
         if (closed.task) {
           d(taskClosed(closed.task));
+          const synced = syncTaskFromExecuteStateToQueryCache(
+            qc,
+            getState,
+            projectId,
+            closed.task.id
+          );
+          if (!synced) {
+            void qc.invalidateQueries({ queryKey: queryKeys.tasks.list(projectId) });
+          }
         } else {
           void qc.invalidateQueries({ queryKey: queryKeys.tasks.list(projectId) });
         }
@@ -365,10 +402,8 @@ export const websocketMiddleware: Middleware = (storeApi) => {
             description: event.description,
           })
         );
-        const root = getState() as { execute?: { tasksById?: Record<string, unknown> } };
-        const taskExists =
-          root.execute?.tasksById != null && event.taskId in root.execute.tasksById;
-        if (!taskExists) {
+        const synced = syncTaskFromExecuteStateToQueryCache(qc, getState, projectId, event.taskId);
+        if (!synced) {
           void qc.invalidateQueries({ queryKey: queryKeys.tasks.list(projectId) });
         }
         break;

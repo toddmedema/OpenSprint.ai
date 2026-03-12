@@ -547,6 +547,14 @@ describe("websocketMiddleware", () => {
         expect(selectTasks(store.getState())[0]?.kanbanColumn).toBe("in_progress");
       });
       expect(api.tasks.get).not.toHaveBeenCalled();
+      expect(mockSetQueryData).toHaveBeenCalledWith(
+        queryKeys.tasks.list("proj-1"),
+        expect.any(Function)
+      );
+      expect(mockSetQueryData).toHaveBeenCalledWith(
+        queryKeys.tasks.detail("proj-1", "task-1"),
+        expect.objectContaining({ id: "task-1", kanbanColumn: "in_progress", assignee: "Frodo" })
+      );
     });
 
     it("invalidates tasks list when task.updated for unknown task (Plan page will refetch)", async () => {
@@ -598,6 +606,14 @@ describe("websocketMiddleware", () => {
         expect(tasks["os-ab12.1"].title).toBe("New Task");
         expect(tasks["os-ab12.1"].kanbanColumn).toBe("backlog");
       });
+      expect(mockSetQueryData).toHaveBeenCalledWith(
+        queryKeys.tasks.list("proj-1"),
+        expect.any(Function)
+      );
+      expect(mockSetQueryData).toHaveBeenCalledWith(
+        queryKeys.tasks.detail("proj-1", "os-ab12.1"),
+        expect.objectContaining({ id: "os-ab12.1", title: "New Task" })
+      );
       expect(mockInvalidateQueries).not.toHaveBeenCalledWith(
         expect.objectContaining({ queryKey: queryKeys.tasks.list("proj-1") })
       );
@@ -650,6 +666,14 @@ describe("websocketMiddleware", () => {
         expect(task?.kanbanColumn).toBe("done");
         expect(task?.status).toBe("closed");
       });
+      expect(mockSetQueryData).toHaveBeenCalledWith(
+        queryKeys.tasks.list("proj-1"),
+        expect.any(Function)
+      );
+      expect(mockSetQueryData).toHaveBeenCalledWith(
+        queryKeys.tasks.detail("proj-1", "os-ab12.1"),
+        expect.objectContaining({ id: "os-ab12.1", kanbanColumn: "done", status: "closed" })
+      );
       expect(mockInvalidateQueries).not.toHaveBeenCalledWith(
         expect.objectContaining({ queryKey: queryKeys.tasks.list("proj-1") })
       );

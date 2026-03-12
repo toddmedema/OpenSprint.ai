@@ -6,6 +6,13 @@ import { normalizeTaskListResponse } from "../taskList";
 
 /** Poll interval (ms) when WebSocket is disconnected so Execute page still gets task status updates from other clients/agents. */
 export const TASKS_LIVE_POLL_MS = 4000;
+/** Safety poll interval (ms) while WebSocket is connected to recover from silent Electron/macOS socket stalls without manual refresh. */
+export const TASKS_WS_SAFETY_POLL_MS = 15000;
+
+/** Task-list refetch cadence for Execute page: fast when disconnected, low-frequency safety when connected. */
+export function getExecuteTasksRefetchInterval(wsConnected: boolean): number {
+  return wsConnected ? TASKS_WS_SAFETY_POLL_MS : TASKS_LIVE_POLL_MS;
+}
 
 export function useTasks(
   projectId: string | undefined,
