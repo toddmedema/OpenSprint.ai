@@ -39,6 +39,7 @@ const NEXT_RETRY_CONTEXT_KEY = "next_retry_context";
 const MERGE_RETRY_CONTEXT_FAILURE_LIMIT = 1200;
 const QUALITY_GATE_ENV_REQUEUE_COUNT_KEY = "quality_gate_env_requeue_count";
 const QUALITY_GATE_ENV_REQUEUE_LIMIT = 1;
+const QUALITY_GATE_OUTPUT_SNIPPET_LIMIT = 1800;
 const BASELINE_QUALITY_GATE_CACHE_MS = 60_000;
 const BASELINE_QUALITY_GATE_PAUSE_MS = 5 * 60_000;
 const BASELINE_QUALITY_GATE_PAUSED_UNTIL_KEY = "merge_quality_gate_paused_until";
@@ -65,6 +66,8 @@ export interface MergeQualityGateFailure {
   command: string;
   reason: string;
   output: string;
+  outputSnippet?: string;
+  worktreePath?: string;
   firstErrorLine?: string;
   category?: "environment_setup" | "quality_gate";
   autoRepairAttempted?: boolean;
@@ -321,6 +324,57 @@ export class MergeCoordinatorService {
     return mergeErr.qualityGateFailure ?? null;
   }
 
+  private toOutputSnippet(text: string | null | undefined): string | null {
+    const trimmed = text?.trim();
+    if (!trimmed) return null;
+    return compactExecutionText(trimmed, QUALITY_GATE_OUTPUT_SNIPPET_LIMIT);
+  }
+
+  private buildQualityGateStructuredDetails(
+    qualityGateFailure: MergeJobError["qualityGateFailure"] | null,
+    fallbackWorktreePath?: string | null
+  ): {
+    failedGateCommand: string | null;
+    failedGateReason: string | null;
+    failedGateOutputSnippet: string | null;
+    worktreePath: string | null;
+    qualityGateDetail: {
+      command: string | null;
+      reason: string | null;
+      outputSnippet: string | null;
+      worktreePath: string | null;
+    } | null;
+  } {
+    const failedGateCommand = qualityGateFailure?.command?.trim() || null;
+    const failedGateReason = qualityGateFailure?.reason?.trim() || null;
+    const failedGateOutputSnippet = this.toOutputSnippet(
+      qualityGateFailure?.outputSnippet ?? qualityGateFailure?.firstErrorLine ?? null
+    );
+    const worktreePath =
+      qualityGateFailure?.worktreePath?.trim() ||
+      fallbackWorktreePath?.trim() ||
+      null;
+    const hasDetail =
+      failedGateCommand != null ||
+      failedGateReason != null ||
+      failedGateOutputSnippet != null ||
+      worktreePath != null;
+    return {
+      failedGateCommand,
+      failedGateReason,
+      failedGateOutputSnippet,
+      worktreePath,
+      qualityGateDetail: hasDetail
+        ? {
+            command: failedGateCommand,
+            reason: failedGateReason,
+            outputSnippet: failedGateOutputSnippet,
+            worktreePath,
+          }
+        : null,
+    };
+  }
+
   private isEnvironmentSetupQualityGateFailure(mergeErr: Error): boolean {
     return this.getQualityGateFailureDetails(mergeErr)?.category === "environment_setup";
   }
@@ -361,7 +415,8 @@ export class MergeCoordinatorService {
     if (!failure) return;
 
     const reason = failure.reason.trim().slice(0, 500) || "Unknown quality gate failure";
-    const outputSnippet = failure.output.trim().slice(0, 1200);
+    const outputSnippet =
+      this.toOutputSnippet(failure.outputSnippet ?? failure.output) ?? "No output captured";
     const detail = outputSnippet.length > 0 ? ` | ${outputSnippet}` : "";
     const firstErrorLine = this.getQualityGateFirstErrorLine(failure).slice(0, 300);
     throw new MergeJobError(
@@ -371,6 +426,9 @@ export class MergeCoordinatorService {
       "requeued",
       {
         command: failure.command,
+        reason,
+        outputSnippet,
+        worktreePath: failure.worktreePath ?? options.worktreePath,
         firstErrorLine,
         category: failure.category ?? "quality_gate",
         autoRepairAttempted: failure.autoRepairAttempted ?? false,
@@ -492,6 +550,17 @@ export class MergeCoordinatorService {
       `cmd: ${failure.command} | error: ${compactExecutionText(firstErrorLine, 220)}`,
       380
     );
+    const failedGateReason = failure.reason.trim().slice(0, 500) || "Unknown quality gate failure";
+    const failedGateOutputSnippet =
+      this.toOutputSnippet(failure.outputSnippet ?? failure.output) ??
+      compactExecutionText(firstErrorLine, QUALITY_GATE_OUTPUT_SNIPPET_LIMIT);
+    const worktreePath = failure.worktreePath ?? repoPath;
+    const qualityGateDetail = {
+      command: failure.command,
+      reason: failedGateReason,
+      outputSnippet: failedGateOutputSnippet,
+      worktreePath,
+    };
     const attempt =
       Math.max(1, this.host.taskStore.getCumulativeAttemptsFromIssue(task) + 1) || 1;
     const pausedUntil = new Date(Date.now() + BASELINE_QUALITY_GATE_PAUSE_MS).toISOString();
@@ -520,6 +589,11 @@ export class MergeCoordinatorService {
         last_execution_summary: requeuedSummary,
         [NEXT_RETRY_CONTEXT_KEY]: retryContext,
         [BASELINE_QUALITY_GATE_PAUSED_UNTIL_KEY]: pausedUntil,
+        failedGateCommand: failure.command,
+        failedGateReason,
+        failedGateOutputSnippet,
+        worktreePath,
+        qualityGateDetail,
       },
     });
     await this.host.taskStore.comment(
@@ -547,6 +621,11 @@ export class MergeCoordinatorService {
           qualityGateCategory: failure.category ?? "quality_gate",
           qualityGateCommand: failure.command,
           qualityGateFirstErrorLine: firstErrorLine,
+          failedGateCommand: failure.command,
+          failedGateReason,
+          failedGateOutputSnippet,
+          worktreePath,
+          qualityGateDetail,
         },
       })
       .catch(() => {});
@@ -563,6 +642,11 @@ export class MergeCoordinatorService {
           conflictedFiles: [],
           summary: requeuedSummary.summary,
           nextAction: "Paused until baseline quality gates pass",
+          failedGateCommand: failure.command,
+          failedGateReason,
+          failedGateOutputSnippet,
+          worktreePath,
+          qualityGateDetail,
         },
       })
       .catch(() => {});
@@ -941,6 +1025,10 @@ export class MergeCoordinatorService {
       const mergeFailureReason = mergeErr.message?.slice(0, 500) ?? "Merge failed";
       const stageLabel = isQualityGateFailure ? "quality-gate" : "merge";
       const qualityGateFailureDetails = this.getQualityGateFailureDetails(mergeErr);
+      const qualityGateStructuredDetails = this.buildQualityGateStructuredDetails(
+        qualityGateFailureDetails,
+        slot?.worktreePath ?? repoPath
+      );
       const isEnvironmentSetupQualityGateFailure =
         isQualityGateFailure && this.isEnvironmentSetupQualityGateFailure(mergeErr);
       const qualityGateEnvRequeueCount = this.getNumericExtra(
@@ -987,6 +1075,11 @@ export class MergeCoordinatorService {
             [QUALITY_GATE_ENV_REQUEUE_COUNT_KEY]: isEnvironmentSetupQualityGateFailure
               ? qualityGateEnvRequeueCount + 1
               : 0,
+            failedGateCommand: qualityGateStructuredDetails.failedGateCommand,
+            failedGateReason: qualityGateStructuredDetails.failedGateReason,
+            failedGateOutputSnippet: qualityGateStructuredDetails.failedGateOutputSnippet,
+            worktreePath: qualityGateStructuredDetails.worktreePath,
+            qualityGateDetail: qualityGateStructuredDetails.qualityGateDetail,
           },
         });
         await this.host.taskStore.comment(
@@ -1031,6 +1124,11 @@ export class MergeCoordinatorService {
                 qualityGateFailureDetails?.autoRepairSucceeded ?? false,
               qualityGateAutoRepairCommands:
                 qualityGateFailureDetails?.autoRepairCommands ?? [],
+              failedGateCommand: qualityGateStructuredDetails.failedGateCommand,
+              failedGateReason: qualityGateStructuredDetails.failedGateReason,
+              failedGateOutputSnippet: qualityGateStructuredDetails.failedGateOutputSnippet,
+              worktreePath: qualityGateStructuredDetails.worktreePath,
+              qualityGateDetail: qualityGateStructuredDetails.qualityGateDetail,
               nextAction: "Blocked pending investigation",
             },
           })
@@ -1049,6 +1147,11 @@ export class MergeCoordinatorService {
               conflictedFiles,
               summary: blockedSummary.summary,
               nextAction: "Blocked pending investigation",
+              failedGateCommand: qualityGateStructuredDetails.failedGateCommand,
+              failedGateReason: qualityGateStructuredDetails.failedGateReason,
+              failedGateOutputSnippet: qualityGateStructuredDetails.failedGateOutputSnippet,
+              worktreePath: qualityGateStructuredDetails.worktreePath,
+              qualityGateDetail: qualityGateStructuredDetails.qualityGateDetail,
             },
           })
           .catch(() => {});
@@ -1074,6 +1177,11 @@ export class MergeCoordinatorService {
           [QUALITY_GATE_ENV_REQUEUE_COUNT_KEY]: isEnvironmentSetupQualityGateFailure
             ? qualityGateEnvRequeueCount + 1
             : 0,
+          failedGateCommand: qualityGateStructuredDetails.failedGateCommand,
+          failedGateReason: qualityGateStructuredDetails.failedGateReason,
+          failedGateOutputSnippet: qualityGateStructuredDetails.failedGateOutputSnippet,
+          worktreePath: qualityGateStructuredDetails.worktreePath,
+          qualityGateDetail: qualityGateStructuredDetails.qualityGateDetail,
         },
       });
       await this.host.taskStore.comment(
@@ -1108,6 +1216,11 @@ export class MergeCoordinatorService {
             qualityGateAutoRepairSucceeded:
               qualityGateFailureDetails?.autoRepairSucceeded ?? false,
             qualityGateAutoRepairCommands: qualityGateFailureDetails?.autoRepairCommands ?? [],
+            failedGateCommand: qualityGateStructuredDetails.failedGateCommand,
+            failedGateReason: qualityGateStructuredDetails.failedGateReason,
+            failedGateOutputSnippet: qualityGateStructuredDetails.failedGateOutputSnippet,
+            worktreePath: qualityGateStructuredDetails.worktreePath,
+            qualityGateDetail: qualityGateStructuredDetails.qualityGateDetail,
             nextAction: "Requeued for retry",
           },
         })
@@ -1125,6 +1238,11 @@ export class MergeCoordinatorService {
             conflictedFiles,
             summary: requeuedSummary.summary,
             nextAction: "Requeued for retry",
+            failedGateCommand: qualityGateStructuredDetails.failedGateCommand,
+            failedGateReason: qualityGateStructuredDetails.failedGateReason,
+            failedGateOutputSnippet: qualityGateStructuredDetails.failedGateOutputSnippet,
+            worktreePath: qualityGateStructuredDetails.worktreePath,
+            qualityGateDetail: qualityGateStructuredDetails.qualityGateDetail,
           },
         })
         .catch(() => {});

@@ -37,6 +37,9 @@ export class MergeJobError extends Error {
     public readonly resolvedBy: "requeued" | "blocked" = "requeued",
     public readonly qualityGateFailure?: {
       command: string;
+      reason: string;
+      outputSnippet: string;
+      worktreePath?: string;
       firstErrorLine: string;
       category?: "environment_setup" | "quality_gate";
       autoRepairAttempted?: boolean;

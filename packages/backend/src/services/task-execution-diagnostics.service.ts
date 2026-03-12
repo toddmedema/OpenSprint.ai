@@ -36,6 +36,15 @@ function asBoolean(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
 }
 
+function firstNonEmptyLine(value: string | null): string | null {
+  if (!value) return null;
+  for (const line of value.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return null;
+}
+
 function extractMergeStageFromTask(task: StoredTask): string | null {
   const labels = Array.isArray(task.labels) ? task.labels : [];
   const label = labels.find((item) => item.startsWith("merge_stage:"));
@@ -57,18 +66,24 @@ function extractConflictFilesFromTask(task: StoredTask): string[] {
 }
 
 function buildQualityGateMergeSummary(data: JsonRecord): string | null {
-  const command = asString(data.qualityGateCommand);
-  const firstErrorLine = asString(data.qualityGateFirstErrorLine);
+  const command = asString(data.failedGateCommand) ?? asString(data.qualityGateCommand);
+  const failedGateReason = asString(data.failedGateReason);
+  const failedGateOutputSnippet = asString(data.failedGateOutputSnippet);
+  const firstErrorLine =
+    asString(data.qualityGateFirstErrorLine) ??
+    firstNonEmptyLine(failedGateOutputSnippet) ??
+    firstNonEmptyLine(failedGateReason);
   const autoRepairAttempted = asBoolean(data.qualityGateAutoRepairAttempted) === true;
   const autoRepairSucceeded = asBoolean(data.qualityGateAutoRepairSucceeded) === true;
   const autoRepairCommands = asStringArray(data.qualityGateAutoRepairCommands);
   const category = asString(data.qualityGateCategory);
-  if (!command && !firstErrorLine && !category) return null;
+  if (!command && !firstErrorLine && !failedGateReason && !category) return null;
 
   const summaryParts: string[] = [];
   summaryParts.push("Quality gate failed");
   if (command) summaryParts.push(`cmd: ${command}`);
-  if (firstErrorLine) summaryParts.push(`error: ${compactExecutionText(firstErrorLine, 220)}`);
+  const errorMessage = firstErrorLine ?? failedGateReason;
+  if (errorMessage) summaryParts.push(`error: ${compactExecutionText(errorMessage, 220)}`);
   if (autoRepairAttempted) {
     const commands = autoRepairCommands.length > 0 ? autoRepairCommands.join(" -> ") : "auto-repair";
     const status = autoRepairSucceeded ? "succeeded" : "failed";

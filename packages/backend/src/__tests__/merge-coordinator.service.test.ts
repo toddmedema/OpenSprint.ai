@@ -87,6 +87,9 @@ vi.mock("../services/git-commit-queue.service.js", () => ({
       public readonly resolvedBy: "requeued" | "blocked" = "requeued",
       public readonly qualityGateFailure?: {
         command: string;
+        reason: string;
+        outputSnippet: string;
+        worktreePath?: string;
         firstErrorLine: string;
         category?: "environment_setup" | "quality_gate";
         autoRepairAttempted?: boolean;
@@ -534,10 +537,14 @@ describe("MergeCoordinatorService", () => {
         command: "npm run lint",
         reason: "Command failed with exit code 1",
         output: "eslint found errors",
+        outputSnippet: "eslint found errors",
+        worktreePath: "/tmp/worktree",
       };
     });
 
     await coordinator.performMergeAndDone(projectId, repoPath, makeTask(), branchName);
+    const { eventLogService } = await import("../services/event-log.service.js");
+    const appendMock = vi.mocked(eventLogService.append);
 
     expect(mockGitQueueEnqueueAndWait).not.toHaveBeenCalled();
     expect(mockHost.taskStore.setMergeStage).toHaveBeenCalledWith(
@@ -556,6 +563,16 @@ describe("MergeCoordinatorService", () => {
       expect.objectContaining({
         status: "open",
         extra: expect.objectContaining({
+          failedGateCommand: "npm run lint",
+          failedGateReason: "Command failed with exit code 1",
+          failedGateOutputSnippet: "eslint found errors",
+          worktreePath: "/tmp/worktree",
+          qualityGateDetail: expect.objectContaining({
+            command: "npm run lint",
+            reason: "Command failed with exit code 1",
+            outputSnippet: "eslint found errors",
+            worktreePath: "/tmp/worktree",
+          }),
           last_execution_summary: expect.objectContaining({
             summary: expect.stringContaining("cmd: npm run lint"),
           }),
@@ -579,6 +596,36 @@ describe("MergeCoordinatorService", () => {
             failureType: "coding_failure",
           }),
         }),
+      })
+    );
+    const qualityGateMergeFailedEvent = appendMock.mock.calls
+      .map(([, event]) => event)
+      .find((event) => event.event === "merge.failed");
+    expect(qualityGateMergeFailedEvent).toBeDefined();
+    expect(qualityGateMergeFailedEvent?.data).toEqual(
+      expect.objectContaining({
+        failedGateCommand: "npm run lint",
+        failedGateReason: "Command failed with exit code 1",
+        failedGateOutputSnippet: "eslint found errors",
+        worktreePath: "/tmp/worktree",
+        qualityGateDetail: expect.objectContaining({
+          command: "npm run lint",
+          reason: "Command failed with exit code 1",
+          outputSnippet: "eslint found errors",
+          worktreePath: "/tmp/worktree",
+        }),
+      })
+    );
+    const qualityGateRequeuedEvent = appendMock.mock.calls
+      .map(([, event]) => event)
+      .find((event) => event.event === "task.requeued");
+    expect(qualityGateRequeuedEvent).toBeDefined();
+    expect(qualityGateRequeuedEvent?.data).toEqual(
+      expect.objectContaining({
+        failedGateCommand: "npm run lint",
+        failedGateReason: "Command failed with exit code 1",
+        failedGateOutputSnippet: "eslint found errors",
+        worktreePath: "/tmp/worktree",
       })
     );
   });
@@ -592,10 +639,14 @@ describe("MergeCoordinatorService", () => {
         command: "npm run lint",
         reason: "Command failed with exit code 1",
         output: "eslint found errors",
+        outputSnippet: "eslint found errors",
+        worktreePath: "/tmp/worktree",
       };
     });
 
     await coordinator.performMergeAndDone(projectId, repoPath, makeTask(), branchName);
+    const { eventLogService } = await import("../services/event-log.service.js");
+    const appendMock = vi.mocked(eventLogService.append);
 
     expect(mockHost.taskStore.update).toHaveBeenCalledWith(
       projectId,
@@ -604,6 +655,16 @@ describe("MergeCoordinatorService", () => {
         status: "blocked",
         block_reason: "Merge Failure",
         extra: expect.objectContaining({
+          failedGateCommand: "npm run lint",
+          failedGateReason: "Command failed with exit code 1",
+          failedGateOutputSnippet: "eslint found errors",
+          worktreePath: "/tmp/worktree",
+          qualityGateDetail: expect.objectContaining({
+            command: "npm run lint",
+            reason: "Command failed with exit code 1",
+            outputSnippet: "eslint found errors",
+            worktreePath: "/tmp/worktree",
+          }),
           last_execution_summary: expect.objectContaining({
             summary: expect.stringContaining("cmd: npm run lint"),
           }),
@@ -627,6 +688,18 @@ describe("MergeCoordinatorService", () => {
             failureType: "coding_failure",
           }),
         }),
+      })
+    );
+    const blockedEvent = appendMock.mock.calls
+      .map(([, event]) => event)
+      .find((event) => event.event === "task.blocked");
+    expect(blockedEvent).toBeDefined();
+    expect(blockedEvent?.data).toEqual(
+      expect.objectContaining({
+        failedGateCommand: "npm run lint",
+        failedGateReason: "Command failed with exit code 1",
+        failedGateOutputSnippet: "eslint found errors",
+        worktreePath: "/tmp/worktree",
       })
     );
   });
