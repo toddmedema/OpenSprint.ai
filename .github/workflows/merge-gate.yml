@@ -28,4 +28,26 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Run gate
+        if: matrix.gate != 'test'
         run: npm run ${{ matrix.gate }}
+      - name: Run test gate with machine-readable reports
+        if: matrix.gate == 'test'
+        run: |
+          mkdir -p artifacts/test-results
+
+          for workspace in shared backend frontend; do
+            npm run test -w packages/$workspace -- \
+              --reporter=default \
+              --reporter=junit \
+              --reporter=json \
+              --outputFile.junit=../../artifacts/test-results/$workspace-junit.xml \
+              --outputFile.json=../../artifacts/test-results/$workspace-results.json
+          done
+      - name: Upload test reports
+        if: always() && matrix.gate == 'test'
+        uses: actions/upload-artifact@v4
+        with:
+          name: merge-gate-test-reports-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: artifacts/test-results/
+          if-no-files-found: warn
+          retention-days: 14
