@@ -46,6 +46,7 @@ const {
   mockCreateTaskWorktree,
   mockCreateOrCheckoutBranch,
   mockEnsureRepoNodeModules,
+  mockCheckDependencyIntegrity,
   mockEnsureDependenciesHealthy,
   mockSyncMainWithOrigin,
   mockRemoveTaskWorktree,
@@ -116,6 +117,7 @@ const {
   mockCreateTaskWorktree: vi.fn(),
   mockCreateOrCheckoutBranch: vi.fn(),
   mockEnsureRepoNodeModules: vi.fn(),
+  mockCheckDependencyIntegrity: vi.fn(),
   mockEnsureDependenciesHealthy: vi.fn(),
   mockSyncMainWithOrigin: vi.fn(),
   mockRemoveTaskWorktree: vi.fn(),
@@ -247,6 +249,7 @@ vi.mock("../services/branch-manager.js", () => {
       createTaskWorktree: mockCreateTaskWorktree,
       createOrCheckoutBranch: mockCreateOrCheckoutBranch,
       ensureRepoNodeModules: mockEnsureRepoNodeModules,
+      checkDependencyIntegrity: mockCheckDependencyIntegrity,
       ensureDependenciesHealthy: mockEnsureDependenciesHealthy,
       syncMainWithOrigin: mockSyncMainWithOrigin,
       removeTaskWorktree: mockRemoveTaskWorktree,
@@ -515,6 +518,7 @@ describe("OrchestratorService (slot-based model)", () => {
       valid: true,
     });
     mockResolveBaseBranch.mockResolvedValue("main");
+    mockCheckDependencyIntegrity.mockResolvedValue(undefined);
     mockEnsureDependenciesHealthy.mockResolvedValue({
       healthy: true,
       checkOutput: "",
@@ -721,16 +725,15 @@ describe("OrchestratorService (slot-based model)", () => {
       ).rejects.toBe(expected);
     });
 
-    it("throws dependency setup preflight error when dependency health remains unhealthy", async () => {
+    it("throws dependency integrity preflight error when deps remain unhealthy", async () => {
       await fs.mkdir(path.join(repoPath, "node_modules"), { recursive: true });
-      mockEnsureDependenciesHealthy.mockResolvedValueOnce({
-        healthy: false,
-        checkOutput: "Cannot find module 'better-sqlite3'",
-        repairAttempted: true,
-        repairSucceeded: false,
-        repairCommands: ["npm ci", "npm install"],
-        repairOutput: "npm ci failed",
-      });
+      mockCheckDependencyIntegrity.mockRejectedValueOnce(
+        new RepoPreflightError(
+          "Dependency integrity check failed after one automatic repair attempt.",
+          ErrorCodes.REPO_DEPENDENCIES_INVALID,
+          ["npm ci", "npm ls --depth=0 --workspaces"]
+        )
+      );
       const invokePreflight = orchestrator as unknown as {
         preflightCheck(
           repoPath: string,
@@ -745,7 +748,7 @@ describe("OrchestratorService (slot-based model)", () => {
         invokePreflight.preflightCheck(repoPath, repoPath, "task-preflight", "main")
       ).rejects.toMatchObject({
         name: "RepoPreflightError",
-        code: ErrorCodes.DEPENDENCY_SETUP_FAILED,
+        code: ErrorCodes.REPO_DEPENDENCIES_INVALID,
       });
     });
   });

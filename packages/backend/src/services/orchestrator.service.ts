@@ -2464,18 +2464,9 @@ export class OrchestratorService {
 
   private async ensureDependenciesHealthyForTask(
     repoPath: string,
-    wtPath: string,
-    options?: { throwOnFailure?: boolean }
+    wtPath: string
   ): Promise<DependencyHealthResult> {
-    const result = await this.branchManager.ensureDependenciesHealthy(repoPath, wtPath);
-    if (options?.throwOnFailure && !result.healthy) {
-      throw new RepoPreflightError(
-        this.buildDependencySetupFailureMessage(result),
-        ErrorCodes.DEPENDENCY_SETUP_FAILED,
-        result.repairCommands.length > 0 ? result.repairCommands : ["npm ci", "npm install"]
-      );
-    }
-    return result;
+    return this.branchManager.ensureDependenciesHealthy(repoPath, wtPath);
   }
 
   private async preflightCheck(
@@ -2512,7 +2503,7 @@ export class OrchestratorService {
       }
     }
 
-    await this.ensureDependenciesHealthyForTask(repoPath, wtPath, { throwOnFailure: true });
+    await this.branchManager.checkDependencyIntegrity(repoPath, wtPath);
 
     await this.sessionManager.clearResult(wtPath, taskId);
     if (reviewAngles && reviewAngles.length > 0) {

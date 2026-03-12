@@ -10,6 +10,9 @@ import {
   WorktreeBranchInUseError,
 } from "../services/branch-manager.js";
 import { heartbeatService } from "../services/heartbeat.service.js";
+import { RepoPreflightError } from "../utils/git-repo-state.js";
+import { ErrorCodes } from "../middleware/error-codes.js";
+import * as shellExecModule from "../utils/shell-exec.js";
 
 vi.mock("../services/task-store.service.js", () => ({
   taskStore: {
@@ -124,6 +127,118 @@ describe("BranchManager", () => {
         cwd: repoPath,
       });
       expect(branchOut.trim()).toBe("opensprint/task-xyz");
+    });
+  });
+
+  describe("checkDependencyIntegrity", () => {
+    it("skips dependency checks when root package.json is missing", async () => {
+      const shellExecSpy = vi.spyOn(shellExecModule, "shellExec");
+
+      await branchManager.checkDependencyIntegrity(repoPath);
+
+      expect(shellExecSpy).not.toHaveBeenCalled();
+      shellExecSpy.mockRestore();
+    });
+
+    it("uses workspace npm ls and does not repair healthy dependencies", async () => {
+      await fs.writeFile(
+        path.join(repoPath, "package.json"),
+        JSON.stringify({ name: "repo", private: true, workspaces: ["packages/*"] })
+      );
+      const commands: string[] = [];
+      const shellExecSpy = vi
+        .spyOn(shellExecModule, "shellExec")
+        .mockImplementation(async (command: string) => {
+          commands.push(command);
+          if (command === "npm ls --depth=0 --workspaces") {
+            return { stdout: "ok", stderr: "" };
+          }
+          throw new Error(`Unexpected command: ${command}`);
+        });
+
+      await branchManager.checkDependencyIntegrity(repoPath);
+
+      expect(commands).toEqual(["npm ls --depth=0 --workspaces"]);
+      shellExecSpy.mockRestore();
+    });
+
+    it("uses non-workspace npm ls for single-package repos", async () => {
+      await fs.writeFile(path.join(repoPath, "package.json"), JSON.stringify({ name: "repo" }));
+      const commands: string[] = [];
+      const shellExecSpy = vi
+        .spyOn(shellExecModule, "shellExec")
+        .mockImplementation(async (command: string) => {
+          commands.push(command);
+          if (command === "npm ls --depth=0") {
+            return { stdout: "ok", stderr: "" };
+          }
+          throw new Error(`Unexpected command: ${command}`);
+        });
+
+      await branchManager.checkDependencyIntegrity(repoPath);
+
+      expect(commands).toEqual(["npm ls --depth=0"]);
+      shellExecSpy.mockRestore();
+    });
+
+    it("attempts one npm ci repair when initial health check fails", async () => {
+      await fs.writeFile(path.join(repoPath, "package.json"), JSON.stringify({ name: "repo" }));
+      const commands: string[] = [];
+      let healthCheckCalls = 0;
+      const shellExecSpy = vi
+        .spyOn(shellExecModule, "shellExec")
+        .mockImplementation(async (command: string) => {
+          commands.push(command);
+          if (command === "npm ls --depth=0") {
+            healthCheckCalls += 1;
+            if (healthCheckCalls === 1) {
+              throw new Error("invalid dependencies");
+            }
+            return { stdout: "ok", stderr: "" };
+          }
+          if (command === "npm ci") {
+            return { stdout: "installed", stderr: "" };
+          }
+          throw new Error(`Unexpected command: ${command}`);
+        });
+
+      await branchManager.checkDependencyIntegrity(repoPath);
+
+      expect(commands).toEqual(["npm ls --depth=0", "npm ci", "npm ls --depth=0"]);
+      expect(commands.filter((command) => command === "npm ci")).toHaveLength(1);
+      shellExecSpy.mockRestore();
+    });
+
+    it("throws RepoPreflightError with remediation when health stays invalid", async () => {
+      await fs.writeFile(path.join(repoPath, "package.json"), JSON.stringify({ name: "repo" }));
+      const commands: string[] = [];
+      const shellExecSpy = vi
+        .spyOn(shellExecModule, "shellExec")
+        .mockImplementation(async (command: string) => {
+          commands.push(command);
+          if (command === "npm ls --depth=0") {
+            throw new Error("MODULE_NOT_FOUND");
+          }
+          if (command === "npm ci") {
+            throw new Error("npm ci failed");
+          }
+          throw new Error(`Unexpected command: ${command}`);
+        });
+
+      try {
+        await branchManager.checkDependencyIntegrity(repoPath);
+        expect.fail("Expected checkDependencyIntegrity to throw");
+      } catch (err) {
+        expect(err).toBeInstanceOf(RepoPreflightError);
+        const error = err as RepoPreflightError;
+        expect(error.code).toBe(ErrorCodes.REPO_DEPENDENCIES_INVALID);
+        expect(error.commands).toEqual(["npm ci", "npm ls --depth=0"]);
+        expect(error.message).toContain("Run `npm ci` in the repo root");
+      }
+
+      expect(commands).toEqual(["npm ls --depth=0", "npm ci", "npm ls --depth=0"]);
+      expect(commands.filter((command) => command === "npm ci")).toHaveLength(1);
+      shellExecSpy.mockRestore();
     });
   });
 

@@ -250,7 +250,10 @@ export class FailureHandlerService {
   }
 
   private isDependencySetupPreflightFailure(reason: string): boolean {
-    return reason.includes(`[${ErrorCodes.DEPENDENCY_SETUP_FAILED}]`);
+    return (
+      reason.includes(`[${ErrorCodes.REPO_DEPENDENCIES_INVALID}]`) ||
+      reason.includes(`[${ErrorCodes.DEPENDENCY_SETUP_FAILED}]`)
+    );
   }
 
   async handleTaskFailure(

@@ -55,37 +55,73 @@ A small team that builds software for clients. They need to move quickly from cl
 
 ## Feature List
 
-Add under Deliver Phase:
+Add under Execute phase:
 
-- **Expo readiness flow:** Before deploy, the system runs pre-deploy checks (Expo installed, app.json configured, auth token or eas whoami, EAS project linked). Results are exposed via `GET /projects/:id/deliver/expo-readiness`. Auto-install and auto-configure run when gaps exist; auth and EAS project linking require user input. Optional EAS project ID in deployment settings enables pre-linking before first deploy.
-
-- **Deliver phase setup UX:** When deployment mode is Expo, the Deliver phase shows a "Setup status" or "Ready to deploy" indicator when all readiness checks pass, and actionable setup steps (auth token guidance, Settings link) when they do not. Setup banner appears above deploy buttons when auth is missing.
+- **Repository dependency integrity preflight:** Before agent execution, run a fast dependency health check (`npm ls --depth=0`, or `--workspaces` for workspace roots). If unhealthy, run one auto-repair attempt (`npm ci`) and re-check; if still unhealthy, stop execution with explicit remediation steps.
+- **Quality-gate environment auto-repair:** During pre-merge quality gates, detect environment/setup fingerprints (for example `MODULE_NOT_FOUND`, missing `node_modules`, native addon load errors), run one repair attempt (`npm ci` + worktree `node_modules` re-symlink), and re-run the failed gate once.
+- **Environment-aware failure policy:** Classify deterministic environment failures as `repo_preflight` or `environment_setup` and block/pause with remediation guidance instead of repeatedly requeueing coding attempts.
+- **Actionable diagnostics-first failures:** For quality-gate and test failures, surface primary diagnostics as `failed command + first compiler/test error`, with expandable structured details for deeper troubleshooting.
 
 ## Technical Architecture
 
-**Expo readiness:** Before deploy, the system runs readiness checks (Expo installed, app.json configured, auth, EAS project linked). `GET /projects/:id/deliver/expo-readiness` returns status. Auto-install (`ensureExpoInstalled`) and config (`ensureExpoConfig`) run at start of deploy when gaps exist. Auth and EAS project linking require user input; optional `easProjectId` (or `expoConfig.projectId`) in deployment settings enables pre-linking via `eas init` or writing `expo.extra.eas.projectId` into app.json. Deliver phase fetches readiness on mount and shows setup banner when auth or EAS linking is missing. Readiness is informational and does not block deploy attempts; auth failure still returns 400 with existing prompt handling.
+**Repo preflight and dependency integrity**
+
+- Extend preflight to run dependency integrity checks after existing repository setup checks.
+- Implement a dependency health routine in branch/worktree management that:
+  - runs `npm ls --depth=0` (or `npm ls --depth=0 --workspaces` when workspace config is detected),
+  - performs one remediation attempt with `npm ci` on failure,
+  - re-runs integrity check,
+  - throws `RepoPreflightError` with remediation commands when still unhealthy.
+- Skip dependency integrity checks when no `package.json` is present.
+
+**Quality-gate failure handling**
+
+- In merge quality gates, detect env/setup failure fingerprints from command output.
+- On match, perform exactly one repair cycle (`npm ci` + `symlinkNodeModules`) and retry the failed gate once.
+- Avoid infinite repair loops; if retry fails, proceed with standard gate failure handling.
+- Classify as environment/setup failure only when the retry failure still matches env fingerprints.
+
+**Failure classification and diagnostics**
+
+- Add `environment_setup` as a first-class failure type alongside `repo_preflight` where failure policy is applied.
+- Route deterministic env/setup failures to block/pause with remediation text rather than repeated requeue behavior.
+- Build user-visible failure summaries from structured gate data, prioritizing failed command plus first meaningful compiler/test error line.
 
 ## Data Model
 
-**DeploymentConfig:** When `mode === "expo"`, includes optional `easProjectId` (or `expoConfig.projectId`) for pre-linking before first deploy. Stored in project settings; written to app.json or used with `eas init --id` before first deploy. Not required for backward compatibility.
+Add optional structured failure detail fields for quality-gate and merge failures.
+
+- **Task metadata (`extra`)** may include:
+  - `failedGateCommand`
+  - `failedGateReason`
+  - `failedGateOutputSnippet`
+  - `worktreePath`
+  - optional environment classification marker (for example `environmentSetup: true` or equivalent subtype field)
+- **Event log payloads** for `merge.failed`, `task.requeued`, and `task.blocked` may include the same structured fields to preserve actionable diagnostics in history and notifications.
+- **Failure type model** recognizes `environment_setup` for deterministic setup failures after repair attempts.
+- No schema migration is required when these values are stored in existing extensible JSON fields.
 
 ## API Contracts
 
-**Deploy (Deliver phase):** POST `/projects/:id/deliver`, GET `/projects/:id/deliver/status`, GET `/projects/:id/deliver/history`, POST `/projects/:id/deliver/:deployId/rollback`, PUT `/projects/:id/deliver/settings`. GET `/projects/:id/deliver/expo-readiness` — returns `{ expoInstalled, expoConfigured, authOk, easProjectLinked, missing, prompt? }`; 400 if deployment mode is not expo; 404 if project not found. PUT `/projects/:id/deliver/settings` body accepts `easProjectId` when `deployment.mode === "expo"`.
+No new REST endpoints are required.
+
+- Existing task/execution diagnostics responses should expose structured quality-gate failure detail when present, either as a dedicated object (for example `qualityGateDetail`) or embedded in existing diagnostic payloads.
+- Structured detail should carry at least:
+  - `failedGateCommand`
+  - `failedGateReason`
+  - `failedGateOutputSnippet`
+  - `worktreePath`
+- Event-stream payloads (including `merge.failed`, `task.requeued`, `task.blocked`) should include these fields in `data` so real-time UI and notifications can show actionable diagnostics.
+- Backward compatibility requirement: consumers must ignore unknown fields.
 
 ## Non-Functional Requirements
 
-| Category        | Requirement                                                                                                              |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Performance     | Agent output streaming < 500ms latency; task status updates within 1 second                                              |
-| Scalability     | Up to 500 tasks; single Coder/Reviewer in v1, except multiple parallel reviewers allowed when review angles are selected |
-| Reliability     | Agent failures must not corrupt state; transactional, recoverable                                                        |
-| Security        | Sandboxed code execution; filesystem isolation                                                                           |
-| Usability       | First-time users reach Execute within 30 minutes without docs                                                            |
-| Theme Support   | Light/dark/system; persists; no flash on load                                                                            |
-| Data Integrity  | Full audit trail; no data loss on agent crash                                                                            |
-| Testing         | 80% coverage; all layers automated; real-time results                                                                    |
-| Offline Support | All core features work without internet                                                                                  |
+| Category | Requirement |
+| --- | --- |
+| Reliability | Deterministic repository/environment failures must fail fast and block with remediation after at most one automated repair attempt; avoid repeated requeue loops for setup issues. |
+| Performance | Dependency integrity preflight must use a fast check (`npm ls`) with bounded timeout (target 15-30s) before agent execution. |
+| Usability | Failure messaging for quality-gate/test failures must prioritize actionable diagnostics (failed command + first compiler/test error) with optional expanded detail. |
+| Operability | Structured failure details must be persisted in task/event diagnostics to support debugging, notifications, and post-mortem analysis. |
 
 ## Open Questions
 

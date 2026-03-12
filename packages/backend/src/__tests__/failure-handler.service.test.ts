@@ -312,7 +312,7 @@ describe("FailureHandlerService", () => {
         repoPath,
         makeTask(),
         branchName,
-        "[DEPENDENCY_SETUP_FAILED] Dependency setup check failed after automatic repair.",
+        "[REPO_DEPENDENCIES_INVALID] Dependency setup check failed after automatic repair.",
         null,
         "repo_preflight"
       );
@@ -344,7 +344,7 @@ describe("FailureHandlerService", () => {
         repoPath,
         taskWithRetry,
         branchName,
-        "[DEPENDENCY_SETUP_FAILED] Dependency setup check failed after automatic repair.",
+        "[REPO_DEPENDENCIES_INVALID] Dependency setup check failed after automatic repair.",
         null,
         "repo_preflight"
       );

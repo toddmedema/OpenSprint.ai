@@ -6,12 +6,17 @@ import { createLogger } from "../utils/logger.js";
 import { waitForGitReady as waitForGitReadyUtil } from "../utils/git-lock.js";
 import { getGitNoHooksPath } from "../utils/git-no-hooks.js";
 import { shellExec } from "../utils/shell-exec.js";
-import { ensureRepoHasInitialCommit, getOriginUrl } from "../utils/git-repo-state.js";
+import {
+  ensureRepoHasInitialCommit,
+  getOriginUrl,
+  RepoPreflightError,
+} from "../utils/git-repo-state.js";
 import { formatClosedCommitMessage, parseClosedCommitMessage } from "../utils/commit-message.js";
 import { assertSafeTaskWorktreePath } from "../utils/path-safety.js";
 import { taskStore as taskStoreSingleton } from "./task-store.service.js";
 import { ProjectService } from "./project.service.js";
 import { heartbeatService } from "./heartbeat.service.js";
+import { ErrorCodes } from "../middleware/error-codes.js";
 
 /** Paths we must not commit from worktrees (runtime-only; would block merge in main). Agent stats, event log, and orchestrator counters are now DB-only. */
 const RUNTIME_EXCLUDE_FOR_WIP = [
@@ -73,10 +78,12 @@ export interface CreateTaskWorktreeOptions {
   worktreeKey?: string;
 }
 
-const NPM_HEALTH_CHECK_TIMEOUT_MS = 90_000;
+const NPM_HEALTH_CHECK_TIMEOUT_MS = 30_000;
 const NPM_REPAIR_TIMEOUT_MS = 10 * 60 * 1000;
-const DEPENDENCY_HEALTH_CHECK_COMMAND = "npm ls --depth=0 --workspaces";
-const DEPENDENCY_REPAIR_COMMANDS = ["npm ci", "npm install"] as const;
+const DEPENDENCY_HEALTH_CHECK_COMMAND = "npm ls --depth=0";
+const DEPENDENCY_HEALTH_CHECK_WORKSPACES_COMMAND = "npm ls --depth=0 --workspaces";
+const DEPENDENCY_REPAIR_COMMAND = "npm ci";
+const DEPENDENCY_REPAIR_COMMANDS = [DEPENDENCY_REPAIR_COMMAND] as const;
 
 export interface DependencyHealthResult {
   healthy: boolean;
@@ -1083,7 +1090,7 @@ export class BranchManager {
       await fs.access(srcRoot);
       return true;
     } catch {
-      // node_modules missing — try npm install if package.json exists
+      // node_modules missing — try npm ci if package.json exists
     }
 
     const pkgPath = path.join(repoPath, "package.json");
@@ -1109,6 +1116,77 @@ export class BranchManager {
     }
   }
 
+  private hasWorkspaceConfig(workspaces: unknown): boolean {
+    if (Array.isArray(workspaces)) return workspaces.length > 0;
+    if (workspaces && typeof workspaces === "object") {
+      const packages = (workspaces as { packages?: unknown }).packages;
+      return Array.isArray(packages) && packages.length > 0;
+    }
+    return false;
+  }
+
+  private async resolveDependencyHealthCheckCommand(repoPath: string): Promise<string> {
+    const pkgPath = path.join(repoPath, "package.json");
+    try {
+      const packageJson = JSON.parse(await fs.readFile(pkgPath, "utf-8")) as {
+        workspaces?: unknown;
+      };
+      return this.hasWorkspaceConfig(packageJson.workspaces)
+        ? DEPENDENCY_HEALTH_CHECK_WORKSPACES_COMMAND
+        : DEPENDENCY_HEALTH_CHECK_COMMAND;
+    } catch (err) {
+      const code = err instanceof Error ? (err as NodeJS.ErrnoException).code : undefined;
+      if (code !== "ENOENT") {
+        log.warn("Failed to inspect package.json for dependency workspace health check", {
+          repoPath,
+          err: err instanceof Error ? err.message : String(err),
+        });
+      }
+      return DEPENDENCY_HEALTH_CHECK_COMMAND;
+    }
+  }
+
+  private getFirstNonEmptyLine(text: string): string | null {
+    for (const line of text.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (trimmed.length > 0) return trimmed;
+    }
+    return null;
+  }
+
+  async checkDependencyIntegrity(repoPath: string, wtPath?: string): Promise<void> {
+    const pkgPath = path.join(repoPath, "package.json");
+    try {
+      await fs.access(pkgPath);
+    } catch {
+      return;
+    }
+
+    const checkCommand = await this.resolveDependencyHealthCheckCommand(repoPath);
+    const initialHealth = await this.runDependencyHealthCheck(repoPath, checkCommand);
+    if (initialHealth.healthy) return;
+
+    const repair = await this.repairDependencies(repoPath, "dependency integrity check failed");
+    if (repair.success && wtPath && wtPath !== repoPath) {
+      await this.symlinkNodeModules(repoPath, wtPath);
+    }
+
+    const postRepairHealth = await this.runDependencyHealthCheck(repoPath, checkCommand);
+    if (postRepairHealth.healthy) return;
+
+    const firstError =
+      this.getFirstNonEmptyLine(postRepairHealth.output) ??
+      this.getFirstNonEmptyLine(repair.output) ??
+      this.getFirstNonEmptyLine(initialHealth.output) ??
+      "npm ls reported invalid or missing dependencies.";
+
+    throw new RepoPreflightError(
+      `Dependency integrity check failed after one automatic repair attempt. ${firstError} Run \`npm ci\` in the repo root and fix invalid dependencies in package.json/package-lock.json.`,
+      ErrorCodes.REPO_DEPENDENCIES_INVALID,
+      [DEPENDENCY_REPAIR_COMMAND, checkCommand]
+    );
+  }
+
   async ensureDependenciesHealthy(
     repoPath: string,
     wtPath?: string
@@ -1127,7 +1205,8 @@ export class BranchManager {
       };
     }
 
-    const initialHealth = await this.runDependencyHealthCheck(repoPath);
+    const checkCommand = await this.resolveDependencyHealthCheckCommand(repoPath);
+    const initialHealth = await this.runDependencyHealthCheck(repoPath, checkCommand);
     if (initialHealth.healthy) {
       return {
         healthy: true,
@@ -1143,7 +1222,7 @@ export class BranchManager {
     if (repair.success && wtPath && wtPath !== repoPath) {
       await this.symlinkNodeModules(repoPath, wtPath);
     }
-    const postRepairHealth = await this.runDependencyHealthCheck(repoPath);
+    const postRepairHealth = await this.runDependencyHealthCheck(repoPath, checkCommand);
     return {
       healthy: postRepairHealth.healthy,
       checkOutput: postRepairHealth.output,
@@ -1155,10 +1234,11 @@ export class BranchManager {
   }
 
   private async runDependencyHealthCheck(
-    repoPath: string
+    repoPath: string,
+    command: string
   ): Promise<{ healthy: boolean; output: string }> {
     try {
-      const { stdout, stderr } = await shellExec(DEPENDENCY_HEALTH_CHECK_COMMAND, {
+      const { stdout, stderr } = await shellExec(command, {
         cwd: repoPath,
         timeout: NPM_HEALTH_CHECK_TIMEOUT_MS,
       });
@@ -1236,7 +1316,7 @@ export class BranchManager {
         if (!ensured) {
           log.warn("Skipping root node_modules symlink: does not exist", {
             srcRoot,
-            reason: "no package.json or npm install failed",
+            reason: "no package.json or npm ci failed",
           });
           return;
         }
