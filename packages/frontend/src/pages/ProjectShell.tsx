@@ -44,6 +44,7 @@ import { DatabaseUnavailableState } from "../components/DatabaseUnavailableState
 import { ProjectNotFoundState } from "../components/ProjectNotFoundState";
 import { getProjectPhasePath } from "../lib/phaseRouting";
 import { VALID_PHASE_SLUGS } from "../lib/phaseRouting";
+import { schedulePhasePreload } from "../lib/phasePreload";
 import type { ProjectPhase } from "@opensprint/shared";
 import { ACTIVE_AGENTS_POLL_INTERVAL_MS } from "../lib/constants";
 import { TOAST_SAFE_STYLE } from "../lib/dropdownViewport";
@@ -277,6 +278,12 @@ export function ProjectShell() {
     if (!projectId || !shouldEnableDbBackedQueries) return;
     dispatch(fetchProjectNotifications(projectId));
   }, [projectId, shouldEnableDbBackedQueries, dispatch]);
+
+  // Preload phase data and lazy chunks in background so first navigation to each tab is instant.
+  useEffect(() => {
+    if (!projectId || !shouldEnableDbBackedQueries) return;
+    schedulePhasePreload(projectId, queryClient);
+  }, [projectId, shouldEnableDbBackedQueries, queryClient]);
   useEffect(() => {
     if (!projectId || !activeAgentsQuery.data) return;
     const previous = lastSyncedRef.current["activeAgents"];

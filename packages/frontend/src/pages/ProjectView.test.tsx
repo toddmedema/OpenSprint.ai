@@ -253,10 +253,7 @@ describe("ProjectView upfront loading and mount-all", () => {
       expect(mockedApi.projects.getPlanStatus).toHaveBeenCalledWith("proj-1");
       expect(mockedApi.chat.history).toHaveBeenCalledWith("proj-1", "sketch");
     });
-    // Phase-specific: execute status, deliver stay gated (not needed on sketch)
-    expect(mockedApi.execute.status).not.toHaveBeenCalled();
-    expect(mockedApi.deliver.status).not.toHaveBeenCalled();
-    expect(mockedApi.deliver.history).not.toHaveBeenCalled();
+    // Phase data for other phases (Plan, Execute, Evaluate, Deliver) is preloaded in background.
   });
 
   it("fetches execute-phase data when on execute", async () => {
