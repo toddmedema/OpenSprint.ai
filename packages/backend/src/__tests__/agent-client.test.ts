@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import OpenAI from "openai";
 import { AgentClient } from "../services/agent-client.js";
 import type { AgentConfig } from "@opensprint/shared";
@@ -207,41 +207,24 @@ describe("AgentClient", () => {
       expect(result.content).toContain("Claude no-model");
     });
 
-    it("should route cursor config to Cursor CLI", async () => {
-      const mockChild = {
-        killed: false,
-        kill: vi.fn(),
-        stdout: {
-          on: vi.fn((_ev: string, fn: (d: Buffer) => void) => fn(Buffer.from("Cursor response"))),
-        },
-        stderr: { on: vi.fn() },
-        on: vi.fn((ev: string, fn: (code: number) => void) => {
-          if (ev === "close") setTimeout(() => fn(0), 0);
-          if (ev === "error") return;
-          return { on: vi.fn() };
-        }),
-      };
-      mockSpawn.mockReturnValue(mockChild);
+    describe("cursor config routing (no projectId; test placeholder CURSOR_API_KEY)", () => {
+      const CURSOR_PLACEHOLDER = "test-placeholder-no-real-key";
+      let originalCursorApiKey: string | undefined;
 
-      const result = await client.invoke({
-        config: { type: "cursor", model: "gpt-4", cliCommand: null },
-        prompt: "Hello",
-        cwd: "/tmp",
+      beforeEach(() => {
+        originalCursorApiKey = process.env.CURSOR_API_KEY;
+        process.env.CURSOR_API_KEY = CURSOR_PLACEHOLDER;
       });
 
-      expect(mockSpawn).toHaveBeenCalledWith(
-        "agent",
-        expect.any(Array),
-        expect.objectContaining({ cwd: "/tmp" })
-      );
-      expect(result.content).toContain("Cursor response");
-    });
+      afterEach(() => {
+        if (originalCursorApiKey !== undefined) {
+          process.env.CURSOR_API_KEY = originalCursorApiKey;
+        } else {
+          delete process.env.CURSOR_API_KEY;
+        }
+      });
 
-    it("should route cursor config through cmd.exe on Windows", async () => {
-      Object.defineProperty(process, "platform", { value: "win32" });
-      const originalComSpec = process.env.ComSpec;
-      process.env.ComSpec = "C:\\Windows\\System32\\cmd.exe";
-      try {
+      it("should route cursor config to Cursor CLI", async () => {
         const mockChild = {
           killed: false,
           kill: vi.fn(),
@@ -264,42 +247,77 @@ describe("AgentClient", () => {
         });
 
         expect(mockSpawn).toHaveBeenCalledWith(
-          "C:\\Windows\\System32\\cmd.exe",
-          expect.arrayContaining(["/d", "/s", "/c", "agent"]),
+          "agent",
+          expect.any(Array),
           expect.objectContaining({ cwd: "/tmp" })
         );
         expect(result.content).toContain("Cursor response");
-      } finally {
-        process.env.ComSpec = originalComSpec;
-      }
-    });
-
-    it("should map cursor null model to explicit auto", async () => {
-      const mockChild = {
-        killed: false,
-        kill: vi.fn(),
-        stdout: {
-          on: vi.fn((_ev: string, fn: (d: Buffer) => void) => fn(Buffer.from("Cursor response"))),
-        },
-        stderr: { on: vi.fn() },
-        on: vi.fn((ev: string, fn: (code: number) => void) => {
-          if (ev === "close") setTimeout(() => fn(0), 0);
-          return { on: vi.fn() };
-        }),
-      };
-      mockSpawn.mockReturnValue(mockChild);
-
-      const result = await client.invoke({
-        config: { type: "cursor", model: null, cliCommand: null },
-        prompt: "Hello",
-        cwd: "/tmp",
       });
 
-      const args = mockSpawn.mock.calls[0][1] as string[];
-      const modelIndex = args.indexOf("--model");
-      expect(modelIndex).toBeGreaterThanOrEqual(0);
-      expect(args[modelIndex + 1]).toBe("auto");
-      expect(result.content).toContain("Cursor response");
+      it("should route cursor config through cmd.exe on Windows", async () => {
+        Object.defineProperty(process, "platform", { value: "win32" });
+        const originalComSpec = process.env.ComSpec;
+        process.env.ComSpec = "C:\\Windows\\System32\\cmd.exe";
+        try {
+          const mockChild = {
+            killed: false,
+            kill: vi.fn(),
+            stdout: {
+              on: vi.fn((_ev: string, fn: (d: Buffer) => void) => fn(Buffer.from("Cursor response"))),
+            },
+            stderr: { on: vi.fn() },
+            on: vi.fn((ev: string, fn: (code: number) => void) => {
+              if (ev === "close") setTimeout(() => fn(0), 0);
+              if (ev === "error") return;
+              return { on: vi.fn() };
+            }),
+          };
+          mockSpawn.mockReturnValue(mockChild);
+
+          const result = await client.invoke({
+            config: { type: "cursor", model: "gpt-4", cliCommand: null },
+            prompt: "Hello",
+            cwd: "/tmp",
+          });
+
+          expect(mockSpawn).toHaveBeenCalledWith(
+            "C:\\Windows\\System32\\cmd.exe",
+            expect.arrayContaining(["/d", "/s", "/c", "agent"]),
+            expect.objectContaining({ cwd: "/tmp" })
+          );
+          expect(result.content).toContain("Cursor response");
+        } finally {
+          process.env.ComSpec = originalComSpec;
+        }
+      });
+
+      it("should map cursor null model to explicit auto", async () => {
+        const mockChild = {
+          killed: false,
+          kill: vi.fn(),
+          stdout: {
+            on: vi.fn((_ev: string, fn: (d: Buffer) => void) => fn(Buffer.from("Cursor response"))),
+          },
+          stderr: { on: vi.fn() },
+          on: vi.fn((ev: string, fn: (code: number) => void) => {
+            if (ev === "close") setTimeout(() => fn(0), 0);
+            return { on: vi.fn() };
+          }),
+        };
+        mockSpawn.mockReturnValue(mockChild);
+
+        const result = await client.invoke({
+          config: { type: "cursor", model: null, cliCommand: null },
+          prompt: "Hello",
+          cwd: "/tmp",
+        });
+
+        const args = mockSpawn.mock.calls[0][1] as string[];
+        const modelIndex = args.indexOf("--model");
+        expect(modelIndex).toBeGreaterThanOrEqual(0);
+        expect(args[modelIndex + 1]).toBe("auto");
+        expect(result.content).toContain("Cursor response");
+      });
     });
 
     it("should use ApiKeyResolver when projectId provided for cursor", async () => {
