@@ -1315,6 +1315,27 @@ describe("EvalPhase feedback form", () => {
       expect(attachButton).toHaveClass("h-10");
       expect(submitButton).toHaveClass("h-10");
     });
+
+    it("focuses reply text input when clicking Reply on a feedback card", async () => {
+      const store = createStore({ evalFeedback: mockFeedbackItems });
+      const queryClient = createQueryClientWithFeedbackPreloaded(mockFeedbackItems);
+      const user = userEvent.setup();
+      renderWithProviders(
+        <MemoryRouter>
+          <EvalPhase projectId="proj-1" />
+        </MemoryRouter>,
+        { store, queryClient }
+      );
+
+      await waitFor(() => expect(screen.getByText("Bug 1")).toBeInTheDocument());
+      const bug1Card = screen.getByText("Bug 1").closest(".card");
+      await user.click(within(bug1Card!).getByRole("button", { name: /^Reply$/ }));
+
+      const replyInput = screen.getByPlaceholderText("Write a reply...");
+      await waitFor(() => {
+        expect(document.activeElement).toBe(replyInput);
+      });
+    });
   });
 
   describe("Submit Feedback button tooltip", () => {
@@ -1936,7 +1957,11 @@ describe("EvalPhase feedback form", () => {
         await user.click(screen.getByRole("button", { name: /Reply to plan Plan/i }));
 
         expect(screen.getByTestId("plan-inline-reply-composer-inline-plan")).toBeInTheDocument();
-        expect(screen.getByTestId("plan-inline-reply-input-inline-plan")).toBeInTheDocument();
+        const planReplyInput = screen.getByTestId("plan-inline-reply-input-inline-plan");
+        expect(planReplyInput).toBeInTheDocument();
+        await waitFor(() => {
+          expect(document.activeElement).toBe(planReplyInput);
+        });
         expect(screen.queryByTestId("eval-plan-chat-panel")).not.toBeInTheDocument();
       });
 

@@ -496,6 +496,7 @@ const FeedbackCard = memo(
     const [replyPriorityAlignRight, setReplyPriorityAlignRight] = useState(false);
     const replyPriorityDropdownRef = useRef<HTMLDivElement>(null);
     const replyPriorityTriggerRef = useRef<HTMLButtonElement>(null);
+    const replyInputRef = useRef<HTMLTextAreaElement>(null);
     const [answerText, setAnswerText] = useState("");
     const [imageModalSrc, setImageModalSrc] = useState<string | null>(null);
     const replyImages = useImageAttachment();
@@ -551,6 +552,15 @@ const FeedbackCard = memo(
 
     useEffect(() => {
       if (!isReplying) setReplyPriority(null);
+    }, [isReplying]);
+
+    useEffect(() => {
+      if (isReplying) {
+        const id = requestAnimationFrame(() => {
+          replyInputRef.current?.focus();
+        });
+        return () => cancelAnimationFrame(id);
+      }
     }, [isReplying]);
 
     useEffect(() => {
@@ -991,6 +1001,7 @@ const FeedbackCard = memo(
                 : item.text || "(No feedback text)"}
             </blockquote>
             <textarea
+              ref={replyInputRef}
               className="input min-h-[60px] mb-2 text-sm"
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
@@ -1285,8 +1296,16 @@ function PlanReplyComposer({
   const [replyPriorityAlignRight, setReplyPriorityAlignRight] = useState(false);
   const replyPriorityDropdownRef = useRef<HTMLDivElement>(null);
   const replyPriorityTriggerRef = useRef<HTMLButtonElement>(null);
+  const replyInputRef = useRef<HTMLTextAreaElement>(null);
   const replyImages = useImageAttachment();
   const { title: contentTitle } = parsePlanContent(plan.content ?? "");
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      replyInputRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
   const displayTitle = contentTitle.trim()
     ? contentTitle
     : formatPlanIdAsTitle(plan.metadata.planId);
@@ -1353,6 +1372,7 @@ function PlanReplyComposer({
         Replying to: {displayTitle}
       </blockquote>
       <textarea
+        ref={replyInputRef}
         className="input min-h-[60px] mb-2 text-sm"
         value={replyText}
         onChange={(e) => setReplyText(e.target.value)}
