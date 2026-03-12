@@ -306,7 +306,7 @@ describe("FailureHandlerService", () => {
   });
 
   describe("dependency preflight failures", () => {
-    it("requeues once for dependency setup preflight failures", async () => {
+    it("blocks immediately for dependency setup preflight failures with remediation guidance", async () => {
       await handler.handleTaskFailure(
         projectId,
         repoPath,
@@ -321,32 +321,41 @@ describe("FailureHandlerService", () => {
         projectId,
         taskId,
         expect.objectContaining({
-          status: "open",
-          assignee: "",
+          status: "blocked",
+          block_reason: "Coding Failure",
           extra: expect.objectContaining({
-            preflight_env_requeue_count: 1,
             next_retry_context: expect.objectContaining({
               failureType: "repo_preflight",
             }),
           }),
         })
       );
-      expect(mockHost.nudge).toHaveBeenCalled();
+      expect(mockHost.taskStore.comment).toHaveBeenCalledWith(
+        projectId,
+        taskId,
+        expect.stringContaining("Remediation: Run npm ci")
+      );
+      expect(eventLogService.append).toHaveBeenCalledWith(
+        repoPath,
+        expect.objectContaining({
+          event: "task.blocked",
+          data: expect.objectContaining({
+            nextAction: expect.stringContaining("Run npm ci"),
+          }),
+        })
+      );
+      expect(mockHost.executeCodingPhase).not.toHaveBeenCalled();
     });
 
-    it("blocks on second dependency setup preflight failure", async () => {
-      const taskWithRetry = {
-        ...makeTask(),
-        preflight_env_requeue_count: 1,
-      } as unknown as ReturnType<typeof makeTask>;
+    it("blocks environment_setup failures without blind retries", async () => {
       await handler.handleTaskFailure(
         projectId,
         repoPath,
-        taskWithRetry,
+        makeTask(),
         branchName,
-        "[REPO_DEPENDENCIES_INVALID] Dependency setup check failed after automatic repair.",
+        "Cannot find module 'better-sqlite3'",
         null,
-        "repo_preflight"
+        "environment_setup"
       );
 
       expect(mockHost.taskStore.update).toHaveBeenCalledWith(
@@ -355,6 +364,11 @@ describe("FailureHandlerService", () => {
         expect.objectContaining({
           status: "blocked",
           block_reason: "Coding Failure",
+          extra: expect.objectContaining({
+            next_retry_context: expect.objectContaining({
+              failureType: "environment_setup",
+            }),
+          }),
         })
       );
       expect(mockHost.executeCodingPhase).not.toHaveBeenCalled();

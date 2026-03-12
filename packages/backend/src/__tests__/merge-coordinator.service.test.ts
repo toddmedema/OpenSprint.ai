@@ -813,47 +813,7 @@ describe("MergeCoordinatorService", () => {
     }
   });
 
-  it("requeues once for environment-setup quality-gate failures", async () => {
-    mockHost.runMergeQualityGates = vi.fn().mockImplementation(async (options) => {
-      if (options.worktreePath === repoPath) return null; // baseline gate passes in this test
-      return {
-        command: "npm run build",
-        reason: "Dependency setup check failed",
-        output: "Cannot find module 'better-sqlite3'",
-        firstErrorLine: "Cannot find module 'better-sqlite3'",
-        category: "environment_setup",
-        autoRepairAttempted: true,
-        autoRepairSucceeded: false,
-        autoRepairCommands: ["npm ci", "npm install"],
-      };
-    });
-
-    await coordinator.performMergeAndDone(projectId, repoPath, makeTask(), branchName);
-
-    expect(mockHost.taskStore.update).toHaveBeenCalledWith(
-      projectId,
-      taskId,
-      expect.objectContaining({
-        status: "open",
-        extra: expect.objectContaining({
-          quality_gate_env_requeue_count: 1,
-          last_execution_summary: expect.objectContaining({
-            summary: expect.stringContaining("category: environment_setup"),
-          }),
-        }),
-      })
-    );
-    expect(mockHost.taskStore.comment).toHaveBeenCalledWith(
-      projectId,
-      taskId,
-      expect.stringContaining("due environment setup")
-    );
-  });
-
-  it("blocks on second environment-setup quality-gate failure", async () => {
-    mockHost.taskStore.show = vi
-      .fn()
-      .mockResolvedValue({ ...makeTask(), quality_gate_env_requeue_count: 1 } as never);
+  it("blocks immediately for environment-setup quality-gate failures with remediation guidance", async () => {
     mockHost.runMergeQualityGates = vi.fn().mockImplementation(async (options) => {
       if (options.worktreePath === repoPath) return null; // baseline gate passes in this test
       return {
@@ -877,14 +837,54 @@ describe("MergeCoordinatorService", () => {
         status: "blocked",
         block_reason: "Merge Failure",
         extra: expect.objectContaining({
-          quality_gate_env_requeue_count: 2,
+          next_retry_context: expect.objectContaining({
+            failureType: "environment_setup",
+          }),
+          last_execution_summary: expect.objectContaining({
+            summary: expect.stringContaining("category: environment_setup"),
+          }),
         }),
       })
     );
     expect(mockHost.taskStore.comment).toHaveBeenCalledWith(
       projectId,
       taskId,
-      expect.stringContaining("Blocked after repeated environment setup quality-gate failures")
+      expect.stringContaining("Remediation: Run npm ci")
+    );
+    expect(mockHost.taskStore.update).not.toHaveBeenCalledWith(
+      projectId,
+      taskId,
+      expect.objectContaining({ status: "open" })
+    );
+  });
+
+  it("stores remediation nextAction in blocked merge/task events for environment setup failures", async () => {
+    mockHost.runMergeQualityGates = vi.fn().mockImplementation(async (options) => {
+      if (options.worktreePath === repoPath) return null; // baseline gate passes in this test
+      return {
+        command: "npm run build",
+        reason: "Dependency setup check failed",
+        output: "Cannot find module 'better-sqlite3'",
+        firstErrorLine: "Cannot find module 'better-sqlite3'",
+        category: "environment_setup",
+        autoRepairAttempted: true,
+        autoRepairSucceeded: false,
+        autoRepairCommands: ["npm ci", "npm install"],
+      };
+    });
+
+    await coordinator.performMergeAndDone(projectId, repoPath, makeTask(), branchName);
+    const { eventLogService } = await import("../services/event-log.service.js");
+    const appendMock = vi.mocked(eventLogService.append);
+
+    const blockedEvent = appendMock.mock.calls
+      .map(([, event]) => event)
+      .find((event) => event.event === "task.blocked");
+    expect(blockedEvent).toBeDefined();
+    expect(blockedEvent?.data).toEqual(
+      expect.objectContaining({
+        nextAction: expect.stringContaining("re-link worktree node_modules"),
+      })
     );
   });
 

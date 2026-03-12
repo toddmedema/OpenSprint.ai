@@ -152,4 +152,28 @@ describe("OrchestratorDispatchService", () => {
       })
     );
   });
+
+  it("accepts environment_setup as a persisted retry failure type", async () => {
+    const task = {
+      ...baseTask("os-9012"),
+      next_retry_context: {
+        previousFailure: "Pre-merge quality gate failed due missing modules",
+        failureType: "environment_setup",
+      },
+    } as StoredTask;
+
+    await service.dispatchTask(projectId, repoPath, task, 1);
+
+    expect(executeCodingPhase).toHaveBeenCalledWith(
+      projectId,
+      repoPath,
+      task,
+      expect.objectContaining({ taskId: task.id }),
+      expect.objectContaining({
+        previousFailure: "Pre-merge quality gate failed due missing modules",
+        failureType: "environment_setup",
+        useExistingBranch: false,
+      })
+    );
+  });
 });

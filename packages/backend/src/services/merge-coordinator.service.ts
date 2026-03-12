@@ -37,8 +37,6 @@ const log = createLogger("merge-coordinator");
 const _MAX_PUSH_REBASE_RESOLUTION_ROUNDS = 12;
 const NEXT_RETRY_CONTEXT_KEY = "next_retry_context";
 const MERGE_RETRY_CONTEXT_FAILURE_LIMIT = 1200;
-const QUALITY_GATE_ENV_REQUEUE_COUNT_KEY = "quality_gate_env_requeue_count";
-const QUALITY_GATE_ENV_REQUEUE_LIMIT = 1;
 const QUALITY_GATE_OUTPUT_SNIPPET_LIMIT = 1800;
 const BASELINE_QUALITY_GATE_CACHE_MS = 60_000;
 const BASELINE_QUALITY_GATE_PAUSE_MS = 5 * 60_000;
@@ -288,7 +286,8 @@ export class MergeCoordinatorService {
 
   private buildRetryContextForMergeFailure(
     stage: MergeFailureStage,
-    mergeFailureReason: string
+    mergeFailureReason: string,
+    failureTypeOverride?: RetryContext["failureType"]
   ): RetryContext {
     const stageLabel = stage === "quality_gate" ? "pre-merge quality gate" : "merge";
     const previousFailure = compactExecutionText(
@@ -297,7 +296,8 @@ export class MergeCoordinatorService {
     );
     return {
       previousFailure,
-      failureType: stage === "quality_gate" ? "coding_failure" : "merge_conflict",
+      failureType:
+        failureTypeOverride ?? (stage === "quality_gate" ? "coding_failure" : "merge_conflict"),
     };
   }
 
@@ -379,9 +379,19 @@ export class MergeCoordinatorService {
     return this.getQualityGateFailureDetails(mergeErr)?.category === "environment_setup";
   }
 
-  private getNumericExtra(issue: StoredTask, key: string): number {
-    const raw = (issue as Record<string, unknown>)[key];
-    return typeof raw === "number" && Number.isFinite(raw) ? raw : 0;
+  private buildEnvironmentSetupRemediation(params: {
+    command?: string | null;
+    worktreePath?: string | null;
+  }): string {
+    const command = params.command?.trim();
+    const worktreePath = params.worktreePath?.trim();
+    const commandStep = command
+      ? `then rerun ${command} before retrying merge.`
+      : "then rerun the failing quality gate before retrying merge.";
+    return compactExecutionText(
+      `Run npm ci${worktreePath ? ` in ${worktreePath}` : " in the repository root"}, re-link worktree node_modules, ${commandStep}`,
+      500
+    );
   }
 
   private buildQualityGateSummaryDetail(mergeErr: Error): string | null {
@@ -564,12 +574,21 @@ export class MergeCoordinatorService {
     const attempt =
       Math.max(1, this.host.taskStore.getCumulativeAttemptsFromIssue(task) + 1) || 1;
     const pausedUntil = new Date(Date.now() + BASELINE_QUALITY_GATE_PAUSE_MS).toISOString();
+    const isEnvironmentSetupFailure = failure.category === "environment_setup";
+    const remediationAction = isEnvironmentSetupFailure
+      ? this.buildEnvironmentSetupRemediation({
+          command: failure.command,
+          worktreePath,
+        })
+      : null;
+    const nextAction =
+      remediationAction ?? "Paused until baseline quality gates pass";
     const requeuedSummary = buildTaskLastExecutionSummary({
       attempt,
       outcome: "requeued",
       phase: "merge",
       summary: compactExecutionText(
-        `Merge paused: baseline quality gates on ${baseBranch} are failing (${detail}).`,
+        `Merge paused: baseline quality gates on ${baseBranch} are failing (${detail})${remediationAction ? `. Remediation: ${remediationAction}` : ""}.`,
         500
       ),
     });
@@ -578,7 +597,7 @@ export class MergeCoordinatorService {
         `baseline quality gates failed on ${baseBranch}: ${failure.reason}`,
         MERGE_RETRY_CONTEXT_FAILURE_LIMIT
       ),
-      failureType: "coding_failure",
+      failureType: isEnvironmentSetupFailure ? "environment_setup" : "coding_failure",
     };
 
     await this.host.taskStore.setMergeStage(projectId, task.id, "quality_gate");
@@ -599,7 +618,7 @@ export class MergeCoordinatorService {
     await this.host.taskStore.comment(
       projectId,
       task.id,
-      `Merge paused because baseline quality gates on ${baseBranch} are failing. ${HUMAN_QUALITY_GATE_FAILURE_MESSAGE} Details: ${detail}.`
+      `Merge paused because baseline quality gates on ${baseBranch} are failing. ${HUMAN_QUALITY_GATE_FAILURE_MESSAGE} Details: ${detail}.${remediationAction ? ` Remediation: ${remediationAction}` : ""}`
     );
     await this.createBaselineQualityGateNotification(projectId, baseBranch, detail);
     eventLogService
@@ -617,7 +636,7 @@ export class MergeCoordinatorService {
           resolvedBy: "requeued",
           scopeConfidence: this.getScopeConfidence(task),
           summary: requeuedSummary.summary,
-          nextAction: "Paused until baseline quality gates pass",
+          nextAction,
           qualityGateCategory: failure.category ?? "quality_gate",
           qualityGateCommand: failure.command,
           qualityGateFirstErrorLine: firstErrorLine,
@@ -641,7 +660,7 @@ export class MergeCoordinatorService {
           mergeStage: "quality_gate",
           conflictedFiles: [],
           summary: requeuedSummary.summary,
-          nextAction: "Paused until baseline quality gates pass",
+          nextAction,
           failedGateCommand: failure.command,
           failedGateReason,
           failedGateOutputSnippet,
@@ -1031,13 +1050,13 @@ export class MergeCoordinatorService {
       );
       const isEnvironmentSetupQualityGateFailure =
         isQualityGateFailure && this.isEnvironmentSetupQualityGateFailure(mergeErr);
-      const qualityGateEnvRequeueCount = this.getNumericExtra(
-        freshIssue,
-        QUALITY_GATE_ENV_REQUEUE_COUNT_KEY
-      );
-      const shouldBlockForEnvironmentSetup =
-        isEnvironmentSetupQualityGateFailure &&
-        qualityGateEnvRequeueCount >= QUALITY_GATE_ENV_REQUEUE_LIMIT;
+      const environmentSetupRemediation = isEnvironmentSetupQualityGateFailure
+        ? this.buildEnvironmentSetupRemediation({
+            command:
+              qualityGateStructuredDetails.failedGateCommand ?? qualityGateFailureDetails?.command ?? null,
+            worktreePath: qualityGateStructuredDetails.worktreePath,
+          })
+        : null;
       const qualityGateSummaryDetail = isQualityGateFailure
         ? this.buildQualityGateSummaryDetail(mergeErr)
         : null;
@@ -1049,11 +1068,14 @@ export class MergeCoordinatorService {
         : "";
       const retryContext = this.buildRetryContextForMergeFailure(
         normalizedStage,
-        mergeFailureReason
+        mergeFailureReason,
+        isEnvironmentSetupQualityGateFailure ? "environment_setup" : undefined
       );
 
       const maxMergeFailures = BACKOFF_FAILURE_THRESHOLD * 2;
-      if (shouldBlockForEnvironmentSetup || cumulativeAttempts >= maxMergeFailures) {
+      if (isEnvironmentSetupQualityGateFailure || cumulativeAttempts >= maxMergeFailures) {
+        const blockedNextAction =
+          environmentSetupRemediation ?? "Blocked pending investigation";
         log.info(`Blocking ${task.id} after ${cumulativeAttempts} ${stageLabel} failures`);
         const blockedSummary = buildTaskLastExecutionSummary({
           attempt: cumulativeAttempts,
@@ -1061,7 +1083,7 @@ export class MergeCoordinatorService {
           phase: "merge",
           blockReason: "Merge Failure",
           summary: compactExecutionText(
-            `Attempt ${cumulativeAttempts} ${stageLabel} failed: ${humanFailureMessage}${qualityGateSummarySuffix}`,
+            `Attempt ${cumulativeAttempts} ${stageLabel} failed: ${humanFailureMessage}${qualityGateSummarySuffix}${environmentSetupRemediation ? ` | remediation: ${environmentSetupRemediation}` : ""}`,
             500
           ),
         });
@@ -1072,9 +1094,6 @@ export class MergeCoordinatorService {
           extra: {
             last_execution_summary: blockedSummary,
             [NEXT_RETRY_CONTEXT_KEY]: retryContext,
-            [QUALITY_GATE_ENV_REQUEUE_COUNT_KEY]: isEnvironmentSetupQualityGateFailure
-              ? qualityGateEnvRequeueCount + 1
-              : 0,
             failedGateCommand: qualityGateStructuredDetails.failedGateCommand,
             failedGateReason: qualityGateStructuredDetails.failedGateReason,
             failedGateOutputSnippet: qualityGateStructuredDetails.failedGateOutputSnippet,
@@ -1087,7 +1106,7 @@ export class MergeCoordinatorService {
           task.id,
           isQualityGateFailure
             ? isEnvironmentSetupQualityGateFailure
-              ? `Blocked after repeated environment setup quality-gate failures. ${humanFailureMessage}${qualityGateCommentDetail}`
+              ? `Blocked after deterministic environment setup quality-gate failure. ${humanFailureMessage}${qualityGateCommentDetail} Remediation: ${environmentSetupRemediation}`
               : `Blocked after ${cumulativeAttempts} consecutive quality-gate failures. ${humanFailureMessage}${qualityGateCommentDetail}`
             : `Blocked after ${cumulativeAttempts} consecutive merge failures. ${humanFailureMessage}`
         );
@@ -1095,7 +1114,9 @@ export class MergeCoordinatorService {
           type: "task.blocked",
           taskId: task.id,
           reason: isQualityGateFailure
-            ? `Blocked after ${cumulativeAttempts} quality-gate failures`
+            ? isEnvironmentSetupQualityGateFailure
+              ? "Blocked due deterministic environment setup quality-gate failure"
+              : `Blocked after ${cumulativeAttempts} quality-gate failures`
             : `Blocked after ${cumulativeAttempts} merge failures`,
           cumulativeAttempts,
         });
@@ -1129,7 +1150,7 @@ export class MergeCoordinatorService {
               failedGateOutputSnippet: qualityGateStructuredDetails.failedGateOutputSnippet,
               worktreePath: qualityGateStructuredDetails.worktreePath,
               qualityGateDetail: qualityGateStructuredDetails.qualityGateDetail,
-              nextAction: "Blocked pending investigation",
+              nextAction: blockedNextAction,
             },
           })
           .catch(() => {});
@@ -1146,7 +1167,7 @@ export class MergeCoordinatorService {
               mergeStage: normalizedStage,
               conflictedFiles,
               summary: blockedSummary.summary,
-              nextAction: "Blocked pending investigation",
+              nextAction: blockedNextAction,
               failedGateCommand: qualityGateStructuredDetails.failedGateCommand,
               failedGateReason: qualityGateStructuredDetails.failedGateReason,
               failedGateOutputSnippet: qualityGateStructuredDetails.failedGateOutputSnippet,
@@ -1174,9 +1195,6 @@ export class MergeCoordinatorService {
         extra: {
           last_execution_summary: requeuedSummary,
           [NEXT_RETRY_CONTEXT_KEY]: retryContext,
-          [QUALITY_GATE_ENV_REQUEUE_COUNT_KEY]: isEnvironmentSetupQualityGateFailure
-            ? qualityGateEnvRequeueCount + 1
-            : 0,
           failedGateCommand: qualityGateStructuredDetails.failedGateCommand,
           failedGateReason: qualityGateStructuredDetails.failedGateReason,
           failedGateOutputSnippet: qualityGateStructuredDetails.failedGateOutputSnippet,
@@ -1188,9 +1206,7 @@ export class MergeCoordinatorService {
         projectId,
         task.id,
         isQualityGateFailure
-          ? isEnvironmentSetupQualityGateFailure
-            ? `Pre-merge quality gates failed due environment setup. Auto-repair was attempted and the task was requeued once. ${humanFailureMessage}${qualityGateCommentDetail}`
-            : `Pre-merge quality gates failed. Task requeued — next run will retry after fixes. ${humanFailureMessage}${qualityGateCommentDetail}`
+          ? `Pre-merge quality gates failed. Task requeued — next run will retry after fixes. ${humanFailureMessage}${qualityGateCommentDetail}`
           : `Merge conflict with current main. Task requeued — next run will rebase and retry. ${humanFailureMessage}`
       );
       eventLogService

@@ -11,6 +11,7 @@ export type FailureType =
   | "review_rejection"
   | "agent_crash"
   | "repo_preflight"
+  | "environment_setup"
   | "timeout"
   | "no_result"
   | "merge_conflict"

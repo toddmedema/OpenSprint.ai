@@ -47,8 +47,12 @@ const RETRY_CONTEXT_REVIEW_LIMIT = 4000;
 const RETRY_CONTEXT_TEST_OUTPUT_LIMIT = 6000;
 const RETRY_CONTEXT_TEST_FAILURES_LIMIT = 2000;
 const RETRY_CONTEXT_DIFF_LIMIT = 6000;
-const PREFLIGHT_ENV_REQUEUE_COUNT_KEY = "preflight_env_requeue_count";
-const PREFLIGHT_ENV_REQUEUE_LIMIT = 1;
+const PREFLIGHT_DEPENDENCY_REMEDIATION =
+  "Run npm ci in the repository root, then fix invalid dependencies before retrying.";
+const PREFLIGHT_GIT_REMEDIATION =
+  "Fix repository git setup (base branch and git identity), then retry.";
+const ENVIRONMENT_SETUP_REMEDIATION =
+  "Run npm ci in the repository root, re-link worktree node_modules, then retry.";
 
 export interface FailureHandlerHost {
   getState(projectId: string): {
@@ -244,16 +248,26 @@ export class FailureHandlerService {
     return context;
   }
 
-  private getNumericExtra(task: StoredTask, key: string): number {
-    const raw = (task as Record<string, unknown>)[key];
-    return typeof raw === "number" && Number.isFinite(raw) ? raw : 0;
-  }
-
   private isDependencySetupPreflightFailure(reason: string): boolean {
     return (
       reason.includes(`[${ErrorCodes.REPO_DEPENDENCIES_INVALID}]`) ||
       reason.includes(`[${ErrorCodes.DEPENDENCY_SETUP_FAILED}]`)
     );
+  }
+
+  private remediationActionForFailure(
+    failureType: FailureType,
+    isDependencySetupPreflightFailure: boolean
+  ): string | null {
+    if (failureType === "environment_setup") {
+      return ENVIRONMENT_SETUP_REMEDIATION;
+    }
+    if (failureType === "repo_preflight") {
+      return isDependencySetupPreflightFailure
+        ? PREFLIGHT_DEPENDENCY_REMEDIATION
+        : PREFLIGHT_GIT_REMEDIATION;
+    }
+    return null;
   }
 
   async handleTaskFailure(
@@ -282,9 +296,10 @@ export class FailureHandlerService {
     const isDependencySetupPreflightFailure =
       failureType === "repo_preflight" &&
       this.isDependencySetupPreflightFailure(effectiveReason);
-    const preflightEnvRequeueCount = isDependencySetupPreflightFailure
-      ? this.getNumericExtra(task, PREFLIGHT_ENV_REQUEUE_COUNT_KEY)
-      : 0;
+    const remediationAction = this.remediationActionForFailure(
+      failureType,
+      isDependencySetupPreflightFailure
+    );
     const diagnosedNoResultFailure = this.isDiagnosedNoResultFailure(failureType, effectiveReason);
     const currentPriority = task.priority ?? 2;
     let nextAction = this.nextActionForFailure({
@@ -294,12 +309,8 @@ export class FailureHandlerService {
       currentPriority,
       cumulativeAttempts,
     });
-    if (failureType === "repo_preflight") {
-      nextAction = isDependencySetupPreflightFailure
-        ? preflightEnvRequeueCount < PREFLIGHT_ENV_REQUEUE_LIMIT
-          ? `Requeued for dependency setup retry (${preflightEnvRequeueCount + 1}/${PREFLIGHT_ENV_REQUEUE_LIMIT})`
-          : "Blocked after repeated dependency setup failures"
-        : "Blocked pending git setup";
+    if (remediationAction) {
+      nextAction = remediationAction;
     }
     const failureSummary = compactExecutionText(
       `${slot.phase === "review" ? "Review" : "Coding"} failed: ${effectiveReason}`,
@@ -476,6 +487,8 @@ export class FailureHandlerService {
     const commentText =
       failureType === "timeout"
         ? `Attempt ${cumulativeAttempts} failed [timeout]: Agent stopped responding (${inactivityMinutes} min inactivity); task requeued.`
+        : remediationAction
+          ? `Attempt ${cumulativeAttempts} failed [${failureType}]: ${effectiveReason.slice(0, 500)} Remediation: ${remediationAction}`
         : failureType === "review_rejection" && reviewFeedback
           ? `Review rejected (attempt ${cumulativeAttempts}):\n\n${reviewFeedback.slice(0, 2000)}`
           : `Attempt ${cumulativeAttempts} failed [${failureType}]: ${effectiveReason.slice(0, 500)}`;
@@ -546,74 +559,10 @@ export class FailureHandlerService {
       return;
     }
 
-    if (failureType === "repo_preflight") {
-      if (
-        isDependencySetupPreflightFailure &&
-        preflightEnvRequeueCount < PREFLIGHT_ENV_REQUEUE_LIMIT
-      ) {
-        log.warn("Dependency setup preflight failed; requeuing once for retry", {
-          taskId: task.id,
-          retry: preflightEnvRequeueCount + 1,
-          retryLimit: PREFLIGHT_ENV_REQUEUE_LIMIT,
-        });
-        await this.host.taskStore.setCumulativeAttempts(projectId, task.id, cumulativeAttempts, {
-          currentLabels: (task.labels ?? []) as string[],
-        });
-        const retrySummary = buildTaskLastExecutionSummary({
-          attempt: cumulativeAttempts,
-          outcome: "requeued",
-          phase: slot.phase,
-          failureType,
-          summary: `${failureSummary}. ${nextAction}`,
-        });
-        await this.revertOrRemoveWorktree(repoPath, task.id, branchName, slot, gitWorkingMode, {
-          baseBranch,
-        });
-        await this.host.deleteAssignment(repoPath, task.id);
-        try {
-          await this.host.taskStore.update(projectId, task.id, {
-            status: "open",
-            assignee: "",
-            extra: {
-              last_execution_summary: retrySummary,
-              [NEXT_RETRY_CONTEXT_KEY]: persistedRetryContext,
-              [PREFLIGHT_ENV_REQUEUE_COUNT_KEY]: preflightEnvRequeueCount + 1,
-            },
-          });
-        } catch (err) {
-          log.warn("Failed to reopen task after dependency setup preflight failure", { err });
-        }
-        eventLogService
-          .append(repoPath, {
-            timestamp: new Date().toISOString(),
-            projectId,
-            taskId: task.id,
-            event: "task.requeued",
-            data: {
-              attempt: cumulativeAttempts,
-              phase: slot.phase,
-              failureType,
-              model: agentConfig.model ?? null,
-              summary: retrySummary.summary,
-              nextAction,
-            },
-          })
-          .catch(() => {});
-        this.host.transition(projectId, { to: "fail", taskId: task.id });
-        await this.host.persistCounters(projectId, repoPath);
-        broadcastToProject(projectId, {
-          type: "agent.completed",
-          taskId: task.id,
-          status: "failed",
-          testResults: null,
-          reason: effectiveReason.slice(0, 500),
-        });
-        this.host.nudge(projectId);
-        return;
-      }
-
-      log.warn("Repo preflight failed; blocking task until git setup is fixed", {
+    if (failureType === "repo_preflight" || failureType === "environment_setup") {
+      log.warn("Deterministic environment/setup failure; blocking task until remediated", {
         taskId: task.id,
+        failureType,
       });
       await this.host.taskStore.setCumulativeAttempts(projectId, task.id, cumulativeAttempts, {
         currentLabels: (task.labels ?? []) as string[],
@@ -632,7 +581,8 @@ export class FailureHandlerService {
         slot.phase,
         agentConfig.model ?? null,
         slot.phase === "review" ? { effectiveReason, apiErrorKind } : undefined,
-        persistedRetryContext
+        persistedRetryContext,
+        remediationAction ? { nextAction: remediationAction } : undefined
       );
       return;
     }
@@ -867,17 +817,20 @@ export class FailureHandlerService {
     phase: "coding" | "review",
     model?: string | null,
     notificationContext?: { effectiveReason: string; apiErrorKind: AgentApiErrorKind | null },
-    retryContext?: RetryContext
+    retryContext?: RetryContext,
+    options?: { blockReason?: string; nextAction?: string }
   ): Promise<void> {
+    const blockReason = options?.blockReason ?? "Coding Failure";
+    const nextAction = options?.nextAction ?? "Blocked pending investigation";
     log.info(`Blocking ${task.id} after ${cumulativeAttempts} cumulative failures at max priority`);
     const blockSummary = buildTaskLastExecutionSummary({
       attempt: cumulativeAttempts,
       outcome: "blocked",
       phase,
       failureType,
-      blockReason: "Coding Failure",
+      blockReason,
       summary: compactExecutionText(
-        `${phase === "review" ? "Review" : "Coding"} blocked after ${cumulativeAttempts} failed attempts: ${reason}`,
+        `${phase === "review" ? "Review" : "Coding"} blocked after ${cumulativeAttempts} failed attempts: ${reason}${nextAction === "Blocked pending investigation" ? "" : ` | ${nextAction}`}`,
         500
       ),
     });
@@ -886,7 +839,7 @@ export class FailureHandlerService {
       await this.host.taskStore.update(projectId, task.id, {
         status: "blocked",
         assignee: "",
-        block_reason: "Coding Failure",
+        block_reason: blockReason,
         extra: {
           last_execution_summary: blockSummary,
           [NEXT_RETRY_CONTEXT_KEY]: retryContext ?? null,
@@ -906,9 +859,9 @@ export class FailureHandlerService {
           phase,
           failureType,
           model: model ?? null,
-          blockReason: "Coding Failure",
+          blockReason,
           summary: blockSummary.summary,
-          nextAction: "Blocked pending investigation",
+          nextAction,
         },
       })
       .catch(() => {});
