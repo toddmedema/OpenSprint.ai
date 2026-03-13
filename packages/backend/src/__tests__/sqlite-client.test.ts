@@ -36,6 +36,28 @@ describe("resolveSqlitePath", () => {
     }
   });
 
+  it("normalizes Windows drive-letter sqlite URLs with host component", () => {
+    const platformSpy = vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+    try {
+      expect(resolveSqlitePath("sqlite://C:/Users/Alice/.opensprint/data/opensprint.sqlite")).toBe(
+        path.win32.resolve("C:/Users/Alice/.opensprint/data/opensprint.sqlite")
+      );
+    } finally {
+      platformSpy.mockRestore();
+    }
+  });
+
+  it("normalizes Windows UNC sqlite URLs", () => {
+    const platformSpy = vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+    try {
+      expect(resolveSqlitePath("sqlite://server/share/opensprint.sqlite")).toBe(
+        path.win32.resolve("\\\\server\\share\\opensprint.sqlite")
+      );
+    } finally {
+      platformSpy.mockRestore();
+    }
+  });
+
   it("normalizes legacy repeated sqlite: prefixes", () => {
     const platformSpy = vi.spyOn(process, "platform", "get").mockReturnValue("linux");
     try {

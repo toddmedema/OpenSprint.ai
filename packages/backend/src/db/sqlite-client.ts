@@ -65,6 +65,14 @@ function resolvePathForPlatform(value: string): string {
   return process.platform === "win32" ? path.win32.resolve(value) : path.resolve(value);
 }
 
+function isWindowsDriveLetter(value: string): boolean {
+  return /^[a-zA-Z]$/.test(value);
+}
+
+function isWindowsDrivePath(value: string): boolean {
+  return /^[a-zA-Z]:[\\/]/.test(value);
+}
+
 function getUnknownErrorMessage(err: unknown): string {
   if (err instanceof Error) {
     return err.message;
@@ -255,10 +263,41 @@ export function resolveSqlitePath(databaseUrl: string): string {
   if (/^sqlite:\/\//i.test(trimmed)) {
     try {
       const u = new URL(trimmed);
-      const p = u.pathname || u.hostname || "";
-      const decoded = decodeURIComponent(p.replace(/^\//, ""));
-      if (decoded === ":memory:") return ":memory:";
-      return resolvePathForPlatform(decoded);
+      const decodedPathname = decodeURIComponent(u.pathname || "");
+      const decodedHostname = decodeURIComponent(u.hostname || "");
+
+      if (
+        decodedPathname === ":memory:" ||
+        decodedPathname === "/:memory:" ||
+        decodedHostname === ":memory:"
+      ) {
+        return ":memory:";
+      }
+
+      if (process.platform === "win32") {
+        // sqlite://C:/path.db → hostname="C", pathname="/path.db"
+        if (isWindowsDriveLetter(decodedHostname) && decodedPathname.startsWith("/")) {
+          return resolvePathForPlatform(`${decodedHostname}:${decodedPathname}`);
+        }
+        // sqlite://server/share/path.db → UNC path
+        if (decodedHostname && decodedHostname.toLowerCase() !== "localhost") {
+          const uncPath = `\\\\${decodedHostname}${decodedPathname.replace(/\//g, "\\")}`;
+          return resolvePathForPlatform(uncPath);
+        }
+        // sqlite:///C:/path.db
+        if (/^\/[a-zA-Z]:[\\/]/.test(decodedPathname)) {
+          return resolvePathForPlatform(decodedPathname.slice(1));
+        }
+      } else if (decodedHostname) {
+        return `//${decodedHostname}${decodedPathname}`;
+      }
+
+      const candidate = decodedPathname || decodedHostname || "";
+      const normalizedCandidate =
+        process.platform === "win32" && !isWindowsDrivePath(candidate)
+          ? candidate.replace(/^\//, "")
+          : candidate;
+      return resolvePathForPlatform(normalizedCandidate);
     } catch {
       return resolvePathForPlatform(trimmed.replace(/^sqlite:\/\/\/?/i, ""));
     }

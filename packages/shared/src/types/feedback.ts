@@ -46,8 +46,8 @@ export interface FeedbackItem {
   linkInvalidRetryCount?: number;
   /** When true, feedback was routed to Planner to create a new Epic/Plan instead of individual tickets (PRD §7.4.2) */
   isLargeScope?: boolean;
-  /** Plan version to associate with created tasks (when feedback was submitted with planId from Reply-to-Plan). */
+  /** Plan version for reply-to-plan thread context; used when created tasks are actually mapped back to that plan. */
   planVersionNumber?: number | null;
-  /** When set, feedback was submitted with this plan (Reply-to-Plan); categorization must not overwrite mappedPlanId. */
+  /** When set, feedback was submitted from this plan's thread. This is contextual metadata, not a forced task/plan mapping. */
   submittedPlanId?: string | null;
 }

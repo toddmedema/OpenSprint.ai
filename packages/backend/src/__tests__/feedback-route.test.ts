@@ -203,7 +203,7 @@ describe.skipIf(!feedbackRoutePostgresOk)("Feedback REST API", () => {
     expect(res.body.data.createdTaskIds).toEqual(["bd-xyz.1"]);
   });
 
-  it("POST /projects/:id/feedback should accept planId and planVersionNumber (Reply-to-Plan)", async () => {
+  it("POST /projects/:id/feedback should preserve submittedPlanId and planVersionNumber for Reply-to-Plan", async () => {
     const res = await request(app)
       .post(`${API_PREFIX}/projects/${projectId}/feedback`)
       .send({
@@ -213,9 +213,9 @@ describe.skipIf(!feedbackRoutePostgresOk)("Feedback REST API", () => {
       });
 
     expect(res.status).toBe(201);
-    expect(res.body.data.mappedPlanId).toBe("auth-plan");
+    expect(res.body.data.mappedPlanId).toBeNull();
     const stored = await feedbackStore.getFeedback(projectId, res.body.data.id);
-    expect(stored.mappedPlanId).toBe("auth-plan");
+    expect(stored.mappedPlanId).toBeNull();
     expect(stored.submittedPlanId).toBe("auth-plan");
     expect(stored.planVersionNumber).toBe(2);
   });

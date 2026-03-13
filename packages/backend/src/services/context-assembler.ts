@@ -59,6 +59,8 @@ export interface TaskContext {
   title: string;
   description: string;
   planContent: string;
+  /** True when task originated from feedback (sourceFeedbackIds/Feedback ID marker). */
+  isFeedbackTask?: boolean;
   prdExcerpt: string;
   dependencyOutputs: Array<{ taskId: string; diff: string; summary: string }>;
   /** Past review rejection history (populated by orchestrator for review phase) */
@@ -225,6 +227,11 @@ export class ContextAssembler {
     const task = options?.task ?? (await taskStore.show(projectId, taskId));
     const title = task.title ?? "";
     const description = (task.description as string) ?? "";
+    const sourceFeedbackIds = Array.isArray(task["sourceFeedbackIds"])
+      ? (task["sourceFeedbackIds"] as unknown[])
+      : [];
+    const isFeedbackTask =
+      sourceFeedbackIds.length > 0 || /(?:^|\n)Feedback ID:\s*\S+/i.test(description);
 
     const planContent =
       (await this.getPlanContentForTask(projectId, repoPath, task, taskStore)) ||
@@ -258,6 +265,7 @@ export class ContextAssembler {
       title,
       description,
       planContent,
+      ...(isFeedbackTask && { isFeedbackTask: true }),
       prdExcerpt,
       dependencyOutputs,
       ...(userClarification ? { userClarification } : {}),
@@ -328,6 +336,43 @@ export class ContextAssembler {
     const nextHeading = rest.match(/\n##\s+/);
     const end = nextHeading ? nextHeading.index! : rest.length;
     return rest.slice(0, end).trim();
+  }
+
+  /**
+   * Extract task-local acceptance criteria from ticket description.
+   * Supports markdown section or single-line "Acceptance:" style.
+   */
+  private extractTaskAcceptanceCriteria(description: string): string {
+    const text = description?.trim() ?? "";
+    if (!text) return "";
+
+    const headingMatch = text.match(
+      /(?:^|\n)##\s*Acceptance Criteria\s*\n([\s\S]*?)(?=\n##\s+|$)/i
+    );
+    if (headingMatch?.[1]?.trim()) return headingMatch[1].trim();
+
+    const labelMatch = text.match(/(?:^|\n)(?:Acceptance Criteria|Acceptance)\s*:\s*([\s\S]*)$/i);
+    if (labelMatch?.[1]?.trim()) return labelMatch[1].trim();
+
+    return "";
+  }
+
+  /**
+   * Prefer task-local acceptance criteria; for feedback tasks, avoid forcing parent-plan acceptance.
+   */
+  private resolveAcceptanceCriteria(context: TaskContext): string {
+    const taskCriteria = this.extractTaskAcceptanceCriteria(context.description);
+    if (taskCriteria) return taskCriteria;
+    if (context.isFeedbackTask) return "";
+    return this.extractPlanSection(context.planContent, "Acceptance Criteria");
+  }
+
+  /**
+   * Parent-plan technical approach is reference-only and should not constrain feedback tasks.
+   */
+  private resolveTechnicalApproach(context: TaskContext): string {
+    if (context.isFeedbackTask) return "";
+    return this.extractPlanSection(context.planContent, "Technical Approach");
   }
 
   /**
@@ -410,12 +455,12 @@ export class ContextAssembler {
     prompt += `- \`context/spec.md\` — relevant product requirements\n`;
     prompt += `- \`context/deps/\` — output from tasks this depends on\n\n`;
 
-    const acceptanceCriteria = this.extractPlanSection(context.planContent, "Acceptance Criteria");
+    const acceptanceCriteria = this.resolveAcceptanceCriteria(context);
     if (acceptanceCriteria) {
       prompt += `## Acceptance Criteria\n\n${acceptanceCriteria}\n\n`;
     }
 
-    const technicalApproach = this.extractPlanSection(context.planContent, "Technical Approach");
+    const technicalApproach = this.resolveTechnicalApproach(context);
     if (technicalApproach) {
       prompt += `## Technical Approach\n\n${technicalApproach}\n\n`;
     }
@@ -574,12 +619,12 @@ export class ContextAssembler {
     prompt += `**Title:** ${context.title}\n\n`;
     prompt += `${context.description}\n\n`;
 
-    const acceptanceCriteria = this.extractPlanSection(context.planContent, "Acceptance Criteria");
+    const acceptanceCriteria = this.resolveAcceptanceCriteria(context);
     if (acceptanceCriteria) {
       prompt += `## Acceptance Criteria\n\n${acceptanceCriteria}\n\n`;
     }
 
-    const technicalApproach = this.extractPlanSection(context.planContent, "Technical Approach");
+    const technicalApproach = this.resolveTechnicalApproach(context);
     if (technicalApproach) {
       prompt += `## Technical Approach\n\n${technicalApproach}\n\n`;
     }
@@ -611,7 +656,9 @@ export class ContextAssembler {
     prompt += `### Part 1: Scope Compliance\n\n`;
     prompt += `- [ ] The implementation addresses what the ticket asks for — no more, no less\n`;
     prompt += `- [ ] ALL acceptance criteria are met (check each one individually)\n`;
-    prompt += `- [ ] The technical approach matches the plan (or deviations are justified)\n`;
+    if (technicalApproach) {
+      prompt += `- [ ] The technical approach matches the plan (or deviations are justified)\n`;
+    }
     prompt += `- [ ] No unrelated changes or scope creep\n\n`;
 
     prompt += `### Part 2: Code Quality\n\n`;
@@ -681,12 +728,12 @@ export class ContextAssembler {
     prompt += `**Title:** ${context.title}\n\n`;
     prompt += `${context.description}\n\n`;
 
-    const acceptanceCriteria = this.extractPlanSection(context.planContent, "Acceptance Criteria");
+    const acceptanceCriteria = this.resolveAcceptanceCriteria(context);
     if (acceptanceCriteria) {
       prompt += `## Acceptance Criteria\n\n${acceptanceCriteria}\n\n`;
     }
 
-    const technicalApproach = this.extractPlanSection(context.planContent, "Technical Approach");
+    const technicalApproach = this.resolveTechnicalApproach(context);
     if (technicalApproach) {
       prompt += `## Technical Approach\n\n${technicalApproach}\n\n`;
     }

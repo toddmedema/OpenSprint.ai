@@ -192,7 +192,7 @@ describe("evalSlice", () => {
   });
 
   describe("submitFeedback", () => {
-    it("keeps optimistic plan replies linked to the plan thread", async () => {
+    it("keeps optimistic plan replies in the plan thread without forcing mappedPlanId", async () => {
       const { api } = await import("../../api/client");
       let resolveSubmit: ((value: FeedbackItem) => void) | null = null;
       const submitPromise = new Promise<FeedbackItem>((resolve) => {
@@ -212,7 +212,7 @@ describe("evalSlice", () => {
 
       const pendingState = store.getState().eval;
       expect(pendingState.feedback).toHaveLength(1);
-      expect(pendingState.feedback[0].mappedPlanId).toBe("plan-alpha");
+      expect(pendingState.feedback[0].mappedPlanId).toBeNull();
       expect(pendingState.feedback[0].submittedPlanId).toBe("plan-alpha");
       expect(pendingState.feedback[0].planVersionNumber).toBe(4);
 

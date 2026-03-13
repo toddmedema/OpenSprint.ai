@@ -154,18 +154,16 @@ export class FeedbackCategorizationService {
       this.getOpenTasksContextForCategorization(projectId),
     ]);
 
-    let plans: { metadata: { planId: string } }[] = [];
-    try {
-      plans = await this.getPlanService().listPlans(projectId);
-    } catch {
-      // Ignore
-    }
-    const firstPlanId = plans.length > 0 ? plans[0].metadata.planId : null;
+    const fallbackMappedPlanId = item.mappedPlanId ?? null;
 
     let parentContext = "";
     if (item.parent_id) {
       parentContext = await this.buildParentChainContext(projectId, item.parent_id, getFeedback);
     }
+
+    const submittedPlanContext = item.submittedPlanId
+      ? `\n\n# Reply-to-Plan Context\n\nThis feedback was submitted from the thread for plan \`${item.submittedPlanId}\`. Use that as context only. Return \`mapped_plan_id\` / \`mapped_epic_id\` for this plan only when the feedback clearly belongs to it; otherwise leave them null.\n`
+      : "";
 
     const agentId = `feedback-categorize-${projectId}-${item.id}-${Date.now()}`;
     let linkIds: string[] = [];
@@ -185,7 +183,7 @@ export class FeedbackCategorizationService {
         messages: [
           {
             role: "user",
-            content: `# PRD\n\n${prdContext}\n\n# Plans\n\n${planContext}\n\n# Existing OPEN tasks\n\n${openTasksContext}${parentContext}\n\n# Feedback to categorize\n\n"${item.text}"`,
+            content: `# PRD\n\n${prdContext}\n\n# Plans\n\n${planContext}${submittedPlanContext}\n\n# Existing OPEN tasks\n\n${openTasksContext}${parentContext}\n\n# Feedback to categorize\n\n"${item.text}"`,
           },
         ],
         systemPrompt,
@@ -211,17 +209,13 @@ export class FeedbackCategorizationService {
             ? (rawCategory as FeedbackCategory)
             : "bug";
 
-        if (item.submittedPlanId) {
-          item.mappedPlanId = item.submittedPlanId;
-        } else {
-          const rawMappedPlanId = parsed.mapped_plan_id ?? parsed.mappedPlanId;
-          item.mappedPlanId =
-            rawMappedPlanId === undefined
-              ? firstPlanId
-              : typeof rawMappedPlanId === "string"
-                ? rawMappedPlanId
-                : null;
-        }
+        const rawMappedPlanId = parsed.mapped_plan_id ?? parsed.mappedPlanId;
+        item.mappedPlanId =
+          rawMappedPlanId === undefined
+            ? null
+            : typeof rawMappedPlanId === "string" && rawMappedPlanId.trim()
+              ? rawMappedPlanId.trim()
+              : null;
 
         const rawMappedEpicId = parsed.mapped_epic_id ?? parsed.mappedEpicId;
         if (typeof rawMappedEpicId === "string" && rawMappedEpicId.trim()) {
@@ -231,10 +225,15 @@ export class FeedbackCategorizationService {
             const plan = await this.getPlanService().getPlan(projectId, item.mappedPlanId);
             if (plan.metadata.epicId) {
               item.mappedEpicId = plan.metadata.epicId;
+            } else {
+              item.mappedEpicId = undefined;
             }
           } catch {
             // Plan not found — leave mappedEpicId unset
+            item.mappedEpicId = undefined;
           }
+        } else {
+          item.mappedEpicId = undefined;
         }
 
         item.isScopeChange =
@@ -379,13 +378,13 @@ export class FeedbackCategorizationService {
         }
       } else {
         item.category = "bug";
-        item.mappedPlanId = firstPlanId;
+        item.mappedPlanId = fallbackMappedPlanId;
         item.taskTitles = [item.text.slice(0, 80)];
       }
     } catch (error) {
       log.error("AI categorization failed for feedback", { feedbackId: item.id, error });
       item.category = "bug";
-      item.mappedPlanId = firstPlanId;
+      item.mappedPlanId = fallbackMappedPlanId;
       item.taskTitles = [item.text.slice(0, 80)];
     }
 

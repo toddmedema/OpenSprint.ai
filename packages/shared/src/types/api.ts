@@ -135,8 +135,8 @@ export interface FeedbackSubmitRequest {
   parent_id?: string | null;
   /** User-specified priority (0=Critical, 1=High, 2=Medium, 3=Low, 4=Lowest). Omitted when not set. */
   priority?: number | null;
-  /** When creating tasks from a reply to a Plan (Evaluate), associate feedback and created tasks with this plan. */
+  /** When replying under a Plan thread (Evaluate), preserve that thread context for categorization and inline display. */
   planId?: string | null;
-  /** Plan version to associate with created tasks; when omitted and planId is set, current plan version is used. */
+  /** Plan version for reply-to-plan context; used if categorization maps created tasks back to that plan. */
   planVersionNumber?: number | null;
 }

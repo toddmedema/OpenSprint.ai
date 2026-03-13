@@ -69,7 +69,7 @@ export async function submitFeedback(
     id,
     text,
     category: "bug",
-    mappedPlanId: mappedPlanId ?? null,
+    mappedPlanId: null,
     createdTaskIds: [],
     status: "pending",
     createdAt: new Date().toISOString(),

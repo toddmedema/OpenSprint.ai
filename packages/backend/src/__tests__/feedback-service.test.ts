@@ -786,6 +786,84 @@ describe.skipIf(!feedbackServicePostgresOk)("FeedbackService", () => {
     );
   });
 
+  it("does not default mapped plan when analyst omits mapped_plan_id", async () => {
+    mockInvoke.mockResolvedValue({
+      content: JSON.stringify({
+        category: "bug",
+        proposed_tasks: [
+          {
+            index: 0,
+            title: "Fix broken submit",
+            description: "Form submit fails intermittently.",
+            priority: 0,
+            depends_on: [],
+          },
+        ],
+      }),
+    });
+
+    const item = await feedbackService.submitFeedback(projectId, {
+      text: "Submit button is broken",
+    });
+
+    await feedbackService.processFeedbackWithAnalyst(projectId, item.id);
+
+    const updated = await feedbackService.getFeedback(projectId, item.id);
+    expect(updated.mappedPlanId).toBeNull();
+    expect(updated.mappedEpicId).toBeUndefined();
+    expect(updated.createdTaskIds).toHaveLength(1);
+    expect(updated.createdTaskIds[0]).toBeDefined();
+  });
+
+  it("treats submittedPlanId as context only when analyst leaves plan mapping null", async () => {
+    mockInvoke.mockResolvedValue({
+      content: JSON.stringify({
+        category: "bug",
+        mapped_plan_id: null,
+        mapped_epic_id: null,
+        proposed_tasks: [
+          {
+            index: 0,
+            title: "Investigate sketch startup failure",
+            description: "Reproduce and fix the issue without assuming it belongs to the plan.",
+            priority: 0,
+            depends_on: [],
+          },
+        ],
+      }),
+    });
+
+    const item = await feedbackService.submitFeedback(projectId, {
+      text: "Sketch fails silently on Windows",
+      planId: "auth-plan",
+      planVersionNumber: 2,
+    });
+
+    expect(item.mappedPlanId).toBeNull();
+    expect(item.submittedPlanId).toBe("auth-plan");
+
+    await feedbackService.processFeedbackWithAnalyst(projectId, item.id);
+
+    const updated = await feedbackService.getFeedback(projectId, item.id);
+    expect(updated.mappedPlanId).toBeNull();
+    expect(updated.mappedEpicId).toBeUndefined();
+    expect(updated.submittedPlanId).toBe("auth-plan");
+
+    const taskCreateCall = mockTaskStoreCreateWithRetry.mock.calls.find(
+      (call) => call[1] === "Investigate sketch startup failure"
+    );
+    expect(taskCreateCall).toBeDefined();
+    expect(taskCreateCall?.[2]).toMatchObject({
+      parentId: undefined,
+      extra: { sourceFeedbackIds: [item.id] },
+    });
+
+    const prompt = mockInvoke.mock.calls.at(-1)?.[0]?.prompt ?? "";
+    expect(prompt).toContain("# Reply-to-Plan Context");
+    expect(prompt).toContain("auth-plan");
+    expect(prompt).toContain("context only");
+  });
+
   it("should link to existing tasks when Analyst returns link_to_existing_task_ids", async () => {
     const existingTask = {
       id: "os-abc.1",
@@ -1482,7 +1560,7 @@ describe.skipIf(!feedbackServicePostgresOk)("FeedbackService", () => {
     expect(mockHilEvaluate).toHaveBeenCalledTimes(1);
   });
 
-  it("should fallback to bug and first plan when agent returns invalid JSON", async () => {
+  it("should fallback to bug and no mapped plan when agent returns invalid JSON", async () => {
     mockInvoke.mockResolvedValue({ content: "This is not valid JSON at all" });
 
     const item = await feedbackService.submitFeedback(projectId, {
@@ -1494,6 +1572,7 @@ describe.skipIf(!feedbackServicePostgresOk)("FeedbackService", () => {
     const updated = await feedbackService.getFeedback(projectId, item.id);
     expect(updated.status).toBe("pending");
     expect(updated.category).toBe("bug");
+    expect(updated.mappedPlanId).toBeNull();
     expect(updated.taskTitles).toEqual(["Something broke"]);
   });
 
@@ -1509,6 +1588,7 @@ describe.skipIf(!feedbackServicePostgresOk)("FeedbackService", () => {
     const updated = await feedbackService.getFeedback(projectId, item.id);
     expect(updated.status).toBe("pending");
     expect(updated.category).toBe("bug");
+    expect(updated.mappedPlanId).toBeNull();
     expect(updated.taskTitles).toEqual(["Random feedback"]);
   });
 

@@ -184,6 +184,50 @@ User authentication.
     expect(prompt).not.toContain("when the task is complete");
   });
 
+  it("prefers task-local acceptance criteria for feedback tasks in coding prompt", async () => {
+    await fs.writeFile(path.join(repoPath, SPEC_MD), "# Product Specification\n\nTest product.", "utf-8");
+    const planContent = `# Plan
+
+## Acceptance Criteria
+
+- Add in_review plan status
+- Add mark-complete endpoint
+
+## Technical Approach
+
+- Persist reviewedAt metadata`;
+    const config = {
+      invocation_id: "bd-a3f8.9",
+      agent_role: "coder" as const,
+      taskId: "bd-a3f8.9",
+      repoPath,
+      branch: "opensprint/bd-a3f8.9",
+      testCommand: "npm test",
+      attempt: 1,
+      phase: "coding" as const,
+      previousFailure: null as string | null,
+      reviewFeedback: null as string | null,
+    };
+
+    const taskDir = await assembler.assembleTaskDirectory(repoPath, config.taskId, config, {
+      taskId: config.taskId,
+      title: "Fix Sketch empty-state silent failure",
+      description:
+        "Investigate Sketch empty-state failure on Windows.\n\nFeedback ID: fb-123\n\nAcceptance: Any agent failure in this flow shows a clear visible inline error.",
+      planContent,
+      isFeedbackTask: true,
+      prdExcerpt: "# Product Requirements\n\nTest product.",
+      dependencyOutputs: [],
+    });
+
+    const prompt = await fs.readFile(path.join(taskDir, "prompt.md"), "utf-8");
+    expect(prompt).toContain("## Acceptance Criteria");
+    expect(prompt).toContain("Any agent failure in this flow shows a clear visible inline error.");
+    expect(prompt).not.toContain("Add in_review plan status");
+    expect(prompt).not.toContain("Persist reviewedAt metadata");
+    expect(prompt).not.toContain("## Technical Approach");
+  });
+
   it("should inject agent instructions (AGENTS.md + role-specific) into coding prompt when both exist", async () => {
     await fs.writeFile(
       path.join(repoPath, SPEC_MD),
@@ -895,6 +939,50 @@ User authentication.
 
     // Should NOT contain prior review history for first attempt
     expect(prompt).not.toContain("## Prior Review History");
+  });
+
+  it("uses task-local acceptance criteria for feedback tasks in review prompt", async () => {
+    const planContent = `# Plan
+
+## Acceptance Criteria
+
+- Add in_review plan status
+- Add mark-complete endpoint
+
+## Technical Approach
+
+- Persist reviewedAt metadata`;
+
+    const config = {
+      invocation_id: "bd-a3f8.10",
+      agent_role: "reviewer" as const,
+      taskId: "bd-a3f8.10",
+      repoPath,
+      branch: "opensprint/bd-a3f8.10",
+      testCommand: "npm test",
+      attempt: 1,
+      phase: "review" as const,
+      previousFailure: null as string | null,
+      reviewFeedback: null as string | null,
+    };
+
+    const taskDir = await assembler.assembleTaskDirectory(repoPath, config.taskId, config, {
+      taskId: config.taskId,
+      title: "Fix Sketch empty-state silent failure",
+      description:
+        "Fix Windows/Cursor silent failure in Sketch.\n\nFeedback ID: fb-123\n\nAcceptance: User sees a clear error banner when Dreamer fails.",
+      planContent,
+      isFeedbackTask: true,
+      prdExcerpt: "# Product Requirements\n\nTest product.",
+      dependencyOutputs: [],
+    });
+
+    const prompt = await fs.readFile(path.join(taskDir, "prompt.md"), "utf-8");
+    expect(prompt).toContain("## Acceptance Criteria");
+    expect(prompt).toContain("User sees a clear error banner when Dreamer fails.");
+    expect(prompt).not.toContain("Add in_review plan status");
+    expect(prompt).not.toContain("Persist reviewedAt metadata");
+    expect(prompt).not.toContain("The technical approach matches the plan");
   });
 
   it("should NOT include Focus Areas when reviewAngles is empty (general prompt)", async () => {

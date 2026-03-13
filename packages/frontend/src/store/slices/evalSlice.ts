@@ -197,7 +197,7 @@ const evalSlice = createSlice({
         id: `${OPTIMISTIC_ID_PREFIX}${requestId}`,
         text,
         category: "bug",
-        mappedPlanId: submittedPlanId ?? null,
+        mappedPlanId: null,
         createdTaskIds: [],
         status: "pending",
         createdAt: new Date().toISOString(),
