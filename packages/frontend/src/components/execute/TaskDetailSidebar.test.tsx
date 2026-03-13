@@ -2587,6 +2587,7 @@ describe("TaskDetailSidebar", () => {
     expect(screen.getByTestId("execution-diagnostics-latest-summary")).toHaveTextContent(
       "fatal: no rebase in progress"
     );
+    expect(screen.queryByTestId("execution-diagnostics-primary-message")).not.toBeInTheDocument();
     expect(screen.getByTestId("execution-diagnostics-earlier-failures")).toHaveTextContent(
       "Attempts 1-2"
     );
@@ -2595,6 +2596,71 @@ describe("TaskDetailSidebar", () => {
       "packages/backend/src/routes/global-settings.ts"
     );
     expect(screen.getByTestId("execution-attempt-6")).toHaveTextContent(/2026/);
+  });
+
+  it("renders actionable execution diagnostics details for quality-gate failures", async () => {
+    const user = userEvent.setup();
+    const props = createMinimalProps({
+      isBlockedTask: true,
+      selectedTaskData: {
+        ...defaultSelectedTaskData,
+        kanbanColumn: "blocked" as const,
+        status: "blocked" as const,
+        blockReason: "Merge Failure",
+      },
+      diagnostics: {
+        taskId: "epic-1.1",
+        taskStatus: "blocked",
+        blockReason: "Merge Failure",
+        cumulativeAttempts: 4,
+        latestSummary: "Quality gate failed during merge checks",
+        latestFailureType: "environment_setup",
+        latestOutcome: "blocked" as const,
+        latestNextAction: "Run npm ci in the repository root and re-link worktree node_modules.",
+        latestQualityGateDetail: {
+          command: "npm run lint -w packages/frontend",
+          reason: "Command failed with exit code 1",
+          outputSnippet: "Error: Cannot find module 'eslint'\nRequire stack:\n- /tmp/lint.js",
+          worktreePath: "/tmp/opensprint/os-d350.8",
+          firstErrorLine: "Error: Cannot find module 'eslint'",
+        },
+        timeline: [],
+        attempts: [
+          {
+            attempt: 4,
+            finalPhase: "merge" as const,
+            finalOutcome: "blocked" as const,
+            finalSummary: "Quality gate failed during merge checks",
+            codingModel: "composer-1.5",
+            reviewModel: "composer-1.5",
+            mergeStage: "quality_gate",
+            conflictedFiles: [],
+            sessionAttemptStatuses: [],
+            startedAt: "2026-03-01T17:02:25.000Z",
+            completedAt: "2026-03-01T17:04:21.000Z",
+          },
+        ],
+      },
+    });
+
+    renderSidebar(props, { preloadedState: defaultPreloadedState });
+
+    expect(screen.getByTestId("execution-diagnostics-primary-message")).toHaveTextContent(
+      "npm run lint -w packages/frontend | Error: Cannot find module 'eslint'"
+    );
+    expect(screen.queryByTestId("execution-diagnostics-details")).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("execution-diagnostics-details-toggle"));
+    expect(screen.getByTestId("execution-diagnostics-details-output-snippet")).toHaveTextContent(
+      "Error: Cannot find module 'eslint'"
+    );
+    expect(screen.getByTestId("execution-diagnostics-details-worktree")).toHaveTextContent(
+      "/tmp/opensprint/os-d350.8"
+    );
+    expect(screen.getByTestId("execution-diagnostics-details-remediation")).toHaveTextContent(
+      "Run npm ci in the repository root and re-link worktree node_modules."
+    );
+    expect(screen.getByTestId("execution-attempt-4")).toHaveTextContent("Merge · Failures");
   });
 
   it("hides Execution diagnostics content when diagnosticsSectionExpanded is false", () => {

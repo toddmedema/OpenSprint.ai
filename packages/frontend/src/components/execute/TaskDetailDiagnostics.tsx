@@ -48,6 +48,75 @@ export function formatAttemptTimestamp(iso: string | null | undefined): string {
   }).format(date);
 }
 
+function firstNonEmptyLine(value: string | null | undefined): string | null {
+  if (!value) return null;
+  for (const line of value.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return null;
+}
+
+interface DiagnosticsFailurePresentation {
+  primaryMessage: string | null;
+  command: string | null;
+  reason: string | null;
+  outputSnippet: string | null;
+  worktreePath: string | null;
+  remediation: string | null;
+  hasStructuredDetail: boolean;
+}
+
+function useFailurePresentation(
+  diagnostics: TaskExecutionDiagnostics | null
+): DiagnosticsFailurePresentation {
+  return React.useMemo(() => {
+    if (!diagnostics) {
+      return {
+        primaryMessage: null,
+        command: null,
+        reason: null,
+        outputSnippet: null,
+        worktreePath: null,
+        remediation: null,
+        hasStructuredDetail: false,
+      };
+    }
+
+    const detail = diagnostics.latestQualityGateDetail ?? null;
+    const command = detail?.command?.trim() || null;
+    const reason = detail?.reason?.trim() || null;
+    const outputSnippet = detail?.outputSnippet?.trim() || null;
+    const worktreePath = detail?.worktreePath?.trim() || null;
+    const remediation = diagnostics.latestNextAction?.trim() || null;
+    const detailFirstErrorLine = detail?.firstErrorLine?.trim() || null;
+    const firstErrorLine =
+      detailFirstErrorLine || firstNonEmptyLine(outputSnippet) || firstNonEmptyLine(reason);
+    const hasStructuredPayload = Boolean(
+      detail && (command || reason || outputSnippet || worktreePath || detailFirstErrorLine)
+    );
+    const primaryMessage = hasStructuredPayload
+      ? command && firstErrorLine
+        ? `${command} | ${firstErrorLine}`
+        : command || firstErrorLine
+      : null;
+
+    const hasStructuredDetail = Boolean(
+      hasStructuredPayload && (outputSnippet || worktreePath || remediation || reason)
+    );
+
+    return {
+      primaryMessage: primaryMessage?.trim() || null,
+      command,
+      reason,
+      outputSnippet,
+      worktreePath,
+      remediation,
+      hasStructuredDetail,
+    };
+  }, [diagnostics]);
+}
+
 export interface TaskDetailDiagnosticsProps {
   task: Task | null;
   diagnostics: TaskExecutionDiagnostics | null;
@@ -99,6 +168,12 @@ export function TaskDetailDiagnostics({
   diagnosticsLoading,
 }: TaskDetailDiagnosticsProps) {
   const earlierFailureSummaries = useEarlierFailureSummaries(diagnostics);
+  const failurePresentation = useFailurePresentation(diagnostics);
+  const [detailsExpanded, setDetailsExpanded] = React.useState(false);
+
+  React.useEffect(() => {
+    setDetailsExpanded(false);
+  }, [diagnostics?.taskId, diagnostics?.cumulativeAttempts]);
 
   return (
     <div
@@ -119,6 +194,55 @@ export function TaskDetailDiagnostics({
                 data-testid="execution-diagnostics-block-reason"
               >
                 Failures: {task.blockReason}
+              </div>
+            )}
+            {failurePresentation.primaryMessage && (
+              <div data-testid="execution-diagnostics-primary-message">
+                <span className="text-theme-muted">Latest failure:</span>{" "}
+                <span className="text-theme-text">{failurePresentation.primaryMessage}</span>
+              </div>
+            )}
+            {failurePresentation.hasStructuredDetail && (
+              <div className="mt-2 rounded-md border border-theme-border-subtle bg-theme-code-bg p-2">
+                <button
+                  type="button"
+                  className="text-theme-muted hover:text-theme-text transition-colors"
+                  onClick={() => setDetailsExpanded((prev) => !prev)}
+                  aria-expanded={detailsExpanded}
+                  data-testid="execution-diagnostics-details-toggle"
+                >
+                  {detailsExpanded ? "Hide details" : "Show details"}
+                </button>
+                {detailsExpanded && (
+                  <div className="mt-2 space-y-2" data-testid="execution-diagnostics-details">
+                    {failurePresentation.reason && (
+                      <div data-testid="execution-diagnostics-details-reason">
+                        <span className="text-theme-muted">Reason:</span>{" "}
+                        <span className="text-theme-text">{failurePresentation.reason}</span>
+                      </div>
+                    )}
+                    {failurePresentation.outputSnippet && (
+                      <div data-testid="execution-diagnostics-details-output-snippet">
+                        <div className="text-theme-muted">Output snippet:</div>
+                        <pre className="mt-1 whitespace-pre-wrap break-words text-theme-text">
+                          {failurePresentation.outputSnippet}
+                        </pre>
+                      </div>
+                    )}
+                    {failurePresentation.worktreePath && (
+                      <div data-testid="execution-diagnostics-details-worktree">
+                        <span className="text-theme-muted">Worktree:</span>{" "}
+                        <span className="text-theme-text">{failurePresentation.worktreePath}</span>
+                      </div>
+                    )}
+                    {failurePresentation.remediation && (
+                      <div data-testid="execution-diagnostics-details-remediation">
+                        <span className="text-theme-muted">Remediation:</span>{" "}
+                        <span className="text-theme-text">{failurePresentation.remediation}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             {diagnostics.latestSummary && (
