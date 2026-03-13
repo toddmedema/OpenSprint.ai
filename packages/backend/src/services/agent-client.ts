@@ -90,6 +90,30 @@ function getCursorCommandInvocation(args: string[]): { command: string; args: st
   };
 }
 
+const WINDOWS_CMD_MAX_LENGTH = 8191;
+const WINDOWS_CMD_HEADROOM = 128;
+const CURSOR_WINDOWS_LENGTH_LIMIT_MESSAGE =
+  "Cursor request is too large for Windows shell execution. The prompt exceeded cmd.exe command-length limits. Retry with a shorter message or switch to a non-Cursor provider for this request.";
+
+function getWindowsCommandLength(command: string, args: string[]): number {
+  return [command, ...args].join(" ").length;
+}
+
+function assertCursorWindowsCommandLength(command: string, args: string[]): void {
+  if (process.platform !== "win32") return;
+  const shellName = command.split(/[/\\]/).pop()?.toLowerCase() ?? "";
+  if (shellName !== "cmd" && shellName !== "cmd.exe") return;
+  const commandLength = getWindowsCommandLength(command, args);
+  if (commandLength <= WINDOWS_CMD_MAX_LENGTH - WINDOWS_CMD_HEADROOM) return;
+  throw new AppError(502, ErrorCodes.AGENT_INVOKE_FAILED, CURSOR_WINDOWS_LENGTH_LIMIT_MESSAGE, {
+    agentType: "cursor",
+    raw: CURSOR_WINDOWS_LENGTH_LIMIT_MESSAGE,
+    isWindowsCmdLengthLimit: true,
+    commandLength,
+    commandLimit: WINDOWS_CMD_MAX_LENGTH,
+  });
+}
+
 /** Build full prompt from system prompt, conversation history, and final user message (Human/Assistant format). */
 function buildFullPrompt(options: {
   systemPrompt?: string;
@@ -1461,6 +1485,7 @@ export class AgentClient {
         cursorArgs.push("--model", resolveCursorModel(config.model));
         cursorArgs.push(taskContent);
         const cursorInvocation = getCursorCommandInvocation(cursorArgs);
+        assertCursorWindowsCommandLength(cursorInvocation.command, cursorInvocation.args);
         command = cursorInvocation.command;
         args = cursorInvocation.args;
         break;
@@ -1982,6 +2007,7 @@ export class AgentClient {
       let stderr = "";
 
       const cursorInvocation = getCursorCommandInvocation(args);
+      assertCursorWindowsCommandLength(cursorInvocation.command, cursorInvocation.args);
       const child = spawn(cursorInvocation.command, cursorInvocation.args, {
         cwd,
         env: normalizeSpawnEnvPath({ ...process.env, CURSOR_API_KEY: cursorApiKey || "" }),
@@ -2046,8 +2072,39 @@ export class AgentClient {
       child.on("close", (code) => {
         clearTimeout(timeout);
         if (child.pid) unregisterAgentProcess(child.pid);
-        if (code === 0 || stdout.trim()) {
-          resolve(stdout.trim());
+        const output = stdout.trim();
+        const errOutput = stderr.trim();
+        if (code === 0 && output) {
+          resolve(output);
+        } else if (code === 0 && errOutput) {
+          reject(
+            new AppError(
+              502,
+              ErrorCodes.AGENT_INVOKE_FAILED,
+              `Cursor CLI returned no output. stderr: ${errOutput.slice(0, 500)}`,
+              {
+                agentType: "cursor",
+                exitCode: code,
+                stderr: errOutput.slice(0, 500),
+                emptyStdout: true,
+              }
+            )
+          );
+        } else if (code === 0) {
+          reject(
+            new AppError(
+              502,
+              ErrorCodes.AGENT_INVOKE_FAILED,
+              "Cursor CLI returned an empty response.",
+              {
+                agentType: "cursor",
+                exitCode: code,
+                emptyStdout: true,
+              }
+            )
+          );
+        } else if (output) {
+          resolve(output);
         } else {
           reject(
             new AppError(

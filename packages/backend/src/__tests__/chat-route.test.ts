@@ -810,6 +810,21 @@ A simple marketing site for Open Sprint.
       expect(mockUnregister).toHaveBeenCalledWith(mockRegister.mock.calls[0][0]);
     });
 
+    it("surfaces a user-visible error when Sketch Dreamer returns an empty response", async () => {
+      mockInvokePlanningAgent.mockResolvedValueOnce({ content: "   " });
+
+      const res = await request(app)
+        .post(`${API_PREFIX}/projects/${projectId}/chat`)
+        .send({ message: "Help me sketch my product", context: "sketch" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.message).toContain("unable to connect");
+      expect(res.body.data.message).toContain("returned an empty response");
+      expect(res.body.data.message).toContain("What to try");
+      expect(mockRegister).toHaveBeenCalledTimes(1);
+      expect(mockUnregister).toHaveBeenCalledTimes(1);
+    });
+
     it("should unregister even when agent invocation throws", async () => {
       mockInvokePlanningAgent.mockRejectedValueOnce(new Error("Agent unavailable"));
 

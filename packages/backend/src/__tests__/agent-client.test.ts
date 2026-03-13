@@ -326,6 +326,51 @@ describe("AgentClient", () => {
         expect(args[modelIndex + 1]).toBe("auto");
         expect(result.content).toContain("Cursor response");
       });
+
+      it("fails fast on Windows when Cursor prompt exceeds cmd.exe length limits", async () => {
+        Object.defineProperty(process, "platform", { value: "win32" });
+        const originalComSpec = process.env.ComSpec;
+        process.env.ComSpec = "C:\\Windows\\System32\\cmd.exe";
+        try {
+          await expect(
+            client.invoke({
+              config: { type: "cursor", model: "gpt-4", cliCommand: null },
+              prompt: "x".repeat(9000),
+              cwd: "/tmp",
+            })
+          ).rejects.toThrow("Cursor request is too large for Windows shell execution");
+          expect(mockSpawn).not.toHaveBeenCalled();
+        } finally {
+          process.env.ComSpec = originalComSpec;
+        }
+      });
+
+      it("treats stderr-only Cursor exits as failures instead of empty responses", async () => {
+        const mockChild = {
+          killed: false,
+          kill: vi.fn(),
+          stdout: { on: vi.fn() },
+          stderr: {
+            on: vi.fn((_ev: string, fn: (d: Buffer) => void) =>
+              fn(Buffer.from("Cursor request failed unexpectedly"))
+            ),
+          },
+          on: vi.fn((ev: string, fn: (code: number) => void) => {
+            if (ev === "close") setTimeout(() => fn(0), 0);
+            if (ev === "error") return;
+            return { on: vi.fn() };
+          }),
+        };
+        mockSpawn.mockReturnValue(mockChild);
+
+        await expect(
+          client.invoke({
+            config: { type: "cursor", model: "gpt-4", cliCommand: null },
+            prompt: "Hello",
+            cwd: "/tmp",
+          })
+        ).rejects.toThrow("Cursor CLI returned no output");
+      });
     });
 
     it("should use ApiKeyResolver when projectId provided for cursor", async () => {

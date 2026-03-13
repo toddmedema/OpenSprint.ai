@@ -588,8 +588,16 @@ export class ChatService {
         },
       });
 
-      log.info("Planning agent returned", { contentLen: response.content?.length ?? 0 });
-      responseContent = normalizeAgentErrorResponse(response.content ?? "");
+      const normalizedResponse = normalizeAgentErrorResponse(response.content ?? "");
+      if (!normalizedResponse.trim()) {
+        throw new AppError(
+          502,
+          ErrorCodes.AGENT_INVOKE_FAILED,
+          "Planning agent returned an empty response."
+        );
+      }
+      log.info("Planning agent returned", { contentLen: normalizedResponse.length });
+      responseContent = normalizedResponse;
     } catch (error) {
       const msg = getErrorMessage(error);
       log.error("Agent invocation failed", { error });
