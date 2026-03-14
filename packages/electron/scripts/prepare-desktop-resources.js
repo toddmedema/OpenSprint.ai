@@ -64,21 +64,53 @@ function resolveElectronVersion(cliOptions = {}) {
   const fromEnv = process.env.OPENSPRINT_ELECTRON_VERSION?.trim();
   if (fromEnv) return fromEnv;
 
+  const installed = resolveInstalledElectronVersion();
+  const configured = resolveConfiguredElectronVersion();
+  if (installed) {
+    if (configured && configured !== installed) {
+      console.warn(
+        `Configured Electron version (${configured}) does not match installed Electron version (${installed}); using installed version for native rebuilds.`
+      );
+    }
+    return installed;
+  }
+  if (configured) {
+    return configured;
+  }
+
+  const electronPkgPath = path.join(repoRoot, "packages", "electron", "package.json");
+  throw new Error(
+    `Could not resolve Electron version. Install Electron locally, set OPENSPRINT_ELECTRON_VERSION, or define electronVersion in ${electronPkgPath}.`
+  );
+}
+
+function resolveInstalledElectronVersion() {
+  try {
+    const electronEntryPath = require.resolve("electron", {
+      paths: [electronPackageDir, repoRoot],
+    });
+    const electronPkgPath = path.join(path.dirname(electronEntryPath), "package.json");
+    const electronPkg = JSON.parse(fs.readFileSync(electronPkgPath, "utf8"));
+    return normalizeElectronVersion(electronPkg?.version);
+  } catch {
+    return "";
+  }
+}
+
+function resolveConfiguredElectronVersion() {
   const electronPkgPath = path.join(repoRoot, "packages", "electron", "package.json");
   const electronPkg = JSON.parse(fs.readFileSync(electronPkgPath, "utf8"));
   const raw =
     electronPkg?.build?.electronVersion ??
     electronPkg?.devDependencies?.electron ??
     electronPkg?.dependencies?.electron;
-  const normalized = String(raw ?? "")
+  return normalizeElectronVersion(raw);
+}
+
+function normalizeElectronVersion(raw) {
+  return String(raw ?? "")
     .trim()
     .replace(/^[^\d]*/, "");
-  if (!normalized) {
-    throw new Error(
-      `Could not resolve Electron version. Set OPENSPRINT_ELECTRON_VERSION or define electronVersion in ${electronPkgPath}.`
-    );
-  }
-  return normalized;
 }
 
 function resolveTargetArch(cliOptions = {}) {
@@ -541,7 +573,20 @@ function generateTrayIcons(frontendOut) {
   })();
 }
 
-run().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (require.main === module) {
+  run().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  parseCliOptions,
+  resolveElectronVersion,
+  resolveInstalledElectronVersion,
+  resolveConfiguredElectronVersion,
+  normalizeElectronVersion,
+  resolveTargetArch,
+  resolveTargetPlatform,
+  runSqliteProbeWithElectron,
+};
