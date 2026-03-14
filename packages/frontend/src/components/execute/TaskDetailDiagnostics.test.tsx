@@ -54,6 +54,34 @@ describe("TaskDetailDiagnostics", () => {
     expect(screen.getByTestId("execution-attempt-1")).toHaveTextContent("Coding · Failed");
   });
 
+  it("shows in-progress message for running attempt in attempt history", () => {
+    render(
+      <TaskDetailDiagnostics
+        task={null}
+        diagnostics={{
+          taskId: "task-1",
+          taskStatus: "in_progress",
+          cumulativeAttempts: 1,
+          latestSummary: "Attempt 1 is in progress",
+          latestOutcome: "running",
+          timeline: [],
+          attempts: [
+            {
+              attempt: 1,
+              finalPhase: "orchestrator",
+              finalOutcome: "running",
+              finalSummary: "Attempt 1 is in progress",
+              sessionAttemptStatuses: [],
+            },
+          ],
+        }}
+        diagnosticsLoading={false}
+      />
+    );
+    expect(screen.getByTestId("execution-attempt-1")).toHaveTextContent("Attempt 1 is in progress");
+    expect(screen.getByTestId("execution-attempt-1")).toHaveTextContent("Running");
+  });
+
   it("renders attempt row without date when no timestamp", () => {
     render(
       <TaskDetailDiagnostics

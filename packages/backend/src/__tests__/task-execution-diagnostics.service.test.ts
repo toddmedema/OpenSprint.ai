@@ -402,6 +402,44 @@ describe("TaskExecutionDiagnosticsService", () => {
     );
   });
 
+  it("shows 'in progress' for running attempts with no terminal outcome in attempt history", async () => {
+    taskStore.show.mockResolvedValue({
+      id: taskId,
+      status: "in_progress",
+      labels: ["attempts:1"],
+      block_reason: null,
+      last_execution_summary: null,
+    });
+    taskStore.getCumulativeAttemptsFromIssue.mockReturnValue(1);
+    sessionManager.listSessions.mockResolvedValue([]);
+    mockReadForTask.mockResolvedValue([
+      {
+        timestamp: "2026-03-02T10:00:00.000Z",
+        projectId,
+        taskId,
+        event: "transition.start_task",
+        data: { attempt: 1 },
+      },
+    ]);
+
+    const service = new TaskExecutionDiagnosticsService(
+      projectService as never,
+      taskStore as never,
+      sessionManager as never
+    );
+
+    const diagnostics = await service.getDiagnostics(projectId, taskId);
+
+    expect(diagnostics.attempts).toHaveLength(1);
+    expect(diagnostics.attempts[0]).toEqual(
+      expect.objectContaining({
+        attempt: 1,
+        finalOutcome: "running",
+        finalSummary: "Attempt 1 is in progress",
+      })
+    );
+  });
+
   it("surfaces running tool-wait diagnostics for active attempts", async () => {
     taskStore.show.mockResolvedValue({
       id: taskId,

@@ -577,6 +577,13 @@ function buildAttemptItem(
   const reviewModel =
     attemptEvents.find((event) => event.phase === "review" && event.model)?.model ?? null;
 
+  const finalOutcome =
+    terminalEvent?.outcome ?? sessionDerived?.finalOutcome ?? "running";
+  const noTerminalFallback =
+    finalOutcome === "running"
+      ? `Attempt ${attempt} is in progress`
+      : `Attempt ${attempt} has no recorded terminal outcome`;
+
   const item: TaskExecutionAttemptItem = {
     attempt,
     startedAt:
@@ -587,14 +594,14 @@ function buildAttemptItem(
     codingModel,
     reviewModel,
     finalPhase: terminalEvent?.phase ?? sessionDerived?.finalPhase ?? "orchestrator",
-    finalOutcome: terminalEvent?.outcome ?? sessionDerived?.finalOutcome ?? "running",
+    finalOutcome,
     finalSummary:
       (eventQualityGateDetail(terminalEvent ?? null)
         ? terminalEvent?.summary
         : buildActionableFailureSummary(latestAttemptDetail)) ??
       terminalEvent?.summary ??
       sessionDerived?.finalSummary ??
-      `Attempt ${attempt} has no recorded terminal outcome`,
+      noTerminalFallback,
     failureType: terminalEvent?.failureType ?? null,
     blockReason: terminalEvent?.blockReason ?? null,
     mergeStage: terminalEvent?.mergeStage ?? null,
