@@ -6,7 +6,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   test: {
-    include: ["scripts/**/*.test.{js,mjs,ts}"],
+    include: ["scripts/**/*.test.{js,mjs,ts}", "*.test.ts"],
     testTimeout: 10_000,
   },
   resolve: {

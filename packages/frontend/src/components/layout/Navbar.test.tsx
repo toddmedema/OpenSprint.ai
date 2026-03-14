@@ -299,7 +299,7 @@ describe("Navbar", () => {
     }
   });
 
-  it("on macOS Electron, top bar is draggable (webkit-app-region: drag) and interactive elements are no-drag", () => {
+  it("on macOS Electron, top bar is draggable while only interactive clusters are no-drag", () => {
     const prev =
       typeof window !== "undefined" && (window as unknown as { electron?: unknown }).electron;
     try {
@@ -313,13 +313,51 @@ describe("Navbar", () => {
       const nav = screen.getByRole("navigation") as HTMLElement;
       const logoLink = screen.getByTestId("navbar-logo-link") as HTMLElement;
       const rightSlot = screen.getByTestId("navbar-right-slot") as HTMLElement;
+      const rightControls = screen.getByTestId("navbar-right-controls") as HTMLElement;
       // React sets -webkit-app-region on the style object; jsdom may not serialize it to getAttribute("style")
       const navStyleObj = nav.style as unknown as Record<string, string>;
       const logoStyleObj = logoLink.style as unknown as Record<string, string>;
       const rightStyleObj = rightSlot.style as unknown as Record<string, string>;
+      const rightControlsStyleObj = rightControls.style as unknown as Record<string, string>;
       expect(navStyleObj.webkitAppRegion || navStyleObj.WebkitAppRegion).toBe("drag");
       expect(logoStyleObj.webkitAppRegion || logoStyleObj.WebkitAppRegion).toBe("no-drag");
-      expect(rightStyleObj.webkitAppRegion || rightStyleObj.WebkitAppRegion).toBe("no-drag");
+      expect(rightStyleObj.webkitAppRegion || rightStyleObj.WebkitAppRegion).toBeUndefined();
+      expect(rightControlsStyleObj.webkitAppRegion || rightControlsStyleObj.WebkitAppRegion).toBe(
+        "no-drag"
+      );
+    } finally {
+      if (typeof window !== "undefined") {
+        if (prev !== undefined) (window as unknown as { electron: unknown }).electron = prev;
+        else delete (window as unknown as { electron?: unknown }).electron;
+      }
+    }
+  });
+
+  it("on macOS Electron with project tabs, center column stays draggable and tablist is no-drag", () => {
+    const prev =
+      typeof window !== "undefined" && (window as unknown as { electron?: unknown }).electron;
+    try {
+      if (typeof window !== "undefined") {
+        (window as unknown as { electron: { isElectron: true; platform: string } }).electron = {
+          isElectron: true,
+          platform: "darwin",
+        };
+      }
+      const mockProject = {
+        id: "proj-1",
+        name: "Test",
+        repoPath: "/path",
+        currentPhase: "sketch" as const,
+        createdAt: "2025-01-01T00:00:00Z",
+        updatedAt: "2025-01-01T00:00:00Z",
+      };
+      renderNavbar(<Navbar project={mockProject} currentPhase="sketch" onPhaseChange={vi.fn()} />);
+      const tablist = screen.getByRole("tablist", { name: "Phase navigation" }) as HTMLElement;
+      const centerColumn = tablist.parentElement as HTMLElement;
+      const tablistStyleObj = tablist.style as unknown as Record<string, string>;
+      const centerStyleObj = centerColumn.style as unknown as Record<string, string>;
+      expect(centerStyleObj.webkitAppRegion || centerStyleObj.WebkitAppRegion).toBeUndefined();
+      expect(tablistStyleObj.webkitAppRegion || tablistStyleObj.WebkitAppRegion).toBe("no-drag");
     } finally {
       if (typeof window !== "undefined") {
         if (prev !== undefined) (window as unknown as { electron: unknown }).electron = prev;

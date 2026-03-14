@@ -336,17 +336,17 @@ export function Navbar({
         {/* Center: Phase Tabs — viewport-centered via grid; horizontally scrollable on mobile. On Windows, no-drag so tabs are clickable. */}
         <div
           className="flex justify-center min-w-0 overflow-x-auto px-1 md:px-0 items-stretch [&::-webkit-scrollbar]:h-1"
-          style={
-            isElectronWin || isElectronMac
-              ? ({ WebkitAppRegion: "no-drag" } as CSSProperties)
-              : undefined
-          }
         >
           {project && currentPhase && onPhaseChange ? (
             <div
               className="flex items-stretch gap-1 bg-theme-border-subtle rounded-lg py-0 px-1 shrink-0 self-stretch min-h-0"
               role="tablist"
               aria-label="Phase navigation"
+              style={
+                isElectronWin || isElectronMac
+                  ? ({ WebkitAppRegion: "no-drag" } as CSSProperties)
+                  : undefined
+              }
             >
               {phaseTabs.map((phase, index) => {
                 const isActive = currentPhase === phase.key && !isSettingsActive && !isHelpActive;
@@ -383,225 +383,226 @@ export function Navbar({
         {/* Right: Active agents + Help + Settings. On Windows Electron, no-drag so buttons are clickable; window controls at end. On Mac Electron, no right padding so settings icon is flush with window edge. */}
         <div
           data-testid="navbar-right-slot"
-          className={`flex items-center justify-end [&>*:not(:first-child)]:pl-1 md:[&>*:not(:first-child)]:pl-3 ${isElectronMac ? "pr-0" : ""}`}
-          style={
-            isElectronWin || isElectronMac
-              ? ({ WebkitAppRegion: "no-drag" } as CSSProperties)
-              : undefined
-          }
+          className={`flex items-center justify-end ${isElectronMac ? "pr-0" : ""}`}
         >
-          {project ? (
-            <>
-              {showAgentDropdown && <ActiveAgentsList projectId={project.id} />}
-              {showDbBackedChrome && <NotificationBell projectId={project.id} />}
-              <ConnectionIndicator />
+          <div
+            data-testid="navbar-right-controls"
+            className="flex items-center [&>*:not(:first-child)]:pl-1 md:[&>*:not(:first-child)]:pl-3"
+            style={
+              isElectronWin || isElectronMac
+                ? ({ WebkitAppRegion: "no-drag" } as CSSProperties)
+                : undefined
+            }
+          >
+            {project ? (
               <>
-                <NavButton
-                  to={helpHref}
-                  active={isHelpActive}
-                  tone="accent"
-                  variant="icon"
-                  className="shrink-0"
-                  aria-label="Help"
-                  title="Help"
+                {showAgentDropdown && <ActiveAgentsList projectId={project.id} />}
+                {showDbBackedChrome && <NotificationBell projectId={project.id} />}
+                <ConnectionIndicator />
+                <>
+                  <NavButton
+                    to={helpHref}
+                    active={isHelpActive}
+                    tone="accent"
+                    variant="icon"
+                    className="shrink-0"
+                    aria-label="Help"
+                    title="Help"
+                  >
+                    <span className="text-lg font-medium leading-none">?</span>
+                  </NavButton>
+                  <NavButton
+                    to={settingsHref}
+                    active={isSettingsActive}
+                    tone="accent"
+                    variant="icon"
+                    className={`shrink-0${isElectronWin ? " -mr-[5px]" : ""}${isElectronMac ? " mr-1" : ""}`}
+                    aria-label="Project settings"
+                    title="Project settings"
+                  >
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                      />
+                    </svg>
+                  </NavButton>
+                </>
+              </>
+            ) : projects.length >= 1 ? (
+              <>
+                {showAgentDropdown && <GlobalActiveAgentsList />}
+                {showDbBackedChrome && <GlobalNotificationBell />}
+                <>
+                  <NavButton
+                    to={helpHref}
+                    active={isHelpActive}
+                    tone="accent"
+                    variant="icon"
+                    className="shrink-0"
+                    aria-label="Help"
+                    title="Help"
+                  >
+                    <span className="text-lg font-medium leading-none">?</span>
+                  </NavButton>
+                  <NavButton
+                    to={settingsHref}
+                    active={isSettingsActive}
+                    tone="accent"
+                    variant="icon"
+                    className={`shrink-0${isElectronWin ? " -mr-[5px]" : ""}${isElectronMac ? " mr-1" : ""}`}
+                    aria-label="Settings"
+                    title="Settings"
+                  >
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                      />
+                    </svg>
+                  </NavButton>
+                </>
+              </>
+            ) : (
+              <>
+                <>
+                  <NavButton
+                    to={helpHref}
+                    active={isHelpActive}
+                    tone="accent"
+                    variant="icon"
+                    className="shrink-0"
+                    aria-label="Help"
+                    title="Help"
+                  >
+                    <span className="text-lg font-medium leading-none">?</span>
+                  </NavButton>
+                  <NavButton
+                    to={settingsHref}
+                    active={isSettingsActive}
+                    tone="accent"
+                    variant="icon"
+                    className={`shrink-0${isElectronWin ? " -mr-[5px]" : ""}${isElectronMac ? " mr-1" : ""}`}
+                    aria-label="Settings"
+                    title="Settings"
+                  >
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                      />
+                    </svg>
+                  </NavButton>
+                </>
+              </>
+            )}
+            {isElectronWin && (
+              <div className="flex items-stretch ml-[3px]" data-testid="navbar-window-controls">
+                <button
+                  type="button"
+                  onClick={() => window.electron?.minimizeWindow?.()}
+                  className="flex items-center justify-center w-[46px] h-full min-h-[44px] text-theme-muted hover:bg-theme-border-subtle hover:text-theme-text transition-colors"
+                  aria-label="Minimize"
                 >
-                  <span className="text-lg font-medium leading-none">?</span>
-                </NavButton>
-                <NavButton
-                  to={settingsHref}
-                  active={isSettingsActive}
-                  tone="accent"
-                  variant="icon"
-                  className={`shrink-0${isElectronWin ? " -mr-[5px]" : ""}${isElectronMac ? " mr-1" : ""}`}
-                  aria-label="Project settings"
-                  title="Project settings"
+                  <svg width={10} height={1} viewBox="0 0 10 1" fill="currentColor" aria-hidden>
+                    <rect width={10} height={1} />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.electron?.maximizeWindow?.()}
+                  className="flex items-center justify-center w-[46px] h-full min-h-[44px] text-theme-muted hover:bg-theme-border-subtle hover:text-theme-text transition-colors"
+                  aria-label={isMaximized ? "Restore" : "Maximize"}
+                >
+                  {isMaximized ? (
+                    <svg
+                      width={12}
+                      height={12}
+                      viewBox="0 0 12 12"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={1.25}
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      {/* Restore down: back window (L-shaped), front window (full) */}
+                      <path d="M0 0h10v2H2v8H0V0z" />
+                      <path d="M2 2h8v8H2V2z" />
+                    </svg>
+                  ) : (
+                    <svg
+                      width={12}
+                      height={12}
+                      viewBox="0 0 12 12"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={1.25}
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      {/* Maximize: single square outline */}
+                      <rect x={1} y={1} width={10} height={10} />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.electron?.closeWindow?.()}
+                  className="flex items-center justify-center w-[46px] h-full min-h-[44px] text-theme-muted hover:bg-red-600 hover:text-white transition-colors rounded-tr-lg"
+                  aria-label="Close"
                 >
                   <svg
-                    className="w-5 h-5"
+                    width={10}
+                    height={10}
+                    viewBox="0 0 10 10"
                     fill="none"
-                    viewBox="0 0 24 24"
                     stroke="currentColor"
                     strokeWidth={1.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
-                  </svg>
-                </NavButton>
-              </>
-            </>
-          ) : projects.length >= 1 ? (
-            <>
-              {showAgentDropdown && <GlobalActiveAgentsList />}
-              {showDbBackedChrome && <GlobalNotificationBell />}
-              <>
-                <NavButton
-                  to={helpHref}
-                  active={isHelpActive}
-                  tone="accent"
-                  variant="icon"
-                  className="shrink-0"
-                  aria-label="Help"
-                  title="Help"
-                >
-                  <span className="text-lg font-medium leading-none">?</span>
-                </NavButton>
-                <NavButton
-                  to={settingsHref}
-                  active={isSettingsActive}
-                  tone="accent"
-                  variant="icon"
-                  className={`shrink-0${isElectronWin ? " -mr-[5px]" : ""}${isElectronMac ? " mr-1" : ""}`}
-                  aria-label="Settings"
-                  title="Settings"
-                >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
-                  </svg>
-                </NavButton>
-              </>
-            </>
-          ) : (
-            <>
-              <>
-                <NavButton
-                  to={helpHref}
-                  active={isHelpActive}
-                  tone="accent"
-                  variant="icon"
-                  className="shrink-0"
-                  aria-label="Help"
-                  title="Help"
-                >
-                  <span className="text-lg font-medium leading-none">?</span>
-                </NavButton>
-                <NavButton
-                  to={settingsHref}
-                  active={isSettingsActive}
-                  tone="accent"
-                  variant="icon"
-                  className={`shrink-0${isElectronWin ? " -mr-[5px]" : ""}${isElectronMac ? " mr-1" : ""}`}
-                  aria-label="Settings"
-                  title="Settings"
-                >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
-                  </svg>
-                </NavButton>
-              </>
-            </>
-          )}
-          {isElectronWin && (
-            <div
-              className="flex items-stretch ml-[3px]"
-              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-              data-testid="navbar-window-controls"
-            >
-              <button
-                type="button"
-                onClick={() => window.electron?.minimizeWindow?.()}
-                className="flex items-center justify-center w-[46px] h-full min-h-[44px] text-theme-muted hover:bg-theme-border-subtle hover:text-theme-text transition-colors"
-                aria-label="Minimize"
-              >
-                <svg width={10} height={1} viewBox="0 0 10 1" fill="currentColor" aria-hidden>
-                  <rect width={10} height={1} />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onClick={() => window.electron?.maximizeWindow?.()}
-                className="flex items-center justify-center w-[46px] h-full min-h-[44px] text-theme-muted hover:bg-theme-border-subtle hover:text-theme-text transition-colors"
-                aria-label={isMaximized ? "Restore" : "Maximize"}
-              >
-                {isMaximized ? (
-                  <svg
-                    width={12}
-                    height={12}
-                    viewBox="0 0 12 12"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={1.25}
-                    strokeLinejoin="round"
+                    strokeLinecap="round"
                     aria-hidden
                   >
-                    {/* Restore down: back window (L-shaped), front window (full) */}
-                    <path d="M0 0h10v2H2v8H0V0z" />
-                    <path d="M2 2h8v8H2V2z" />
+                    <path d="M1 1l8 8M9 1L1 9" />
                   </svg>
-                ) : (
-                  <svg
-                    width={12}
-                    height={12}
-                    viewBox="0 0 12 12"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={1.25}
-                    strokeLinejoin="round"
-                    aria-hidden
-                  >
-                    {/* Maximize: single square outline */}
-                    <rect x={1} y={1} width={10} height={10} />
-                  </svg>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => window.electron?.closeWindow?.()}
-                className="flex items-center justify-center w-[46px] h-full min-h-[44px] text-theme-muted hover:bg-red-600 hover:text-white transition-colors rounded-tr-lg"
-                aria-label="Close"
-              >
-                <svg
-                  width={10}
-                  height={10}
-                  viewBox="0 0 10 10"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                  strokeLinecap="round"
-                  aria-hidden
-                >
-                  <path d="M1 1l8 8M9 1L1 9" />
-                </svg>
-              </button>
-            </div>
-          )}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </nav>

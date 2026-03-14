@@ -17,6 +17,7 @@ import {
   ipcMain,
   type MenuItemConstructorOptions,
 } from "electron";
+import { buildWindowOptions } from "./window-options";
 
 const APP_NAME = "Open Sprint";
 const DEFAULT_BACKEND_PORT = 3100;
@@ -28,8 +29,6 @@ const BACKEND_FORCE_KILL_MS = 5000;
 const TRAY_REFRESH_MS = 10000;
 const DB_STARTUP_POLL_MS = 500;
 const DB_STARTUP_TIMEOUT_MS = 10000;
-const MAC_TRAFFIC_LIGHT_X = 14;
-const MAC_TRAFFIC_LIGHT_Y = 16;
 const SQLITE_RUNTIME_DIR_NAME = "sqlite-runtime";
 const SQLITE_RUNTIME_MODULE_NAME = "better-sqlite3";
 
@@ -812,29 +811,12 @@ function loadBootScreen(statusText: string): void {
 
 function createWindow(): void {
   const appIconPath = getAppIconPath();
-  const windowOptions: Electron.BrowserWindowConstructorOptions = {
-    width: 1280,
-    height: 800,
-    title: APP_NAME,
-    icon: appIconPath || undefined,
-    show: false,
-    backgroundColor: "#0f172a",
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      sandbox: true,
-      preload: path.join(__dirname, "preload.js"),
-    },
-  };
-  if (process.platform === "darwin") {
-    // Keep native traffic lights but embed them into app chrome (no separate system title bar).
-    windowOptions.titleBarStyle = "hidden";
-    windowOptions.trafficLightPosition = { x: MAC_TRAFFIC_LIGHT_X, y: MAC_TRAFFIC_LIGHT_Y };
-  }
-  if (process.platform === "win32") {
-    // Hide default title bar; window controls are in the app navbar.
-    windowOptions.titleBarStyle = "hidden";
-  }
+  const windowOptions = buildWindowOptions({
+    appName: APP_NAME,
+    iconPath: appIconPath,
+    preloadPath: path.join(__dirname, "preload.js"),
+    platform: process.platform,
+  });
   mainWindow = new BrowserWindow(windowOptions);
   if (process.platform === "win32" && mainWindow) {
     mainWindow.on("maximize", () => {
