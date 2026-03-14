@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ModelSelect } from "./ModelSelect";
 
 const mockModelsList = vi.fn();
@@ -154,6 +154,6 @@ describe("ModelSelect", () => {
     );
     await screen.findByText("Llama 3 Local");
     expect(screen.getByRole("option", { name: "Mistral 7B" })).toBeInTheDocument();
-    expect(onChange).toHaveBeenCalledWith("local/llama");
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith("local/llama"));
   });
 });

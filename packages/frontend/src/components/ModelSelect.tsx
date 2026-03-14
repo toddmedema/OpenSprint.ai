@@ -50,7 +50,10 @@ export function ModelSelect({
     setError(null);
     api.models
       .list(provider, projectId, provider === "lmstudio" ? baseUrl : undefined)
-      .then((list) => setModels(list))
+      .then((list) => {
+        setModels(list);
+        // Initial selection is applied by the sync effect when models update (single source of truth).
+      })
       .catch((err) => {
         setError(err instanceof Error ? err.message : "Failed to load models");
         setModels([]);
@@ -58,7 +61,7 @@ export function ModelSelect({
       .finally(() => setLoading(false));
   }, [provider, projectId, baseUrl, refreshTrigger]);
 
-  // Default to first agent from provider list when list loads and no valid selection
+  // Default to first agent from provider list when value or models change (e.g. value no longer in list)
   useEffect(() => {
     if (models.length === 0) return;
     const hasValue = value != null && value.length > 0;
