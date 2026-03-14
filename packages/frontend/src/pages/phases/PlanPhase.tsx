@@ -197,6 +197,13 @@ interface PlanPhaseProps {
   onNavigateToBuildTask?: (taskId: string) => void;
 }
 
+const EMPTY_AUDITOR_OUTPUT_BY_PLAN_ID: Record<string, string> = {};
+const EMPTY_ACTIVE_AGENTS: NonNullable<ReturnType<typeof store.getState>["execute"]["activeAgents"]> =
+  [];
+const EMPTY_OPTIMISTIC_PLANS: NonNullable<
+  ReturnType<typeof store.getState>["plan"]["optimisticPlans"]
+> = [];
+
 export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) {
   const dispatch = useAppDispatch();
   const queryClient = useQueryClient();
@@ -243,12 +250,16 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   const executingPlanId = useAppSelector((s) => s.plan.executingPlanId);
   const reExecutingPlanId = useAppSelector((s) => s.plan.reExecutingPlanId);
   const planTasksPlanIds = useAppSelector((s) => s.plan.planTasksPlanIds);
-  const auditorOutputByPlanId = useAppSelector((s) => s.plan.auditorOutputByPlanId ?? {});
+  const auditorOutputByPlanId = useAppSelector(
+    (s) => s.plan.auditorOutputByPlanId ?? EMPTY_AUDITOR_OUTPUT_BY_PLAN_ID
+  );
   const wsConnected = useAppSelector((s) => s.websocket?.connected ?? false);
-  const activeAgents = useAppSelector((s) => s.execute?.activeAgents ?? []);
+  const activeAgents = useAppSelector((s) => s.execute?.activeAgents ?? EMPTY_ACTIVE_AGENTS);
   const archivingPlanId = useAppSelector((s) => s.plan.archivingPlanId);
   const deletingPlanId = useAppSelector((s) => s.plan.deletingPlanId);
-  const optimisticPlans = useAppSelector((s) => s.plan.optimisticPlans ?? []);
+  const optimisticPlans = useAppSelector(
+    (s) => s.plan.optimisticPlans ?? EMPTY_OPTIMISTIC_PLANS
+  );
   const planError = useAppSelector((s) => s.plan.error);
   const executeError = useAppSelector((s) => s.plan.executeError);
 
