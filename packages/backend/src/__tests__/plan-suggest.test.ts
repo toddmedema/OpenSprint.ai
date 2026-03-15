@@ -400,6 +400,9 @@ describe.skipIf(!planSuggestPostgresOk)("Plan suggestPlans (POST /plans/suggest)
         expect(systemPrompt).toContain(`## ${section}`);
       }
       expect(systemPrompt).toContain("PRD §7.2.3");
+      expect(systemPrompt).toContain(
+        "Do NOT create, modify, stage, or commit repository files for this task."
+      );
     }
   );
 });

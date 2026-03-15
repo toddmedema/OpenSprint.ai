@@ -1823,6 +1823,9 @@ describe("PlanService createWithRetry usage", () => {
             content: expect.stringContaining("# Plan Tasks Test"),
           }),
         ]),
+        systemPrompt: expect.stringContaining(
+          "Do not create, modify, stage, or commit repository files for this task."
+        ),
         tracking: expect.objectContaining({ label: "Task generation" }),
       })
     );
@@ -1843,6 +1846,67 @@ describe("PlanService createWithRetry usage", () => {
       projectId,
       expect.objectContaining({ type: "plan.updated", planId }),
     ]);
+  });
+
+  it("planTasks fails when planner writes repo files during task generation", async () => {
+    const repoPath = path.join(tempDir, "test-project");
+    mockInvokePlanningAgent.mockImplementation(async (opts: { tracking?: { label?: string } }) => {
+      if (opts.tracking?.label === "Task generation") {
+        await fs.writeFile(
+          path.join(repoPath, "generated-tasks.json"),
+          JSON.stringify({ accidental: true }, null, 2),
+          "utf-8"
+        );
+        return {
+          content: JSON.stringify({
+            tasks: [{ title: "Task A", description: "First", priority: 1, dependsOn: [] }],
+          }),
+        };
+      }
+      return { content: JSON.stringify({ complexity: "medium" }) };
+    });
+
+    const plan = await planService.createPlan(projectId, {
+      title: "Guarded Task Generation",
+      content: "# Guarded Task Generation\n\n## Overview\n\nContent.",
+      complexity: "low",
+    });
+
+    await expect(planService.planTasks(projectId, plan.metadata.planId)).rejects.toMatchObject({
+      statusCode: 400,
+      code: "DECOMPOSE_PARSE_FAILED",
+      message: expect.stringContaining("modified the repository unexpectedly"),
+      details: expect.objectContaining({
+        unexpectedRepoChanges: expect.arrayContaining(["generated-tasks.json"]),
+      }),
+    });
+    expect(mockTaskStoreCreateMany).not.toHaveBeenCalled();
+  });
+
+  it("generatePlanFromDescription does not load plans from repo JSON files", async () => {
+    const repoPath = path.join(tempDir, "test-project");
+    await fs.writeFile(
+      path.join(repoPath, "generated-plan.json"),
+      JSON.stringify({
+        title: "Ignored File Plan",
+        content: "# Ignored File Plan\n\n## Overview\n\nContent.",
+        complexity: "low",
+        mockups: [{ title: "Main", content: "+---+" }],
+      }),
+      "utf-8"
+    );
+    mockInvokePlanningAgent.mockResolvedValue({
+      content: "I wrote the plan to `generated-plan.json`.",
+    });
+
+    await expect(
+      planService.generatePlanFromDescription(projectId, "Add an export screen")
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "DECOMPOSE_PARSE_FAILED",
+      message: expect.stringContaining("did not return a valid plan"),
+    });
+    expect(mockTaskStoreCreate).not.toHaveBeenCalled();
   });
 
   it("listPlans returns plans from task store (no file-based plans)", async () => {

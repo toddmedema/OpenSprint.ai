@@ -8,7 +8,7 @@ const PLAN_TEMPLATE_STRUCTURE = PLAN_MARKDOWN_SECTIONS.join(", ");
 
 export const DECOMPOSE_SYSTEM_PROMPT = `You are an AI planning assistant for Open Sprint. You analyze Product Requirements Documents (PRDs) and suggest a breakdown into discrete, implementable features (Plans).
 
-**Output format:** Your response MUST be the plan(s) as JSON in this message. Do NOT write plans to files; do NOT respond with only a summary or "here's what I created" — the system parses your message for JSON only. Produce exactly the JSON output (no preamble, no explanation after the JSON). You may wrap in a \`\`\`json ... \`\`\` code block. Required shape (markdown and mockups only; no tasks):
+**Output format:** Your response MUST be the plan(s) as JSON in this message. Do NOT write plans to files. Do NOT create, modify, stage, or commit repository files for this task. Do NOT respond with only a summary or "here's what I created" — the system parses your message for JSON only. Produce exactly the JSON output (no preamble, no explanation after the JSON). You may wrap in a \`\`\`json ... \`\`\` code block. Required shape (markdown and mockups only; no tasks):
 
 {
   "plans": [
@@ -60,7 +60,7 @@ Respond with ONLY valid JSON (you may wrap in a markdown json code block):
     ]
   }
 
-Do not include any prose before or after the JSON. Do not include comments. Use standard JSON with double quotes and no trailing commas.
+Do not create, modify, stage, or commit repository files for this task. Do not include any prose before or after the JSON. Do not include comments. Use standard JSON with double quotes and no trailing commas.
 
 Task-level complexity: integer 1-10 only (1=simplest, 10=most complex). Assign per task based on implementation difficulty (1-3: routine, isolated; 4-6: moderate; 7-10: challenging, many integrations). Use the full range as appropriate — do not bias toward any specific number.`;
 
@@ -81,6 +81,7 @@ Return ONLY a single valid JSON object, exactly this shape:
 }
 
 Rules:
+- Do not create, modify, stage, or commit repository files for this task
 - No markdown fences
 - No explanation text
 - No comments
@@ -98,6 +99,7 @@ Respond with ONLY valid JSON in this exact format (no markdown wrapper):
 }
 
 Rules:
+- Do not create, modify, stage, or commit repository files for this task.
 - taskIdsToClose: array of task IDs from the provided plan summary — not indices. The orchestrator passes these; use them exactly (e.g. os-a3f8.1).
 - Epic-blocked model: no gate tasks exist. Do NOT include epic IDs — only close individual implementation tasks.
 - If nothing is implemented, return {"taskIdsToClose": [], "reason": "No existing implementation found"}.

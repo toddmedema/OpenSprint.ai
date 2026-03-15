@@ -18,7 +18,6 @@ import {
   normalizeDependsOnPlans,
   ensureDependenciesSection,
   normalizePlannerOpenQuestions,
-  extractPlanJsonPathFromResponse,
 } from "./plan/planner-normalize.js";
 import {
   DECOMPOSE_SYSTEM_PROMPT,
@@ -26,8 +25,8 @@ import {
   getPlanTemplateStructure,
 } from "./plan/plan-prompts.js";
 import { buildPrdContextString, parseDecomposeResponse } from "./plan/plan-decompose-generate.js";
-import { readPlanJsonFromRepo } from "./plan/plan-read-json.js";
 import { runAutoReviewPlanAgainstRepo } from "./plan/plan-auto-review.js";
+import { runPlannerWithRepoGuard } from "./plan/plan-repo-guard.js";
 import { generateAndCreateTasks as generateAndCreateTasksImpl } from "./plan/plan-task-generation.js";
 import { ProjectService } from "./project.service.js";
 import type { StoredTask } from "./task-store.service.js";
@@ -263,20 +262,25 @@ export class PlanDecomposeGenerateService {
       : baseSystemPrompt;
 
     const suggestSystemPrompt = `${systemPrompt}\n\n${await getCombinedInstructions(repoPath, "planner")}`;
-    const response = await agentService.invokePlanningAgent({
-      projectId,
-      role: "planner",
-      config: getAgentForPlanningRole(settings, "planner"),
-      messages: [{ role: "user", content: prompt }],
-      systemPrompt: suggestSystemPrompt,
-      cwd: repoPath,
-      tracking: {
-        id: agentId,
-        projectId,
-        phase: "plan",
-        role: "planner",
-        label: "Feature decomposition (suggest)",
-      },
+    const response = await runPlannerWithRepoGuard({
+      repoPath,
+      label: "Feature decomposition (suggest)",
+      run: () =>
+        agentService.invokePlanningAgent({
+          projectId,
+          role: "planner",
+          config: getAgentForPlanningRole(settings, "planner"),
+          messages: [{ role: "user", content: prompt }],
+          systemPrompt: suggestSystemPrompt,
+          cwd: repoPath,
+          tracking: {
+            id: agentId,
+            projectId,
+            phase: "plan",
+            role: "planner",
+            label: "Feature decomposition (suggest)",
+          },
+        }),
     });
 
     const planSpecs = parseDecomposeResponse(response.content);
@@ -300,20 +304,25 @@ export class PlanDecomposeGenerateService {
       : baseSystemPrompt;
 
     const decomposeSystemPrompt = `${systemPrompt}\n\n${await getCombinedInstructions(repoPath, "planner")}`;
-    const response = await agentService.invokePlanningAgent({
-      projectId,
-      role: "planner",
-      config: getAgentForPlanningRole(settings, "planner"),
-      messages: [{ role: "user", content: prompt }],
-      systemPrompt: decomposeSystemPrompt,
-      cwd: repoPath,
-      tracking: {
-        id: agentId,
-        projectId,
-        phase: "plan",
-        role: "planner",
-        label: "Feature decomposition",
-      },
+    const response = await runPlannerWithRepoGuard({
+      repoPath,
+      label: "Feature decomposition",
+      run: () =>
+        agentService.invokePlanningAgent({
+          projectId,
+          role: "planner",
+          config: getAgentForPlanningRole(settings, "planner"),
+          messages: [{ role: "user", content: prompt }],
+          systemPrompt: decomposeSystemPrompt,
+          cwd: repoPath,
+          tracking: {
+            id: agentId,
+            projectId,
+            phase: "plan",
+            role: "planner",
+            label: "Feature decomposition",
+          },
+        }),
     });
 
     const planSpecs = parseDecomposeResponse(response.content);
@@ -357,7 +366,7 @@ export class PlanDecomposeGenerateService {
     const systemPrompt = `You are an AI planning assistant for Open Sprint. The user will describe a feature idea in freeform text. Your job is to produce a complete feature plan (markdown and mockups only; no subtasks).
 
 ## Output requirement (mandatory)
-Your entire response MUST be the plan as a single JSON object. Do NOT write the plan to a file. Do NOT respond with a summary, description, or "here's what I created" text — the system parses your message for JSON only; any prose instead of JSON will cause failure.
+Your entire response MUST be the plan as a single JSON object. Do NOT write the plan to a file. Do NOT create, modify, stage, or commit any files in the repository. Do NOT respond with a summary, description, or "here's what I created" text — the system parses your message for JSON only; any prose instead of JSON will cause failure.
 You may wrap the JSON in a markdown code block (\`\`\`json ... \`\`\`). The JSON must include at minimum: "title", "content", "complexity", "mockups". Do NOT include a tasks array.
 
 Required JSON shape:
@@ -391,35 +400,32 @@ Field rules: complexity: low, medium, high, or very_high (plan-level).
     const agentId = `plan-generate-${projectId}-${Date.now()}`;
 
     const generateSystemPrompt = `${systemPromptWithAutonomy}\n\n${await getCombinedInstructions(repoPath, "planner")}`;
-    const response = await agentService.invokePlanningAgent({
-      projectId,
-      role: "planner",
-      config: getAgentForPlanningRole(settings, "planner"),
-      messages: [{ role: "user", content: prompt }],
-      systemPrompt: generateSystemPrompt,
-      cwd: repoPath,
-      tracking: {
-        id: agentId,
-        projectId,
-        phase: "plan",
-        role: "planner",
-        label: "Generate plan from description",
-      },
+    const response = await runPlannerWithRepoGuard({
+      repoPath,
+      label: "Generate plan from description",
+      run: () =>
+        agentService.invokePlanningAgent({
+          projectId,
+          role: "planner",
+          config: getAgentForPlanningRole(settings, "planner"),
+          messages: [{ role: "user", content: prompt }],
+          systemPrompt: generateSystemPrompt,
+          cwd: repoPath,
+          tracking: {
+            id: agentId,
+            projectId,
+            phase: "plan",
+            role: "planner",
+            label: "Generate plan from description",
+          },
+        }),
     });
 
-    let parsed: Record<string, unknown> | null =
+    const parsed: Record<string, unknown> | null =
       extractJsonFromAgentResponse<Record<string, unknown>>(response.content, "open_questions") ??
       extractJsonFromAgentResponse<Record<string, unknown>>(response.content, "openQuestions") ??
       extractJsonFromAgentResponse<Record<string, unknown>>(response.content, "title") ??
       extractJsonFromAgentResponse<Record<string, unknown>>(response.content, "plan_title");
-
-    if (!parsed) {
-      const planJsonPath = extractPlanJsonPathFromResponse(response.content);
-      if (planJsonPath) {
-        parsed = await readPlanJsonFromRepo(repoPath, planJsonPath);
-        if (parsed) log.info("Used plan from file (agent wrote to file)", { path: planJsonPath });
-      }
-    }
 
     if (!parsed) {
       throw new AppError(

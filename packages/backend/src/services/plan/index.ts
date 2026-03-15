@@ -18,8 +18,8 @@
  * - plan-codebase-context: File tree, key files, auto-review context
  * - plan-versioning: Low-level version ensure/create
  * - plan-auto-review: Auto-review plans against codebase
+ * - plan-repo-guard: Detect unexpected planner writes to the repo
  * - plan-task-generation: Generate and create tasks from plan
- * - plan-read-json: Read plan JSON from repo file
  */
 
 export { PlanService } from "../plan.service.js";

@@ -16,11 +16,17 @@ import { ProjectService } from "./project.service.js";
 
 const log = createLogger("agent-identity");
 const projectService = new ProjectService();
+const repoPathProjectIdCache = new Map<string, string>();
 
 async function repoPathToProjectId(repoPath: string): Promise<string> {
+  const cached = repoPathProjectIdCache.get(repoPath);
+  if (cached) return cached;
+
   const project = await projectService.getProjectByRepoPath(repoPath);
-  if (project) return project.id;
-  return "repo:" + crypto.createHash("sha256").update(repoPath).digest("hex").slice(0, 12);
+  const projectId =
+    project?.id ?? "repo:" + crypto.createHash("sha256").update(repoPath).digest("hex").slice(0, 12);
+  repoPathProjectIdCache.set(repoPath, projectId);
+  return projectId;
 }
 
 export type AttemptOutcome =
@@ -82,19 +88,17 @@ export class AgentIdentityService {
           record.durationMs,
         ]
       );
-      const countRow = await client.queryOne(
-        "SELECT COUNT(*)::int as c FROM agent_stats WHERE project_id = $1",
+      await client.execute(
+        `DELETE FROM agent_stats
+         WHERE project_id = $1
+           AND id IN (
+             SELECT id FROM agent_stats
+             WHERE project_id = $1
+             ORDER BY id DESC
+             OFFSET 500
+           )`,
         [projectId]
       );
-      const count = (countRow?.c as number) ?? 0;
-      if (count > 500) {
-        await client.execute(
-          `DELETE FROM agent_stats WHERE id IN (
-            SELECT id FROM agent_stats WHERE project_id = $1 ORDER BY id ASC LIMIT $2
-          )`,
-          [projectId, count - 500]
-        );
-      }
     });
   }
 

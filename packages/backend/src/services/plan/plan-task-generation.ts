@@ -6,6 +6,7 @@ import type { Plan, ProjectSettings } from "@opensprint/shared";
 import { getAgentForPlanningRole } from "@opensprint/shared";
 import { normalizePlannerTask, findPlannerTaskArray } from "./planner-normalize.js";
 import { TASK_GENERATION_SYSTEM_PROMPT, TASK_GENERATION_RETRY_PROMPT } from "./plan-prompts.js";
+import { runPlannerWithRepoGuard } from "./plan-repo-guard.js";
 import { agentService } from "../agent.service.js";
 import { buildAutonomyDescription } from "../autonomy-description.js";
 import { getCombinedInstructions } from "../agent-instructions.service.js";
@@ -119,21 +120,26 @@ export async function generateAndCreateTasks(deps: PlanTaskGenerationDeps): Prom
   const initialMessages: Array<{ role: "user" | "assistant"; content: string }> = [
     { role: "user", content: prompt },
   ];
-  const response = await agentService.invokePlanningAgent({
-    projectId,
-    role: "planner",
-    config: plannerConfig,
-    messages: initialMessages,
-    systemPrompt: taskGenSystemPrompt,
-    cwd: repoPath,
-    tracking: {
-      id: agentId,
-      projectId,
-      phase: "plan",
-      role: "planner",
-      label: "Task generation",
-      planId: plan.metadata.planId,
-    },
+  const response = await runPlannerWithRepoGuard({
+    repoPath,
+    label: "Task generation",
+    run: () =>
+      agentService.invokePlanningAgent({
+        projectId,
+        role: "planner",
+        config: plannerConfig,
+        messages: initialMessages,
+        systemPrompt: taskGenSystemPrompt,
+        cwd: repoPath,
+        tracking: {
+          id: agentId,
+          projectId,
+          phase: "plan",
+          role: "planner",
+          label: "Task generation",
+          planId: plan.metadata.planId,
+        },
+      }),
   });
 
   let parsedOutput = parseTaskGenerationContent(response?.content);
@@ -157,21 +163,26 @@ export async function generateAndCreateTasks(deps: PlanTaskGenerationDeps): Prom
         `Previous parse failure: ${parsedOutput.parseFailureReason}`,
     });
 
-    const retryResponse = await agentService.invokePlanningAgent({
-      projectId,
-      role: "planner",
-      config: plannerConfig,
-      messages: retryMessages,
-      systemPrompt: taskGenSystemPrompt,
-      cwd: repoPath,
-      tracking: {
-        id: `${agentId}-retry`,
-        projectId,
-        phase: "plan",
-        role: "planner",
-        label: "Task generation",
-        planId: plan.metadata.planId,
-      },
+    const retryResponse = await runPlannerWithRepoGuard({
+      repoPath,
+      label: "Task generation retry",
+      run: () =>
+        agentService.invokePlanningAgent({
+          projectId,
+          role: "planner",
+          config: plannerConfig,
+          messages: retryMessages,
+          systemPrompt: taskGenSystemPrompt,
+          cwd: repoPath,
+          tracking: {
+            id: `${agentId}-retry`,
+            projectId,
+            phase: "plan",
+            role: "planner",
+            label: "Task generation",
+            planId: plan.metadata.planId,
+          },
+        }),
     });
     parsedOutput = parseTaskGenerationContent(retryResponse?.content);
   }

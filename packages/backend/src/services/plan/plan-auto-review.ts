@@ -7,6 +7,7 @@ import { getAgentForPlanningRole } from "@opensprint/shared";
 import { AUTO_REVIEW_SYSTEM_PROMPT } from "./plan-prompts.js";
 import { buildPlanTaskSummaryFromCreated } from "./plan-decompose-generate.js";
 import { buildCodebaseContextForAutoReview } from "./plan-codebase-context.js";
+import { runPlannerWithRepoGuard } from "./plan-repo-guard.js";
 import { agentService } from "../agent.service.js";
 import { getCombinedInstructions } from "../agent-instructions.service.js";
 import { extractJsonFromAgentResponse } from "../../utils/json-extract.js";
@@ -50,20 +51,25 @@ export async function runAutoReviewPlanAgainstRepo(
     const agentId = `plan-auto-review-${deps.projectId}-${Date.now()}`;
 
     const autoReviewSystemPrompt = `${AUTO_REVIEW_SYSTEM_PROMPT}\n\n${await getCombinedInstructions(deps.repoPath, "planner")}`;
-    const response = await agentService.invokePlanningAgent({
-      projectId: deps.projectId,
-      role: "planner",
-      config: getAgentForPlanningRole(deps.settings as ProjectSettings, "planner"),
-      messages: [{ role: "user", content: prompt }],
-      systemPrompt: autoReviewSystemPrompt,
-      cwd: deps.repoPath,
-      tracking: {
-        id: agentId,
-        projectId: deps.projectId,
-        phase: "plan",
-        role: "planner",
-        label: "Plan auto-review",
-      },
+    const response = await runPlannerWithRepoGuard({
+      repoPath: deps.repoPath,
+      label: "Plan auto-review",
+      run: () =>
+        agentService.invokePlanningAgent({
+          projectId: deps.projectId,
+          role: "planner",
+          config: getAgentForPlanningRole(deps.settings as ProjectSettings, "planner"),
+          messages: [{ role: "user", content: prompt }],
+          systemPrompt: autoReviewSystemPrompt,
+          cwd: deps.repoPath,
+          tracking: {
+            id: agentId,
+            projectId: deps.projectId,
+            phase: "plan",
+            role: "planner",
+            label: "Plan auto-review",
+          },
+        }),
     });
 
     const parsed = extractJsonFromAgentResponse<{

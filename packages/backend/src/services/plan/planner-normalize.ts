@@ -206,16 +206,3 @@ export function ensureDependenciesSection(content: string, dependsOnPlans: strin
   }
   return content.trimEnd() + "\n\n" + section;
 }
-
-/**
- * Extract a relative path to a .json file from agent response text.
- */
-export function extractPlanJsonPathFromResponse(content: string): string | null {
-  const backtickMatch = content.match(/`([^`]+\.json)`/);
-  if (backtickMatch) return backtickMatch[1].trim();
-  const phraseMatch = content.match(
-    /(?:saved at|written to)\s+[`']?([a-zA-Z0-9_./-]+\.json)[`']?/i
-  );
-  if (phraseMatch) return phraseMatch[1].trim();
-  return null;
-}
