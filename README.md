@@ -4,6 +4,8 @@
 
 ## Quick Start
 
+For the fastest start, Electron app downloads are available on the [releases page](https://github.com/toddmedema/opensprint/releases).
+
 ### Mac/Linux
 
 Prerequisites:
@@ -25,25 +27,6 @@ Then open [http://localhost:5173](http://localhost:5173).
 
 Optional faster source setup (skips Electron/Puppeteer workspace installs): `OPENSPRINT_SETUP_MINIMAL=1 npm run setup`
 
-### Database
-
-Open Sprint uses **SQLite by default** and stores data at `~/.opensprint/data/opensprint.sqlite`.
-For first run, **no additional database setup is required**.
-
-If you need **higher performance** and **cross-team collaboration**, you can optionally point Open Sprint to a PostgreSQL database:
-
-- In the app: **Settings** -> set `databaseUrl` or use **Upgrade to PostgreSQL**
-- In config: set `databaseUrl` in `~/.opensprint/global-settings.json`
-- In env: set `DATABASE_URL` (highest precedence)
-
-Database connection precedence is:
-
-1. `DATABASE_URL`
-2. `databaseUrl` in `~/.opensprint/global-settings.json`
-3. Default SQLite path (`~/.opensprint/data/opensprint.sqlite`)
-
-See [Upgrading to PostgreSQL](#upgrading-to-postgresql) for migration options.
-
 ### Windows
 
 You will need to install [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) with Node.js: open PowerShell as admin, run `wsl --install`, reboot, then open the WSL application and [install Node.js 24.x](https://nodejs.org/en/download). Open Sprint uses SQLite by default in WSL; for PostgreSQL, install it in WSL and set `databaseUrl` in Settings.
@@ -61,7 +44,18 @@ Optional faster source setup (skips Electron/Puppeteer workspace installs): `OPE
 
 _Native Windows Node, PowerShell, and `cmd.exe` execution are unsupported because the orchestration and process-management stack assumes Linux/Unix process behavior. Do not run Open Sprint from `/mnt/c/...` or any other Windows-mounted filesystem._
 
-### Upgrading to PostgreSQL
+### Database
+
+Open Sprint uses **SQLite by default** and stores data at `~/.opensprint/data/opensprint.sqlite`.
+For first run, **no additional database setup is required**.
+
+If you need **higher performance** and **cross-team collaboration**, you can optionally point Open Sprint to a PostgreSQL database:
+
+- In the app: **Settings** -> set `databaseUrl` or use **Upgrade to PostgreSQL**
+- In config: set `databaseUrl` in `~/.opensprint/global-settings.json`
+- In env: set `DATABASE_URL` (highest precedence)
+
+#### Upgrading to PostgreSQL
 
 Use this only if SQLite no longer meets your needs (for example, larger workloads or multi-user collaboration).
 
