@@ -164,6 +164,7 @@ export function ExecutePhase({
     }
   );
   const prevWsConnectedRef = useRef(wsConnected);
+  const emptyArchivedRefetchTaskIdRef = useRef<string | null>(null);
 
   // Merge task detail into list cache so Redux sync gets it
   useEffect(() => {
@@ -198,23 +199,28 @@ export function ExecutePhase({
     if (!prev && wsConnected) {
       void liveOutputQuery.refetch();
     }
-  }, [effectiveSelectedTask, isDoneTask, liveOutputQuery, wsConnected]);
+  }, [effectiveSelectedTask, isDoneTask, liveOutputQuery.refetch, wsConnected]);
 
   useEffect(() => {
-    if (
-      effectiveSelectedTask &&
-      !isDoneTask &&
-      archivedQuery.data?.length === 0 &&
-      !archivedLoading
-    ) {
-      void archivedQuery.refetch();
+    if (!effectiveSelectedTask || isDoneTask) {
+      emptyArchivedRefetchTaskIdRef.current = null;
+      return;
     }
+    if (archivedLoading || archivedQuery.data === undefined) return;
+    if (archivedQuery.data.length > 0) {
+      emptyArchivedRefetchTaskIdRef.current = null;
+      return;
+    }
+    // Retry one time when the first empty response races with a just-finished agent session.
+    if (emptyArchivedRefetchTaskIdRef.current === effectiveSelectedTask) return;
+    emptyArchivedRefetchTaskIdRef.current = effectiveSelectedTask;
+    void archivedQuery.refetch();
   }, [
     effectiveSelectedTask,
     isDoneTask,
-    archivedQuery.data?.length,
+    archivedQuery.data,
     archivedLoading,
-    archivedQuery,
+    archivedQuery.refetch,
   ]);
 
   // Subscribe to live agent output. Middleware queues subscribe when WS not yet connected

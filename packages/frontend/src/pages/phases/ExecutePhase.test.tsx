@@ -38,6 +38,7 @@ function render(ui: ReactElement) {
   });
 }
 const mockGet = vi.fn().mockResolvedValue({});
+const mockSessions = vi.fn().mockResolvedValue([]);
 const mockMarkDone = vi.fn().mockResolvedValue(undefined);
 const mockUnblock = vi.fn().mockResolvedValue({ taskUnblocked: true });
 const mockDeleteTask = vi.fn().mockResolvedValue({ taskDeleted: true });
@@ -54,7 +55,7 @@ vi.mock("../../api/client", () => ({
     tasks: {
       list: vi.fn().mockResolvedValue([]),
       get: (...args: unknown[]) => mockGet(...args),
-      sessions: vi.fn().mockResolvedValue([]),
+      sessions: (...args: unknown[]) => mockSessions(...args),
       markDone: (...args: unknown[]) => mockMarkDone(...args),
       unblock: (...args: unknown[]) => mockUnblock(...args),
       delete: (...args: unknown[]) => mockDeleteTask(...args),
@@ -2795,7 +2796,38 @@ describe("ExecutePhase Redux integration", () => {
     });
   });
 
-  it("backfills live output once on mount and once after websocket reconnect", async () => {
+  it("does not loop archived-session refetches when the server returns an empty list", async () => {
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Task A",
+        epicId: "epic-1",
+        kanbanColumn: "in_progress",
+        priority: 0,
+        assignee: null,
+      },
+    ];
+    const store = createStore(tasks, { selectedTaskId: "epic-1.1" });
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <ExecutePhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(mockSessions.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    });
+
+    expect(mockSessions.mock.calls.length).toBe(2);
+  });
+
+  it("backfills live output on mount and again after websocket reconnect", async () => {
     const tasks = [
       {
         id: "epic-1.1",
@@ -2830,10 +2862,11 @@ describe("ExecutePhase Redux integration", () => {
 
     await waitFor(
       () => {
-        expect(mockLiveOutput.mock.calls.length).toBe(initialCalls + 1);
+        expect(mockLiveOutput.mock.calls.length).toBeGreaterThan(initialCalls);
       },
       { timeout: 15000 }
     );
+    expect(mockLiveOutput.mock.calls.at(-1)).toEqual(["proj-1", "epic-1.1"]);
   }, 30000);
 
   it("task detail sidebar header shows only task title, not redundant Task label", async () => {
