@@ -313,7 +313,7 @@ describe("PlanPhase Redux integration", () => {
     Element.prototype.scrollIntoView = vi.fn();
   });
 
-  it("renders compact epic cards with progress bar and nested subtasks", () => {
+  it("renders compact epic cards without task list on cards", () => {
     const store = createStore();
     render(
       <MemoryRouter>
@@ -324,10 +324,9 @@ describe("PlanPhase Redux integration", () => {
       { wrapper: PlanPhaseWrapper }
     );
 
-    expect(screen.getByRole("progressbar", { name: /tasks done/i })).toBeInTheDocument();
-    expect(screen.getAllByText("Task A").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("Task B").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText(/0\/2/)).toBeInTheDocument();
+    // Plan cards do not show task list container or task list UI
+    expect(screen.queryByTestId("plan-card-task-list")).not.toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
 
   it("renders plans from Redux state via useAppSelector", () => {

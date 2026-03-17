@@ -170,7 +170,7 @@ describe("EpicCard", () => {
     expect(screen.getByText("Building")).toBeInTheDocument();
   });
 
-  it("renders progress bar with correct completion", () => {
+  it("does not render progress or task list on card (Plan cards show status and actions only)", () => {
     renderWithStore(
       <EpicCard
         plan={basePlan}
@@ -185,33 +185,11 @@ describe("EpicCard", () => {
       />
     );
 
-    const progressbar = screen.getByRole("progressbar", {
-      name: "1 of 3 tasks done",
-    });
-    expect(progressbar).toBeInTheDocument();
-    expect(progressbar).toHaveAttribute("aria-valuenow", "1");
-    expect(progressbar).toHaveAttribute("aria-valuemax", "3");
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.queryByText(/1\/3/)).not.toBeInTheDocument();
   });
 
-  it("renders done count text", () => {
-    renderWithStore(
-      <EpicCard
-        plan={basePlan}
-        tasks={[]}
-        executingPlanId={null}
-        reExecutingPlanId={null}
-        planTasksPlanIds={[]}
-        onSelect={vi.fn()}
-        onShip={vi.fn()}
-        onPlanTasks={vi.fn()}
-        onReship={vi.fn()}
-      />
-    );
-
-    expect(screen.getByText(/1\/3/)).toBeInTheDocument();
-  });
-
-  it("renders nested subtasks with status indicators", () => {
+  it("does not render task list on card (Plan cards show no task list UI)", () => {
     renderWithStore(
       <EpicCard
         plan={basePlan}
@@ -226,37 +204,9 @@ describe("EpicCard", () => {
       />
     );
 
-    expect(screen.getByText("Implement login")).toBeInTheDocument();
-    expect(screen.getByText("Implement logout")).toBeInTheDocument();
-    expect(screen.getByText("Add session timeout")).toBeInTheDocument();
-  });
-
-  it("shows Self-improvement badge for tasks with source self-improvement", () => {
-    const tasksWithSelfImprovement: Task[] = [
-      ...tasks,
-      {
-        ...tasks[0],
-        id: "epic-1.4",
-        title: "Improve test coverage",
-        source: "self-improvement",
-      } as Task,
-    ];
-    renderWithStore(
-      <EpicCard
-        plan={basePlan}
-        tasks={tasksWithSelfImprovement}
-        executingPlanId={null}
-        reExecutingPlanId={null}
-        planTasksPlanIds={[]}
-        onSelect={vi.fn()}
-        onShip={vi.fn()}
-        onPlanTasks={vi.fn()}
-        onReship={vi.fn()}
-      />
-    );
-    const badges = screen.getAllByTestId("task-badge-self-improvement");
-    expect(badges.length).toBeGreaterThanOrEqual(1);
-    expect(badges.some((el) => el.textContent === "Self-improvement")).toBe(true);
+    expect(screen.queryByText("Implement login")).not.toBeInTheDocument();
+    expect(screen.queryByText("Implement logout")).not.toBeInTheDocument();
+    expect(screen.queryByText("Add session timeout")).not.toBeInTheDocument();
   });
 
   it("calls onSelect when card is clicked", async () => {
@@ -659,7 +609,7 @@ describe("EpicCard", () => {
     expect(onReship).toHaveBeenCalledTimes(1);
   });
 
-  it("renders Progress label and percentage when tasks exist", () => {
+  it("does not render Progress or task count on card", () => {
     renderWithStore(
       <EpicCard
         plan={basePlan}
@@ -674,10 +624,8 @@ describe("EpicCard", () => {
       />
     );
 
-    expect(screen.getByText("Progress")).toBeInTheDocument();
-    expect(screen.getByText(/33%/)).toBeInTheDocument();
-    expect(screen.getByText("medium complexity")).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "medium complexity" })).toBeInTheDocument();
+    expect(screen.queryByText("Progress")).not.toBeInTheDocument();
+    expect(screen.queryByText(/33%/)).not.toBeInTheDocument();
   });
 
   it("formats plan title with capitalized words", () => {
@@ -702,7 +650,7 @@ describe("EpicCard", () => {
     expect(screen.getByText("My Cool Feature")).toBeInTheDocument();
   });
 
-  it("handles zero task count without error and hides progress", () => {
+  it("handles zero task count without error (no progress UI on cards)", () => {
     const plan: Plan = { ...basePlan, taskCount: 0, doneTaskCount: 0 };
     renderWithStore(
       <EpicCard
@@ -720,7 +668,6 @@ describe("EpicCard", () => {
 
     expect(screen.getByText("Auth Feature")).toBeInTheDocument();
     expect(screen.queryByText("Progress")).not.toBeInTheDocument();
-    expect(screen.queryByText(/0\/0/)).not.toBeInTheDocument();
   });
 
   it("shows spinner inside Execute button when plan is executing", () => {
@@ -966,8 +913,6 @@ describe("EpicCard", () => {
       />,
       { execute: { tasks: tasksFromStore } }
     );
-    expect(screen.getByText("Implement login")).toBeInTheDocument();
-    expect(screen.getByText("Implement logout")).toBeInTheDocument();
     expect(screen.getByTestId("execute-button")).toBeInTheDocument();
   });
 

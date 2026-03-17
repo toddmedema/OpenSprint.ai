@@ -49,36 +49,6 @@ let currentTaskGetImpl = mockGet.getMockImplementation();
 
 const mockGetSettings = vi.fn().mockResolvedValue({ teamMembers: [] });
 
-function resetApiMocks() {
-  mockGet.mockReset();
-  mockGet.mockResolvedValue({});
-  currentTaskGetImpl = mockGet.getMockImplementation();
-
-  mockMarkDone.mockReset();
-  mockMarkDone.mockResolvedValue(undefined);
-
-  mockUnblock.mockReset();
-  mockUnblock.mockResolvedValue({ taskUnblocked: true });
-
-  mockDeleteTask.mockReset();
-  mockDeleteTask.mockResolvedValue({ taskDeleted: true });
-
-  mockFeedbackGet.mockReset();
-  mockFeedbackGet.mockResolvedValue(null);
-
-  mockAgentsActive.mockReset();
-  mockAgentsActive.mockResolvedValue([]);
-
-  mockLiveOutput.mockReset();
-  mockLiveOutput.mockResolvedValue({ output: "" });
-
-  mockTaskDiagnostics.mockReset();
-  mockTaskDiagnostics.mockResolvedValue(null);
-
-  mockGetSettings.mockReset();
-  mockGetSettings.mockResolvedValue({ teamMembers: [] });
-}
-
 vi.mock("../../api/client", () => ({
   api: {
     tasks: {
@@ -124,7 +94,6 @@ vi.mock("../../api/client", () => ({
 }));
 
 beforeEach(() => {
-  resetApiMocks();
   localStorage.removeItem("opensprint.executeStatusFilter");
   localStorage.removeItem("opensprint.executeView");
 });

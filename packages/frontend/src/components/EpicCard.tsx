@@ -1,15 +1,9 @@
 import type { Plan, Task } from "@opensprint/shared";
-import { shallowEqual } from "react-redux";
-import { useAppSelector } from "../store";
-import { selectTasksForEpic } from "../store/slices/executeSlice";
 import { formatPlanIdAsTitle } from "../lib/formatting";
-import { isSelfImprovementTask } from "../lib/executeTaskFilter";
-import { COLUMN_LABELS } from "./kanban/TaskStatusBadge";
-import { ComplexityIcon } from "./ComplexityIcon";
 
 export interface EpicCardProps {
   plan: Plan;
-  /** When provided (e.g. in tests), use this instead of Redux. Otherwise subscribe to tasks via selectTasksForEpic. */
+  /** Accepted for API compatibility; task list is not displayed on Plan cards. */
   tasks?: Task[];
   /** When true, show full-card loading spinner overlay (optimistic plan awaiting API) */
   isOptimistic?: boolean;
@@ -131,7 +125,7 @@ const PLAN_STATUS_LABEL: Record<string, string> = {
 
 export function EpicCard({
   plan,
-  tasks: tasksProp,
+  tasks: _tasksProp,
   isOptimistic = false,
   executingPlanId,
   reExecutingPlanId,
@@ -147,13 +141,6 @@ export function EpicCard({
   isMarkCompletePending = false,
   autoExecutePlans = false,
 }: EpicCardProps) {
-  const tasksFromRedux = useAppSelector(
-    (s) => selectTasksForEpic(s, plan.metadata.epicId),
-    shallowEqual
-  );
-  const tasks = tasksProp ?? tasksFromRedux;
-
-  const progress = plan.taskCount > 0 ? (plan.doneTaskCount / plan.taskCount) * 100 : 0;
   const config = statusConfig[plan.status] ?? defaultStatus;
 
   return (
@@ -220,73 +207,6 @@ export function EpicCard({
             {PLAN_STATUS_LABEL[plan.status] ?? plan.status}
           </span>
         </div>
-
-        {/* Progress section — hidden when no tasks exist */}
-        {plan.taskCount > 0 && (
-          <div className="mb-3">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-medium text-theme-muted">Progress</span>
-              <span className="text-xs font-semibold text-theme-text">
-                {plan.doneTaskCount}/{plan.taskCount}
-                <span className="ml-1 text-theme-muted font-normal">({Math.round(progress)}%)</span>
-              </span>
-            </div>
-            <div className="w-full bg-theme-surface-muted rounded-full h-2 overflow-hidden">
-              <div
-                className="h-2 rounded-full transition-all duration-500 ease-out bg-theme-info-solid"
-                style={{ width: `${progress}%` }}
-                role="progressbar"
-                aria-valuenow={plan.doneTaskCount}
-                aria-valuemin={0}
-                aria-valuemax={plan.taskCount}
-                aria-label={`${plan.doneTaskCount} of ${plan.taskCount} tasks done`}
-              />
-            </div>
-            {plan.doneTaskCount > 0 &&
-              plan.doneTaskCount < plan.taskCount &&
-              plan.metadata.complexity && (
-                <p className="text-xs text-theme-muted mt-1 inline-flex items-center gap-1.5">
-                  <ComplexityIcon complexity={plan.metadata.complexity} size="xs" />
-                  {plan.metadata.complexity} complexity
-                </p>
-              )}
-          </div>
-        )}
-
-        {/* Nested subtasks — no fixed-height scroll; list expands with content */}
-        {tasks.length > 0 && (
-          <div className="mb-3 rounded-lg bg-theme-surface-muted/80 ring-1 ring-theme-border overflow-hidden">
-            <ul className="space-y-0.5 p-2">
-              {tasks.map((task) => (
-                <li
-                  key={task.id}
-                  className="flex items-center gap-2 py-1 px-2 rounded-md hover:bg-theme-border-subtle transition-colors text-xs text-theme-text"
-                  title={`${task.title} — ${COLUMN_LABELS[task.kanbanColumn]}`}
-                >
-                  <span
-                    className={`shrink-0 w-2 h-2 rounded-full ${
-                      task.kanbanColumn === "done"
-                        ? "bg-theme-status-done"
-                        : task.kanbanColumn === "in_progress" || task.kanbanColumn === "in_review"
-                          ? "bg-theme-status-in-progress"
-                          : "bg-theme-ring"
-                    }`}
-                  />
-                  <span className="truncate flex-1 min-w-0">{task.title}</span>
-                  {isSelfImprovementTask(task) && (
-                    <span
-                      className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium bg-theme-surface-muted text-theme-muted"
-                      title="Created by self-improvement"
-                      data-testid="task-badge-self-improvement"
-                    >
-                      Self-improvement
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
 
         {/* Action buttons */}
         {plan.status === "planning" && (
