@@ -135,7 +135,6 @@ export function ExecutePhase({
       : String(taskDetailQuery.error)
     : null;
   const archivedSessionsData = archivedQuery.data;
-  const archivedRefetch = archivedQuery.refetch;
   const archivedSessions = archivedSessionsData ?? [];
   const archivedLoading = archivedQuery.isFetching;
   const liveOutputData = liveOutputQuery.data;
@@ -203,7 +202,9 @@ export function ExecutePhase({
     if (!prev && wsConnected) {
       void liveOutputRefetch();
     }
-  }, [effectiveSelectedTask, isDoneTask, liveOutputRefetch, wsConnected]);
+    // Intentionally omit liveOutputQuery (full object) to avoid effect re-running on every query identity change
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- we only need refetch and connection state
+  }, [effectiveSelectedTask, isDoneTask, liveOutputQuery.refetch, wsConnected]);
 
   useEffect(() => {
     if (!effectiveSelectedTask || isDoneTask) {
@@ -218,13 +219,15 @@ export function ExecutePhase({
     // Retry one time when the first empty response races with a just-finished agent session.
     if (emptyArchivedRefetchTaskIdRef.current === effectiveSelectedTask) return;
     emptyArchivedRefetchTaskIdRef.current = effectiveSelectedTask;
-    void archivedRefetch();
+    void archivedQuery.refetch();
+    // Intentionally omit archivedQuery (full object) to avoid effect re-running on every query identity change
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- we depend on .data, .refetch, and loading
   }, [
     effectiveSelectedTask,
     isDoneTask,
     archivedSessionsData,
     archivedLoading,
-    archivedRefetch,
+    archivedQuery.refetch,
   ]);
 
   // Subscribe to live agent output. Middleware queues subscribe when WS not yet connected

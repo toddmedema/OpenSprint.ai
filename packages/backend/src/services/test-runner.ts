@@ -501,7 +501,7 @@ export class TestRunner {
     const base =
       mode === "run"
         ? "node ./node_modules/vitest/vitest.mjs run"
-        : "node ./node_modules/vitest/vitest.mjs related --run";
+        : "node ./node_modules/vitest/vitest.mjs related --run --testTimeout=30000";
     return fileArgs ? `${base} ${fileArgs}` : base;
   }
 

@@ -2,6 +2,7 @@
   "name": "opensprint",
   "version": "0.3.0",
   "private": true,
+  "type": "module",
   "description": "AI-powered software development lifecycle platform",
   "workspaces": [
     "packages/shared",

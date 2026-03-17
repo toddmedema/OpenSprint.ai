@@ -1310,7 +1310,7 @@ describe("OrchestratorService (slot-based model)", () => {
         passed: 3,
         failed: 0,
         rawOutput: "ok",
-        executedCommand: "node ./node_modules/vitest/vitest.mjs related --run src/foo.ts",
+        executedCommand: "node ./node_modules/vitest/vitest.mjs related --run --testTimeout=30000 src/foo.ts",
         scope: "scoped",
       });
       mockGetActiveDir.mockImplementation((base: string, tid: string) =>
@@ -1362,7 +1362,7 @@ describe("OrchestratorService (slot-based model)", () => {
       );
       await vi.waitFor(async () => {
         await expect(fs.readFile(statusPath, "utf-8")).resolves.toContain(
-          "Validation command: `node ./node_modules/vitest/vitest.mjs related --run src/foo.ts`"
+          "Validation command: `node ./node_modules/vitest/vitest.mjs related --run --testTimeout=30000 src/foo.ts`"
         );
       });
     });
@@ -1416,7 +1416,7 @@ describe("OrchestratorService (slot-based model)", () => {
         passed: 3,
         failed: 0,
         rawOutput: "ok",
-        executedCommand: "node ./node_modules/vitest/vitest.mjs related --run src/foo.ts",
+        executedCommand: "node ./node_modules/vitest/vitest.mjs related --run --testTimeout=30000 src/foo.ts",
         scope: "scoped",
       });
       vi.mocked(heartbeatService.readHeartbeat).mockResolvedValue({
@@ -1655,7 +1655,7 @@ describe("OrchestratorService (slot-based model)", () => {
         total: 3,
         details: [],
         rawOutput: "ok",
-        executedCommand: "node ./node_modules/vitest/vitest.mjs related --run src/foo.ts",
+        executedCommand: "node ./node_modules/vitest/vitest.mjs related --run --testTimeout=30000 src/foo.ts",
         scope: "scoped",
       });
       const runMergeQualityGatesSpy = vi
