@@ -1637,6 +1637,117 @@ describe("OrchestratorService (slot-based model)", () => {
       expect(mockEnsureRepoNodeModules).toHaveBeenCalledWith(repoPath);
     });
 
+    it("fails before merge when branch quality gates fail in reviewMode=never", async () => {
+      const { task, wtPath } = setupSingleTaskFlow("task-quality-gate");
+      mockTaskStoreReady.mockResolvedValueOnce([task]);
+      mockReadResult.mockResolvedValue({
+        status: "success",
+        summary: "Implemented feature",
+        filesChanged: [],
+        testsWritten: 0,
+        testsPassed: 0,
+        notes: "",
+      });
+      mockGetChangedFiles.mockResolvedValue(["src/foo.ts"]);
+      mockRunScopedTests.mockResolvedValue({
+        passed: 3,
+        failed: 0,
+        skipped: 0,
+        total: 3,
+        details: [],
+        rawOutput: "ok",
+        executedCommand: "node ./node_modules/vitest/vitest.mjs related --run src/foo.ts",
+        scope: "scoped",
+      });
+      const runMergeQualityGatesSpy = vi
+        .spyOn(orchestrator, "runMergeQualityGates")
+        .mockResolvedValue({
+          command: "npm run lint",
+          reason: "Command failed: npm run lint",
+          output: "src/foo.ts: error TS2304: Cannot find name 'x'",
+          outputSnippet: "src/foo.ts: error TS2304: Cannot find name 'x'",
+          worktreePath: wtPath,
+          firstErrorLine: "src/foo.ts: error TS2304: Cannot find name 'x'",
+          category: "quality_gate",
+        });
+
+      await orchestrator.ensureRunning(projectId);
+      await vi.waitFor(() => {
+        expect(mockWriteJsonAtomic).toHaveBeenCalled();
+      });
+
+      const mergeSpy = vi
+        .spyOn(
+          (orchestrator as unknown as {
+            mergeCoordinator: { performMergeAndDone: (...args: unknown[]) => Promise<void> };
+          }).mergeCoordinator,
+          "performMergeAndDone"
+        )
+        .mockResolvedValue(undefined);
+      const failureSpy = vi
+        .spyOn(
+          (orchestrator as unknown as {
+            failureHandler: {
+              handleTaskFailure: (...args: unknown[]) => Promise<void>;
+            };
+          }).failureHandler,
+          "handleTaskFailure"
+        )
+        .mockResolvedValue(undefined);
+
+      const invokeHandleCodingDone = orchestrator as unknown as {
+        handleCodingDone(
+          projectId: string,
+          repoPath: string,
+          task: typeof task,
+          branchName: string,
+          exitCode: number | null
+        ): Promise<void>;
+        getState(id: string): { slots: Map<string, unknown> };
+      };
+
+      await invokeHandleCodingDone.handleCodingDone(
+        projectId,
+        repoPath,
+        task,
+        `opensprint/${task.id}`,
+        0
+      );
+
+      expect(mergeSpy).not.toHaveBeenCalled();
+      expect(failureSpy).toHaveBeenCalledWith(
+        projectId,
+        repoPath,
+        task,
+        `opensprint/${task.id}`,
+        expect.stringContaining("Quality gate failed (npm run lint)"),
+        null,
+        "merge_quality_gate"
+      );
+
+      const slot = invokeHandleCodingDone.getState(projectId).slots.get(task.id) as {
+        phaseResult: {
+          qualityGateDetail?: {
+            command?: string | null;
+            firstErrorLine?: string | null;
+          } | null;
+        };
+      };
+      expect(slot.phaseResult.qualityGateDetail).toEqual(
+        expect.objectContaining({
+          command: "npm run lint",
+          firstErrorLine: "src/foo.ts: error TS2304: Cannot find name 'x'",
+        })
+      );
+      expect(runMergeQualityGatesSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          taskId: task.id,
+          worktreePath: wtPath,
+          branchName: `opensprint/${task.id}`,
+        })
+      );
+    });
+
     it("caps dispatch to one new coder per loop even when multiple slots are available", async () => {
       const task1 = makeTask("task-1");
       const task2 = makeTask("task-2");
@@ -1905,6 +2016,112 @@ describe("OrchestratorService (slot-based model)", () => {
       mockIsSelfImprovementRunInProgress.mockReturnValue(true);
       const statusActive = await orchestrator.getStatus(projectId);
       expect(statusActive.selfImprovementRunInProgress).toBe(true);
+    });
+  });
+
+  describe("resolveTestAndReview", () => {
+    it("prefers quality-gate failure over approved review outcome", async () => {
+      const { task } = setupSingleTaskFlow("task-review-quality-gate");
+      mockTaskStoreReady.mockResolvedValueOnce([task]);
+
+      await orchestrator.ensureRunning(projectId);
+      await vi.waitFor(() => {
+        expect(mockWriteJsonAtomic).toHaveBeenCalled();
+      });
+
+      const mergeSpy = vi
+        .spyOn(
+          (orchestrator as unknown as {
+            mergeCoordinator: { performMergeAndDone: (...args: unknown[]) => Promise<void> };
+          }).mergeCoordinator,
+          "performMergeAndDone"
+        )
+        .mockResolvedValue(undefined);
+      const failureSpy = vi
+        .spyOn(
+          (orchestrator as unknown as {
+            failureHandler: {
+              handleTaskFailure: (...args: unknown[]) => Promise<void>;
+            };
+          }).failureHandler,
+          "handleTaskFailure"
+        )
+        .mockResolvedValue(undefined);
+
+      const invokeResolve = orchestrator as unknown as {
+        getState(id: string): { slots: Map<string, unknown> };
+        resolveTestAndReview(
+          projectId: string,
+          repoPath: string,
+          task: typeof task,
+          branchName: string,
+          testOutcome: {
+            status: "failed";
+            failureType: "merge_quality_gate";
+            qualityGateDetail: {
+              command: string;
+              reason: string;
+              outputSnippet: string;
+              worktreePath: string;
+              firstErrorLine: string;
+            };
+          },
+          reviewOutcome: {
+            status: "approved";
+            result: { status: "approved"; summary: string; notes: string };
+            exitCode: number;
+          }
+        ): Promise<void>;
+      };
+
+      await invokeResolve.resolveTestAndReview(
+        projectId,
+        repoPath,
+        task,
+        `opensprint/${task.id}`,
+        {
+          status: "failed",
+          failureType: "merge_quality_gate",
+          qualityGateDetail: {
+            command: "npm run lint",
+            reason: "Command failed: npm run lint",
+            outputSnippet: "src/foo.ts: error TS2304: Cannot find name 'x'",
+            worktreePath: `/tmp/opensprint-worktrees/${task.id}`,
+            firstErrorLine: "src/foo.ts: error TS2304: Cannot find name 'x'",
+          },
+        },
+        {
+          status: "approved",
+          result: { status: "approved", summary: "Looks good", notes: "" },
+          exitCode: 0,
+        }
+      );
+
+      expect(mergeSpy).not.toHaveBeenCalled();
+      expect(failureSpy).toHaveBeenCalledWith(
+        projectId,
+        repoPath,
+        task,
+        `opensprint/${task.id}`,
+        expect.stringContaining("Quality gate failed (npm run lint)"),
+        null,
+        "merge_quality_gate"
+      );
+
+      const slot = invokeResolve.getState(projectId).slots.get(task.id) as {
+        phaseResult: {
+          qualityGateDetail?: {
+            command?: string | null;
+            firstErrorLine?: string | null;
+          } | null;
+        };
+      };
+      expect(slot.phaseResult.qualityGateDetail).toEqual(
+        expect.objectContaining({
+          command: "npm run lint",
+          firstErrorLine: "src/foo.ts: error TS2304: Cannot find name 'x'",
+        })
+      );
     });
   });
 
