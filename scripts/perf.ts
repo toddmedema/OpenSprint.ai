@@ -15,12 +15,19 @@
  *   npm run perf
  *   npm run perf -- --baseline    # Save metrics to perf-baseline.json
  *   npm run perf -- --compare     # Compare against saved baseline
+ *   npm run perf -- --ci          # Compare and exit 1 if regression exceeds delta (CI)
  */
 
 import puppeteer, { type Browser, type Page } from "puppeteer";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import {
+  checkPerfRegressions,
+  DEFAULT_PERF_DELTAS,
+  type PerfMetrics,
+  type PerfDeltas,
+} from "@opensprint/shared";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
@@ -28,33 +35,18 @@ const ROOT = path.resolve(__dirname, "..");
 const API_BASE = "http://localhost:3100/api/v1";
 const APP_URL = "http://localhost:5173";
 
-interface PerfMetrics {
-  timestamp: string;
-  /** Initial load metrics */
-  load: {
-    domContentLoaded: number;
-    loadComplete: number;
-    firstContentfulPaint?: number;
-    timeToInteractive?: number;
-  };
-  /** Memory (bytes) */
-  memory: {
-    jsHeapUsed: number;
-    jsHeapTotal: number;
-    peakAfterSidebarOpen?: number;
-    afterSidebarClose?: number;
-  };
-  /** Sidebar open/close timing (ms) */
-  sidebar: {
-    openToVisible?: number;
-    closeToHidden?: number;
-    cpuSpikeDurationMs?: number;
-  };
-  /** Whether sidebar was opened (requires tasks) */
-  sidebarOpened: boolean;
-}
-
 const BASELINE_PATH = path.join(ROOT, "perf-baseline.json");
+
+function getDeltas(): PerfDeltas {
+  return {
+    loadCompletePct: parseInt(process.env.PERF_MAX_LOAD_COMPLETE_PCT ?? "", 10) || DEFAULT_PERF_DELTAS.loadCompletePct,
+    ttiPct: parseInt(process.env.PERF_MAX_TTI_PCT ?? "", 10) || DEFAULT_PERF_DELTAS.ttiPct,
+    fcpPct: parseInt(process.env.PERF_MAX_FCP_PCT ?? "", 10) || DEFAULT_PERF_DELTAS.fcpPct,
+    heapUsedPct: parseInt(process.env.PERF_MAX_HEAP_PCT ?? "", 10) || DEFAULT_PERF_DELTAS.heapUsedPct,
+    sidebarClosePct: parseInt(process.env.PERF_MAX_SIDEBAR_CLOSE_PCT ?? "", 10) || DEFAULT_PERF_DELTAS.sidebarClosePct,
+    peakSidebarHeapPct: parseInt(process.env.PERF_MAX_PEAK_SIDEBAR_HEAP_PCT ?? "", 10) || DEFAULT_PERF_DELTAS.peakSidebarHeapPct,
+  };
+}
 
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -269,6 +261,12 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const saveBaseline = args.includes("--baseline");
   const compare = args.includes("--compare");
+  const ci = args.includes("--ci");
+
+  if (ci && !fs.existsSync(BASELINE_PATH)) {
+    console.error("CI mode requires a committed perf-baseline.json. Run npm run perf:baseline (with app running) and commit it.");
+    process.exit(1);
+  }
 
   console.log("Checking servers...");
   try {
@@ -304,6 +302,25 @@ async function main(): Promise<void> {
 
     if (compare) {
       compareWithBaseline(metrics);
+    }
+
+    if (ci) {
+      const baselineJson = fs.readFileSync(BASELINE_PATH, "utf-8");
+      const baseline = JSON.parse(baselineJson) as PerfMetrics;
+      const deltas = getDeltas();
+      const regressions = checkPerfRegressions(baseline, metrics, deltas);
+      if (regressions.length > 0) {
+        console.error("\n--- Performance regression(s) exceed allowed delta ---\n");
+        for (const r of regressions) {
+          const isBytes = r.metric.includes("Heap") || r.metric.includes("peak");
+          const curStr = isBytes ? formatBytes(r.current) : `${r.current.toFixed(0)} ms`;
+          const baseStr = isBytes ? formatBytes(r.baseline) : `${r.baseline.toFixed(0)} ms`;
+          console.error(`  ${r.metric}: ${curStr} (baseline ${baseStr}) — regression ${r.deltaPct.toFixed(1)}% (max ${r.maxAllowedPct}%)`);
+        }
+        console.error("");
+        process.exit(1);
+      }
+      console.log("\n--- Perf check passed (no regression beyond allowed delta) ---\n");
     }
   } finally {
     await browser.close();

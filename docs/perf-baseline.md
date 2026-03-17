@@ -10,11 +10,12 @@ This document describes how to measure and document performance baselines before
 
 ## Commands
 
-| Command                 | Description                                        |
-| ----------------------- | -------------------------------------------------- |
-| `npm run perf`          | Run performance measurement and print report       |
-| `npm run perf:baseline` | Run measurement and save to `perf-baseline.json`   |
-| `npm run perf:compare`  | Run measurement and compare against saved baseline |
+| Command                 | Description                                                           |
+| ----------------------- | --------------------------------------------------------------------- |
+| `npm run perf`          | Run performance measurement and print report                          |
+| `npm run perf:baseline` | Run measurement and save to `perf-baseline.json`                      |
+| `npm run perf:compare`  | Run measurement and compare against saved baseline                    |
+| `npm run perf:ci`       | Compare to baseline, exit 1 if regression exceeds allowed delta (CI)  |
 
 ## Metrics Collected
 
@@ -28,6 +29,14 @@ This document describes how to measure and document performance baselines before
 2. **Implement optimization**
 3. **After optimization:** Run `npm run perf:compare` to see delta vs baseline
 4. Document results in this file or in PR description
+
+## CI / Release
+
+A **lightweight perf check** runs in the merge gate (see `.github/workflows/merge-gate.yml`). It builds the app, starts backend and frontend, runs `npm run perf:ci`, and fails the job if any metric regresses beyond the allowed delta.
+
+- **Baseline:** Committed `perf-baseline.json` at repo root. Update it by running `npm run perf:baseline` with the app running, then commit the file.
+- **Allowed deltas (default):** Load complete +20%, TTI +20%, FCP +20%, JS heap +20%, sidebar close +30%, peak sidebar heap +20%. Override via env: `PERF_MAX_TTI_PCT`, `PERF_MAX_FCP_PCT`, `PERF_MAX_HEAP_PCT`, `PERF_MAX_LOAD_COMPLETE_PCT`, `PERF_MAX_SIDEBAR_CLOSE_PCT`, `PERF_MAX_PEAK_SIDEBAR_HEAP_PCT`.
+- **On release:** The desktop release workflow (`.github/workflows/release-desktop.yml`) runs a `perf-check` job on version tags (`v*`): build, start backend and frontend, then `npm run perf:ci`. Failures block the release.
 
 ## Acceptance Criteria (from plan)
 

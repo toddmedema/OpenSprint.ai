@@ -78,3 +78,49 @@ jobs:
           path: artifacts/test-results/
           if-no-files-found: warn
           retention-days: 14
+
+  perf:
+    name: perf
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: opensprint
+          POSTGRES_PASSWORD: opensprint
+          POSTGRES_DB: opensprint_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "sh -c \"PGPASSWORD=$POSTGRES_PASSWORD psql -U $POSTGRES_USER -d $POSTGRES_DB -c 'SELECT 1' || exit 1\""
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Run perf check (start backend + frontend, then perf:ci)
+        env:
+          DATABASE_URL: postgres://opensprint:opensprint@localhost:5432/opensprint_test
+        run: |
+          npm run start -w packages/backend &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3100/health >/dev/null 2>&1; then break; fi
+            if [ $i -eq 30 ]; then echo "Backend health check timeout"; exit 1; fi
+            sleep 1
+          done
+          npm run dev -w packages/frontend &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:5173/ >/dev/null 2>&1; then break; fi
+            if [ $i -eq 30 ]; then echo "Frontend health check timeout"; exit 1; fi
+            sleep 1
+          done
+          npm run perf:ci

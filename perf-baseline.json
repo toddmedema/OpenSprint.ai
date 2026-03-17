@@ -1,0 +1,20 @@
+{
+  "timestamp": "2025-01-01T00:00:00.000Z",
+  "load": {
+    "domContentLoaded": 2000,
+    "loadComplete": 15000,
+    "firstContentfulPaint": 5000,
+    "timeToInteractive": 45000
+  },
+  "memory": {
+    "jsHeapUsed": 400000000,
+    "jsHeapTotal": 500000000,
+    "peakAfterSidebarOpen": 500000000,
+    "afterSidebarClose": 450000000
+  },
+  "sidebar": {
+    "openToVisible": 2000,
+    "closeToHidden": 1000
+  },
+  "sidebarOpened": false
+}

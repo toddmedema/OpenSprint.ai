@@ -34,3 +34,6 @@ export * from "./plan-tasks.js";
 
 // Task ID utilities
 export * from "./task-ids.js";
+
+// Perf baseline regression check (used by scripts/perf.ts --ci)
+export * from "./perf-regression.js";
