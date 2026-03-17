@@ -1,8 +1,7 @@
 #!/usr/bin/env node
-"use strict";
-
-const fs = require("fs");
-const path = require("path");
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const tagVersion = process.env.TAG_VERSION;
 if (!tagVersion || String(tagVersion).trim() === "") {
@@ -15,6 +14,9 @@ if (!version) {
   console.error("TAG_VERSION must be a valid version (e.g. v1.2.3).");
   process.exit(1);
 }
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const rootDir = path.resolve(__dirname, "..");
 const rootPkgPath = path.join(rootDir, "package.json");
