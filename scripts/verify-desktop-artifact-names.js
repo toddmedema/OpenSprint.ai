@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-"use strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 /**
  * Verifies desktop build artifact names are fixed (no version) for stable permalinks.
@@ -10,8 +12,8 @@
  * .../releases/latest/download/Open.Sprint-<arch>.<ext> always serves the latest build.
  */
 
-const path = require("path");
-const fs = require("fs");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const root = path.resolve(__dirname, "..");
 const pkgPath = path.join(root, "packages", "electron", "package.json");
