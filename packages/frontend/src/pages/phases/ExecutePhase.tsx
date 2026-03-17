@@ -134,8 +134,12 @@ export function ExecutePhase({
       ? taskDetailQuery.error.message
       : String(taskDetailQuery.error)
     : null;
-  const archivedSessions = archivedQuery.data ?? [];
+  const archivedSessionsData = archivedQuery.data;
+  const archivedRefetch = archivedQuery.refetch;
+  const archivedSessions = archivedSessionsData ?? [];
   const archivedLoading = archivedQuery.isFetching;
+  const liveOutputData = liveOutputQuery.data;
+  const liveOutputRefetch = liveOutputQuery.refetch;
   const markDoneLoading = markDoneMutation.isPending;
   const unblockLoading = unblockMutation.isPending;
   // Merge priority from Redux when both exist so optimistic update shows immediately
@@ -178,49 +182,49 @@ export function ExecutePhase({
   }, [projectId, effectiveSelectedTask, taskDetailData, queryClient]);
 
   useEffect(() => {
-    if (archivedQuery.data) dispatch(setArchivedSessions(archivedQuery.data));
-  }, [archivedQuery.data, dispatch]);
+    if (archivedSessionsData) dispatch(setArchivedSessions(archivedSessionsData));
+  }, [archivedSessionsData, dispatch]);
 
   useEffect(() => {
-    if (effectiveSelectedTask && typeof liveOutputQuery.data === "string") {
+    if (effectiveSelectedTask && typeof liveOutputData === "string") {
       dispatch(
         setAgentOutputBackfill({
           taskId: effectiveSelectedTask,
-          output: liveOutputQuery.data,
+          output: liveOutputData,
         })
       );
     }
-  }, [effectiveSelectedTask, liveOutputQuery.data, dispatch]);
+  }, [effectiveSelectedTask, liveOutputData, dispatch]);
 
   useEffect(() => {
     const prev = prevWsConnectedRef.current;
     prevWsConnectedRef.current = wsConnected;
     if (!effectiveSelectedTask || isDoneTask) return;
     if (!prev && wsConnected) {
-      void liveOutputQuery.refetch();
+      void liveOutputRefetch();
     }
-  }, [effectiveSelectedTask, isDoneTask, liveOutputQuery.refetch, wsConnected]);
+  }, [effectiveSelectedTask, isDoneTask, liveOutputRefetch, wsConnected]);
 
   useEffect(() => {
     if (!effectiveSelectedTask || isDoneTask) {
       emptyArchivedRefetchTaskIdRef.current = null;
       return;
     }
-    if (archivedLoading || archivedQuery.data === undefined) return;
-    if (archivedQuery.data.length > 0) {
+    if (archivedLoading || archivedSessionsData === undefined) return;
+    if (archivedSessionsData.length > 0) {
       emptyArchivedRefetchTaskIdRef.current = null;
       return;
     }
     // Retry one time when the first empty response races with a just-finished agent session.
     if (emptyArchivedRefetchTaskIdRef.current === effectiveSelectedTask) return;
     emptyArchivedRefetchTaskIdRef.current = effectiveSelectedTask;
-    void archivedQuery.refetch();
+    void archivedRefetch();
   }, [
     effectiveSelectedTask,
     isDoneTask,
-    archivedQuery.data,
+    archivedSessionsData,
     archivedLoading,
-    archivedQuery.refetch,
+    archivedRefetch,
   ]);
 
   // Subscribe to live agent output. Middleware queues subscribe when WS not yet connected
