@@ -62,6 +62,41 @@ describe("DatabaseRuntimeService", () => {
     });
   });
 
+  it("reports connected as soon as probe succeeds even while onConnected is still running", async () => {
+    let finishOnConnected: (() => void) | null = null;
+    const onConnected = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishOnConnected = resolve;
+        })
+    );
+
+    const runtime = new DatabaseRuntimeService({
+      resolveConfig: async () => ({ databaseUrl: TEST_DB_URL, source: "default" }),
+      probe: async () => undefined,
+      initialSnapshot: {
+        ok: false,
+        state: "disconnected",
+        message: null,
+        lastCheckedAt: null,
+        lastSuccessAt: null,
+      },
+    });
+    runtime.setLifecycleHandlers({ onConnected });
+
+    runtime.start();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(await runtime.getStatus()).toMatchObject({
+      ok: true,
+      state: "connected",
+    });
+    await expect(runtime.requireDatabase()).resolves.toBeUndefined();
+
+    finishOnConnected?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+
   it("transitions to disconnected on runtime operational failure", async () => {
     const onDisconnected = vi.fn();
     const runtime = new DatabaseRuntimeService({

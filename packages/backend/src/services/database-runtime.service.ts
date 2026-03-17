@@ -245,11 +245,6 @@ export class DatabaseRuntimeService {
 
     try {
       await this.deps.probe(config.databaseUrl);
-      await this.handlers.onConnected?.({
-        ...config,
-        reason,
-        message: null,
-      });
       this.snapshot = {
         ok: true,
         state: "connected",
@@ -260,6 +255,11 @@ export class DatabaseRuntimeService {
       log.info("database.connected", {
         source: config.source,
         reason,
+      });
+      await this.handlers.onConnected?.({
+        ...config,
+        reason,
+        message: null,
       });
     } catch (err) {
       const message =

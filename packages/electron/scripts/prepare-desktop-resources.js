@@ -153,8 +153,8 @@ function hasPythonDistutils(pythonPath) {
 function resolveNativeBuildPython() {
   const envCandidates = [
     process.env.OPENSPRINT_NATIVE_BUILD_PYTHON,
-    process.env.npm_config_python,
     process.env.PYTHON,
+    process.env.npm_config_python,
   ]
     .map((value) => String(value ?? "").trim())
     .filter(Boolean);
@@ -173,10 +173,11 @@ function resolveNativeBuildPython() {
 
 function createNativeBuildEnv() {
   const env = { ...process.env };
+  delete env.npm_config_python;
+  delete env.NPM_CONFIG_PYTHON;
   const pythonPath = resolveNativeBuildPython();
   if (pythonPath) {
     env.PYTHON = pythonPath;
-    env.npm_config_python = pythonPath;
   }
   return env;
 }
@@ -225,7 +226,7 @@ async function run() {
   const targetArch = resolveTargetArch(cliOptions);
   const targetPlatform = resolveTargetPlatform(cliOptions);
   const nativeBuildEnv = createNativeBuildEnv();
-  const selectedPython = nativeBuildEnv.npm_config_python?.trim();
+  const selectedPython = nativeBuildEnv.PYTHON?.trim();
   if (selectedPython) {
     console.log(`Using Python for native module rebuilds: ${selectedPython}`);
   }

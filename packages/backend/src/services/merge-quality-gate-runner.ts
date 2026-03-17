@@ -1,3 +1,5 @@
+import fs from "fs/promises";
+import path from "path";
 import { createLogger } from "../utils/logger.js";
 import { getErrorMessage } from "../utils/error-utils.js";
 import { shellExec as shellExecDefault } from "../utils/shell-exec.js";
@@ -47,6 +49,36 @@ interface MergeQualityGateRunnerDeps {
   shellExec?: typeof shellExecDefault;
   symlinkNodeModules?: (repoPath: string, wtPath: string) => Promise<void>;
   commands?: string[];
+}
+
+function extractNpmRunScriptName(command: string): string | null {
+  const match = command.trim().match(/^npm\s+run\s+([^\s]+)/i);
+  return match?.[1] ?? null;
+}
+
+async function readPackageScriptNames(cwd: string): Promise<Set<string> | null> {
+  const packageJsonPath = path.join(cwd, "package.json");
+  try {
+    const raw = await fs.readFile(packageJsonPath, "utf-8");
+    const parsed = JSON.parse(raw) as { scripts?: Record<string, unknown> } | null;
+    if (!parsed || typeof parsed !== "object") return new Set();
+    const scripts = parsed.scripts;
+    if (!scripts || typeof scripts !== "object") return new Set();
+    return new Set(Object.keys(scripts));
+  } catch (err) {
+    log.debug("Unable to resolve package scripts for merge quality gates", {
+      cwd,
+      err: getErrorMessage(err),
+    });
+    return null;
+  }
+}
+
+function shouldSkipMissingNpmScript(command: string, scripts: Set<string> | null): boolean {
+  if (!scripts) return false;
+  const scriptName = extractNpmRunScriptName(command);
+  if (!scriptName) return false;
+  return !scripts.has(scriptName);
 }
 
 function getFirstNonEmptyLine(value: string | null | undefined): string | null {
@@ -254,8 +286,19 @@ export async function runMergeQualityGates(
       await branchManager.symlinkNodeModules(repoPath, wtPath);
     });
   const cwd = options.worktreePath;
+  const packageScriptNames = await readPackageScriptNames(cwd);
 
   for (const command of commands) {
+    if (shouldSkipMissingNpmScript(command, packageScriptNames)) {
+      log.info("Skipping merge quality gate because npm script is not defined", {
+        projectId: options.projectId,
+        taskId: options.taskId,
+        command,
+        cwd,
+      });
+      continue;
+    }
+
     try {
       log.info("Running merge quality gate", {
         projectId: options.projectId,
