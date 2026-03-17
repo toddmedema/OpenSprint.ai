@@ -696,9 +696,9 @@ export class ProjectService {
         });
       }
 
-      // Step 2: npm install
+      // Step 2: npm install (explicitly include dev deps so test runners like Jest are available)
       const installResult = await this.runWithRecovery(
-        "npm install",
+        "npm install --include=dev",
         repoPath,
         agentConfig,
         "Failed to run npm install"

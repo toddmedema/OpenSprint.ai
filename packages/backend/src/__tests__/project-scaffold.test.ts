@@ -63,6 +63,7 @@ vi.mock("../services/task-store.service.js", async () => {
 let expoInstallShouldFail = false;
 let gitCheckShouldFail = false;
 let nodeCheckShouldFail = false;
+let observedCommands: string[] = [];
 
 vi.mock("child_process", async (importOriginal) => {
   const actual = await importOriginal<typeof import("child_process")>();
@@ -71,6 +72,7 @@ vi.mock("child_process", async (importOriginal) => {
     optsOrCb: unknown,
     cb?: (err: Error | null, stdout?: string, stderr?: string) => void
   ) => {
+    observedCommands.push(cmd);
     const opts = typeof optsOrCb === "function" ? {} : (optsOrCb as { cwd?: string });
     const callback = (typeof optsOrCb === "function" ? optsOrCb : cb) as (
       err: Error | null,
@@ -183,6 +185,7 @@ describe("ProjectService.scaffoldProject", () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-scaffold-test-"));
     originalHome = process.env.HOME;
     process.env.HOME = tempDir;
+    observedCommands = [];
   });
 
   afterEach(async () => {
@@ -210,6 +213,7 @@ describe("ProjectService.scaffoldProject", () => {
     const pkgPath = path.join(repoPath, "package.json");
     const pkg = JSON.parse(await fs.readFile(pkgPath, "utf-8"));
     expect(pkg.scripts.web).toBe("expo start --web");
+    expect(observedCommands).toContain("npm install --include=dev");
   });
 
   it("rejects missing name", async () => {

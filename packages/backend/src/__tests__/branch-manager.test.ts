@@ -131,6 +131,31 @@ describe("BranchManager", () => {
       });
       expect(branchOut.trim()).toBe("opensprint/task-xyz");
     });
+
+    it("should ignore node_modules symlink-only changes", async () => {
+      await execAsync("git init", { cwd: repoPath });
+      await execAsync("git branch -M main", { cwd: repoPath });
+      await execAsync('git config user.email "test@test.com"', { cwd: repoPath });
+      await execAsync('git config user.name "Test"', { cwd: repoPath });
+      await fs.writeFile(path.join(repoPath, ".gitignore"), "node_modules/\n");
+      await fs.writeFile(path.join(repoPath, "README"), "initial");
+      await execAsync('git add .gitignore README && git commit -m "initial"', { cwd: repoPath });
+      const targetDir = path.join(repoPath, ".deps");
+      await fs.mkdir(targetDir, { recursive: true });
+      await fs.symlink(
+        targetDir,
+        path.join(repoPath, "node_modules"),
+        process.platform === "win32" ? "junction" : "dir"
+      );
+
+      const result = await branchManager.commitWip(repoPath, "task-node-modules");
+      expect(result).toBe(false);
+
+      const { stdout: tracked } = await execAsync("git ls-files node_modules", { cwd: repoPath });
+      expect(tracked.trim()).toBe("");
+      const { stdout: count } = await execAsync("git rev-list --count HEAD", { cwd: repoPath });
+      expect(count.trim()).toBe("1");
+    });
   });
 
   describe("checkDependencyIntegrity", () => {
@@ -530,6 +555,26 @@ describe("BranchManager", () => {
 
     it("should return empty string for non-git path", async () => {
       const diff = await branchManager.captureUncommittedDiff("/nonexistent/path");
+      expect(diff).toBe("");
+    });
+
+    it("should exclude node_modules symlink from captured diff", async () => {
+      await execAsync("git init", { cwd: repoPath });
+      await execAsync("git branch -M main", { cwd: repoPath });
+      await execAsync('git config user.email "test@test.com"', { cwd: repoPath });
+      await execAsync('git config user.name "Test"', { cwd: repoPath });
+      await fs.writeFile(path.join(repoPath, ".gitignore"), "node_modules/\n");
+      await fs.writeFile(path.join(repoPath, "README"), "initial");
+      await execAsync('git add .gitignore README && git commit -m "initial"', { cwd: repoPath });
+      const targetDir = path.join(repoPath, ".deps");
+      await fs.mkdir(targetDir, { recursive: true });
+      await fs.symlink(
+        targetDir,
+        path.join(repoPath, "node_modules"),
+        process.platform === "win32" ? "junction" : "dir"
+      );
+
+      const diff = await branchManager.captureUncommittedDiff(repoPath);
       expect(diff).toBe("");
     });
   });

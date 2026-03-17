@@ -24,6 +24,13 @@ const RUNTIME_EXCLUDE_FOR_WIP = [
   `${OPENSPRINT_PATHS.sessions}/`,
   `${OPENSPRINT_PATHS.active}/`,
 ];
+/**
+ * Keep dependency installs out of automated WIP commits.
+ * Note: `node_modules/` in .gitignore does not ignore a symlink named `node_modules`,
+ * so we explicitly unstage any node_modules pathspec after `git add -A`.
+ */
+const DEPENDENCY_EXCLUDE_PATHS_FOR_WIP = [":(glob)**/node_modules"];
+const WIP_EXCLUDE_PATHS = [...RUNTIME_EXCLUDE_FOR_WIP, ...DEPENDENCY_EXCLUDE_PATHS_FOR_WIP];
 const log = createLogger("branch-manager");
 
 /** Thrown when `pushMain` rebase encounters conflicts. Repo is left in rebase state. */
@@ -718,10 +725,7 @@ export class BranchManager {
       if (!stdout.trim()) return false;
 
       await this.git(repoPath, "add -A");
-      const paths = RUNTIME_EXCLUDE_FOR_WIP.join(" ");
-      await this.git(repoPath, `reset HEAD -- ${paths}`).catch(() => {
-        /* paths may not be staged */
-      });
+      await this.resetExcludedWipPaths(repoPath);
       const { stdout: statusAfter } = await shellExec("git status --porcelain", {
         cwd: repoPath,
         timeout: 5000,
@@ -908,6 +912,7 @@ export class BranchManager {
   async captureUncommittedDiff(gitPath: string): Promise<string> {
     try {
       await shellExec("git add -A", { cwd: gitPath });
+      await this.resetExcludedWipPaths(gitPath);
       try {
         const { stdout } = await shellExec("git diff --cached HEAD", {
           cwd: gitPath,
@@ -920,6 +925,14 @@ export class BranchManager {
     } catch {
       return "";
     }
+  }
+
+  /** Unstage paths that must never be included in automated WIP commits or diff snapshots. */
+  private async resetExcludedWipPaths(repoPath: string): Promise<void> {
+    const paths = WIP_EXCLUDE_PATHS.map((p) => shellQuote(p)).join(" ");
+    await this.git(repoPath, `reset HEAD -- ${paths}`).catch(() => {
+      /* paths may not be staged */
+    });
   }
 
   // ─── Git Worktree Operations ───
