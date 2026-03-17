@@ -182,8 +182,53 @@ function createNativeBuildEnv() {
   return env;
 }
 
-function resolveNpxExecutable() {
-  return process.platform === "win32" ? "npx.cmd" : "npx";
+function findPackageRoot(startDir, packageName) {
+  let currentDir = startDir;
+  while (true) {
+    const packageJsonPath = path.join(currentDir, "package.json");
+    if (fs.existsSync(packageJsonPath)) {
+      try {
+        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+        if (packageJson?.name === packageName) {
+          return currentDir;
+        }
+      } catch {
+        // Keep walking up until we find a valid package.json for the requested package.
+      }
+    }
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) {
+      break;
+    }
+    currentDir = parentDir;
+  }
+  throw new Error(`Could not locate package root for '${packageName}' from '${startDir}'.`);
+}
+
+function resolveElectronRebuildCliPath() {
+  const rebuildEntryPath = require.resolve("@electron/rebuild", {
+    paths: [electronPackageDir, repoRoot],
+  });
+  const rebuildPackageRoot = findPackageRoot(path.dirname(rebuildEntryPath), "@electron/rebuild");
+  const rebuildPackageJsonPath = path.join(rebuildPackageRoot, "package.json");
+  const rebuildPackageJson = JSON.parse(fs.readFileSync(rebuildPackageJsonPath, "utf8"));
+  const binField = rebuildPackageJson?.bin;
+  const cliRelativePath =
+    typeof binField === "string"
+      ? binField
+      : typeof binField?.["electron-rebuild"] === "string"
+        ? binField["electron-rebuild"]
+        : "";
+  if (!cliRelativePath) {
+    throw new Error(
+      `Could not resolve electron-rebuild CLI from ${rebuildPackageJsonPath}. Missing bin entry.`
+    );
+  }
+  const cliPath = path.join(rebuildPackageRoot, cliRelativePath);
+  if (!fs.existsSync(cliPath)) {
+    throw new Error(`Resolved electron-rebuild CLI does not exist: ${cliPath}`);
+  }
+  return cliPath;
 }
 
 function buildElectronRebuildArgs({
@@ -212,11 +257,16 @@ function buildElectronRebuildArgs({
 }
 
 function runElectronRebuild(options, nativeBuildEnv) {
-  execFileSync(resolveNpxExecutable(), buildElectronRebuildArgs(options), {
-    cwd: electronPackageDir,
-    env: nativeBuildEnv,
-    stdio: "inherit",
-  });
+  const electronRebuildCliPath = resolveElectronRebuildCliPath();
+  execFileSync(
+    process.execPath,
+    [electronRebuildCliPath, ...buildElectronRebuildArgs(options).slice(1)],
+    {
+      cwd: electronPackageDir,
+      env: nativeBuildEnv,
+      stdio: "inherit",
+    }
+  );
 }
 
 async function run() {
