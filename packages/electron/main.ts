@@ -13,7 +13,6 @@ import {
   session,
   shell,
   dialog,
-  globalShortcut,
   ipcMain,
   type MenuItemConstructorOptions,
 } from "electron";
@@ -1027,10 +1026,6 @@ function sendNavigateSettings(): void {
 }
 
 function setApplicationMenu(): void {
-  if (process.platform === "win32") {
-    Menu.setApplicationMenu(null);
-    return;
-  }
   const isMac = process.platform === "darwin";
   const template = [
     ...(isMac
@@ -1061,6 +1056,7 @@ function setApplicationMenu(): void {
         { role: "undo" as const },
         { role: "redo" as const },
         { type: "separator" as const },
+        // Find: menu accelerator only (no globalShortcut) so Ctrl+F/Cmd+F fires only when app has focus (Mac/Windows/Linux).
         { label: "Find", accelerator: "CommandOrControl+F", click: focusAndOpenFindBar },
         { role: "cut" as const },
         { role: "copy" as const },
@@ -1277,8 +1273,6 @@ app.whenReady().then(async () => {
     }
   );
 
-  globalShortcut.register("CommandOrControl+F", focusAndOpenFindBar);
-
   backendPort = DEFAULT_BACKEND_PORT;
   let backendReady = false;
   let startupError: unknown = null;
@@ -1373,7 +1367,6 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", (event) => {
   isQuitting = true;
-  globalShortcut.unregisterAll();
   if (trayRefreshInterval) {
     clearInterval(trayRefreshInterval);
     trayRefreshInterval = null;
