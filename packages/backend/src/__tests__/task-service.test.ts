@@ -529,7 +529,49 @@ describe("TaskService", () => {
     expect(taskB!.kanbanColumn).toBe("backlog");
   });
 
-  it("listTasks: open task with merge_stage label returns kanbanColumn waiting_to_merge", async () => {
+  it("computeKanbanColumn: task without merge_stage label returns ready (unchanged)", async () => {
+    mockTaskStoreState.listAll = [
+      {
+        id: "task-no-merge-stage",
+        title: "Normal task",
+        status: "open",
+        issue_type: "task",
+        labels: [],
+        dependencies: [],
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-01T00:00:00Z",
+      },
+    ] as StoredTask[];
+
+    const tasks = await taskService.listTasks("proj-1");
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].kanbanColumn).toBe("ready");
+    expect(tasks[0].mergePausedUntil).toBeUndefined();
+    expect(tasks[0].mergeWaitingOnMain).toBeUndefined();
+  });
+
+  it("computeKanbanColumn: task without merge_stage with open blocker returns backlog (unchanged)", async () => {
+    mockTaskStoreState.listAll = [
+      { id: "blocker-1", status: "open", issue_type: "task", dependencies: [] },
+      {
+        id: "task-blocked",
+        title: "Blocked task",
+        status: "open",
+        issue_type: "task",
+        labels: [],
+        dependencies: [{ type: "blocks", depends_on_id: "blocker-1" }],
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-01T00:00:00Z",
+      },
+    ] as StoredTask[];
+
+    const tasks = await taskService.listTasks("proj-1");
+    const task = tasks.find((t) => t.id === "task-blocked");
+    expect(task).toBeDefined();
+    expect(task!.kanbanColumn).toBe("backlog");
+  });
+
+  it("listTasks: open task with merge_stage label and no merge_quality_gate_paused_until returns waiting_to_merge", async () => {
     for (const stage of ["quality_gate", "merge_to_main", "rebase_before_merge"]) {
       mockTaskStoreState.listAll = [
         {
@@ -547,10 +589,12 @@ describe("TaskService", () => {
       const tasks = await taskService.listTasks("proj-1");
       expect(tasks).toHaveLength(1);
       expect(tasks[0].kanbanColumn).toBe("waiting_to_merge");
+      expect(tasks[0].mergePausedUntil).toBeUndefined();
+      expect(tasks[0].mergeWaitingOnMain).toBeUndefined();
     }
   });
 
-  it("getTask: open task with merge_stage returns kanbanColumn waiting_to_merge", async () => {
+  it("getTask: open task with merge_stage and no merge_quality_gate_paused_until returns waiting_to_merge only", async () => {
     mockTaskStoreState.listAll = [
       {
         id: "task-wtm",
@@ -566,6 +610,8 @@ describe("TaskService", () => {
 
     const task = await taskService.getTask("proj-1", "task-wtm");
     expect(task.kanbanColumn).toBe("waiting_to_merge");
+    expect(task.mergePausedUntil).toBeUndefined();
+    expect(task.mergeWaitingOnMain).toBeUndefined();
   });
 
   it("listTasks: when merge_quality_gate_paused_until is future ISO string, response includes mergePausedUntil and mergeWaitingOnMain", async () => {
