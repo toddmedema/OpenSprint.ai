@@ -774,6 +774,62 @@ describe("ProjectService", () => {
     });
   });
 
+  it("should default runAgentEnhancementExperiments to false and accept true/false in updateSettings", async () => {
+    const repoPath = path.join(tempDir, "run-agent-enhancement");
+    const project = await projectService.createProject({
+      name: "Run Agent Enhancement",
+      repoPath,
+      simpleComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      complexComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    const first = await projectService.getSettings(project.id);
+    expect(first.runAgentEnhancementExperiments).toBe(false);
+
+    const updated = await projectService.updateSettings(project.id, {
+      runAgentEnhancementExperiments: true,
+    });
+    expect(updated.runAgentEnhancementExperiments).toBe(true);
+
+    const reloaded = await projectService.getSettings(project.id);
+    expect(reloaded.runAgentEnhancementExperiments).toBe(true);
+
+    const settings = await readSettingsFromGlobalStore(tempDir, project.id);
+    expect(settings.runAgentEnhancementExperiments).toBe(true);
+
+    await projectService.updateSettings(project.id, {
+      runAgentEnhancementExperiments: false,
+    });
+    const afterFalse = await projectService.getSettings(project.id);
+    expect(afterFalse.runAgentEnhancementExperiments).toBe(false);
+    const settingsAfter = await readSettingsFromGlobalStore(tempDir, project.id);
+    expect(settingsAfter.runAgentEnhancementExperiments).toBe(false);
+  });
+
+  it("should reject invalid runAgentEnhancementExperiments in updateSettings", async () => {
+    const repoPath = path.join(tempDir, "run-agent-enhancement-invalid");
+    const project = await projectService.createProject({
+      name: "Run Agent Enhancement Invalid",
+      repoPath,
+      simpleComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      complexComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    await expect(
+      projectService.updateSettings(project.id, {
+        runAgentEnhancementExperiments: "yes" as unknown as boolean,
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "INVALID_INPUT",
+      message: expect.stringMatching(/runAgentEnhancementExperiments|boolean/),
+    });
+  });
+
   it("should ignore selfImprovementLastRunAt and selfImprovementLastCommitSha from client in updateSettings", async () => {
     const repoPath = path.join(tempDir, "self-improvement-strip");
     const project = await projectService.createProject({
