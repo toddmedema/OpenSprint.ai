@@ -370,7 +370,7 @@ export class ContextAssembler {
     );
     if (headingMatch?.[1]?.trim()) return headingMatch[1].trim();
 
-    const labelMatch = text.match(/(?:^|\n)(?:Acceptance Criteria|Acceptance)\s*:\s*([\s\S]*)$/i);
+    const labelMatch = text.match(/\b(?:Acceptance Criteria|Acceptance)\s*:\s*([\s\S]*)$/i);
     if (labelMatch?.[1]?.trim()) return labelMatch[1].trim();
 
     return "";

@@ -41,6 +41,28 @@ async function resetGitRepoToHead(repoPath: string): Promise<void> {
   }
 }
 
+async function removeDirWithRetry(dir: string): Promise<void> {
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      await fs.rm(dir, { recursive: true, force: true });
+      return;
+    } catch (err: unknown) {
+      const code =
+        err && typeof err === "object" && "code" in err
+          ? (err as NodeJS.ErrnoException).code
+          : undefined;
+      if ((code === "ENOTEMPTY" || code === "EBUSY") && attempt < 5) {
+        await new Promise((resolve) => setTimeout(resolve, 50 * attempt));
+        continue;
+      }
+      if (code === "ENOENT") {
+        return;
+      }
+      throw err;
+    }
+  }
+}
+
 export async function createReusedProjectFixture(
   options: ReusedProjectFixtureOptions
 ): Promise<ReusedProjectFixture> {
@@ -72,7 +94,8 @@ export async function createReusedProjectFixture(
         projectService: options.projectService,
       });
       process.env.HOME = originalHome;
-      await fs.rm(suiteTempDir, { recursive: true, force: true });
+      await removeDirWithRetry(repoPath);
+      await removeDirWithRetry(suiteTempDir);
     },
   };
 }

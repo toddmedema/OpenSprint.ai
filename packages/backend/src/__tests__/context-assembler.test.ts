@@ -1058,6 +1058,50 @@ User authentication.
     expect(prompt).not.toContain("The technical approach matches the plan");
   });
 
+  it("prefers inline task-local acceptance criteria over parent-plan criteria for non-feedback review tasks", async () => {
+    const planContent = `# Plan
+
+## Acceptance Criteria
+
+- Add frontend workflow settings checkbox
+- Show recent self-improvement runs
+
+## Technical Approach
+
+- Add frontend state for experiment status`;
+
+    const config = {
+      invocation_id: "os-12a8.8",
+      agent_role: "reviewer" as const,
+      taskId: "os-12a8.8",
+      repoPath,
+      branch: "opensprint/os-12a8.8",
+      testCommand: "npm test",
+      attempt: 1,
+      phase: "review" as const,
+      previousFailure: null as string | null,
+      reviewFeedback: null as string | null,
+    };
+
+    const taskDir = await assembler.assembleTaskDirectory(repoPath, config.taskId, config, {
+      taskId: config.taskId,
+      title: "Implement experiment pipeline: replay mining and candidate behavior generation",
+      description:
+        "Add experiment pipeline module that mines replay-grade sessions and generates a candidate behavior bundle. Acceptance: mining returns list of session ids; generation produces a candidate bundle and persists it. Unit test with mocks.",
+      planContent,
+      prdExcerpt: "# Product Requirements\n\nTest product.",
+      dependencyOutputs: [],
+    });
+
+    const prompt = await fs.readFile(path.join(taskDir, "prompt.md"), "utf-8");
+    expect(prompt).toContain("## Acceptance Criteria");
+    expect(prompt).toContain(
+      "mining returns list of session ids; generation produces a candidate bundle and persists it. Unit test with mocks."
+    );
+    expect(prompt).not.toContain("Add frontend workflow settings checkbox");
+    expect(prompt).not.toContain("Show recent self-improvement runs");
+  });
+
   it("should NOT include Focus Areas when reviewAngles is empty (general prompt)", async () => {
     const plansDir = path.join(repoPath, OPENSPRINT_PATHS.plans);
     await fs.mkdir(plansDir, { recursive: true });
