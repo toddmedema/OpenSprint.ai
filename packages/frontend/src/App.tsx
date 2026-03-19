@@ -8,7 +8,7 @@ import { ProjectShell } from "./pages/ProjectShell";
 import { ProjectView } from "./pages/ProjectView";
 import { GlobalKeyboardShortcuts } from "./components/GlobalKeyboardShortcuts";
 import { FindBar } from "./components/FindBar";
-import { PhaseLoadingSpinner } from "./components/PhaseLoadingSpinner";
+import { RouteFallback } from "./components/RouteFallback";
 import { useAppDispatch } from "./store";
 import { setRoute } from "./store/slices/routeSlice";
 
@@ -28,14 +28,6 @@ const ProjectHelpContent = lazy(() =>
     default: module.ProjectHelpContent,
   }))
 );
-
-function RouteFallback() {
-  return (
-    <div className="flex min-h-full items-center justify-center">
-      <PhaseLoadingSpinner status="Loading…" aria-label="Loading" />
-    </div>
-  );
-}
 
 function LazyRoute({ children }: { children: ReactNode }) {
   return <Suspense fallback={<RouteFallback />}>{children}</Suspense>;
