@@ -18,12 +18,5 @@ export function MacElectronTopDragRegion() {
     WebkitAppRegion: "drag",
   } as unknown as CSSProperties;
 
-  return (
-    <div
-      data-testid="mac-electron-top-drag-region"
-      style={dragStyle}
-      aria-hidden="true"
-    />
-  );
+  return <div data-testid="mac-electron-top-drag-region" style={dragStyle} aria-hidden="true" />;
 }
-

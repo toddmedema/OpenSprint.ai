@@ -239,7 +239,10 @@ export class MergeCoordinatorService {
   /** Cached healthy baseline result per project/base branch. */
   private baselineQualityGateSuccessCache = new Map<string, { checkedAtMs: number }>();
   /** Shared in-flight baseline check per project/base branch. */
-  private baselineQualityGateSingleFlight = new Map<string, Promise<MergeQualityGateFailure | null>>();
+  private baselineQualityGateSingleFlight = new Map<
+    string,
+    Promise<MergeQualityGateFailure | null>
+  >();
   /** Dedupes baseline gate notifications while baseline remains unhealthy. */
   private baselineQualityGateNotified = new Set<string>();
 
@@ -544,9 +547,7 @@ export class MergeCoordinatorService {
     failure: Pick<MergeQualityGateFailure, "command" | "firstErrorLine" | "reason">
   ): string {
     const firstErrorLine =
-      failure.firstErrorLine?.trim() ||
-      failure.reason?.trim() ||
-      "Unknown quality gate failure";
+      failure.firstErrorLine?.trim() || failure.reason?.trim() || "Unknown quality gate failure";
     return compactExecutionText(
       `Baseline quality gates failing on ${baseBranch}: ${failure.command} | ${compactExecutionText(firstErrorLine, 220)}`,
       420
@@ -555,10 +556,8 @@ export class MergeCoordinatorService {
 
   private buildUnexpectedBaselineFailure(err: unknown): MergeQualityGateFailure {
     const reason =
-      compactExecutionText(
-        err instanceof Error ? err.message : String(err),
-        500
-      ) || "Baseline validation setup failed";
+      compactExecutionText(err instanceof Error ? err.message : String(err), 500) ||
+      "Baseline validation setup failed";
     return {
       command: "baseline validation setup",
       reason,
@@ -616,9 +615,9 @@ export class MergeCoordinatorService {
       await this.host.setBaselineRuntimeState(projectId, repoPath, {
         baselineStatus: "checking",
       });
-      let workspace:
-        | Awaited<ReturnType<typeof validationWorkspaceService.createBaselineWorkspace>>
-        | null = null;
+      let workspace: Awaited<
+        ReturnType<typeof validationWorkspaceService.createBaselineWorkspace>
+      > | null = null;
 
       try {
         workspace = await validationWorkspaceService
@@ -905,7 +904,8 @@ export class MergeCoordinatorService {
       command: failure.command,
       reason: failedGateReason,
       outputSnippet: failedGateOutputSnippet,
-      worktreePath: failure.validationWorkspace === "baseline" ? null : (failure.worktreePath ?? null),
+      worktreePath:
+        failure.validationWorkspace === "baseline" ? null : (failure.worktreePath ?? null),
     });
   }
 

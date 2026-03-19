@@ -441,9 +441,7 @@ export class BranchManager {
         const match = gitDirPointer.match(/^gitdir:\s*(.+)$/m);
         if (match?.[1]) {
           const gitDir = match[1].trim();
-          const resolvedGitDir = path.isAbsolute(gitDir)
-            ? gitDir
-            : path.resolve(repoPath, gitDir);
+          const resolvedGitDir = path.isAbsolute(gitDir) ? gitDir : path.resolve(repoPath, gitDir);
           return path.join(resolvedGitDir, fileName);
         }
       }
@@ -1772,15 +1770,19 @@ export class BranchManager {
     message?: string,
     baseBranch: string = "main"
   ): Promise<void> {
-    await this.withRepoRootAutoStash(repoPath, `merge ${branchName} into ${baseBranch}`, async () => {
-      await this.ensureOnMainInternal(repoPath, baseBranch);
-      if (message) {
-        const escaped = message.replace(/"/g, '\\"');
-        await this.git(repoPath, `merge -m "${escaped}" ${branchName}`);
-      } else {
-        await this.git(repoPath, `merge ${branchName}`);
+    await this.withRepoRootAutoStash(
+      repoPath,
+      `merge ${branchName} into ${baseBranch}`,
+      async () => {
+        await this.ensureOnMainInternal(repoPath, baseBranch);
+        if (message) {
+          const escaped = message.replace(/"/g, '\\"');
+          await this.git(repoPath, `merge -m "${escaped}" ${branchName}`);
+        } else {
+          await this.git(repoPath, `merge ${branchName}`);
+        }
       }
-    });
+    );
   }
 
   private async mergeBranchNoCommitInternal(

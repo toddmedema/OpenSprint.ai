@@ -168,7 +168,8 @@ prdRouter.get(
     const currentPrd = await prdService.getPrd(projectId);
     const proposedPrd = JSON.parse(JSON.stringify(currentPrd)) as Prd;
     const now = new Date().toISOString();
-    const scopeMetadata = notification.scopeChangeMetadata as import("@opensprint/shared").ScopeChangeMetadata;
+    const scopeMetadata =
+      notification.scopeChangeMetadata as import("@opensprint/shared").ScopeChangeMetadata;
 
     for (const u of scopeMetadata.scopeChangeProposedUpdates) {
       const existing = proposedPrd.sections[u.section];

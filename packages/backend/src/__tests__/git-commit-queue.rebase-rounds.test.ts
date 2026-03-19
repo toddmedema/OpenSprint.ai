@@ -77,7 +77,8 @@ vi.mock("../services/merge-quality-gate-runner.js", () => ({
 
 vi.mock("../services/validation-workspace.service.js", () => ({
   validationWorkspaceService: {
-    createMergeCandidateWorkspace: (...args: unknown[]) => mockCreateMergeCandidateWorkspace(...args),
+    createMergeCandidateWorkspace: (...args: unknown[]) =>
+      mockCreateMergeCandidateWorkspace(...args),
   },
 }));
 

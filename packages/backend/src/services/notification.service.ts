@@ -30,7 +30,12 @@ export interface Notification {
   status: "open" | "resolved";
   createdAt: string;
   resolvedAt: string | null;
-  kind?: "open_question" | "api_blocked" | "hil_approval" | "agent_failed" | "self_improvement_approval";
+  kind?:
+    | "open_question"
+    | "api_blocked"
+    | "hil_approval"
+    | "agent_failed"
+    | "self_improvement_approval";
   errorCode?: ApiBlockedErrorCode;
   /** For hil_approval + scopeChanges: proposed PRD updates for diff display. For self_improvement_approval: deep-link and extra payload. */
   scopeChangeMetadata?: ScopeChangeMetadata | SelfImprovementApprovalPayload;
@@ -113,9 +118,7 @@ function rowToNotification(row: Record<string, unknown>): Notification {
   const errorCode = row.error_code as ApiBlockedErrorCode | undefined;
   const scopeChangeMetadataRaw = row.scope_change_metadata as string | undefined;
   const scopeChangeMetadata = scopeChangeMetadataRaw
-    ? (JSON.parse(scopeChangeMetadataRaw) as
-        | ScopeChangeMetadata
-        | SelfImprovementApprovalPayload)
+    ? (JSON.parse(scopeChangeMetadataRaw) as ScopeChangeMetadata | SelfImprovementApprovalPayload)
     : undefined;
   const responsesRaw = row.responses as string | undefined;
   const responses: NotificationResponseItem[] | undefined = responsesRaw

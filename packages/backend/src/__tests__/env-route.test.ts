@@ -38,13 +38,12 @@ import { envRouter } from "../routes/env.js";
 
 const mockValidateApiKey = vi.fn();
 
-vi.mock("../routes/models.js", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("../routes/models.js")>();
-  return {
-    ...mod,
-    validateApiKey: (...args: unknown[]) => mockValidateApiKey(...args),
-  };
-});
+// Stub the whole module (no importOriginal) so real models.ts — and @anthropic-ai/sdk —
+// are never loaded here. importOriginal + parallel workers has occasionally let the real
+// validateApiKey run (network → flaky "socket hang up" on Claude).
+vi.mock("../routes/models.js", () => ({
+  validateApiKey: (...args: unknown[]) => mockValidateApiKey(...args),
+}));
 
 vi.mock("../services/task-store.service.js", () => ({
   taskStore: {

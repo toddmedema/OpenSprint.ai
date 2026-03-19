@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  renderBootHtml,
-  BOOT_DRAG_TOP_HEIGHT_PX,
-} from "./boot-screen";
+import { renderBootHtml, BOOT_DRAG_TOP_HEIGHT_PX } from "./boot-screen";
 
 const APP_NAME = "Open Sprint";
 
@@ -21,7 +18,7 @@ describe("renderBootHtml", () => {
     expect(html).toContain("-webkit-app-region: drag");
     expect(html).toContain("width: 100%");
     expect(html).toContain(`height: ${BOOT_DRAG_TOP_HEIGHT_PX}px`);
-    expect(html).toContain("aria-hidden=\"true\"");
+    expect(html).toContain('aria-hidden="true"');
   });
 
   it("on darwin includes exactly one boot-drag-top div in body", () => {
@@ -42,7 +39,7 @@ describe("renderBootHtml", () => {
   it("uses provided app name in title and heading", () => {
     const html = renderBootHtml("Status", "My App", "darwin");
     expect(html).toContain("<title>My App</title>");
-    expect(html).toContain("<h1 class=\"title\">My App</h1>");
+    expect(html).toContain('<h1 class="title">My App</h1>');
   });
 
   it("BOOT_DRAG_TOP_HEIGHT_PX matches main app navbar height (48)", () => {

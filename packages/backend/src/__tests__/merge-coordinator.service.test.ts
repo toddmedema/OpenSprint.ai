@@ -782,9 +782,8 @@ describe("MergeCoordinatorService", () => {
     expect(selfImprovementService.ensureBaselineQualityGateTask).toHaveBeenCalledTimes(2);
     expect(mockNotificationCreateAgentFailed).toHaveBeenCalledTimes(1);
     expect(
-      mockHost.runMergeQualityGates.mock.calls.filter(
-        ([options]) =>
-          isBaselineValidation(options as { validationWorkspace?: string; taskId?: string })
+      mockHost.runMergeQualityGates.mock.calls.filter(([options]) =>
+        isBaselineValidation(options as { validationWorkspace?: string; taskId?: string })
       )
     ).toHaveLength(2);
   });
@@ -828,9 +827,8 @@ describe("MergeCoordinatorService", () => {
       })
     );
     expect(
-      mockHost.runMergeQualityGates.mock.calls.filter(
-        ([options]) =>
-          isBaselineValidation(options as { validationWorkspace?: string; taskId?: string })
+      mockHost.runMergeQualityGates.mock.calls.filter(([options]) =>
+        isBaselineValidation(options as { validationWorkspace?: string; taskId?: string })
       )
     ).toHaveLength(0);
     expect(

@@ -24,12 +24,14 @@ interface ValidationWorkspaceServiceDeps {
 }
 
 function slugifyForGitRef(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._/-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60) || "workspace";
+  return (
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9._/-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) || "workspace"
+  );
 }
 
 export class ValidationWorkspaceService {

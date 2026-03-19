@@ -43,8 +43,8 @@ When users create PRDs and Plans, the AI agent that generates or reviews this co
 Not applicable for a prompt-only change. The existing PRD/Plan flow is unchanged; the agent may add a question such as:
 
 ```
-Agent: "I don't see any constraints yet on scale, speed, or cost. Do you have any 
-requirements in these areas I should be aware of while planning (e.g., expected 
+Agent: "I don't see any constraints yet on scale, speed, or cost. Do you have any
+requirements in these areas I should be aware of while planning (e.g., expected
 users, latency targets, or budget/infra limits)? If not, we can proceed as-is."
 ```
 

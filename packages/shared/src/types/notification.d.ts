@@ -1,7 +1,12 @@
 /** Source of an open question (agent clarification request) */
 export type NotificationSource = "plan" | "prd" | "execute" | "eval" | "self-improvement";
 /** Kind of notification — open_question = agent clarification; api_blocked = API/auth failure; hil_approval = HIL approval; agent_failed = agent run failed; self_improvement_approval = approve/reject agent improvement candidate */
-export type NotificationKind = "open_question" | "api_blocked" | "hil_approval" | "agent_failed" | "self_improvement_approval";
+export type NotificationKind =
+  | "open_question"
+  | "api_blocked"
+  | "hil_approval"
+  | "agent_failed"
+  | "self_improvement_approval";
 /** Error code for api_blocked notifications (rate_limit, auth, out_of_credit, scope_compliance) */
 export type ApiBlockedErrorCode = "rate_limit" | "auth" | "out_of_credit" | "scope_compliance";
 export interface OpenQuestionItem {

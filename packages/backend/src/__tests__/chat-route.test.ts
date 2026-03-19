@@ -12,10 +12,7 @@ import {
   SPEC_METADATA_PATH,
   specMarkdownToPrd,
 } from "@opensprint/shared";
-import {
-  createReusedProjectFixture,
-  type ReusedProjectFixture,
-} from "./reused-project-fixture.js";
+import { createReusedProjectFixture, type ReusedProjectFixture } from "./reused-project-fixture.js";
 
 // Stub for legacy beads.service path (module removed; task store used instead). No importOriginal — file is gone.
 vi.mock("../services/beads.service.js", () => ({

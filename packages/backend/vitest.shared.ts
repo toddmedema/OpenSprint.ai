@@ -4,7 +4,10 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export const backendTestInclude = ["src/__tests__/**/*.test.ts", "src/utils/__tests__/**/*.test.ts"];
+export const backendTestInclude = [
+  "src/__tests__/**/*.test.ts",
+  "src/utils/__tests__/**/*.test.ts",
+];
 export const backendIntegrationInclude = [
   "src/__tests__/**/*.integration.test.ts",
   "src/__tests__/agent-identity.service.test.ts",
@@ -48,7 +51,10 @@ const parallelism =
 export const unitWorkers = Math.max(1, Math.ceil(parallelism * 0.75));
 export const integrationWorkers = Math.min(3, Math.max(1, Math.floor(parallelism / 3) || 1));
 
-export const backendUnitExclude = [...backendIntegrationInclude, "**/git-working-mode-branches.integration.test.ts"];
+export const backendUnitExclude = [
+  ...backendIntegrationInclude,
+  "**/git-working-mode-branches.integration.test.ts",
+];
 
 export const backendResolveConfig = {
   alias: {

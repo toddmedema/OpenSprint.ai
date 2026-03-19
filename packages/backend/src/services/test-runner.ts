@@ -147,11 +147,7 @@ export class TestRunner {
       timeoutMs
     );
     const timeoutError = `Test command timed out after ${Math.round(timeoutMs / 1000)}s`;
-    const rawOutput = [
-      timedOut ? `Error: ${timeoutError}` : null,
-      stdout,
-      stderr,
-    ]
+    const rawOutput = [timedOut ? `Error: ${timeoutError}` : null, stdout, stderr]
       .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
       .join("\n");
     const parsedVitestJson = await this.parseVitestJsonReport(vitestJsonReportPath);

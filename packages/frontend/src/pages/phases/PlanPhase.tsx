@@ -1073,7 +1073,9 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
                   onClearError={() => dispatch(clearExecuteError())}
                   onMarkComplete={(planId) => markPlanCompleteMutation.mutate(planId)}
                   markCompletePendingPlanId={
-                    markPlanCompleteMutation.isPending ? markPlanCompleteMutation.variables ?? null : null
+                    markPlanCompleteMutation.isPending
+                      ? (markPlanCompleteMutation.variables ?? null)
+                      : null
                   }
                   onGoToEvaluate={() => navigate(getProjectPhasePath(projectId, "eval"))}
                   autoExecutePlans={autoExecutePlans}

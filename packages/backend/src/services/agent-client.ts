@@ -1,7 +1,6 @@
 import { spawn, exec } from "child_process";
 import { readFileSync, openSync, closeSync, mkdirSync, appendFileSync } from "fs";
-import { open as fsOpen, stat as fsStat, readFile, rm as fsRm } from "fs/promises";
-import os from "os";
+import { open as fsOpen, stat as fsStat, readFile } from "fs/promises";
 import path from "path";
 import { promisify } from "util";
 import Anthropic from "@anthropic-ai/sdk";
@@ -41,6 +40,12 @@ import { registerAgentProcess, unregisterAgentProcess } from "./agent-process-re
 import { createLogger } from "../utils/logger.js";
 import { signalProcessGroup } from "../utils/process-group.js";
 import { normalizeSpawnEnvPath } from "../utils/path-env.js";
+import {
+  runAgenticLoop,
+  AnthropicAgenticAdapter,
+  OpenAIAgenticAdapter,
+  GeminiAgenticAdapter,
+} from "./agentic-loop.js";
 
 const execAsync = promisify(exec);
 const log = createLogger("agent-client");
@@ -488,11 +493,12 @@ function formatAgentError(
 }
 
 function buildApiFailureMessages(
-  agentType: "openai" | "google",
+  agentType: "openai" | "google" | "claude",
   kind: "rate_limit" | "auth",
   options?: { allKeysExhausted?: boolean }
 ): { userMessage: string; notificationMessage: string } {
-  const label = agentType === "google" ? "Google Gemini" : "OpenAI";
+  const label =
+    agentType === "google" ? "Google Gemini" : agentType === "claude" ? "Claude" : "OpenAI";
   if (kind === "rate_limit") {
     if (options?.allKeysExhausted) {
       return {
@@ -642,6 +648,7 @@ export class AgentClient {
   async invoke(options: AgentInvokeOptions): Promise<AgentResponse> {
     switch (options.config.type) {
       case "claude":
+        return this.invokeClaudeApi(options);
       case "claude-cli":
         return this.invokeClaudeCli(options);
       case "cursor":
@@ -963,14 +970,8 @@ export class AgentClient {
       }
 
       const model = config.model ?? "gpt-4o-mini";
-      const systemPrompt = `You are a coding agent. Execute the task described in the user message. Output your work directly.`;
+      const systemPrompt = `You are a coding agent. Execute the task described in the user message. Use the provided tools to read and edit files, run commands, and list or search files. When done, write a result.json file (or report success/failure in your final message).`;
       const useResponsesApi = isOpenAIResponsesModel(model);
-      const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = useResponsesApi
-        ? []
-        : [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: taskContent },
-          ];
 
       const triedKeyIds = new Set<string>();
       let lastError: unknown;
@@ -1011,38 +1012,35 @@ export class AgentClient {
 
         const client = new OpenAI({ apiKey: key });
         try {
-          const fullContent = useResponsesApi
-            ? await collectOpenAIResponsesStream(
-                (await client.responses.create({
-                  model,
-                  instructions: systemPrompt,
-                  input: [{ role: "user", content: taskContent }],
-                  max_output_tokens: 16384,
-                  stream: true,
-                })) as AsyncIterable<{ type?: string; delta?: string }>,
-                (delta) => {
-                  if (!aborted) emit(delta);
-                }
-              )
-            : await (async () => {
-                const stream = await client.chat.completions.create({
-                  model,
-                  messages: openaiMessages,
-                  max_tokens: 16384,
-                  stream: true,
-                });
-
-                let streamedContent = "";
-                for await (const chunk of stream) {
-                  if (aborted) return streamedContent;
-                  const delta = chunk.choices[0]?.delta?.content;
-                  if (delta) {
-                    streamedContent += delta;
-                    emit(delta);
-                  }
-                }
-                return streamedContent;
-              })();
+          let fullContent: string;
+          if (useResponsesApi) {
+            fullContent = await collectOpenAIResponsesStream(
+              (await client.responses.create({
+                model,
+                instructions: systemPrompt,
+                input: [{ role: "user", content: taskContent }],
+                max_output_tokens: 16384,
+                stream: true,
+              })) as AsyncIterable<{ type?: string; delta?: string }>,
+              (delta) => {
+                if (!aborted) emit(delta);
+              }
+            );
+          } else {
+            const adapter = new OpenAIAgenticAdapter(client, model, systemPrompt);
+            const result = await runAgenticLoop(adapter, taskContent, {
+              cwd,
+              onChunk: (text) => {
+                if (!aborted) emit(text);
+              },
+              abortSignal: {
+                get aborted() {
+                  return aborted;
+                },
+              },
+            });
+            fullContent = result.content;
+          }
 
           if (aborted) return;
 
@@ -1134,7 +1132,7 @@ export class AgentClient {
       }
 
       const model = config.model ?? "claude-sonnet-4-20250514";
-      const systemPrompt = `You are a coding agent. Execute the task described in the user message. Output your work directly.`;
+      const systemPrompt = `You are a coding agent. Execute the task described in the user message. Use the provided tools to read and edit files, run commands, and list or search files. When done, write a result.json file (or report success/failure in your final message).`;
 
       const triedKeyIds = new Set<string>();
       let lastError: unknown;
@@ -1174,23 +1172,19 @@ export class AgentClient {
         triedKeyIds.add(keyId);
 
         const client = new Anthropic({ apiKey: key });
+        const adapter = new AnthropicAgenticAdapter(client, model, systemPrompt);
         try {
-          const stream = client.messages.stream({
-            model,
-            max_tokens: 16384,
-            system: systemPrompt,
-            messages: [{ role: "user" as const, content: taskContent }],
+          const result = await runAgenticLoop(adapter, taskContent, {
+            cwd,
+            onChunk: (text) => {
+              if (!aborted) emit(text);
+            },
+            abortSignal: {
+              get aborted() {
+                return aborted;
+              },
+            },
           });
-
-          let fullContent = "";
-          stream.on("text", (text) => {
-            if (!aborted) {
-              fullContent += text;
-              emit(text);
-            }
-          });
-
-          await stream.finalMessage();
 
           if (aborted) return;
 
@@ -1198,7 +1192,10 @@ export class AgentClient {
             await clearLimitHit(projectId, "ANTHROPIC_API_KEY", keyId, source);
           }
 
-          log.info("Claude coding agent completed", { outputLen: fullContent.length });
+          log.info("Claude coding agent completed", {
+            outputLen: result.content.length,
+            turnCount: result.turnCount,
+          });
           return Promise.resolve(onExit(0)).catch((e) => log.error("onExit failed", { err: e }));
         } catch (error: unknown) {
           lastError = error;
@@ -1281,8 +1278,8 @@ export class AgentClient {
         return Promise.resolve(onExit(1)).catch((e) => log.error("onExit failed", { err: e }));
       }
 
-      const model = config.model ?? "gemini-1.5-flash";
-      const systemPrompt = `You are a coding agent. Execute the task described in the user message. Output your work directly.`;
+      const model = config.model ?? "gemini-2.5-flash";
+      const systemPrompt = `You are a coding agent. Execute the task described in the user message. Use the provided tools to read and edit files, run commands, and list or search files. When done, write a result.json file (or report success/failure in your final message).`;
 
       const triedKeyIds = new Set<string>();
       let lastError: unknown;
@@ -1322,23 +1319,19 @@ export class AgentClient {
         triedKeyIds.add(keyId);
 
         const ai = new GoogleGenAI({ apiKey: key });
-        const streamPromise = ai.models.generateContentStream({
-          model,
-          contents: taskContent,
-          config: { systemInstruction: systemPrompt },
-        });
-
+        const adapter = new GeminiAgenticAdapter(ai, model, systemPrompt);
         try {
-          const stream = await streamPromise;
-          let fullContent = "";
-          for await (const chunk of stream) {
-            if (aborted) break;
-            const text = safeGeminiText(chunk);
-            if (text) {
-              fullContent += text;
-              emit(text);
-            }
-          }
+          const result = await runAgenticLoop(adapter, taskContent, {
+            cwd,
+            onChunk: (text) => {
+              if (!aborted) emit(text);
+            },
+            abortSignal: {
+              get aborted() {
+                return aborted;
+              },
+            },
+          });
 
           if (aborted) return;
 
@@ -1346,7 +1339,10 @@ export class AgentClient {
             await clearLimitHit(projectId, "GOOGLE_API_KEY", keyId, source);
           }
 
-          log.info("Google coding agent completed", { outputLen: fullContent.length });
+          log.info("Google coding agent completed", {
+            outputLen: result.content.length,
+            turnCount: result.turnCount,
+          });
           return Promise.resolve(onExit(0)).catch((e) => log.error("onExit failed", { err: e }));
         } catch (error: unknown) {
           lastError = error;
@@ -1431,38 +1427,70 @@ export class AgentClient {
 
       const baseURL = getLMStudioBaseUrl(config.baseUrl);
       const model = config.model ?? "local";
-      const systemPrompt = `You are a coding agent. Execute the task described in the user message. Output your work directly.`;
+      const systemPrompt = `You are a coding agent. Execute the task described in the user message. Use the provided tools to read and edit files, run commands, and list or search files. When done, write a result.json file (or report success/failure in your final message).`;
       const client = new OpenAI({
         baseURL,
         apiKey: "lm-studio",
       });
-      const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: taskContent },
-      ];
 
       try {
-        const stream = await client.chat.completions.create({
-          model,
-          messages,
-          max_tokens: 16384,
-          stream: true,
+        const adapter = new OpenAIAgenticAdapter(client, model, systemPrompt);
+        const result = await runAgenticLoop(adapter, taskContent, {
+          cwd,
+          onChunk: (text) => {
+            if (!aborted) emit(text);
+          },
+          abortSignal: {
+            get aborted() {
+              return aborted;
+            },
+          },
         });
-        let fullContent = "";
-        for await (const chunk of stream) {
-          if (aborted) return;
-          const delta = chunk.choices[0]?.delta?.content;
-          if (delta) {
-            fullContent += delta;
-            emit(delta);
-          }
-        }
         if (aborted) return;
-        log.info("LM Studio coding agent completed", { outputLen: fullContent.length });
+        log.info("LM Studio coding agent completed", {
+          outputLen: result.content.length,
+          turnCount: result.turnCount,
+        });
         return Promise.resolve(onExit(0)).catch((e) => log.error("onExit failed", { err: e }));
       } catch (error: unknown) {
         const msg = getErrorMessage(error);
         const isConnectionError = isLMStudioConnectionError(error, msg);
+        if (
+          !isConnectionError &&
+          (msg.includes("tool") || msg.includes("function") || msg.includes("400"))
+        ) {
+          try {
+            const stream = await client.chat.completions.create({
+              model,
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: taskContent },
+              ],
+              max_tokens: 16384,
+              stream: true,
+            });
+            let fullContent = "";
+            for await (const chunk of stream) {
+              if (aborted) return;
+              const delta = chunk.choices[0]?.delta?.content;
+              if (delta) {
+                fullContent += delta;
+                emit(delta);
+              }
+            }
+            if (aborted) return;
+            log.info("LM Studio coding agent completed (text-only fallback)", {
+              outputLen: fullContent.length,
+            });
+            return Promise.resolve(onExit(0)).catch((e) => log.error("onExit failed", { err: e }));
+          } catch (fallbackErr: unknown) {
+            const fallbackMsg = getErrorMessage(fallbackErr);
+            const fallbackConnection = isLMStudioConnectionError(fallbackErr, fallbackMsg);
+            const userMsg = fallbackConnection ? LM_STUDIO_NOT_RUNNING_MESSAGE : fallbackMsg;
+            emit(`[Agent error: ${userMsg}]\n`);
+            return Promise.resolve(onExit(1)).catch((e) => log.error("onExit failed", { err: e }));
+          }
+        }
         const userMsg = isConnectionError ? LM_STUDIO_NOT_RUNNING_MESSAGE : msg;
         emit(`[Agent error: ${userMsg}]\n`);
         return Promise.resolve(onExit(1)).catch((e) => log.error("onExit failed", { err: e }));
@@ -1514,7 +1542,7 @@ export class AgentClient {
             }
           );
         }
-        args = ["--print", taskContent];
+        args = ["--dangerously-skip-permissions", "--print", taskContent];
         if (config.model) {
           args.unshift("--model", config.model);
         }
@@ -1599,21 +1627,11 @@ export class AgentClient {
       outputLogPath: outputLogPath ?? "(pipe)",
     });
 
-    let isolatedCursorConfigDir: string | null = null;
-    if (config.type === "cursor" && cursorEnvOverrides?.CURSOR_API_KEY) {
-      const baseConfigDir =
-        process.env.CURSOR_CONFIG_DIR?.trim() || path.join(os.tmpdir(), "opensprint-cursor-config");
-      const runConfigToken = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      isolatedCursorConfigDir = path.join(baseConfigDir, runConfigToken);
-      mkdirSync(isolatedCursorConfigDir, { recursive: true });
-    }
-
     const spawnEnvBase =
       config.type === "cursor" && cursorEnvOverrides
         ? {
             ...process.env,
             ...cursorEnvOverrides,
-            ...(isolatedCursorConfigDir ? { CURSOR_CONFIG_DIR: isolatedCursorConfigDir } : {}),
           }
         : { ...process.env };
     const spawnEnv = normalizeSpawnEnvPath(spawnEnvBase);
@@ -1670,9 +1688,6 @@ export class AgentClient {
       if (sigkillAfterTermTimer) {
         clearTimeout(sigkillAfterTermTimer);
         sigkillAfterTermTimer = null;
-      }
-      if (isolatedCursorConfigDir) {
-        void fsRm(isolatedCursorConfigDir, { recursive: true, force: true }).catch(() => {});
       }
     };
 
@@ -1869,6 +1884,155 @@ export class AgentClient {
     } finally {
       if (child.pid) {
         unregisterAgentProcess(child.pid, { processGroup: true });
+      }
+    }
+  }
+
+  /**
+   * Invoke Claude via Anthropic API (single-shot). Uses ApiKeyResolver for key rotation.
+   * Used for scaffold recovery and any invoke() call when type is "claude".
+   */
+  private async invokeClaudeApi(options: AgentInvokeOptions): Promise<AgentResponse> {
+    const { config, prompt, systemPrompt, conversationHistory, projectId } = options;
+    const model = config.model ?? "claude-sonnet-4-20250514";
+
+    const messages: Array<{ role: "user" | "assistant"; content: string }> = [];
+    if (conversationHistory) {
+      for (const m of conversationHistory) {
+        messages.push({ role: m.role, content: m.content });
+      }
+    }
+    messages.push({ role: "user", content: prompt });
+
+    const triedKeyIds = new Set<string>();
+    let lastError: unknown;
+
+    for (;;) {
+      const resolved = projectId
+        ? await getNextKey(projectId, "ANTHROPIC_API_KEY")
+        : {
+            key: process.env.ANTHROPIC_API_KEY || "",
+            keyId: ENV_FALLBACK_KEY_ID,
+            source: "env" as KeySource,
+          };
+
+      if (!resolved || !resolved.key.trim()) {
+        const msg = lastError ? getErrorMessage(lastError) : "No Anthropic API key available";
+        const exhaustedKind = toRotatableApiErrorKind(lastError) ?? "auth";
+        const details = createAgentApiFailureDetails({
+          kind: exhaustedKind,
+          agentType: "claude",
+          raw: msg,
+          ...buildApiFailureMessages("claude", exhaustedKind, {
+            allKeysExhausted: exhaustedKind === "rate_limit",
+          }),
+          isLimitError: exhaustedKind === "rate_limit",
+          ...(exhaustedKind === "rate_limit" ? { allKeysExhausted: true } : {}),
+        });
+        throw new AppError(400, ErrorCodes.AGENT_INVOKE_FAILED, details.userMessage, details);
+      }
+
+      const { key, keyId, source } = resolved;
+      if (triedKeyIds.has(keyId)) {
+        const msg = getErrorMessage(lastError);
+        const exhaustedKind = toRotatableApiErrorKind(lastError) ?? "rate_limit";
+        const details = createAgentApiFailureDetails({
+          kind: exhaustedKind,
+          agentType: "claude",
+          raw: msg,
+          ...buildApiFailureMessages("claude", exhaustedKind, {
+            allKeysExhausted: exhaustedKind === "rate_limit",
+          }),
+          isLimitError: exhaustedKind === "rate_limit",
+          ...(exhaustedKind === "rate_limit" ? { allKeysExhausted: true } : {}),
+        });
+        throw new AppError(502, ErrorCodes.AGENT_INVOKE_FAILED, details.userMessage, details);
+      }
+      triedKeyIds.add(keyId);
+
+      const client = new Anthropic({ apiKey: key });
+
+      try {
+        if (options.onChunk) {
+          const stream = client.messages.stream({
+            model,
+            max_tokens: 8192,
+            system: systemPrompt?.trim() || undefined,
+            messages,
+          });
+          let fullContent = "";
+          stream.on("text", (text) => {
+            fullContent += text;
+            options.onChunk!(text);
+          });
+          const finalMessage = await stream.finalMessage();
+          const contentBlocks = finalMessage?.content ?? [];
+          const textBlock = Array.isArray(contentBlocks)
+            ? contentBlocks.find((b: { type?: string }) => b.type === "text")
+            : undefined;
+          const content =
+            textBlock && typeof textBlock === "object" && "text" in textBlock
+              ? String(textBlock.text)
+              : fullContent;
+
+          if (projectId && keyId !== ENV_FALLBACK_KEY_ID) {
+            await clearLimitHit(projectId, "ANTHROPIC_API_KEY", keyId, source);
+          }
+          return { content };
+        }
+
+        const response = await client.messages.create({
+          model,
+          max_tokens: 8192,
+          system: systemPrompt?.trim() || undefined,
+          messages,
+        });
+        const contentBlocks = response?.content ?? [];
+        const textBlock = Array.isArray(contentBlocks)
+          ? contentBlocks.find((b: { type?: string }) => b.type === "text")
+          : undefined;
+        const content =
+          textBlock && typeof textBlock === "object" && "text" in textBlock
+            ? String(textBlock.text)
+            : "";
+
+        if (projectId && keyId !== ENV_FALLBACK_KEY_ID) {
+          await clearLimitHit(projectId, "ANTHROPIC_API_KEY", keyId, source);
+        }
+        return { content };
+      } catch (error: unknown) {
+        lastError = error;
+        const offlineMessage = await getOfflineFailureMessage(error);
+        if (offlineMessage) {
+          throw new AppError(503, ErrorCodes.AGENT_INVOKE_FAILED, offlineMessage, {
+            agentType: "claude",
+            raw: getErrorMessage(error),
+            isConnectivityError: true,
+          });
+        }
+        const apiErrorKind = toRotatableApiErrorKind(error);
+        if (projectId && apiErrorKind && keyId !== ENV_FALLBACK_KEY_ID) {
+          if (apiErrorKind === "rate_limit") {
+            await recordLimitHit(projectId, "ANTHROPIC_API_KEY", keyId, source);
+          } else {
+            await recordInvalidKey(projectId, "ANTHROPIC_API_KEY", keyId, source);
+          }
+          continue;
+        }
+        const msg = getErrorMessage(error);
+        const details = createAgentApiFailureDetails({
+          kind: toRotatableApiErrorKind(error) ?? "auth",
+          agentType: "claude",
+          raw: msg,
+          ...(toRotatableApiErrorKind(error) === "rate_limit"
+            ? buildApiFailureMessages("claude", "rate_limit")
+            : {
+                userMessage: "Claude failed. Check the configured API key and model in Settings.",
+                notificationMessage: "Claude needs attention in Settings before work can continue.",
+              }),
+          isLimitError: toRotatableApiErrorKind(error) === "rate_limit",
+        });
+        throw new AppError(502, ErrorCodes.AGENT_INVOKE_FAILED, details.userMessage, details);
       }
     }
   }
@@ -2420,7 +2584,7 @@ export class AgentClient {
 
   private async invokeGoogleApi(options: AgentInvokeOptions): Promise<AgentResponse> {
     const { config, prompt, systemPrompt, conversationHistory, projectId } = options;
-    const model = config.model ?? "gemini-1.5-flash";
+    const model = config.model ?? "gemini-2.5-flash";
 
     const triedKeyIds = new Set<string>();
     let lastError: unknown;

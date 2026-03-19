@@ -152,8 +152,7 @@ export function parseOrchestratorTestStatusContent(
   }
 
   const updatedAt =
-    content.match(/- Updated:\s*`([^`]+)`/)?.[1]?.trim() ||
-    new Date().toISOString();
+    content.match(/- Updated:\s*`([^`]+)`/)?.[1]?.trim() || new Date().toISOString();
   const rawCommand = content.match(/- Validation command:\s*`([^`]*)`/)?.[1] ?? null;
   const testCommand = rawCommand && rawCommand !== "(not configured)" ? rawCommand : null;
   const mergeQualityGates = extractBacktickedList(

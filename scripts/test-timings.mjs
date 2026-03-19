@@ -24,7 +24,9 @@ function parseArgs(argv) {
   const outIndex = argv.indexOf("--out");
   return {
     outPath:
-      outIndex === -1 ? "artifacts/test-timings/latest.json" : (argv[outIndex + 1] ?? "artifacts/test-timings/latest.json"),
+      outIndex === -1
+        ? "artifacts/test-timings/latest.json"
+        : (argv[outIndex + 1] ?? "artifacts/test-timings/latest.json"),
   };
 }
 

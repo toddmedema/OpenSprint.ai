@@ -4,10 +4,7 @@ import path from "path";
 import { PlanService } from "../services/plan.service.js";
 import { ProjectService } from "../services/project.service.js";
 import { DEFAULT_HIL_CONFIG } from "@opensprint/shared";
-import {
-  createReusedProjectFixture,
-  type ReusedProjectFixture,
-} from "./reused-project-fixture.js";
+import { createReusedProjectFixture, type ReusedProjectFixture } from "./reused-project-fixture.js";
 
 /** Hoisted so vi.mock() can reference it without duplicate declaration */
 const { mockPlanVersionInsert } = vi.hoisted(() => ({

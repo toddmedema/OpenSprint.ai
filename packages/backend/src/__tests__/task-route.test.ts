@@ -7,10 +7,7 @@ import { ProjectService } from "../services/project.service.js";
 import { TaskStoreService } from "../services/task-store.service.js";
 import { API_PREFIX } from "@opensprint/shared";
 import { DEFAULT_HIL_CONFIG } from "@opensprint/shared";
-import {
-  createReusedProjectFixture,
-  type ReusedProjectFixture,
-} from "./reused-project-fixture.js";
+import { createReusedProjectFixture, type ReusedProjectFixture } from "./reused-project-fixture.js";
 
 vi.mock("drizzle-orm", () => ({
   and: (...args: unknown[]) => args,

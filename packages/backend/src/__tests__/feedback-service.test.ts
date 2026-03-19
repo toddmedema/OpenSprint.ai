@@ -5,10 +5,7 @@ import { ProjectService } from "../services/project.service.js";
 import { DEFAULT_HIL_CONFIG } from "@opensprint/shared";
 import { feedbackStore } from "../services/feedback-store.service.js";
 import type { DbClient } from "../db/client.js";
-import {
-  createReusedProjectFixture,
-  type ReusedProjectFixture,
-} from "./reused-project-fixture.js";
+import { createReusedProjectFixture, type ReusedProjectFixture } from "./reused-project-fixture.js";
 
 const mockInvoke = vi.fn();
 vi.mock("../services/agent-client.js", () => ({

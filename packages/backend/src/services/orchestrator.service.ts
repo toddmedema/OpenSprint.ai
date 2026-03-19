@@ -1045,7 +1045,11 @@ export class OrchestratorService {
         slot.phaseCoordinator = coordinator;
         const recoveredTestOutcome = this.toRecoveredTestOutcome(persistedTestStatus);
         if (recoveredTestOutcome) {
-          this.applyRecoveredTestOutcome(slot.phaseResult, recoveredTestOutcome, persistedTestStatus);
+          this.applyRecoveredTestOutcome(
+            slot.phaseResult,
+            recoveredTestOutcome,
+            persistedTestStatus
+          );
           coordinator.setTestOutcome(recoveredTestOutcome);
         }
       } else {
@@ -2333,17 +2337,12 @@ export class OrchestratorService {
       .then(async (scopedResult) => {
         const sl = this.getState(projectId).slots.get(task.id);
         if (!sl) {
-          await this.writeReviewTestStatus(
-            task.id,
-            repoPath,
-            wtPath,
-            {
-              status: "error",
-              testCommand,
-              mergeQualityGates,
-              errorMessage: "Slot removed during tests",
-            }
-          );
+          await this.writeReviewTestStatus(task.id, repoPath, wtPath, {
+            status: "error",
+            testCommand,
+            mergeQualityGates,
+            errorMessage: "Slot removed during tests",
+          });
           coordinator.setTestOutcome({
             status: "error",
             errorMessage: "Slot removed during tests",
@@ -2355,18 +2354,13 @@ export class OrchestratorService {
         this.clearQualityGateDetail(sl.phaseResult);
         if (scopedResult.failed > 0) {
           const validationCommand = scopedResult.executedCommand ?? testCommand;
-          await this.writeReviewTestStatus(
-            task.id,
-            repoPath,
-            wtPath,
-            {
-              status: "failed",
-              testCommand: validationCommand,
-              mergeQualityGates,
-              results: scopedResult,
-              rawOutput: scopedResult.rawOutput,
-            }
-          );
+          await this.writeReviewTestStatus(task.id, repoPath, wtPath, {
+            status: "failed",
+            testCommand: validationCommand,
+            mergeQualityGates,
+            results: scopedResult,
+            rawOutput: scopedResult.rawOutput,
+          });
           coordinator.setTestOutcome({
             status: "failed",
             results: scopedResult,
@@ -2385,22 +2379,17 @@ export class OrchestratorService {
           });
           if (qualityGateFailure) {
             const detail = this.applyQualityGateFailure(sl.phaseResult, qualityGateFailure, wtPath);
-            await this.writeReviewTestStatus(
-              task.id,
-              repoPath,
-              wtPath,
-              {
-                status: "failed",
-                testCommand: qualityGateFailure.command,
-                mergeQualityGates,
-                rawOutput: qualityGateFailure.outputSnippet ?? qualityGateFailure.output,
-                failureType:
-                  qualityGateFailure.category === "environment_setup"
-                    ? "environment_setup"
-                    : "merge_quality_gate",
-                qualityGateDetail: detail,
-              }
-            );
+            await this.writeReviewTestStatus(task.id, repoPath, wtPath, {
+              status: "failed",
+              testCommand: qualityGateFailure.command,
+              mergeQualityGates,
+              rawOutput: qualityGateFailure.outputSnippet ?? qualityGateFailure.output,
+              failureType:
+                qualityGateFailure.category === "environment_setup"
+                  ? "environment_setup"
+                  : "merge_quality_gate",
+              qualityGateDetail: detail,
+            });
             coordinator.setTestOutcome({
               status: "failed",
               failureType:
@@ -2413,33 +2402,23 @@ export class OrchestratorService {
             return;
           }
           const validationCommand = scopedResult.executedCommand ?? testCommand;
-          await this.writeReviewTestStatus(
-            task.id,
-            repoPath,
-            wtPath,
-            {
-              status: "passed",
-              testCommand: validationCommand,
-              mergeQualityGates,
-              results: scopedResult,
-            }
-          );
+          await this.writeReviewTestStatus(task.id, repoPath, wtPath, {
+            status: "passed",
+            testCommand: validationCommand,
+            mergeQualityGates,
+            results: scopedResult,
+          });
           coordinator.setTestOutcome({ status: "passed", results: scopedResult });
         }
       })
       .catch((err) => {
         log.error("Background tests failed for task", { taskId: task.id, err });
-        void this.writeReviewTestStatus(
-          task.id,
-          repoPath,
-          wtPath,
-          {
-            status: "error",
-            testCommand,
-            mergeQualityGates,
-            errorMessage: String(err),
-          }
-        );
+        void this.writeReviewTestStatus(task.id, repoPath, wtPath, {
+          status: "error",
+          testCommand,
+          mergeQualityGates,
+          errorMessage: String(err),
+        });
         coordinator.setTestOutcome({ status: "error", errorMessage: String(err) });
       });
   }
@@ -2526,7 +2505,10 @@ export class OrchestratorService {
     const bases = [wtPath, repoPath];
     for (const basePath of bases) {
       try {
-        const raw = await fs.readFile(getOrchestratorTestStatusStateFsPath(basePath, taskId), "utf-8");
+        const raw = await fs.readFile(
+          getOrchestratorTestStatusStateFsPath(basePath, taskId),
+          "utf-8"
+        );
         const parsed = JSON.parse(raw) as PersistedOrchestratorTestStatus;
         if (parsed?.status && parsed.status !== "pending") {
           return parsed;
@@ -2548,9 +2530,7 @@ export class OrchestratorService {
     return null;
   }
 
-  private toRecoveredTestOutcome(
-    status: PersistedOrchestratorTestStatus
-  ): TestOutcome | null {
+  private toRecoveredTestOutcome(status: PersistedOrchestratorTestStatus): TestOutcome | null {
     switch (status.status) {
       case "pending":
         return null;

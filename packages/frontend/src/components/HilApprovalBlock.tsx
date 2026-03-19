@@ -36,7 +36,7 @@ export function HilApprovalBlock({
     "scopeChangeProposedUpdates" in notification.scopeChangeMetadata
       ? (notification.scopeChangeMetadata as ScopeChangeMetadata)
       : undefined;
-  const hasPrdApprovalScope = !!(scopeMeta?.scopeChangeProposedUpdates?.length);
+  const hasPrdApprovalScope = !!scopeMeta?.scopeChangeProposedUpdates?.length;
 
   const { data: currentPrd } = useQuery({
     queryKey: queryKeys.prd.detail(projectId),
@@ -126,10 +126,7 @@ export function HilApprovalBlock({
                 </button>
               </div>
             ) : (
-              <PrdDiffView
-                currentPrd={currentPrd ?? null}
-                scopeChangeMetadata={scopeMeta}
-              />
+              <PrdDiffView currentPrd={currentPrd ?? null} scopeChangeMetadata={scopeMeta} />
             )}
           </div>
         </div>

@@ -2,10 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import OpenAI from "openai";
 import { AgentClient } from "../services/agent-client.js";
 import type { AgentConfig } from "@opensprint/shared";
-import {
-  registerAgentProcess,
-  unregisterAgentProcess,
-} from "../services/agent-process-registry.js";
+import "../services/agent-process-registry.js";
 
 // Mock child_process
 const mockExec = vi.fn();
@@ -123,15 +120,17 @@ const { mockGeminiGenerateContent, mockGeminiGenerateContentStream } = vi.hoiste
 vi.mock("@google/genai", () => ({
   GoogleGenAI: vi.fn().mockImplementation(() => ({
     models: {
-      generateContent: (opts: { contents: unknown }) => mockGeminiGenerateContent(opts.contents),
+      generateContent: (opts: { contents?: unknown; config?: { systemInstruction?: string } }) =>
+        mockGeminiGenerateContent(opts),
       generateContentStream: (opts: { contents: unknown }) =>
         Promise.resolve(mockGeminiGenerateContentStream(opts.contents)),
     },
   })),
 }));
 
-const { mockAnthropicStream } = vi.hoisted(() => ({
+const { mockAnthropicStream, mockAnthropicCreate } = vi.hoisted(() => ({
   mockAnthropicStream: vi.fn(),
+  mockAnthropicCreate: vi.fn(),
 }));
 
 vi.mock("@anthropic-ai/sdk", () => ({
@@ -139,6 +138,8 @@ vi.mock("@anthropic-ai/sdk", () => ({
     messages: {
       stream: (opts: { model: string; max_tokens: number; system: string; messages: unknown[] }) =>
         mockAnthropicStream(opts),
+      create: (opts: { model: string; max_tokens: number; system?: string; messages: unknown[] }) =>
+        mockAnthropicCreate(opts),
     },
   })),
 }));
@@ -177,13 +178,61 @@ describe("AgentClient", () => {
   });
 
   describe("invoke", () => {
-    it("should route claude config to Claude CLI via spawn (not exec)", async () => {
+    it("should route claude config to Claude API (not CLI)", async () => {
+      mockGetNextKey.mockResolvedValue({ key: "sk-ant-api", keyId: "k1", source: "global" });
+      mockAnthropicCreate.mockResolvedValue({
+        content: [{ type: "text", text: "Claude response" }],
+      });
+
+      const result = await client.invoke({
+        config: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
+        prompt: "Hello",
+        cwd: "/tmp",
+        projectId: "proj-claude",
+      });
+
+      expect(mockSpawn).not.toHaveBeenCalled();
+      expect(mockAnthropicCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: "claude-sonnet-4",
+          max_tokens: 8192,
+          messages: [{ role: "user", content: "Hello" }],
+        })
+      );
+      expect(result.content).toContain("Claude response");
+    });
+
+    it("should route claude config without model", async () => {
+      mockGetNextKey.mockResolvedValue({ key: "sk-ant-api", keyId: "k1", source: "global" });
+      mockAnthropicCreate.mockResolvedValue({
+        content: [{ type: "text", text: "Claude no-model" }],
+      });
+
+      const result = await client.invoke({
+        config: { type: "claude", model: null, cliCommand: null },
+        prompt: "Test",
+        cwd: "/work",
+        projectId: "proj-claude",
+      });
+
+      expect(mockAnthropicCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: "claude-sonnet-4-20250514",
+          messages: [{ role: "user", content: "Test" }],
+        })
+      );
+      expect(result.content).toContain("Claude no-model");
+    });
+
+    it("should route claude-cli config to Claude CLI via spawn (not exec)", async () => {
       const mockChild = {
         killed: false,
         kill: vi.fn(),
         pid: 12345,
         stdout: {
-          on: vi.fn((_ev: string, fn: (d: Buffer) => void) => fn(Buffer.from("Claude response"))),
+          on: vi.fn((_ev: string, fn: (d: Buffer) => void) =>
+            fn(Buffer.from("Claude CLI response"))
+          ),
         },
         stderr: { on: vi.fn() },
         on: vi.fn((ev: string, fn: (code: number) => void) => {
@@ -195,7 +244,7 @@ describe("AgentClient", () => {
       mockSpawn.mockReturnValue(mockChild);
 
       const result = await client.invoke({
-        config: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
+        config: { type: "claude-cli", model: "claude-sonnet-4", cliCommand: null },
         prompt: "Hello",
         cwd: "/tmp",
       });
@@ -211,37 +260,7 @@ describe("AgentClient", () => {
         expect.objectContaining({ cwd: "/tmp", stdio: ["ignore", "pipe", "pipe"], detached: true })
       );
       expect(mockExec).not.toHaveBeenCalled();
-      expect(result.content).toContain("Claude response");
-      expect(registerAgentProcess).toHaveBeenCalledWith(12345, { processGroup: true });
-      expect(unregisterAgentProcess).toHaveBeenCalledWith(12345, { processGroup: true });
-    });
-
-    it("should route claude config without model", async () => {
-      const mockChild = {
-        killed: false,
-        kill: vi.fn(),
-        pid: 12346,
-        stdout: {
-          on: vi.fn((_ev: string, fn: (d: Buffer) => void) => fn(Buffer.from("Claude no-model"))),
-        },
-        stderr: { on: vi.fn() },
-        on: vi.fn((ev: string, fn: (code: number) => void) => {
-          if (ev === "close") setTimeout(() => fn(0), 0);
-          return { on: vi.fn() };
-        }),
-      };
-      mockSpawn.mockReturnValue(mockChild);
-
-      const result = await client.invoke({
-        config: { type: "claude", model: null, cliCommand: null },
-        prompt: "Test",
-        cwd: "/work",
-      });
-
-      const args = mockSpawn.mock.calls[0][1];
-      expect(args[0]).toBe("--print");
-      expect(args).not.toContain("--model");
-      expect(result.content).toContain("Claude no-model");
+      expect(result.content).toContain("Claude CLI response");
     });
 
     describe("cursor config routing (no projectId; test placeholder CURSOR_API_KEY)", () => {
@@ -604,7 +623,11 @@ describe("AgentClient", () => {
 
       expect(mockSpawn).not.toHaveBeenCalled();
       expect(mockGetNextKey).toHaveBeenCalledWith("proj-gemini", "GOOGLE_API_KEY");
-      expect(mockGeminiGenerateContent).toHaveBeenCalled();
+      expect(mockGeminiGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({ systemInstruction: "You are a planner." }),
+        })
+      );
       expect(mockClearLimitHit).toHaveBeenCalledWith(
         "proj-gemini",
         "GOOGLE_API_KEY",
@@ -1011,6 +1034,64 @@ describe("AgentClient", () => {
       await fs.rm(tmpDir, { recursive: true, force: true });
     });
 
+    it("does not inject a temporary CURSOR_CONFIG_DIR when spawning Cursor with a resolved API key", async () => {
+      const fs = await import("fs/promises");
+      const path = await import("path");
+      const os = await import("os");
+      const tmpDir = path.join(os.tmpdir(), `agent-client-cursor-env-${Date.now()}`);
+      const taskDir = path.join(tmpDir, ".opensprint/active/os-cursor-env.1");
+      await fs.mkdir(taskDir, { recursive: true });
+      const taskFilePath = path.join(taskDir, "prompt.md");
+      await fs.writeFile(taskFilePath, "# Task\n\nCheck Cursor env", "utf-8");
+
+      const originalCursorConfigDir = process.env.CURSOR_CONFIG_DIR;
+      delete process.env.CURSOR_CONFIG_DIR;
+
+      mockGetNextKey.mockResolvedValue({ key: "cursor-key", keyId: "k1", source: "global" });
+
+      const mockChild = {
+        killed: false,
+        kill: vi.fn(),
+        pid: 33002,
+        stdout: { on: vi.fn(), removeAllListeners: vi.fn() },
+        stderr: { on: vi.fn(), removeAllListeners: vi.fn() },
+        on: vi.fn((ev: string, fn: (code?: number) => void) => {
+          if (ev === "close") setTimeout(() => fn(0), 0);
+          return mockChild;
+        }),
+        removeAllListeners: vi.fn(),
+      };
+      mockSpawn.mockReturnValue(mockChild);
+
+      try {
+        client.spawnWithTaskFile(
+          { type: "cursor", model: "gpt-4", cliCommand: null },
+          taskFilePath,
+          tmpDir,
+          vi.fn(),
+          vi.fn(),
+          "coder",
+          undefined,
+          "proj-cursor"
+        );
+
+        await vi.waitFor(() => {
+          expect(mockSpawn).toHaveBeenCalled();
+        });
+
+        const spawnOptions = mockSpawn.mock.calls[0][2] as { env: NodeJS.ProcessEnv };
+        expect(spawnOptions.env.CURSOR_API_KEY).toBe("cursor-key");
+        expect(spawnOptions.env.CURSOR_CONFIG_DIR).toBeUndefined();
+      } finally {
+        if (originalCursorConfigDir === undefined) {
+          delete process.env.CURSOR_CONFIG_DIR;
+        } else {
+          process.env.CURSOR_CONFIG_DIR = originalCursorConfigDir;
+        }
+        await fs.rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+
     it("should spawn custom agent with cliCommand and task file path", () => {
       const mockChild = {
         killed: false,
@@ -1059,14 +1140,9 @@ describe("AgentClient", () => {
       await fs.writeFile(taskFilePath, "# Task\n\nAdd a button", "utf-8");
 
       mockGetNextKey.mockResolvedValue({ key: "sk-openai-spawn", keyId: "k1", source: "global" });
-      mockOpenAICreate.mockImplementation(async () => {
-        async function* stream() {
-          yield { choices: [{ delta: { content: "Here " } }] };
-          yield { choices: [{ delta: { content: "is " } }] };
-          yield { choices: [{ delta: { content: "the code." } }] };
-        }
-        return stream();
-      });
+      mockOpenAICreate.mockImplementation(async () => ({
+        choices: [{ message: { content: "Here is the code.", tool_calls: [] } }],
+      }));
 
       const onOutput = vi.fn();
       const onExit = vi.fn();
@@ -1093,7 +1169,7 @@ describe("AgentClient", () => {
         },
         { timeout: 2000 }
       );
-      expect(onOutput).toHaveBeenCalled();
+      expect(onOutput).toHaveBeenCalledWith("Here is the code.");
       expect(mockClearLimitHit).toHaveBeenCalledWith(
         "proj-openai",
         "OPENAI_API_KEY",
@@ -1119,12 +1195,9 @@ describe("AgentClient", () => {
         .mockResolvedValueOnce({ key: "sk-openai-good", keyId: "k2", source: "global" });
       mockOpenAICreate
         .mockRejectedValueOnce(new Error("401 invalid_api_key"))
-        .mockImplementationOnce(async () => {
-          async function* stream() {
-            yield { choices: [{ delta: { content: "Recovered output" } }] };
-          }
-          return stream();
-        });
+        .mockImplementationOnce(async () => ({
+          choices: [{ message: { content: "Recovered output", tool_calls: [] } }],
+        }));
 
       const onOutput = vi.fn();
       const onExit = vi.fn();
@@ -1225,11 +1298,9 @@ describe("AgentClient", () => {
       await fs.writeFile(taskFilePath, "# Task\n\nImplement login", "utf-8");
 
       mockGetNextKey.mockResolvedValue({ key: "gemini-spawn-key", keyId: "k1", source: "global" });
-      async function* geminiStream() {
-        yield { text: "First " };
-        yield { text: "chunk." };
-      }
-      mockGeminiGenerateContentStream.mockReturnValue(geminiStream());
+      mockGeminiGenerateContent.mockResolvedValue({
+        candidates: [{ content: { parts: [{ text: "First chunk." }] } }],
+      });
 
       const onOutput = vi.fn();
       const onExit = vi.fn();
@@ -1256,9 +1327,14 @@ describe("AgentClient", () => {
         },
         { timeout: 2000 }
       );
-      expect(mockGeminiGenerateContentStream).toHaveBeenCalledWith("# Task\n\nImplement login");
-      expect(onOutput).toHaveBeenCalledWith("First ");
-      expect(onOutput).toHaveBeenCalledWith("chunk.");
+      expect(mockGeminiGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            systemInstruction: expect.stringContaining("coding agent"),
+          }),
+        })
+      );
+      expect(onOutput).toHaveBeenCalledWith("First chunk.");
       expect(mockClearLimitHit).toHaveBeenCalledWith(
         "proj-google",
         "GOOGLE_API_KEY",
@@ -1284,23 +1360,8 @@ describe("AgentClient", () => {
         keyId: "k1",
         source: "global",
       });
-      mockAnthropicStream.mockImplementation(() => {
-        const stream = {
-          on: vi.fn((ev: string, fn: (text: string) => void) => {
-            if (ev === "text") {
-              setImmediate(() => {
-                fn("Claude ");
-                fn("API ");
-                fn("output.");
-              });
-            }
-            return stream;
-          }),
-          finalMessage: vi
-            .fn()
-            .mockResolvedValue({ content: [{ type: "text", text: "Claude API output." }] }),
-        };
-        return stream;
+      mockAnthropicCreate.mockResolvedValue({
+        content: [{ type: "text", text: "Claude API output." }],
       });
 
       const onOutput = vi.fn();
@@ -1328,9 +1389,8 @@ describe("AgentClient", () => {
         },
         { timeout: 2000 }
       );
-      expect(onOutput).toHaveBeenCalledWith("Claude ");
-      expect(onOutput).toHaveBeenCalledWith("API ");
-      expect(onOutput).toHaveBeenCalledWith("output.");
+      expect(onOutput).toHaveBeenCalledWith("Claude API output.");
+      expect(mockAnthropicCreate).toHaveBeenCalled();
       expect(mockClearLimitHit).toHaveBeenCalledWith(
         "proj-claude",
         "ANTHROPIC_API_KEY",
@@ -1351,14 +1411,9 @@ describe("AgentClient", () => {
       const taskFilePath = path.join(taskDir, "prompt.md");
       await fs.writeFile(taskFilePath, "# Task\n\nUse LM Studio", "utf-8");
 
-      mockOpenAICreate.mockImplementation(async () => {
-        async function* stream() {
-          yield { choices: [{ delta: { content: "LM " } }] };
-          yield { choices: [{ delta: { content: "Studio " } }] };
-          yield { choices: [{ delta: { content: "stream." } }] };
-        }
-        return stream();
-      });
+      mockOpenAICreate.mockImplementation(async () => ({
+        choices: [{ message: { content: "LM Studio stream.", tool_calls: [] } }],
+      }));
 
       const onOutput = vi.fn();
       const onExit = vi.fn();
@@ -1400,16 +1455,10 @@ describe("AgentClient", () => {
       expect(mockOpenAICreate).toHaveBeenCalledWith(
         expect.objectContaining({
           model: "local",
-          messages: expect.arrayContaining([
-            expect.objectContaining({ role: "user", content: "# Task\n\nUse LM Studio" }),
-          ]),
-          stream: true,
           max_tokens: 16384,
         })
       );
-      expect(onOutput).toHaveBeenCalledWith("LM ");
-      expect(onOutput).toHaveBeenCalledWith("Studio ");
-      expect(onOutput).toHaveBeenCalledWith("stream.");
+      expect(onOutput).toHaveBeenCalledWith("LM Studio stream.");
 
       await fs.rm(tmpDir, { recursive: true, force: true });
     });
