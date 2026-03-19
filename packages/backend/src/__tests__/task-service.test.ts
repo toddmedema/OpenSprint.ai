@@ -659,6 +659,70 @@ describe("TaskService", () => {
     expect(task.mergeWaitingOnMain).toBe(true);
   });
 
+  it("getTask returns qualityGateDetail and flat failedGate* fields from task extra when only flat fields are set", async () => {
+    mockTaskStoreState.listAll = [
+      {
+        id: "task-qg-flat",
+        title: "Requeued after quality gate",
+        status: "open",
+        issue_type: "task",
+        dependencies: [],
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-01T00:00:00Z",
+        failedGateCommand: "npm run lint",
+        failedGateReason: "Command failed with exit code 1",
+        failedGateOutputSnippet: "error: Unexpected any",
+        worktreePath: "/tmp/wt/os-1",
+      },
+    ] as StoredTask[];
+
+    const task = await taskService.getTask("proj-1", "task-qg-flat");
+    expect(task.qualityGateDetail).toEqual({
+      command: "npm run lint",
+      reason: "Command failed with exit code 1",
+      outputSnippet: "error: Unexpected any",
+      worktreePath: "/tmp/wt/os-1",
+      firstErrorLine: "error: Unexpected any",
+    });
+    expect(task.failedGateCommand).toBe("npm run lint");
+    expect(task.failedGateReason).toBe("Command failed with exit code 1");
+    expect(task.failedGateOutputSnippet).toBe("error: Unexpected any");
+    expect(task.worktreePath).toBe("/tmp/wt/os-1");
+  });
+
+  it("getTask returns qualityGateDetail when task extra has qualityGateDetail (SPEC §API Contracts)", async () => {
+    mockTaskStoreState.listAll = [
+      {
+        id: "task-qg",
+        title: "Blocked after quality gate",
+        status: "blocked",
+        issue_type: "task",
+        dependencies: [],
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-01T00:00:00Z",
+        qualityGateDetail: {
+          command: "npm run test",
+          reason: "Tests failed: 1 failed, 0 passed",
+          outputSnippet: "AssertionError: expected 1 to be 2",
+          worktreePath: "/tmp/worktree/task-qg",
+        },
+      },
+    ] as StoredTask[];
+
+    const task = await taskService.getTask("proj-1", "task-qg");
+    expect(task.qualityGateDetail).toEqual({
+      command: "npm run test",
+      reason: "Tests failed: 1 failed, 0 passed",
+      outputSnippet: "AssertionError: expected 1 to be 2",
+      worktreePath: "/tmp/worktree/task-qg",
+      firstErrorLine: "AssertionError: expected 1 to be 2",
+    });
+    expect(task.failedGateCommand).toBe("npm run test");
+    expect(task.failedGateReason).toBe("Tests failed: 1 failed, 0 passed");
+    expect(task.failedGateOutputSnippet).toBe("AssertionError: expected 1 to be 2");
+    expect(task.worktreePath).toBe("/tmp/worktree/task-qg");
+  });
+
   it("listTasks: past merge_quality_gate_paused_until does not set mergePausedUntil or mergeWaitingOnMain", async () => {
     const pastIso = "2020-01-01T00:00:00Z";
     mockTaskStoreState.listAll = [

@@ -350,6 +350,82 @@ describe("TaskExecutionDiagnosticsService", () => {
     );
   });
 
+  it("surfaces qualityGateDetail from task.blocked event data (failedGateCommand, failedGateReason, failedGateOutputSnippet, worktreePath)", async () => {
+    taskStore.show.mockResolvedValue({
+      id: taskId,
+      status: "blocked",
+      labels: ["attempts:3"],
+      block_reason: "Coding Failure",
+      last_execution_summary: null,
+    });
+    taskStore.getCumulativeAttemptsFromIssue.mockReturnValue(3);
+    sessionManager.listSessions.mockResolvedValue([]);
+    mockReadForTask.mockResolvedValue([
+      {
+        timestamp: "2026-03-02T14:00:00.000Z",
+        projectId,
+        taskId,
+        event: "task.blocked",
+        data: {
+          attempt: 3,
+          phase: "coding",
+          failureType: "merge_quality_gate",
+          blockReason: "Coding Failure",
+          summary: "Blocked after 3 failed attempts",
+          nextAction: "Blocked pending investigation",
+          failedGateCommand: "npm run test",
+          failedGateReason: "Tests failed: 1 failed, 0 passed",
+          failedGateOutputSnippet: "AssertionError: expected 1 to be 2",
+          worktreePath: "/tmp/opensprint/os-xyz.1",
+          qualityGateDetail: {
+            command: "npm run test",
+            reason: "Tests failed: 1 failed, 0 passed",
+            outputSnippet: "AssertionError: expected 1 to be 2",
+            worktreePath: "/tmp/opensprint/os-xyz.1",
+            firstErrorLine: "AssertionError: expected 1 to be 2",
+          },
+        },
+      },
+    ]);
+
+    const service = new TaskExecutionDiagnosticsService(
+      projectService as never,
+      taskStore as never,
+      sessionManager as never
+    );
+
+    const diagnostics = await service.getDiagnostics(projectId, taskId);
+    const diagnosticsQualityGate = diagnostics as {
+      latestQualityGateDetail?: unknown;
+      timeline: Array<{ qualityGateDetail?: unknown }>;
+      attempts: Array<{ qualityGateDetail?: unknown }>;
+    };
+
+    expect(diagnostics.blockReason).toBe("Coding Failure");
+    expect(diagnostics.latestOutcome).toBe("blocked");
+    expect(diagnosticsQualityGate.latestQualityGateDetail).toEqual({
+      command: "npm run test",
+      reason: "Tests failed: 1 failed, 0 passed",
+      outputSnippet: "AssertionError: expected 1 to be 2",
+      worktreePath: "/tmp/opensprint/os-xyz.1",
+      firstErrorLine: "AssertionError: expected 1 to be 2",
+    });
+    expect(diagnosticsQualityGate.timeline[0]?.qualityGateDetail).toEqual({
+      command: "npm run test",
+      reason: "Tests failed: 1 failed, 0 passed",
+      outputSnippet: "AssertionError: expected 1 to be 2",
+      worktreePath: "/tmp/opensprint/os-xyz.1",
+      firstErrorLine: "AssertionError: expected 1 to be 2",
+    });
+    expect(diagnosticsQualityGate.attempts[0]?.qualityGateDetail).toEqual({
+      command: "npm run test",
+      reason: "Tests failed: 1 failed, 0 passed",
+      outputSnippet: "AssertionError: expected 1 to be 2",
+      worktreePath: "/tmp/opensprint/os-xyz.1",
+      firstErrorLine: "AssertionError: expected 1 to be 2",
+    });
+  });
+
   it("prefers the latest execution failure detail over stale task-level gate metadata after requeue", async () => {
     taskStore.show.mockResolvedValue({
       id: taskId,

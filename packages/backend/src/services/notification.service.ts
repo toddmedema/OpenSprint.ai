@@ -9,37 +9,20 @@ import { taskStore } from "./task-store.service.js";
 import { AppError } from "../middleware/error-handler.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
 import { createLogger } from "../utils/logger.js";
-import type { ApiBlockedErrorCode } from "@opensprint/shared";
+import type {
+  ApiBlockedErrorCode,
+  Notification,
+  NotificationKind,
+  NotificationSource,
+  OpenQuestionItem,
+  ScopeChangeMetadata,
+  SelfImprovementApprovalPayload,
+  NotificationResponseItem,
+} from "@opensprint/shared";
 
 const log = createLogger("notification");
 
-export type NotificationSource = "plan" | "prd" | "execute" | "eval" | "self-improvement";
-
-export interface OpenQuestionItem {
-  id: string;
-  text: string;
-  createdAt: string;
-}
-
-export interface Notification {
-  id: string;
-  projectId: string;
-  source: NotificationSource;
-  sourceId: string;
-  questions: OpenQuestionItem[];
-  status: "open" | "resolved";
-  createdAt: string;
-  resolvedAt: string | null;
-  kind?:
-    | "open_question"
-    | "api_blocked"
-    | "hil_approval"
-    | "agent_failed"
-    | "self_improvement_approval";
-  errorCode?: ApiBlockedErrorCode;
-  /** For hil_approval + scopeChanges: proposed PRD updates for diff display. For self_improvement_approval: deep-link and extra payload. */
-  scopeChangeMetadata?: ScopeChangeMetadata | SelfImprovementApprovalPayload;
-}
+export type { NotificationSource, Notification, OpenQuestionItem };
 
 export interface CreateNotificationInput {
   projectId: string;
@@ -63,23 +46,6 @@ export interface CreateAgentFailedInput {
   message: string;
 }
 
-export interface ScopeChangeProposedUpdate {
-  section: string;
-  changeLogEntry?: string;
-  content: string;
-}
-
-export interface ScopeChangeMetadata {
-  scopeChangeSummary: string;
-  scopeChangeProposedUpdates: ScopeChangeProposedUpdate[];
-}
-
-/** Payload for self_improvement_approval notifications (deep-link path and extra JSON). */
-export interface SelfImprovementApprovalPayload {
-  deepLinkPath?: string;
-  [key: string]: unknown;
-}
-
 export interface CreateHilApprovalInput {
   projectId: string;
   source: NotificationSource;
@@ -101,20 +67,9 @@ function generateId(): string {
   return "oq-" + crypto.randomBytes(4).toString("hex");
 }
 
-export interface NotificationResponseItem {
-  questionId: string;
-  answer: string;
-}
-
 function rowToNotification(row: Record<string, unknown>): Notification {
   const questions: OpenQuestionItem[] = JSON.parse((row.questions as string) || "[]");
-  const kind =
-    (row.kind as
-      | "open_question"
-      | "api_blocked"
-      | "hil_approval"
-      | "agent_failed"
-      | "self_improvement_approval") || "open_question";
+  const kind = (row.kind as NotificationKind) || "open_question";
   const errorCode = row.error_code as ApiBlockedErrorCode | undefined;
   const scopeChangeMetadataRaw = row.scope_change_metadata as string | undefined;
   const scopeChangeMetadata = scopeChangeMetadataRaw

@@ -5,6 +5,7 @@
  */
 
 import { getAgentForPlanningRole } from "@opensprint/shared";
+import type { Notification } from "@opensprint/shared";
 import { ProjectService } from "./project.service.js";
 import { PrdService } from "./prd.service.js";
 import { agentService } from "./agent.service.js";
@@ -15,7 +16,6 @@ import { FeedbackService } from "./feedback.service.js";
 import { broadcastToProject } from "../websocket/index.js";
 import { getCombinedInstructions } from "./agent-instructions.service.js";
 import { createLogger } from "../utils/logger.js";
-import type { Notification } from "./notification.service.js";
 
 const log = createLogger("open-question-autoresolve");
 

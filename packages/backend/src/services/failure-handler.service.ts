@@ -6,7 +6,7 @@
  * Delegates retry execution back to the host via callbacks.
  */
 
-import type { TestResults } from "@opensprint/shared";
+import type { ServerEvent, TestResults } from "@opensprint/shared";
 import {
   AGENT_INACTIVITY_TIMEOUT_MS,
   BACKOFF_FAILURE_THRESHOLD,
@@ -477,6 +477,33 @@ export class FailureHandlerService {
     };
   }
 
+  private broadcastTaskRequeuedWs(
+    projectId: string,
+    taskId: string,
+    args: {
+      cumulativeAttempts: number;
+      phase: string;
+      summary: string;
+      nextAction: string;
+      failureDiagnosticDetail: FailureDiagnosticDetail | null;
+    }
+  ): void {
+    const d = args.failureDiagnosticDetail;
+    broadcastToProject(projectId, {
+      type: "task.requeued",
+      taskId,
+      cumulativeAttempts: args.cumulativeAttempts,
+      phase: args.phase,
+      summary: args.summary,
+      nextAction: args.nextAction,
+      qualityGateDetail: d,
+      failedGateCommand: d?.command ?? null,
+      failedGateReason: d?.reason ?? null,
+      failedGateOutputSnippet: d?.outputSnippet ?? null,
+      worktreePath: d?.worktreePath ?? null,
+    } as unknown as ServerEvent);
+  }
+
   async handleTaskFailure(
     projectId: string,
     repoPath: string,
@@ -883,6 +910,13 @@ export class FailureHandlerService {
           },
         })
         .catch(() => {});
+      this.broadcastTaskRequeuedWs(projectId, task.id, {
+        cumulativeAttempts,
+        phase: slot.phase,
+        summary: retrySummary.summary,
+        nextAction,
+        failureDiagnosticDetail,
+      });
       slot.infraRetries += 1;
       slot.attempt = cumulativeAttempts + 1;
       log.info(`Infrastructure retry ${slot.infraRetries}/${MAX_INFRA_RETRIES} for ${task.id}`, {
@@ -951,6 +985,13 @@ export class FailureHandlerService {
           },
         })
         .catch(() => {});
+      this.broadcastTaskRequeuedWs(projectId, task.id, {
+        cumulativeAttempts,
+        phase: slot.phase,
+        summary: retrySummary.summary,
+        nextAction,
+        failureDiagnosticDetail,
+      });
       await this.revertOrRemoveWorktree(repoPath, task.id, branchName, slot, gitWorkingMode, {
         baseBranch,
         deleteBranch: true,
@@ -1162,7 +1203,12 @@ export class FailureHandlerService {
       taskId: task.id,
       reason: `Blocked after ${cumulativeAttempts} failed attempts: ${reason.slice(0, 300)}`,
       cumulativeAttempts,
-    });
+      qualityGateDetail: failureDiagnosticDetail ?? null,
+      failedGateCommand: failureDiagnosticDetail?.command ?? null,
+      failedGateReason: failureDiagnosticDetail?.reason ?? null,
+      failedGateOutputSnippet: failureDiagnosticDetail?.outputSnippet ?? null,
+      worktreePath: failureDiagnosticDetail?.worktreePath ?? null,
+    } as ServerEvent);
     broadcastToProject(projectId, {
       type: "agent.completed",
       taskId: task.id,

@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import type {
+  QualityGateDiagnosticDetail,
   Task,
   AgentSession,
   KanbanColumn,
@@ -323,6 +324,17 @@ export class TaskService {
       }
     }
 
+    const qualityGateDetail = this.qualityGateDetailFromIssue(issue);
+    const qualityGateApiFields = qualityGateDetail
+      ? {
+          qualityGateDetail,
+          failedGateCommand: qualityGateDetail.command ?? null,
+          failedGateReason: qualityGateDetail.reason ?? null,
+          failedGateOutputSnippet: qualityGateDetail.outputSnippet ?? null,
+          worktreePath: qualityGateDetail.worktreePath ?? null,
+        }
+      : {};
+
     return {
       id,
       title: issue.title ?? "",
@@ -353,6 +365,57 @@ export class TaskService {
         : {}),
       ...(source ? { source } : {}),
       ...(mergePausedUntil ? { mergePausedUntil, mergeWaitingOnMain } : {}),
+      ...qualityGateApiFields,
+    };
+  }
+
+  /** Extract and normalize qualityGateDetail from task extra (hydrateTask spreads extra onto issue). */
+  private qualityGateDetailFromIssue(issue: StoredTask): QualityGateDiagnosticDetail | null {
+    const rec = issue as Record<string, unknown>;
+    const rawNested = rec.qualityGateDetail;
+    const nested =
+      rawNested && typeof rawNested === "object" && !Array.isArray(rawNested)
+        ? (rawNested as Record<string, unknown>)
+        : null;
+
+    const nonEmpty = (v: unknown): string | null =>
+      typeof v === "string" && v.trim() !== "" ? v : null;
+
+    const firstNonEmptyLine = (value: string | null): string | null => {
+      if (!value) return null;
+      for (const line of value.split(/\r?\n/)) {
+        const t = line.trim();
+        if (t.length > 0) return t;
+      }
+      return null;
+    };
+
+    const command =
+      nonEmpty(rec.failedGateCommand) ??
+      nonEmpty(rec.qualityGateCommand) ??
+      (nested ? nonEmpty(nested.command) : null);
+    const reason = nonEmpty(rec.failedGateReason) ?? (nested ? nonEmpty(nested.reason) : null);
+    const outputSnippet =
+      nonEmpty(rec.failedGateOutputSnippet) ?? (nested ? nonEmpty(nested.outputSnippet) : null);
+    const worktreePath = nonEmpty(rec.worktreePath) ?? (nested ? nonEmpty(nested.worktreePath) : null);
+    const firstErrorLineRaw =
+      nonEmpty(rec.qualityGateFirstErrorLine) ??
+      nonEmpty(rec.firstErrorLine) ??
+      (nested ? nonEmpty(nested.firstErrorLine) : null);
+    const firstErrorLine =
+      firstErrorLineRaw ??
+      firstNonEmptyLine(outputSnippet) ??
+      firstNonEmptyLine(reason);
+
+    if (!command && !reason && !outputSnippet && !worktreePath && !firstErrorLine) {
+      return null;
+    }
+    return {
+      command: command ?? undefined,
+      reason: reason ?? undefined,
+      outputSnippet: outputSnippet ?? undefined,
+      worktreePath: worktreePath ?? undefined,
+      firstErrorLine: firstErrorLine ?? undefined,
     };
   }
 

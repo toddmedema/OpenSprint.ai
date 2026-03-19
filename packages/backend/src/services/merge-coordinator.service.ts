@@ -17,6 +17,7 @@ import {
   type AgentConfig,
   type TestResults,
 } from "@opensprint/shared";
+import type { ServerEvent } from "@opensprint/shared";
 import type { StoredTask } from "./task-store.service.js";
 import { resolveEpicId } from "./task-store.service.js";
 import { RebaseConflictError } from "./branch-manager.js";
@@ -889,6 +890,93 @@ export class MergeCoordinatorService {
         },
       })
       .catch(() => {});
+    this.broadcastMergeFailureWs(projectId, task.id, {
+      cumulativeAttempts: attempt,
+      resolvedBy: "requeued",
+      reason: `Baseline quality gates failing on ${baseBranch}: ${failure.reason}`,
+      mergeStage: "quality_gate",
+      qualityGateDetail,
+      failedGateCommand: failure.command,
+      failedGateReason,
+      failedGateOutputSnippet,
+      worktreePath,
+    });
+    this.broadcastTaskRequeuedWs(projectId, task.id, {
+      cumulativeAttempts: attempt,
+      phase: "merge",
+      mergeStage: "quality_gate",
+      summary: requeuedSummary.summary,
+      nextAction,
+      qualityGateDetail,
+      failedGateCommand: failure.command,
+      failedGateReason,
+      failedGateOutputSnippet,
+      worktreePath,
+    });
+  }
+
+  private broadcastMergeFailureWs(
+    projectId: string,
+    taskId: string,
+    args: {
+      cumulativeAttempts: number;
+      resolvedBy: "requeued" | "blocked";
+      reason?: string | null;
+      mergeStage?: string | null;
+      qualityGateDetail?: RetryQualityGateDetail | null;
+      failedGateCommand?: string | null;
+      failedGateReason?: string | null;
+      failedGateOutputSnippet?: string | null;
+      worktreePath?: string | null;
+    }
+  ): void {
+    const qg = args.qualityGateDetail ?? null;
+    broadcastToProject(projectId, {
+      type: "merge.failed",
+      taskId,
+      cumulativeAttempts: args.cumulativeAttempts,
+      resolvedBy: args.resolvedBy,
+      reason: args.reason ?? null,
+      mergeStage: args.mergeStage ?? null,
+      qualityGateDetail: qg,
+      failedGateCommand: args.failedGateCommand ?? qg?.command ?? null,
+      failedGateReason: args.failedGateReason ?? qg?.reason ?? null,
+      failedGateOutputSnippet: args.failedGateOutputSnippet ?? qg?.outputSnippet ?? null,
+      worktreePath: args.worktreePath ?? qg?.worktreePath ?? null,
+    } as unknown as ServerEvent);
+  }
+
+  private broadcastTaskRequeuedWs(
+    projectId: string,
+    taskId: string,
+    args: {
+      cumulativeAttempts: number;
+      phase?: string | null;
+      mergeStage?: string | null;
+      summary?: string | null;
+      nextAction?: string | null;
+      qualityGateDetail?: RetryQualityGateDetail | null;
+      failedGateCommand?: string | null;
+      failedGateReason?: string | null;
+      failedGateOutputSnippet?: string | null;
+      worktreePath?: string | null;
+    }
+  ): void {
+    const qg = args.qualityGateDetail ?? null;
+    broadcastToProject(projectId, {
+      type: "task.requeued",
+      taskId,
+      cumulativeAttempts: args.cumulativeAttempts,
+      phase: args.phase ?? null,
+      mergeStage: args.mergeStage ?? null,
+      summary: args.summary ?? null,
+      nextAction: args.nextAction ?? null,
+      qualityGateDetail: qg,
+      failedGateCommand: args.failedGateCommand ?? qg?.command ?? null,
+      failedGateReason: args.failedGateReason ?? qg?.reason ?? null,
+      failedGateOutputSnippet: args.failedGateOutputSnippet ?? qg?.outputSnippet ?? null,
+      worktreePath: args.worktreePath ?? qg?.worktreePath ?? null,
+    } as unknown as ServerEvent);
   }
 
   private async createBaselineQualityGateRemediationTask(
@@ -1389,7 +1477,12 @@ export class MergeCoordinatorService {
               : `Blocked after ${cumulativeAttempts} quality-gate failures`
             : `Blocked after ${cumulativeAttempts} merge failures`,
           cumulativeAttempts,
-        });
+          qualityGateDetail: qualityGateStructuredDetails?.qualityGateDetail ?? null,
+          failedGateCommand: qualityGateStructuredDetails?.failedGateCommand ?? null,
+          failedGateReason: qualityGateStructuredDetails?.failedGateReason ?? null,
+          failedGateOutputSnippet: qualityGateStructuredDetails?.failedGateOutputSnippet ?? null,
+          worktreePath: qualityGateStructuredDetails?.worktreePath ?? null,
+        } as ServerEvent);
         eventLogService
           .append(repoPath, {
             timestamp: new Date().toISOString(),
@@ -1424,6 +1517,17 @@ export class MergeCoordinatorService {
             },
           })
           .catch(() => {});
+        this.broadcastMergeFailureWs(projectId, task.id, {
+          cumulativeAttempts,
+          resolvedBy: "blocked",
+          reason: mergeFailureReason,
+          mergeStage: normalizedStage,
+          qualityGateDetail: qualityGateStructuredDetails.qualityGateDetail,
+          failedGateCommand: qualityGateStructuredDetails.failedGateCommand,
+          failedGateReason: qualityGateStructuredDetails.failedGateReason,
+          failedGateOutputSnippet: qualityGateStructuredDetails.failedGateOutputSnippet,
+          worktreePath: qualityGateStructuredDetails.worktreePath,
+        });
         eventLogService
           .append(repoPath, {
             timestamp: new Date().toISOString(),
@@ -1512,6 +1616,17 @@ export class MergeCoordinatorService {
           },
         })
         .catch(() => {});
+      this.broadcastMergeFailureWs(projectId, task.id, {
+        cumulativeAttempts,
+        resolvedBy: "requeued",
+        reason: mergeFailureReason,
+        mergeStage: normalizedStage,
+        qualityGateDetail: qualityGateStructuredDetails.qualityGateDetail,
+        failedGateCommand: qualityGateStructuredDetails.failedGateCommand,
+        failedGateReason: qualityGateStructuredDetails.failedGateReason,
+        failedGateOutputSnippet: qualityGateStructuredDetails.failedGateOutputSnippet,
+        worktreePath: qualityGateStructuredDetails.worktreePath,
+      });
       eventLogService
         .append(repoPath, {
           timestamp: new Date().toISOString(),
@@ -1534,6 +1649,18 @@ export class MergeCoordinatorService {
           },
         })
         .catch(() => {});
+      this.broadcastTaskRequeuedWs(projectId, task.id, {
+        cumulativeAttempts,
+        phase: "merge",
+        mergeStage: normalizedStage,
+        summary: requeuedSummary.summary,
+        nextAction: "Requeued for retry",
+        qualityGateDetail: qualityGateStructuredDetails.qualityGateDetail,
+        failedGateCommand: qualityGateStructuredDetails.failedGateCommand,
+        failedGateReason: qualityGateStructuredDetails.failedGateReason,
+        failedGateOutputSnippet: qualityGateStructuredDetails.failedGateOutputSnippet,
+        worktreePath: qualityGateStructuredDetails.worktreePath,
+      });
 
       shouldNudge = true;
     } catch (err) {

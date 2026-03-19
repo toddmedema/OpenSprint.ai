@@ -1,4 +1,5 @@
 import type { AgentPhase, AgentRuntimeState, AgentSuspendReason, TestResults } from "./agent.js";
+import type { QualityGateDiagnosticDetail } from "./execute-diagnostics.js";
 import type { FeedbackItem } from "./feedback.js";
 import type {
   ScopeChangeMetadata,
@@ -229,6 +230,42 @@ export interface TaskBlockedEvent {
   taskId: string;
   reason: string;
   cumulativeAttempts: number;
+  /** Quality-gate diagnostics when block was due to quality-gate/merge failure (SPEC §API Contracts) */
+  qualityGateDetail?: QualityGateDiagnosticDetail | null;
+  /** Flat fields for UI/notifications (SPEC §API Contracts); same as qualityGateDetail when present */
+  failedGateCommand?: string | null;
+  failedGateReason?: string | null;
+  failedGateOutputSnippet?: string | null;
+  worktreePath?: string | null;
+}
+/** Emitted when merge or quality-gate step fails (event log parity for live clients). */
+export interface MergeFailedEvent {
+  type: "merge.failed";
+  taskId: string;
+  cumulativeAttempts: number;
+  resolvedBy: "requeued" | "blocked";
+  reason?: string | null;
+  mergeStage?: string | null;
+  qualityGateDetail?: QualityGateDiagnosticDetail | null;
+  failedGateCommand?: string | null;
+  failedGateReason?: string | null;
+  failedGateOutputSnippet?: string | null;
+  worktreePath?: string | null;
+}
+/** Emitted when the orchestrator requeues a task after failure (coding, merge, infra retry). */
+export interface TaskRequeuedEvent {
+  type: "task.requeued";
+  taskId: string;
+  cumulativeAttempts: number;
+  phase?: string | null;
+  mergeStage?: string | null;
+  summary?: string | null;
+  nextAction?: string | null;
+  qualityGateDetail?: QualityGateDiagnosticDetail | null;
+  failedGateCommand?: string | null;
+  failedGateReason?: string | null;
+  failedGateOutputSnippet?: string | null;
+  worktreePath?: string | null;
 }
 /** Deliver phase events (PRDv2 Deliver phase) */
 export interface DeliverStartedEvent {
@@ -260,6 +297,8 @@ export type ServerEvent =
   | PrdUpdatedEvent
   | ExecuteStatusEvent
   | TaskBlockedEvent
+  | MergeFailedEvent
+  | TaskRequeuedEvent
   | DeliverStartedEvent
   | DeliverCompletedEvent
   | DeliverOutputEvent

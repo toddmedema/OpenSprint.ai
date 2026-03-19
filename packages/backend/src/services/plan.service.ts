@@ -4,7 +4,6 @@ import type {
   PlanDependencyEdge,
   CrossEpicDependenciesResponse,
   GeneratePlanResult,
-  Notification,
 } from "@opensprint/shared";
 import {
   getCodebaseContextFromRepo,
@@ -94,9 +93,7 @@ export class PlanService {
         {
           chatService: this.chatService,
           notificationService,
-          maybeAutoRespond: maybeAutoRespond
-            ? (p, n) => maybeAutoRespond(p, n as Notification)
-            : undefined,
+          maybeAutoRespond: maybeAutoRespond ? (p, n) => maybeAutoRespond(p, n) : undefined,
         }
       );
     }

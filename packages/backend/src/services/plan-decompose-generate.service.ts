@@ -10,6 +10,7 @@ import type {
   PlanComplexity,
   GeneratePlanResult,
   Notification,
+  NotificationSource,
 } from "@opensprint/shared";
 import { getAgentForPlanningRole } from "@opensprint/shared";
 import {
@@ -97,22 +98,12 @@ export interface PlanDecomposeGenerateOptionalDeps {
   notificationService?: {
     create: (opts: {
       projectId: string;
-      source: "plan" | "prd" | "execute" | "eval" | "self-improvement";
+      source: NotificationSource;
       sourceId: string;
       questions: Array<{ id: string; text: string; createdAt?: string }>;
-    }) => Promise<{
-      id: string;
-      projectId: string;
-      source: "plan" | "prd" | "execute" | "eval" | "self-improvement";
-      sourceId: string;
-      questions: Array<{ id: string; text: string; createdAt?: string }>;
-      status: "open" | "resolved";
-      createdAt: string;
-      resolvedAt: string | null;
-      kind?: string;
-    }>;
+    }) => Promise<Notification>;
   };
-  maybeAutoRespond?: (projectId: string, notification: { id: string }) => Promise<void>;
+  maybeAutoRespond?: (projectId: string, notification: Notification) => Promise<void>;
 }
 
 export class PlanDecomposeGenerateService {

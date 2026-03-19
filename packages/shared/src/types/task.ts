@@ -1,4 +1,7 @@
-import type { TaskLastExecutionSummary } from "./execute-diagnostics.js";
+import type {
+  QualityGateDiagnosticDetail,
+  TaskLastExecutionSummary,
+} from "./execute-diagnostics.js";
 
 /** Task issue types */
 export type TaskType = "bug" | "feature" | "task" | "epic" | "chore";
@@ -109,6 +112,13 @@ export interface Task {
   mergePausedUntil?: string | null;
   /** True when merge is waiting on main (API only). Used for tooltip/secondary hint. */
   mergeWaitingOnMain?: boolean;
+  /** Latest quality-gate failure detail from task extra (SPEC §API Contracts). Present when task failed/blocked with quality-gate diagnostics. */
+  qualityGateDetail?: QualityGateDiagnosticDetail | null;
+  /** Flat quality-gate fields from task extra (same values as qualityGateDetail when present). */
+  failedGateCommand?: string | null;
+  failedGateReason?: string | null;
+  failedGateOutputSnippet?: string | null;
+  worktreePath?: string | null;
 }
 
 /** Dependency relationship between tasks */

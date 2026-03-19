@@ -11,6 +11,7 @@ import {
   clearProviderOutageBackoff,
   getProviderOutageBackoff,
 } from "../services/provider-outage-backoff.service.js";
+import { broadcastToProject } from "../websocket/index.js";
 
 // Silence failure-handler logger so expected log.error() calls don't write to stderr and fail CI
 vi.mock("../utils/logger.js", () => ({
@@ -595,6 +596,67 @@ describe("FailureHandlerService", () => {
             command: "npm run lint",
             reason: "Command failed: npm run lint",
           }),
+        }),
+      })
+    );
+  });
+
+  it("exposes qualityGateDetail in task.blocked event log and WebSocket broadcast when blocking at demotion point", async () => {
+    const slot = makeSlot("/tmp/worktree");
+    slot.attempt = 3; // BACKOFF_FAILURE_THRESHOLD — triggers block path
+    slot.phaseResult.validationCommand = "npm run test";
+    slot.phaseResult.qualityGateDetail = {
+      command: "npm run test",
+      reason: "Tests failed: 1 failed, 0 passed",
+      outputSnippet: "AssertionError: expected 1 to be 2",
+      worktreePath: "/tmp/worktree",
+      firstErrorLine: "AssertionError: expected 1 to be 2",
+    };
+    mockHost.getState = vi.fn().mockReturnValue({
+      slots: new Map([[taskId, slot]]),
+      status: { totalFailed: 0, queueDepth: 0 },
+    });
+    vi.mocked(broadcastToProject).mockClear();
+    const task = makeTask();
+    (task as { priority?: number }).priority = 4; // >= MAX_PRIORITY_BEFORE_BLOCK so we block (not demote)
+
+    await handler.handleTaskFailure(
+      projectId,
+      repoPath,
+      task,
+      branchName,
+      "Tests failed: 1 failed, 0 passed",
+      null,
+      "merge_quality_gate"
+    );
+
+    const appendCalls = vi.mocked(eventLogService.append).mock.calls.map(([, event]) => event);
+    const blockedEvent = appendCalls.find((e) => e.event === "task.blocked");
+    expect(blockedEvent?.data).toEqual(
+      expect.objectContaining({
+        failedGateCommand: "npm run test",
+        failedGateReason: "Tests failed: 1 failed, 0 passed",
+        failedGateOutputSnippet: "AssertionError: expected 1 to be 2",
+        worktreePath: "/tmp/worktree",
+        qualityGateDetail: expect.objectContaining({
+          command: "npm run test",
+          reason: "Tests failed: 1 failed, 0 passed",
+          outputSnippet: "AssertionError: expected 1 to be 2",
+          worktreePath: "/tmp/worktree",
+          firstErrorLine: "AssertionError: expected 1 to be 2",
+        }),
+      })
+    );
+
+    expect(broadcastToProject).toHaveBeenCalledWith(
+      projectId,
+      expect.objectContaining({
+        type: "task.blocked",
+        taskId,
+        cumulativeAttempts: 3,
+        qualityGateDetail: expect.objectContaining({
+          command: "npm run test",
+          worktreePath: "/tmp/worktree",
         }),
       })
     );

@@ -459,6 +459,17 @@ export const websocketMiddleware: Middleware = (storeApi) => {
         void qc.invalidateQueries({ queryKey: queryKeys.tasks.list(projectId) });
         break;
 
+      case "merge.failed":
+      case "task.requeued":
+        void qc.invalidateQueries({
+          queryKey: queryKeys.tasks.detail(projectId, event.taskId),
+        });
+        void qc.invalidateQueries({
+          queryKey: queryKeys.execute.diagnostics(projectId, event.taskId),
+        });
+        void qc.invalidateQueries({ queryKey: queryKeys.tasks.list(projectId) });
+        break;
+
       case "agent.output":
         d(appendAgentOutput({ taskId: event.taskId, chunk: event.chunk }));
         break;

@@ -16,7 +16,13 @@ import { broadcastToProject } from "../websocket/index.js";
 import { notificationService } from "../services/notification.service.js";
 import { computeLineDiff } from "../utils/diff.js";
 import { prdToSpecMarkdown } from "@opensprint/shared";
-import type { ApiResponse, Prd, PrdSection, PrdChangeLogEntry } from "@opensprint/shared";
+import type {
+  ApiResponse,
+  Prd,
+  PrdSection,
+  PrdChangeLogEntry,
+  ScopeChangeProposedUpdate,
+} from "@opensprint/shared";
 
 const prdService = new PrdService();
 const chatService = new ChatService();
@@ -171,7 +177,8 @@ prdRouter.get(
     const scopeMetadata =
       notification.scopeChangeMetadata as import("@opensprint/shared").ScopeChangeMetadata;
 
-    for (const u of scopeMetadata.scopeChangeProposedUpdates) {
+    const proposedUpdates = (scopeMetadata.scopeChangeProposedUpdates ?? []) as ScopeChangeProposedUpdate[];
+    for (const u of proposedUpdates) {
       const existing = proposedPrd.sections[u.section];
       proposedPrd.sections[u.section] = {
         content: u.content,
