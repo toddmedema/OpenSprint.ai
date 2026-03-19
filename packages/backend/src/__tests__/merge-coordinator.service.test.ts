@@ -78,6 +78,8 @@ const mockNotificationResolve = vi.fn();
 const mockBroadcastToProject = vi.fn();
 const mockResolveBaseBranch = vi.fn();
 const mockInspectGitRepoState = vi.fn();
+const mockCreateBaselineWorkspace = vi.fn();
+const mockCleanupBaselineWorkspace = vi.fn();
 
 vi.mock("../services/git-commit-queue.service.js", () => ({
   MergeJobError: class MergeJobError extends Error {
@@ -112,6 +114,12 @@ vi.mock("../services/git-commit-queue.service.js", () => ({
 vi.mock("../utils/git-repo-state.js", () => ({
   resolveBaseBranch: (...args: unknown[]) => mockResolveBaseBranch(...args),
   inspectGitRepoState: (...args: unknown[]) => mockInspectGitRepoState(...args),
+}));
+
+vi.mock("../services/validation-workspace.service.js", () => ({
+  validationWorkspaceService: {
+    createBaselineWorkspace: (...args: unknown[]) => mockCreateBaselineWorkspace(...args),
+  },
 }));
 
 vi.mock("../services/agent-identity.service.js", () => ({
@@ -198,6 +206,13 @@ describe("MergeCoordinatorService", () => {
     agent: { outputLog: [], startedAt: new Date().toISOString() },
   });
 
+  const isBaselineValidation = (options: {
+    validationWorkspace?: string;
+    taskId?: string;
+  }): boolean => {
+    return options.validationWorkspace === "baseline" || options.taskId === "baseline:main";
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockGitQueueDrain.mockResolvedValue(undefined);
@@ -231,6 +246,13 @@ describe("MergeCoordinatorService", () => {
       async (_repoPath: string, preferredBaseBranch?: string | null) =>
         preferredBaseBranch ?? "main"
     );
+    mockCleanupBaselineWorkspace.mockResolvedValue(undefined);
+    mockCreateBaselineWorkspace.mockResolvedValue({
+      kind: "baseline",
+      worktreePath: "/tmp/baseline-validation",
+      branchName: null,
+      cleanup: mockCleanupBaselineWorkspace,
+    });
     mockInspectGitRepoState.mockResolvedValue({
       isGitRepo: true,
       hasHead: true,
@@ -300,6 +322,7 @@ describe("MergeCoordinatorService", () => {
       projectService: {
         getSettings: mockGetSettings,
       },
+      setBaselineRuntimeState: vi.fn().mockResolvedValue(undefined),
       transition: vi.fn().mockImplementation((_projectId, transition) => {
         if (transition.to === "complete") {
           hostState.status.totalDone += 1;
@@ -540,7 +563,7 @@ describe("MergeCoordinatorService", () => {
 
   it("requeues task when pre-merge quality gate fails", async () => {
     mockHost.runMergeQualityGates = vi.fn().mockImplementation(async (options) => {
-      if (options.worktreePath === repoPath) return null; // baseline gate passes in this test
+      if (isBaselineValidation(options)) return null;
       return {
         command: "npm run lint",
         reason: "Command failed with exit code 1",
@@ -645,7 +668,7 @@ describe("MergeCoordinatorService", () => {
       mockHost.taskStore.getCumulativeAttemptsFromIssue as unknown as ReturnType<typeof vi.fn>
     ).mockReturnValue(5);
     mockHost.runMergeQualityGates = vi.fn().mockImplementation(async (options) => {
-      if (options.worktreePath === repoPath) return null; // baseline gate passes in this test
+      if (isBaselineValidation(options)) return null;
       return {
         command: "npm run lint",
         reason: "Command failed with exit code 1",
@@ -719,7 +742,7 @@ describe("MergeCoordinatorService", () => {
   it("creates a self-improvement task and pauses merging when baseline quality gates on main fail", async () => {
     const { selfImprovementService } = await import("../services/self-improvement.service.js");
     mockHost.runMergeQualityGates = vi.fn().mockImplementation(async (options) => {
-      if (options.worktreePath !== repoPath) return null;
+      if (!isBaselineValidation(options)) return null;
       return {
         command: "npm run test",
         reason: "Command failed: npm run test",
@@ -760,15 +783,16 @@ describe("MergeCoordinatorService", () => {
     expect(mockNotificationCreateAgentFailed).toHaveBeenCalledTimes(1);
     expect(
       mockHost.runMergeQualityGates.mock.calls.filter(
-        ([options]) => (options as { worktreePath: string }).worktreePath === repoPath
+        ([options]) =>
+          isBaselineValidation(options as { validationWorkspace?: string; taskId?: string })
       )
-    ).toHaveLength(1);
+    ).toHaveLength(2);
   });
 
   it("lets the baseline remediation task bypass the baseline-on-main precheck while still merging through worktree gates", async () => {
     const { selfImprovementService } = await import("../services/self-improvement.service.js");
     mockHost.runMergeQualityGates = vi.fn().mockImplementation(async (options) => {
-      if (options.worktreePath === repoPath) {
+      if (isBaselineValidation(options)) {
         return {
           command: "npm run test",
           reason: "Command failed: npm run test",
@@ -805,12 +829,14 @@ describe("MergeCoordinatorService", () => {
     );
     expect(
       mockHost.runMergeQualityGates.mock.calls.filter(
-        ([options]) => (options as { worktreePath: string }).worktreePath === repoPath
+        ([options]) =>
+          isBaselineValidation(options as { validationWorkspace?: string; taskId?: string })
       )
     ).toHaveLength(0);
     expect(
       mockHost.runMergeQualityGates.mock.calls.filter(
-        ([options]) => (options as { worktreePath: string }).worktreePath === "/tmp/worktree"
+        ([options]) =>
+          !isBaselineValidation(options as { validationWorkspace?: string; taskId?: string })
       )
     ).toHaveLength(1);
   });
@@ -818,7 +844,7 @@ describe("MergeCoordinatorService", () => {
   it("does not resolve the baseline blocker notification while baseline is still failing", async () => {
     const { selfImprovementService } = await import("../services/self-improvement.service.js");
     mockHost.runMergeQualityGates = vi.fn().mockImplementation(async (options) => {
-      if (options.worktreePath !== repoPath) return null;
+      if (!isBaselineValidation(options)) return null;
       return {
         command: "npm run test",
         reason: "Command failed: npm run test",
@@ -840,7 +866,7 @@ describe("MergeCoordinatorService", () => {
     const nowSpy = vi.spyOn(Date, "now").mockImplementation(() => nowMs);
     try {
       mockHost.runMergeQualityGates = vi.fn().mockImplementation(async (options) => {
-        if (options.worktreePath !== repoPath) return null;
+        if (!isBaselineValidation(options)) return null;
         return {
           command: "npm run test",
           reason: "Command failed: npm run test",
@@ -901,7 +927,7 @@ describe("MergeCoordinatorService", () => {
 
   it("blocks immediately for environment-setup quality-gate failures with remediation guidance", async () => {
     mockHost.runMergeQualityGates = vi.fn().mockImplementation(async (options) => {
-      if (options.worktreePath === repoPath) return null; // baseline gate passes in this test
+      if (isBaselineValidation(options)) return null;
       return {
         command: "npm run build",
         reason: "Dependency setup check failed",
@@ -946,7 +972,7 @@ describe("MergeCoordinatorService", () => {
 
   it("stores remediation nextAction in blocked merge/task events for environment setup failures", async () => {
     mockHost.runMergeQualityGates = vi.fn().mockImplementation(async (options) => {
-      if (options.worktreePath === repoPath) return null; // baseline gate passes in this test
+      if (isBaselineValidation(options)) return null;
       return {
         command: "npm run build",
         reason: "Dependency setup check failed",
@@ -1211,8 +1237,8 @@ describe("MergeCoordinatorService", () => {
       expect.objectContaining({
         projectId,
         repoPath,
-        worktreePath: repoPath,
         taskId: "baseline:main",
+        validationWorkspace: "baseline",
       })
     );
     expect(pushMainToOrigin).toHaveBeenCalledWith(repoPath, "main");
@@ -1291,8 +1317,8 @@ describe("MergeCoordinatorService", () => {
       expect.objectContaining({
         projectId,
         repoPath,
-        worktreePath: repoPath,
         taskId: "baseline:main",
+        validationWorkspace: "baseline",
       })
     );
     expect(selfImprovementService.ensureBaselineQualityGateTask).toHaveBeenCalledWith(projectId, {
@@ -1300,7 +1326,7 @@ describe("MergeCoordinatorService", () => {
       command: "npm run test",
       reason: "Command failed: npm run test",
       outputSnippet: "stderr | rebased main failure",
-      worktreePath: repoPath,
+      worktreePath: null,
     });
     expect(pushMainToOrigin).not.toHaveBeenCalled();
   });

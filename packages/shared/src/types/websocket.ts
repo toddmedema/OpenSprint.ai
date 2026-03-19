@@ -1,4 +1,10 @@
-import type { AgentPhase, AgentRuntimeState, AgentSuspendReason, TestResults } from "./agent.js";
+import type {
+  AgentPhase,
+  AgentRuntimeState,
+  AgentSuspendReason,
+  BaselineRuntimeStatus,
+  TestResults,
+} from "./agent.js";
 import type { FeedbackItem } from "./feedback.js";
 import type {
   ScopeChangeMetadata,
@@ -129,6 +135,10 @@ export interface ExecuteStatusEvent {
     name?: string;
   }>;
   queueDepth: number;
+  baselineStatus?: BaselineRuntimeStatus;
+  baselineCheckedAt?: string | null;
+  baselineFailureSummary?: string | null;
+  dispatchPausedReason?: string | null;
   /** True when orchestrator is paused waiting for HIL approval (PRD §6.5) */
   awaitingApproval?: boolean;
   /** Path to active task's git worktree (PRDv2 §5.8) */

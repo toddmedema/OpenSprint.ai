@@ -56,6 +56,13 @@ interface ExecutePhaseProps {
   onClose?: () => void;
 }
 
+const EMPTY_ACTIVE_TASKS: {
+  taskId: string;
+  phase: string;
+  startedAt: string;
+}[] = [];
+const EMPTY_TASK_STARTED_AT = Object.freeze({}) as Record<string, string>;
+
 export function ExecutePhase({
   projectId,
   initialTaskIdFromUrl,
@@ -99,6 +106,9 @@ export function ExecutePhase({
   const tasks = useAppSelector(selectTasks);
   const plans = useAppSelector((s) => s.plan.plans);
   const awaitingApproval = useAppSelector((s) => s.execute.awaitingApproval);
+  const baselineStatus = useAppSelector((s) => s.execute.baselineStatus);
+  const baselineFailureSummary = useAppSelector((s) => s.execute.baselineFailureSummary);
+  const dispatchPausedReason = useAppSelector((s) => s.execute.dispatchPausedReason);
   const selfImprovementRunInProgress = useAppSelector(
     (s) => s.execute.selfImprovementRunInProgress ?? false
   );
@@ -106,8 +116,10 @@ export function ExecutePhase({
   /** Resolve selection from Redux or URL so sidebar shows on first paint when opening with ?task= */
   const effectiveSelectedTask = selectedTask ?? initialTaskIdFromUrl ?? null;
   const loading = useAppSelector((s) => s.execute?.async?.tasks?.loading ?? false);
-  const activeTasks = useAppSelector((s) => s.execute?.activeTasks ?? []);
-  const taskIdToStartedAt = useAppSelector((s) => s.execute?.taskIdToStartedAt ?? {});
+  const activeTasks = useAppSelector((s) => s.execute?.activeTasks ?? EMPTY_ACTIVE_TASKS);
+  const taskIdToStartedAt = useAppSelector(
+    (s) => s.execute?.taskIdToStartedAt ?? EMPTY_TASK_STARTED_AT
+  );
   const wsConnected = useAppSelector((s) => s.websocket?.connected ?? false);
   const selectedTaskFromStore = useAppSelector((s) =>
     effectiveSelectedTask ? (selectTaskById(s, effectiveSelectedTask) ?? null) : null
@@ -369,6 +381,22 @@ export function ExecutePhase({
           className="flex-1 min-h-0 overflow-auto pt-2 sm:pt-3 px-4 sm:px-6 pb-4 sm:pb-6"
           data-testid="execute-main-scroll"
         >
+          {baselineStatus === "failing" && (
+            <div
+              className="mb-4 rounded-lg border border-theme-warning-border bg-theme-warning-bg px-4 py-3 text-theme-warning-text"
+              data-testid="execute-baseline-paused-banner"
+              role="status"
+            >
+              <div className="text-sm font-semibold">Merge queue paused on baseline</div>
+              <p className="mt-1 text-sm">
+                {dispatchPausedReason ??
+                  "Only the baseline-remediation task will be assigned until the baseline passes."}
+              </p>
+              {baselineFailureSummary && (
+                <p className="mt-1 text-xs opacity-90">{baselineFailureSummary}</p>
+              )}
+            </div>
+          )}
           {showTasksEmptyState ? (
             <PhaseEmptyState
               title={EMPTY_STATE_COPY.execute.title}

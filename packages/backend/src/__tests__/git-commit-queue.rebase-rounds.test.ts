@@ -8,6 +8,7 @@ const mockRebaseOntoMain = vi.fn();
 const mockRebaseContinue = vi.fn();
 const mockRebaseAbort = vi.fn();
 const mockMergeToMainNoCommit = vi.fn();
+const mockMergeBranchNoCommit = vi.fn();
 const mockIsMergeInProgress = vi.fn();
 const mockMergeAbort = vi.fn();
 const mockStripRuntimePathsFromMergeResult = vi.fn();
@@ -15,6 +16,9 @@ const mockSymlinkNodeModules = vi.fn();
 const mockCreateTaskWorktree = vi.fn();
 const mockRemoveTaskWorktree = vi.fn();
 const mockGetConflictedFiles = vi.fn();
+const mockWithRepoRootAutoStash = vi.fn();
+const mockCreateMergeCandidateWorkspace = vi.fn();
+const mockCleanupValidationWorkspace = vi.fn();
 
 const mockTaskStoreInit = vi.fn();
 const mockTaskStoreShow = vi.fn();
@@ -51,6 +55,7 @@ vi.mock("../services/branch-manager.js", () => {
       rebaseContinue: (...args: unknown[]) => mockRebaseContinue(...args),
       rebaseAbort: (...args: unknown[]) => mockRebaseAbort(...args),
       mergeToMainNoCommit: (...args: unknown[]) => mockMergeToMainNoCommit(...args),
+      mergeBranchNoCommit: (...args: unknown[]) => mockMergeBranchNoCommit(...args),
       isMergeInProgress: (...args: unknown[]) => mockIsMergeInProgress(...args),
       mergeAbort: (...args: unknown[]) => mockMergeAbort(...args),
       stripRuntimePathsFromMergeResult: (...args: unknown[]) =>
@@ -59,6 +64,7 @@ vi.mock("../services/branch-manager.js", () => {
       createTaskWorktree: (...args: unknown[]) => mockCreateTaskWorktree(...args),
       removeTaskWorktree: (...args: unknown[]) => mockRemoveTaskWorktree(...args),
       getConflictedFiles: (...args: unknown[]) => mockGetConflictedFiles(...args),
+      withRepoRootAutoStash: (...args: unknown[]) => mockWithRepoRootAutoStash(...args),
     })),
     RebaseConflictError,
     MergeConflictError,
@@ -67,6 +73,12 @@ vi.mock("../services/branch-manager.js", () => {
 
 vi.mock("../services/merge-quality-gate-runner.js", () => ({
   runMergeQualityGates: (...args: unknown[]) => mockRunMergeQualityGates(...args),
+}));
+
+vi.mock("../services/validation-workspace.service.js", () => ({
+  validationWorkspaceService: {
+    createMergeCandidateWorkspace: (...args: unknown[]) => mockCreateMergeCandidateWorkspace(...args),
+  },
 }));
 
 vi.mock("../services/task-store.service.js", () => ({
@@ -124,6 +136,7 @@ describe("GitCommitQueue rebase rounds", () => {
     mockVerifyMerge.mockResolvedValue(false);
     mockCheckout.mockResolvedValue(undefined);
     mockMergeToMainNoCommit.mockResolvedValue({ autoResolvedFiles: [] });
+    mockMergeBranchNoCommit.mockResolvedValue({ autoResolvedFiles: [] });
     mockIsMergeInProgress.mockResolvedValue(false);
     mockMergeAbort.mockResolvedValue(undefined);
     mockStripRuntimePathsFromMergeResult.mockResolvedValue(undefined);
@@ -131,6 +144,13 @@ describe("GitCommitQueue rebase rounds", () => {
     mockCreateTaskWorktree.mockResolvedValue("/tmp/worktree-created");
     mockRemoveTaskWorktree.mockResolvedValue(undefined);
     mockGetConflictedFiles.mockResolvedValue([]);
+    mockWithRepoRootAutoStash.mockImplementation(async (_repoPath, _reason, fn) => fn());
+    mockCleanupValidationWorkspace.mockResolvedValue(undefined);
+    mockCreateMergeCandidateWorkspace.mockResolvedValue({
+      worktreePath: "/tmp/merge-candidate",
+      branchName: "opensprint/validation/os-1234",
+      cleanup: mockCleanupValidationWorkspace,
+    });
     mockRunMergeQualityGates.mockResolvedValue(null);
     mockRebaseAbort.mockResolvedValue(undefined);
     mockEventLogAppend.mockResolvedValue(undefined);
@@ -232,7 +252,7 @@ describe("GitCommitQueue rebase rounds", () => {
       output: "stderr | merged candidate failure",
       outputSnippet: "stderr | merged candidate failure",
       firstErrorLine: "stderr | merged candidate failure",
-      worktreePath: "/tmp/repo",
+      worktreePath: "/tmp/merge-candidate",
       category: "quality_gate",
     });
 
@@ -250,11 +270,11 @@ describe("GitCommitQueue rebase rounds", () => {
       stage: "quality_gate",
       qualityGateFailure: expect.objectContaining({
         command: "npm run test",
-        worktreePath: "/tmp/repo",
+        worktreePath: "/tmp/merge-candidate",
       }),
     });
 
-    expect(mockStripRuntimePathsFromMergeResult).toHaveBeenCalledWith("/tmp/repo");
-    expect(mockMergeAbort).toHaveBeenCalledWith("/tmp/repo");
+    expect(mockStripRuntimePathsFromMergeResult).toHaveBeenCalledWith("/tmp/merge-candidate");
+    expect(mockMergeAbort).toHaveBeenCalledWith("/tmp/merge-candidate");
   });
 });

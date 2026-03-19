@@ -224,6 +224,10 @@ export function ProjectShell() {
         awaitingApproval: executeStatusData.awaitingApproval,
         totalDone: executeStatusData.totalDone ?? 0,
         totalFailed: executeStatusData.totalFailed ?? 0,
+        baselineStatus: executeStatusData.baselineStatus,
+        baselineCheckedAt: executeStatusData.baselineCheckedAt,
+        baselineFailureSummary: executeStatusData.baselineFailureSummary,
+        dispatchPausedReason: executeStatusData.dispatchPausedReason,
         selfImprovementRunInProgress: executeStatusData.selfImprovementRunInProgress,
       })
     );

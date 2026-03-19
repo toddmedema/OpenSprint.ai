@@ -1,8 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import request from "supertest";
 import fs from "fs/promises";
 import path from "path";
-import os from "os";
 import { createApp } from "../app.js";
 import { ProjectService } from "../services/project.service.js";
 import { taskStore } from "../services/task-store.service.js";
@@ -13,7 +12,10 @@ import {
   SPEC_METADATA_PATH,
   specMarkdownToPrd,
 } from "@opensprint/shared";
-import { cleanupTestProject } from "./test-project-cleanup.js";
+import {
+  createReusedProjectFixture,
+  type ReusedProjectFixture,
+} from "./reused-project-fixture.js";
 
 // Stub for legacy beads.service path (module removed; task store used instead). No importOriginal — file is gone.
 vi.mock("../services/beads.service.js", () => ({
@@ -45,6 +47,7 @@ vi.mock("../services/task-store.service.js", async (importOriginal) => {
     ...actual,
     taskStore: store,
     _postgresAvailable: true,
+    _testClient: dbResult.client,
     _testPool: dbResult.pool,
     _resetSharedDb: async () => {
       await truncateTestDbTables(dbResult.client);
@@ -111,19 +114,30 @@ const chatRoutePostgresOk =
 describe.skipIf(!chatRoutePostgresOk)("Chat REST API", () => {
   let app: ReturnType<typeof createApp>;
   let projectService: ProjectService;
-  let suiteTempDir: string;
-  let currentRepoPath: string;
   let projectId: string;
   let repoPath: string;
-  let originalHome: string | undefined;
-  let caseCounter = 0;
+  let projectFixture: ReusedProjectFixture;
 
   beforeAll(async () => {
     app = createApp();
     projectService = new ProjectService();
-    suiteTempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-chat-route-suite-"));
-    originalHome = process.env.HOME;
-    process.env.HOME = suiteTempDir;
+    const mod = (await import("../services/task-store.service.js")) as {
+      _testClient?: unknown;
+    };
+    projectFixture = await createReusedProjectFixture({
+      suitePrefix: "opensprint-chat-route-suite-",
+      projectService,
+      dbClient: (mod._testClient as import("../db/client.js").DbClient | undefined) ?? null,
+      createProjectInput: {
+        name: "Test Project",
+        simpleComplexityAgent: { type: "cursor", model: "claude-sonnet-4", cliCommand: null },
+        complexComplexityAgent: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
+        deployment: { mode: "custom" },
+        hilConfig: DEFAULT_HIL_CONFIG,
+      },
+    });
+    projectId = projectFixture.projectId;
+    repoPath = projectFixture.repoPath;
   });
 
   beforeEach(async () => {
@@ -133,37 +147,11 @@ describe.skipIf(!chatRoutePostgresOk)("Chat REST API", () => {
       content: "I'd be happy to help you design your product. What are your main goals?",
     });
 
-    const mod = (await import("../services/task-store.service.js")) as {
-      _resetSharedDb?: () => void | Promise<void>;
-    };
-    await mod._resetSharedDb?.();
-
-    currentRepoPath = path.join(suiteTempDir, `my-project-${++caseCounter}`);
-    repoPath = currentRepoPath;
-
-    const project = await projectService.createProject({
-      name: "Test Project",
-      repoPath,
-      simpleComplexityAgent: { type: "cursor", model: "claude-sonnet-4", cliCommand: null },
-      complexComplexityAgent: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
-      deployment: { mode: "custom" },
-      hilConfig: DEFAULT_HIL_CONFIG,
-    });
-    projectId = project.id;
-  });
-
-  afterEach(async () => {
-    await cleanupTestProject({ projectService, projectId });
-    try {
-      await fs.rm(currentRepoPath, { recursive: true, force: true });
-    } catch {
-      // Ignore ENOTEMPTY and similar on some systems when removing .git
-    }
+    await projectFixture.reset();
   });
 
   afterAll(async () => {
-    process.env.HOME = originalHome;
-    await fs.rm(suiteTempDir, { recursive: true, force: true });
+    await projectFixture.cleanup();
     const mod = (await import("../services/task-store.service.js")) as {
       _testPool?: { end: () => Promise<void> };
     };

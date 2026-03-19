@@ -3,6 +3,7 @@ import type {
   AgentRuntimeState,
   AgentSuspendReason,
   AgentSession,
+  BaselineRuntimeStatus,
   Task,
 } from "@opensprint/shared";
 import { createInitialAsyncStates, type AsyncStates } from "../asyncHelpers";
@@ -61,6 +62,10 @@ export interface ExecuteState {
   totalDone: number;
   totalFailed: number;
   queueDepth: number;
+  baselineStatus: BaselineRuntimeStatus;
+  baselineCheckedAt: string | null;
+  baselineFailureSummary: string | null;
+  dispatchPausedReason: string | null;
   /** True when a self-improvement run is in progress (from execute status / WebSocket) */
   selfImprovementRunInProgress: boolean;
   selectedTaskId: string | null;
@@ -94,6 +99,10 @@ export const initialExecuteState: ExecuteState = {
   totalDone: 0,
   totalFailed: 0,
   queueDepth: 0,
+  baselineStatus: "unknown",
+  baselineCheckedAt: null,
+  baselineFailureSummary: null,
+  dispatchPausedReason: null,
   selfImprovementRunInProgress: false,
   selectedTaskId: null,
   agentOutput: {},

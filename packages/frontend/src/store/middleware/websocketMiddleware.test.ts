@@ -933,6 +933,35 @@ describe("websocketMiddleware", () => {
       });
     });
 
+    it("stores baseline pause details from execute.status", async () => {
+      const store = createStore();
+      store.dispatch(wsConnect({ projectId: "proj-1" }));
+      wsInstance!.simulateOpen();
+      await vi.waitFor(() => store.getState().websocket.connected);
+
+      wsInstance!.simulateMessage({
+        type: "execute.status",
+        activeTasks: [],
+        queueDepth: 0,
+        baselineStatus: "failing",
+        baselineCheckedAt: "2026-03-18T22:30:00.000Z",
+        baselineFailureSummary: "npm run test: expected 1 to be 2",
+        dispatchPausedReason:
+          "Only the baseline-remediation task will be assigned until the baseline passes.",
+      });
+
+      await vi.waitFor(() => {
+        expect(store.getState().execute.baselineStatus).toBe("failing");
+        expect(store.getState().execute.baselineCheckedAt).toBe("2026-03-18T22:30:00.000Z");
+        expect(store.getState().execute.baselineFailureSummary).toBe(
+          "npm run test: expected 1 to be 2"
+        );
+        expect(store.getState().execute.dispatchPausedReason).toBe(
+          "Only the baseline-remediation task will be assigned until the baseline passes."
+        );
+      });
+    });
+
     it("dispatches taskUpdated on task.updated for incremental update", async () => {
       const store = createStore();
       const { setTasks } = await import("../slices/executeSlice");

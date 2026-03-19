@@ -1,10 +1,13 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import fs from "fs/promises";
 import path from "path";
-import os from "os";
 import { PlanService } from "../services/plan.service.js";
 import { ProjectService } from "../services/project.service.js";
 import { DEFAULT_HIL_CONFIG } from "@opensprint/shared";
+import {
+  createReusedProjectFixture,
+  type ReusedProjectFixture,
+} from "./reused-project-fixture.js";
 
 /** Hoisted so vi.mock() can reference it without duplicate declaration */
 const { mockPlanVersionInsert } = vi.hoisted(() => ({
@@ -415,7 +418,25 @@ describe("PlanService createWithRetry usage", () => {
   let projectService: ProjectService;
   let tempDir: string;
   let projectId: string;
-  let originalHome: string | undefined;
+  let projectFixture: ReusedProjectFixture;
+
+  beforeAll(async () => {
+    projectService = new ProjectService();
+    projectFixture = await createReusedProjectFixture({
+      suitePrefix: "opensprint-plan-service-test-",
+      projectService,
+      repoDirName: "test-project",
+      createProjectInput: {
+        name: "Plan Service Test",
+        simpleComplexityAgent: { type: "cursor", model: "claude-sonnet-4", cliCommand: null },
+        complexComplexityAgent: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
+        deployment: { mode: "custom" },
+        hilConfig: DEFAULT_HIL_CONFIG,
+      },
+    });
+    tempDir = projectFixture.suiteTempDir;
+    projectId = projectFixture.projectId;
+  });
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -426,22 +447,11 @@ describe("PlanService createWithRetry usage", () => {
       content: JSON.stringify({ complexity: "medium" }),
     });
     planService = new PlanService();
-    projectService = new ProjectService();
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-plan-service-test-"));
-    originalHome = process.env.HOME;
-    process.env.HOME = tempDir;
+    await projectFixture.reset();
+    tempDir = projectFixture.suiteTempDir;
+    projectId = projectFixture.projectId;
 
-    const project = await projectService.createProject({
-      name: "Plan Service Test",
-      repoPath: path.join(tempDir, "test-project"),
-      simpleComplexityAgent: { type: "cursor", model: "claude-sonnet-4", cliCommand: null },
-      complexComplexityAgent: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
-      deployment: { mode: "custom" },
-      hilConfig: DEFAULT_HIL_CONFIG,
-    });
-    projectId = project.id;
-
-    const repoPath = path.join(tempDir, "test-project");
+    const repoPath = projectFixture.repoPath;
     await fs.mkdir(path.join(repoPath, ".opensprint", "plans"), { recursive: true });
 
     // Epic create returns epic (no parentId) - use mockResolvedValue so it works across multiple tests
@@ -456,9 +466,8 @@ describe("PlanService createWithRetry usage", () => {
     mockTaskStoreShow.mockResolvedValue({ status: "open" });
   });
 
-  afterEach(async () => {
-    process.env.HOME = originalHome;
-    await fs.rm(tempDir, { recursive: true, force: true });
+  afterAll(async () => {
+    await projectFixture.cleanup();
   });
 
   it("createPlan uses taskStore.create for epic only (no parentId)", async () => {

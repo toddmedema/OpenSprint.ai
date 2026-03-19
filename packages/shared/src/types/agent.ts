@@ -326,12 +326,22 @@ export interface ActiveTaskEntry {
   name?: string;
 }
 
+export type BaselineRuntimeStatus = "unknown" | "checking" | "healthy" | "failing";
+
 /** Build orchestrator status (always-on per PRDv2 §5.7, v2 multi-slot model) */
 export interface OrchestratorStatus {
   activeTasks: ActiveTaskEntry[];
   queueDepth: number;
   totalDone: number;
   totalFailed: number;
+  /** Project-wide baseline merge-gate runtime status. */
+  baselineStatus?: BaselineRuntimeStatus;
+  /** Last time baseline status was checked (ISO string). */
+  baselineCheckedAt?: string | null;
+  /** Short summary for the current baseline failure, if any. */
+  baselineFailureSummary?: string | null;
+  /** Short reason for why dispatch is paused, if any. */
+  dispatchPausedReason?: string | null;
   /** True when paused waiting for HIL approval (PRD §6.5) */
   awaitingApproval?: boolean;
   /** Path to active task's git worktree (null when idle) */

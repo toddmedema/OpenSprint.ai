@@ -131,8 +131,16 @@ CREATE TABLE IF NOT EXISTS orchestrator_counters (
     total_done    INTEGER NOT NULL DEFAULT 0,
     total_failed  INTEGER NOT NULL DEFAULT 0,
     queue_depth   INTEGER NOT NULL DEFAULT 0,
+    baseline_status TEXT NOT NULL DEFAULT 'unknown',
+    baseline_checked_at TEXT,
+    baseline_failure_summary TEXT,
+    dispatch_paused_reason TEXT,
     updated_at    TEXT NOT NULL
 );
+ALTER TABLE orchestrator_counters ADD COLUMN IF NOT EXISTS baseline_status TEXT NOT NULL DEFAULT 'unknown';
+ALTER TABLE orchestrator_counters ADD COLUMN IF NOT EXISTS baseline_checked_at TEXT;
+ALTER TABLE orchestrator_counters ADD COLUMN IF NOT EXISTS baseline_failure_summary TEXT;
+ALTER TABLE orchestrator_counters ADD COLUMN IF NOT EXISTS dispatch_paused_reason TEXT;
 
 -- Deployments (SQL-only)
 CREATE TABLE IF NOT EXISTS deployments (
@@ -431,8 +439,16 @@ CREATE TABLE IF NOT EXISTS orchestrator_counters (
     total_done    INTEGER NOT NULL DEFAULT 0,
     total_failed  INTEGER NOT NULL DEFAULT 0,
     queue_depth   INTEGER NOT NULL DEFAULT 0,
+    baseline_status TEXT NOT NULL DEFAULT 'unknown',
+    baseline_checked_at TEXT,
+    baseline_failure_summary TEXT,
+    dispatch_paused_reason TEXT,
     updated_at    TEXT NOT NULL
 );
+ALTER TABLE orchestrator_counters ADD COLUMN IF NOT EXISTS baseline_status TEXT NOT NULL DEFAULT 'unknown';
+ALTER TABLE orchestrator_counters ADD COLUMN IF NOT EXISTS baseline_checked_at TEXT;
+ALTER TABLE orchestrator_counters ADD COLUMN IF NOT EXISTS baseline_failure_summary TEXT;
+ALTER TABLE orchestrator_counters ADD COLUMN IF NOT EXISTS dispatch_paused_reason TEXT;
 
 CREATE TABLE IF NOT EXISTS deployments (
     id                TEXT PRIMARY KEY,

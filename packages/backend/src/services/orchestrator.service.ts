@@ -335,6 +335,10 @@ export class OrchestratorService {
       queueDepth: 0,
       totalDone: 0,
       totalFailed: 0,
+      baselineStatus: "unknown",
+      baselineCheckedAt: null,
+      baselineFailureSummary: null,
+      dispatchPausedReason: null,
     };
   }
 
@@ -391,6 +395,29 @@ export class OrchestratorService {
     return this.statusService.buildActiveTasks(state as unknown as StateForStatus);
   }
 
+  private buildExecuteStatusPayload(
+    projectId: string,
+    state: OrchestratorState,
+    overrides?: {
+      queueDepth?: number;
+      pendingFeedbackCategorizations?: PendingFeedbackCategorization[];
+    }
+  ): import("@opensprint/shared").ExecuteStatusEvent {
+    return {
+      type: "execute.status",
+      activeTasks: this.buildActiveTasks(state),
+      queueDepth: overrides?.queueDepth ?? state.status.queueDepth,
+      baselineStatus: state.status.baselineStatus,
+      baselineCheckedAt: state.status.baselineCheckedAt ?? null,
+      baselineFailureSummary: state.status.baselineFailureSummary ?? null,
+      dispatchPausedReason: state.status.dispatchPausedReason ?? null,
+      ...(overrides?.pendingFeedbackCategorizations && {
+        pendingFeedbackCategorizations: overrides.pendingFeedbackCategorizations,
+      }),
+      selfImprovementRunInProgress: isSelfImprovementRunInProgress(projectId),
+    };
+  }
+
   /**
    * Centralized state transition with logging and broadcasting.
    */
@@ -403,12 +430,10 @@ export class OrchestratorService {
     switch (t.to) {
       case "start_task": {
         state.slots.set(t.taskId, t.slot);
-        broadcastToProject(projectId, {
-          type: "execute.status",
-          activeTasks: this.buildActiveTasks(state),
-          queueDepth: t.queueDepth,
-          selfImprovementRunInProgress: isSelfImprovementRunInProgress(projectId),
-        });
+        broadcastToProject(
+          projectId,
+          this.buildExecuteStatusPayload(projectId, state, { queueDepth: t.queueDepth })
+        );
         break;
       }
 
@@ -424,35 +449,23 @@ export class OrchestratorService {
           status: "in_progress",
           assignee: t.assignee,
         });
-        broadcastToProject(projectId, {
-          type: "execute.status",
-          activeTasks: this.buildActiveTasks(state),
-          queueDepth: t.queueDepth,
-          selfImprovementRunInProgress: isSelfImprovementRunInProgress(projectId),
-        });
+        broadcastToProject(
+          projectId,
+          this.buildExecuteStatusPayload(projectId, state, { queueDepth: t.queueDepth })
+        );
         break;
       }
 
       case "complete":
         state.status.totalDone += 1;
         this.removeSlot(state, t.taskId);
-        broadcastToProject(projectId, {
-          type: "execute.status",
-          activeTasks: this.buildActiveTasks(state),
-          queueDepth: state.status.queueDepth,
-          selfImprovementRunInProgress: isSelfImprovementRunInProgress(projectId),
-        });
+        broadcastToProject(projectId, this.buildExecuteStatusPayload(projectId, state));
         break;
 
       case "fail":
         state.status.totalFailed += 1;
         this.removeSlot(state, t.taskId);
-        broadcastToProject(projectId, {
-          type: "execute.status",
-          activeTasks: this.buildActiveTasks(state),
-          queueDepth: state.status.queueDepth,
-          selfImprovementRunInProgress: isSelfImprovementRunInProgress(projectId),
-        });
+        broadcastToProject(projectId, this.buildExecuteStatusPayload(projectId, state));
         break;
     }
 
@@ -547,6 +560,54 @@ export class OrchestratorService {
 
   private async loadCounters(repoPath: string): Promise<OrchestratorCounters | null> {
     return this.statusService.loadCounters(repoPath);
+  }
+
+  async setBaselineRuntimeState(
+    projectId: string,
+    repoPath: string,
+    updates: {
+      baselineStatus?: OrchestratorStatus["baselineStatus"];
+      baselineCheckedAt?: string | null;
+      baselineFailureSummary?: string | null;
+      dispatchPausedReason?: string | null;
+    }
+  ): Promise<void> {
+    const state = this.getState(projectId);
+    let changed = false;
+
+    if (
+      updates.baselineStatus !== undefined &&
+      state.status.baselineStatus !== updates.baselineStatus
+    ) {
+      state.status.baselineStatus = updates.baselineStatus;
+      changed = true;
+    }
+    if (
+      updates.baselineCheckedAt !== undefined &&
+      state.status.baselineCheckedAt !== updates.baselineCheckedAt
+    ) {
+      state.status.baselineCheckedAt = updates.baselineCheckedAt;
+      changed = true;
+    }
+    if (
+      updates.baselineFailureSummary !== undefined &&
+      state.status.baselineFailureSummary !== updates.baselineFailureSummary
+    ) {
+      state.status.baselineFailureSummary = updates.baselineFailureSummary;
+      changed = true;
+    }
+    if (
+      updates.dispatchPausedReason !== undefined &&
+      state.status.dispatchPausedReason !== updates.dispatchPausedReason
+    ) {
+      state.status.dispatchPausedReason = updates.dispatchPausedReason;
+      changed = true;
+    }
+
+    if (!changed) return;
+
+    await this.persistCounters(projectId, repoPath);
+    this.emitExecuteStatus(projectId);
   }
 
   // ─── Crash Recovery (GUPP-style: scan assignment.json files) ───
@@ -655,12 +716,7 @@ export class OrchestratorService {
     }
 
     if (removed) {
-      broadcastToProject(projectId, {
-        type: "execute.status",
-        activeTasks: this.buildActiveTasks(state),
-        queueDepth: state.status.queueDepth,
-        selfImprovementRunInProgress: isSelfImprovementRunInProgress(projectId),
-      });
+      broadcastToProject(projectId, this.buildExecuteStatusPayload(projectId, state));
     }
   }
 
@@ -731,12 +787,7 @@ export class OrchestratorService {
     }
     this.removeSlot(state, taskId);
 
-    broadcastToProject(projectId, {
-      type: "execute.status",
-      activeTasks: this.buildActiveTasks(state),
-      queueDepth: state.status.queueDepth,
-      selfImprovementRunInProgress: isSelfImprovementRunInProgress(projectId),
-    });
+    broadcastToProject(projectId, this.buildExecuteStatusPayload(projectId, state));
     this.nudge(projectId);
   }
 
@@ -780,12 +831,7 @@ export class OrchestratorService {
 
   private emitExecuteStatus(projectId: string): void {
     const state = this.getState(projectId);
-    broadcastToProject(projectId, {
-      type: "execute.status",
-      activeTasks: this.buildActiveTasks(state),
-      queueDepth: state.status.queueDepth,
-      selfImprovementRunInProgress: isSelfImprovementRunInProgress(projectId),
-    });
+    broadcastToProject(projectId, this.buildExecuteStatusPayload(projectId, state));
   }
 
   private onAgentStateChange(projectId: string): () => void {
@@ -1370,6 +1416,10 @@ export class OrchestratorService {
     if (counters) {
       state.status.totalDone = counters.totalDone;
       state.status.totalFailed = counters.totalFailed;
+      state.status.baselineStatus = counters.baselineStatus;
+      state.status.baselineCheckedAt = counters.baselineCheckedAt;
+      state.status.baselineFailureSummary = counters.baselineFailureSummary;
+      state.status.dispatchPausedReason = counters.dispatchPausedReason;
     }
 
     // Unified recovery: GUPP + orphan + heartbeat + git locks + slot reconciliation
@@ -1824,12 +1874,7 @@ export class OrchestratorService {
     }
     await this.deleteAssignmentAt(repoPath, task.id, slot.worktreePath ?? undefined);
     this.removeSlot(state, task.id);
-    broadcastToProject(projectId, {
-      type: "execute.status",
-      activeTasks: this.buildActiveTasks(state),
-      queueDepth: state.status.queueDepth,
-      selfImprovementRunInProgress: isSelfImprovementRunInProgress(projectId),
-    });
+    broadcastToProject(projectId, this.buildExecuteStatusPayload(projectId, state));
     await this.persistCounters(projectId, repoPath);
   }
 
@@ -2098,12 +2143,7 @@ export class OrchestratorService {
         }
         await this.deleteAssignment(repoPath, task.id);
         this.removeSlot(state, task.id);
-        broadcastToProject(projectId, {
-          type: "execute.status",
-          activeTasks: this.buildActiveTasks(state),
-          queueDepth: state.status.queueDepth,
-          selfImprovementRunInProgress: isSelfImprovementRunInProgress(projectId),
-        });
+        broadcastToProject(projectId, this.buildExecuteStatusPayload(projectId, state));
         await this.persistCounters(projectId, repoPath);
         return;
       }

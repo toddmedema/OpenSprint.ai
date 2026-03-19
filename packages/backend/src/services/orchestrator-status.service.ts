@@ -3,7 +3,12 @@
  * Extracted from OrchestratorService for clarity and testability.
  */
 
-import type { AgentRuntimeState, AgentSuspendReason, OrchestratorStatus } from "@opensprint/shared";
+import type {
+  AgentRuntimeState,
+  AgentSuspendReason,
+  BaselineRuntimeStatus,
+  OrchestratorStatus,
+} from "@opensprint/shared";
 import { REVIEW_ANGLE_OPTIONS } from "@opensprint/shared";
 import { taskStore as taskStoreSingleton } from "./task-store.service.js";
 import type { ProjectService } from "./project.service.js";
@@ -56,13 +61,36 @@ export interface SlotForStatus {
 
 export interface StateForStatus {
   slots: Map<string, SlotForStatus>;
-  status: { queueDepth: number; totalDone: number; totalFailed: number };
+  status: {
+    queueDepth: number;
+    totalDone: number;
+    totalFailed: number;
+    baselineStatus?: BaselineRuntimeStatus;
+    baselineCheckedAt?: string | null;
+    baselineFailureSummary?: string | null;
+    dispatchPausedReason?: string | null;
+  };
 }
 
 export interface OrchestratorCounters {
   totalDone: number;
   totalFailed: number;
   queueDepth: number;
+  baselineStatus: BaselineRuntimeStatus;
+  baselineCheckedAt: string | null;
+  baselineFailureSummary: string | null;
+  dispatchPausedReason: string | null;
+}
+
+function normalizeBaselineStatus(value: unknown): BaselineRuntimeStatus {
+  switch (value) {
+    case "checking":
+    case "healthy":
+    case "failing":
+      return value;
+    default:
+      return "unknown";
+  }
 }
 
 export class OrchestratorStatusService {
@@ -126,18 +154,36 @@ export class OrchestratorStatusService {
     try {
       await this.taskStore.runWrite(async (client) => {
         await client.execute(
-          `INSERT INTO orchestrator_counters (project_id, total_done, total_failed, queue_depth, updated_at)
-           VALUES ($1, $2, $3, $4, $5)
+          `INSERT INTO orchestrator_counters (
+             project_id,
+             total_done,
+             total_failed,
+             queue_depth,
+             baseline_status,
+             baseline_checked_at,
+             baseline_failure_summary,
+             dispatch_paused_reason,
+             updated_at
+           )
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
            ON CONFLICT(project_id) DO UPDATE SET
              total_done = excluded.total_done,
              total_failed = excluded.total_failed,
              queue_depth = excluded.queue_depth,
+             baseline_status = excluded.baseline_status,
+             baseline_checked_at = excluded.baseline_checked_at,
+             baseline_failure_summary = excluded.baseline_failure_summary,
+             dispatch_paused_reason = excluded.dispatch_paused_reason,
              updated_at = excluded.updated_at`,
           [
             projectId,
             state.status.totalDone,
             state.status.totalFailed,
             state.status.queueDepth,
+            normalizeBaselineStatus(state.status.baselineStatus),
+            state.status.baselineCheckedAt ?? null,
+            state.status.baselineFailureSummary ?? null,
+            state.status.dispatchPausedReason ?? null,
             now,
           ]
         );
@@ -153,7 +199,10 @@ export class OrchestratorStatusService {
     if (!project) return null;
     const client = await this.taskStore.getDb();
     const row = await client.queryOne(
-      "SELECT total_done, total_failed, queue_depth FROM orchestrator_counters WHERE project_id = $1",
+      `SELECT total_done, total_failed, queue_depth, baseline_status, baseline_checked_at,
+              baseline_failure_summary, dispatch_paused_reason
+         FROM orchestrator_counters
+        WHERE project_id = $1`,
       [project.id]
     );
     if (!row) return null;
@@ -161,6 +210,10 @@ export class OrchestratorStatusService {
       totalDone: row.total_done as number,
       totalFailed: row.total_failed as number,
       queueDepth: row.queue_depth as number,
+      baselineStatus: normalizeBaselineStatus(row.baseline_status),
+      baselineCheckedAt: (row.baseline_checked_at as string | null | undefined) ?? null,
+      baselineFailureSummary: (row.baseline_failure_summary as string | null | undefined) ?? null,
+      dispatchPausedReason: (row.dispatch_paused_reason as string | null | undefined) ?? null,
     };
   }
 }

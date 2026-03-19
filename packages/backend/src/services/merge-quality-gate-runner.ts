@@ -29,6 +29,7 @@ export interface MergeQualityGateRunOptions {
   taskId: string;
   branchName: string;
   baseBranch: string;
+  validationWorkspace?: "baseline" | "merged_candidate" | "task_worktree" | "repo_root";
 }
 
 export interface MergeQualityGateFailure {
@@ -38,6 +39,7 @@ export interface MergeQualityGateFailure {
   outputSnippet?: string;
   worktreePath?: string;
   firstErrorLine?: string;
+  validationWorkspace?: "baseline" | "merged_candidate" | "task_worktree" | "repo_root";
   category?: "environment_setup" | "quality_gate";
   autoRepairAttempted?: boolean;
   autoRepairSucceeded?: boolean;
@@ -279,6 +281,9 @@ export async function runMergeQualityGates(
 
   const execute = deps.shellExec ?? shellExecDefault;
   const commands = deps.commands ?? getMergeQualityGateCommands();
+  const validationWorkspace =
+    options.validationWorkspace ??
+    (options.worktreePath === options.repoPath ? "repo_root" : "task_worktree");
   const symlinkNodeModules =
     deps.symlinkNodeModules ??
     (async (repoPath: string, wtPath: string) => {
@@ -327,6 +332,7 @@ export async function runMergeQualityGates(
           outputSnippet: initialFailure.outputSnippet.slice(0, 1800),
           worktreePath: options.worktreePath,
           firstErrorLine: initialFailure.firstErrorLine,
+          validationWorkspace,
           category: "quality_gate",
           autoRepairAttempted: false,
           autoRepairSucceeded: false,
@@ -373,6 +379,7 @@ export async function runMergeQualityGates(
           outputSnippet: retryFailure.outputSnippet.slice(0, 1800),
           worktreePath: options.worktreePath,
           firstErrorLine: retryFailure.firstErrorLine,
+          validationWorkspace,
           category,
           autoRepairAttempted: true,
           autoRepairSucceeded: autoRepair.succeeded,

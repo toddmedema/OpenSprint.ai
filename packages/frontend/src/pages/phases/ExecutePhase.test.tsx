@@ -160,6 +160,9 @@ function createStore(
     selectedTaskId: string | null;
     awaitingApproval: boolean;
     selfImprovementRunInProgress: boolean;
+    baselineStatus: "unknown" | "checking" | "healthy" | "failing";
+    baselineFailureSummary: string | null;
+    dispatchPausedReason: string | null;
     agentOutput: Record<string, string[]>;
     taskDetailError: string | null;
     activeTasks: { taskId: string; phase: string; startedAt: string }[];
@@ -2793,6 +2796,52 @@ describe("ExecutePhase Redux integration", () => {
       expect(screen.getByTestId("live-output-connecting")).toBeInTheDocument();
       expect(screen.getByText("Connecting to live output…")).toBeInTheDocument();
       expect(screen.getByTestId("live-output-retry")).toBeInTheDocument();
+    });
+  });
+
+  it("shows a baseline pause banner when baseline quality gates are failing", async () => {
+    mockGet.mockResolvedValue({ id: "epic-1.1", title: "Task A", kanbanColumn: "in_progress" });
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Task A",
+        epicId: "epic-1",
+        kanbanColumn: "in_progress",
+        priority: 0,
+        assignee: null,
+      },
+    ];
+    const store = createStore(
+      tasks,
+      {
+        selectedTaskId: "epic-1.1",
+        baselineStatus: "failing",
+        dispatchPausedReason:
+          "Only the baseline-remediation task will be assigned until the baseline passes.",
+        baselineFailureSummary: "npm run test: src/task-route.test.ts expected 200 to be 500",
+      },
+      { connected: true }
+    );
+
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <ExecutePhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>
+    );
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("execute-baseline-paused-banner")).toBeInTheDocument();
+      expect(screen.getByText("Merge queue paused on baseline")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Only the baseline-remediation task will be assigned until the baseline passes."
+        )
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("npm run test: src/task-route.test.ts expected 200 to be 500")
+      ).toBeInTheDocument();
     });
   });
 

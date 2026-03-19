@@ -1,18 +1,6 @@
-import path from "path";
-import { fileURLToPath } from "url";
 import { defineConfig } from "vitest/config";
-import react from "@vitejs/plugin-react";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
-  root: __dirname,
-  plugins: [react()],
-  resolve: {
-    alias: {
-      "@opensprint/shared": path.resolve(__dirname, "../shared/src/index.ts"),
-    },
-  },
   test: {
     globals: true,
     environment: "jsdom",
@@ -41,7 +29,7 @@ export default defineConfig({
       thresholds: {
         statements: 80,
         branches: 70,
-        functions: 73, // 73.6% current; raise to 80% as coverage improves
+        functions: 73,
         lines: 80,
       },
     },

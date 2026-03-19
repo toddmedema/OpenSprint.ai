@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import crypto from "crypto";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
@@ -116,17 +117,41 @@ describe.skipIf(!agentIdentityPostgresOk)("AgentIdentityService", () => {
   });
 
   it("should cap stored records at 500", async () => {
-    for (let i = 0; i < 510; i++) {
-      await service.recordAttempt(tmpDir, makeRecord({ attempt: i, taskId: `task-${i}` }));
-    }
-
     const { taskStore } = await import("../services/task-store.service.js");
     const client = await taskStore.getDb();
-    const projectRow = await client.queryOne(
-      "SELECT project_id FROM agent_stats ORDER BY id DESC LIMIT 1"
+    const projectId =
+      "repo:" + crypto.createHash("sha256").update(tmpDir).digest("hex").slice(0, 12);
+
+    await client.execute(
+      `INSERT INTO agent_stats (
+         project_id,
+         task_id,
+         agent_id,
+         role,
+         model,
+         attempt,
+         started_at,
+         completed_at,
+         outcome,
+         duration_ms
+       )
+       SELECT
+         $1,
+         'task-' || seq::text,
+         'claude-sonnet',
+         NULL,
+         'claude-sonnet-4-20250514',
+         seq,
+         '2025-01-01T00:00:00.000Z',
+         '2025-01-01T00:01:00.000Z',
+         'success',
+         60000
+       FROM generate_series(0, 499) AS seq`,
+      [projectId]
     );
-    const projectId = projectRow?.project_id as string;
-    expect(projectId).toBeDefined();
+
+    await service.recordAttempt(tmpDir, makeRecord({ attempt: 500, taskId: "task-500" }));
+
     const row = await client.queryOne(
       "SELECT COUNT(*)::int as c FROM agent_stats WHERE project_id = $1",
       [projectId]

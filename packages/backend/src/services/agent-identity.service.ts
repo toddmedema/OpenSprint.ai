@@ -17,6 +17,7 @@ import { ProjectService } from "./project.service.js";
 const log = createLogger("agent-identity");
 const projectService = new ProjectService();
 const repoPathProjectIdCache = new Map<string, string>();
+const agentStatsCountCache = new Map<string, number>();
 
 async function repoPathToProjectId(repoPath: string): Promise<string> {
   const cached = repoPathProjectIdCache.get(repoPath);
@@ -73,6 +74,15 @@ export class AgentIdentityService {
   async recordAttempt(repoPath: string, record: TaskAttemptRecord): Promise<void> {
     const projectId = await repoPathToProjectId(repoPath);
     await taskStore.runWrite(async (client) => {
+      let recordCount = agentStatsCountCache.get(projectId);
+      if (recordCount == null) {
+        const countRow = await client.queryOne(
+          "SELECT COUNT(*)::int AS c FROM agent_stats WHERE project_id = $1",
+          [projectId]
+        );
+        recordCount = Number(countRow?.c ?? 0);
+      }
+
       await client.execute(
         `INSERT INTO agent_stats (project_id, task_id, agent_id, role, model, attempt, started_at, completed_at, outcome, duration_ms)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
@@ -89,17 +99,25 @@ export class AgentIdentityService {
           record.durationMs,
         ]
       );
-      await client.execute(
-        `DELETE FROM agent_stats
-         WHERE project_id = $1
-           AND id IN (
-             SELECT id FROM agent_stats
-             WHERE project_id = $1
-             ORDER BY id DESC
-             OFFSET 500
-           )`,
-        [projectId]
-      );
+
+      const nextCount = recordCount + 1;
+      if (nextCount > 500) {
+        const overflow = nextCount - 500;
+        await client.execute(
+          `DELETE FROM agent_stats
+           WHERE project_id = $1
+             AND id IN (
+               SELECT id FROM agent_stats
+               WHERE project_id = $1
+               ORDER BY id ASC
+               LIMIT $2
+             )`,
+          [projectId, overflow]
+        );
+        agentStatsCountCache.set(projectId, 500);
+      } else {
+        agentStatsCountCache.set(projectId, nextCount);
+      }
     });
   }
 

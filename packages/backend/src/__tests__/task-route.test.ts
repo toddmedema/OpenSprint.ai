@@ -1,14 +1,16 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import request from "supertest";
 import fs from "fs/promises";
 import path from "path";
-import os from "os";
 import { createApp } from "../app.js";
 import { ProjectService } from "../services/project.service.js";
 import { TaskStoreService } from "../services/task-store.service.js";
 import { API_PREFIX } from "@opensprint/shared";
 import { DEFAULT_HIL_CONFIG } from "@opensprint/shared";
-import { cleanupTestProject } from "./test-project-cleanup.js";
+import {
+  createReusedProjectFixture,
+  type ReusedProjectFixture,
+} from "./reused-project-fixture.js";
 
 vi.mock("drizzle-orm", () => ({
   and: (...args: unknown[]) => args,
@@ -47,6 +49,7 @@ vi.mock("../services/task-store.service.js", async (importOriginal) => {
       }
     },
     taskStore: store,
+    _testClient: client,
     _resetSharedDb: resetSharedDb,
     _postgresAvailable: true,
     _testPool: pool,
@@ -59,25 +62,36 @@ const postgresAvailable =
 
 describe.skipIf(!postgresAvailable)("Tasks REST - task-to-kanban-column mapping", () => {
   let app: ReturnType<typeof createApp>;
-  let suiteTempDir: string;
-  let currentRepoPath: string;
-  let originalHome: string | undefined;
-  let caseCounter = 0;
   let projectId: string;
   let projectService: ProjectService;
   let taskStore: TaskStoreService;
+  let projectFixture: ReusedProjectFixture;
 
   beforeAll(async () => {
     app = createApp();
-    suiteTempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-task-route-suite-"));
-    originalHome = process.env.HOME;
-    process.env.HOME = suiteTempDir;
     projectService = new ProjectService();
+    const mod = (await import("../services/task-store.service.js")) as unknown as {
+      _testClient?: import("../db/client.js").DbClient;
+      taskStore: TaskStoreService;
+    };
+    projectFixture = await createReusedProjectFixture({
+      suitePrefix: "opensprint-task-route-suite-",
+      projectService,
+      dbClient: mod._testClient ?? null,
+      createProjectInput: {
+        name: "Task Mapping Test",
+        simpleComplexityAgent: { type: "cursor", model: "claude-sonnet-4", cliCommand: null },
+        complexComplexityAgent: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
+        deployment: { mode: "custom" },
+        hilConfig: DEFAULT_HIL_CONFIG,
+      },
+    });
+    taskStore = mod.taskStore;
+    projectId = projectFixture.projectId;
   });
 
   afterAll(async () => {
-    process.env.HOME = originalHome;
-    await fs.rm(suiteTempDir, { recursive: true, force: true });
+    await projectFixture.cleanup();
     const mod = (await import("../services/task-store.service.js")) as {
       _testPool?: { end: () => Promise<void> };
     };
@@ -85,32 +99,7 @@ describe.skipIf(!postgresAvailable)("Tasks REST - task-to-kanban-column mapping"
   });
 
   beforeEach(async () => {
-    const mod = (await import("../services/task-store.service.js")) as unknown as {
-      _resetSharedDb?: () => void | Promise<void>;
-      taskStore: TaskStoreService;
-    };
-    await mod._resetSharedDb?.();
-    currentRepoPath = path.join(suiteTempDir, `test-project-${++caseCounter}`);
-
-    taskStore = mod.taskStore;
-    const project = await projectService.createProject({
-      name: "Task Mapping Test",
-      repoPath: currentRepoPath,
-      simpleComplexityAgent: { type: "cursor", model: "claude-sonnet-4", cliCommand: null },
-      complexComplexityAgent: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
-      deployment: { mode: "custom" },
-      hilConfig: DEFAULT_HIL_CONFIG,
-    });
-    projectId = project.id;
-  });
-
-  afterEach(async () => {
-    await cleanupTestProject({ projectService, projectId });
-    try {
-      await fs.rm(currentRepoPath, { recursive: true, force: true });
-    } catch {
-      // Ignore ENOTEMPTY and similar on some systems when removing .git
-    }
+    await projectFixture.reset();
   });
 
   it(

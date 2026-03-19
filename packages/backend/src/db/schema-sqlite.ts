@@ -123,6 +123,10 @@ CREATE TABLE IF NOT EXISTS orchestrator_counters (
     total_done    INTEGER NOT NULL DEFAULT 0,
     total_failed  INTEGER NOT NULL DEFAULT 0,
     queue_depth   INTEGER NOT NULL DEFAULT 0,
+    baseline_status TEXT NOT NULL DEFAULT 'unknown',
+    baseline_checked_at TEXT,
+    baseline_failure_summary TEXT,
+    dispatch_paused_reason TEXT,
     updated_at    TEXT NOT NULL
 );
 
@@ -284,5 +288,13 @@ export function getSqliteAlterStatements(): Array<{ table: string; column: strin
     { table: "agent_stats", column: "role", def: "TEXT" },
     { table: "open_questions", column: "scope_change_metadata", def: "TEXT" },
     { table: "open_questions", column: "responses", def: "TEXT" },
+    {
+      table: "orchestrator_counters",
+      column: "baseline_status",
+      def: "TEXT NOT NULL DEFAULT 'unknown'",
+    },
+    { table: "orchestrator_counters", column: "baseline_checked_at", def: "TEXT" },
+    { table: "orchestrator_counters", column: "baseline_failure_summary", def: "TEXT" },
+    { table: "orchestrator_counters", column: "dispatch_paused_reason", def: "TEXT" },
   ];
 }

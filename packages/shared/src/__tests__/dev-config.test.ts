@@ -2,7 +2,7 @@
  * Verification test: dev servers use source-direct imports.
  * - Root dev script removes shared/dist first, then watches via concurrently.
  * - Frontend Vite config aliases @opensprint/shared to source for HMR.
- * - Both frontend and backend vitest configs alias to source for npm test.
+ * - Backend and frontend Vitest project configs alias to source for npm test.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
@@ -29,20 +29,25 @@ describe("dev config (source-direct imports)", () => {
     expect(content).toMatch(/shared\/src\/index\.ts/);
   });
 
-  it("backend vitest.config aliases @opensprint/shared to source", () => {
-    const vitestPath = resolve(repoRoot, "packages/backend/vitest.config.ts");
+  it("backend vitest shared config aliases @opensprint/shared to source", () => {
+    const vitestPath = resolve(repoRoot, "packages/backend/vitest.shared.ts");
     expect(existsSync(vitestPath)).toBe(true);
     const content = readFileSync(vitestPath, "utf-8");
     expect(content).toContain("@opensprint/shared");
     expect(content).toMatch(/shared\/src\/index\.ts/);
   });
 
-  it("frontend vitest.config aliases @opensprint/shared to source", () => {
-    const vitestPath = resolve(repoRoot, "packages/frontend/vitest.config.ts");
-    expect(existsSync(vitestPath)).toBe(true);
-    const content = readFileSync(vitestPath, "utf-8");
-    expect(content).toContain("@opensprint/shared");
-    expect(content).toMatch(/shared\/src\/index\.ts/);
+  it("frontend Vitest project configs alias @opensprint/shared to source", () => {
+    const vitestPaths = [
+      resolve(repoRoot, "packages/frontend/vitest.unit.config.ts"),
+      resolve(repoRoot, "packages/frontend/vitest.flow.config.ts"),
+    ];
+    for (const vitestPath of vitestPaths) {
+      expect(existsSync(vitestPath)).toBe(true);
+      const content = readFileSync(vitestPath, "utf-8");
+      expect(content).toContain("@opensprint/shared");
+      expect(content).toMatch(/shared\/src\/index\.ts/);
+    }
   });
 
   it("shared package exports have src fallback when dist absent", () => {

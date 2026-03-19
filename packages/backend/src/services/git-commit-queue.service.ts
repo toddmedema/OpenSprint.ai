@@ -13,6 +13,7 @@ import { agentService } from "./agent.service.js";
 import { getMergeQualityGateCommands } from "./merge-quality-gates.js";
 import { runMergeQualityGates } from "./merge-quality-gate-runner.js";
 import { eventLogService } from "./event-log.service.js";
+import { validationWorkspaceService } from "./validation-workspace.service.js";
 import { createLogger } from "../utils/logger.js";
 import { getGitNoHooksPath } from "../utils/git-no-hooks.js";
 import { waitForGitReady } from "../utils/git-lock.js";
@@ -42,6 +43,7 @@ export class MergeJobError extends Error {
       outputSnippet: string;
       worktreePath?: string;
       firstErrorLine: string;
+      validationWorkspace?: "baseline" | "merged_candidate" | "task_worktree" | "repo_root";
       category?: "environment_setup" | "quality_gate";
       autoRepairAttempted?: boolean;
       autoRepairSucceeded?: boolean;
@@ -205,6 +207,7 @@ class GitCommitQueueImpl implements GitCommitQueueService {
       output?: string;
       worktreePath?: string;
       firstErrorLine?: string;
+      validationWorkspace?: "baseline" | "merged_candidate" | "task_worktree" | "repo_root";
       category?: "environment_setup" | "quality_gate";
       autoRepairAttempted?: boolean;
       autoRepairSucceeded?: boolean;
@@ -235,6 +238,7 @@ class GitCommitQueueImpl implements GitCommitQueueService {
         outputSnippet,
         worktreePath: failure.worktreePath ?? worktreePath,
         firstErrorLine,
+        validationWorkspace: failure.validationWorkspace,
         category: failure.category ?? "quality_gate",
         autoRepairAttempted: failure.autoRepairAttempted ?? false,
         autoRepairSucceeded: failure.autoRepairSucceeded ?? false,
@@ -462,136 +466,172 @@ class GitCommitQueueImpl implements GitCommitQueueService {
           }
         }
 
+        const mergeCandidate = await validationWorkspaceService.createMergeCandidateWorkspace(
+          repoPath,
+          job.taskId,
+          baseBranch
+        );
+
         try {
-          const mergeResult = await this.branchManager.mergeToMainNoCommit(
-            repoPath,
-            job.branchName,
-            baseBranch
-          );
-          if (mergeResult.autoResolvedFiles.length > 0) {
-            const project = await this.projectService.getProjectByRepoPath(repoPath);
-            if (project) {
-              eventLogService
-                .append(repoPath, {
-                  timestamp: new Date().toISOString(),
-                  projectId: project.id,
-                  taskId: job.taskId,
-                  event: "merge.resolved",
-                  data: {
-                    stage: "merge_to_main",
-                    branchName: job.branchName,
-                    conflictedFiles: mergeResult.autoResolvedFiles,
-                    resolvedBy: "auto",
-                  },
-                })
-                .catch(() => {});
-            }
-          }
-        } catch (mergeErr) {
-          if (mergeErr instanceof MergeConflictError) {
-            log.info("Merge conflict detected, invoking merger agent", {
-              branchName: job.branchName,
-              conflictedFiles: mergeErr.conflictedFiles,
-            });
-            const { projectId, config, testCommand, mergeQualityGates } =
-              await this.getMergeAgentConfig(repoPath, job.taskId);
-            const resolved = await agentService.runMergerAgentAndWait({
-              projectId,
-              cwd: repoPath,
-              config,
-              phase: "merge_to_main",
-              taskId: job.taskId,
-              branchName: job.branchName,
-              conflictedFiles: mergeErr.conflictedFiles,
-              testCommand,
-              mergeQualityGates,
-              baseBranch,
-            });
-            if (resolved) {
-              try {
-                await waitForGitReady(repoPath);
-                await shellExec("git add -A", {
-                  cwd: repoPath,
-                  timeout: 30_000,
-                });
-                log.info("Merger resolved conflicts, merge candidate staged", {
-                  branchName: job.branchName,
-                });
+          try {
+            const mergeResult = await this.branchManager.mergeBranchNoCommit(
+              mergeCandidate.worktreePath,
+              job.branchName
+            );
+            if (mergeResult.autoResolvedFiles.length > 0) {
+              const project = await this.projectService.getProjectByRepoPath(repoPath);
+              if (project) {
                 eventLogService
                   .append(repoPath, {
                     timestamp: new Date().toISOString(),
-                    projectId,
+                    projectId: project.id,
                     taskId: job.taskId,
                     event: "merge.resolved",
                     data: {
                       stage: "merge_to_main",
                       branchName: job.branchName,
-                      conflictedFiles: mergeErr.conflictedFiles,
-                      resolvedBy: "merger",
+                      conflictedFiles: mergeResult.autoResolvedFiles,
+                      resolvedBy: "auto",
                     },
                   })
                   .catch(() => {});
-              } catch (continueErr) {
-                log.warn("merge commit failed after merger", {
+              }
+            }
+          } catch (mergeErr) {
+            if (mergeErr instanceof MergeConflictError) {
+              log.info("Merge conflict detected, invoking merger agent", {
+                branchName: job.branchName,
+                conflictedFiles: mergeErr.conflictedFiles,
+              });
+              const { projectId, config, testCommand, mergeQualityGates } =
+                await this.getMergeAgentConfig(repoPath, job.taskId);
+              const resolved = await agentService.runMergerAgentAndWait({
+                projectId,
+                cwd: mergeCandidate.worktreePath,
+                config,
+                phase: "merge_to_main",
+                taskId: job.taskId,
+                branchName: job.branchName,
+                conflictedFiles: mergeErr.conflictedFiles,
+                testCommand,
+                mergeQualityGates,
+                baseBranch,
+              });
+              if (resolved) {
+                try {
+                  await waitForGitReady(mergeCandidate.worktreePath);
+                  await shellExec("git add -A", {
+                    cwd: mergeCandidate.worktreePath,
+                    timeout: 30_000,
+                  });
+                  log.info("Merger resolved conflicts, merge candidate staged", {
+                    branchName: job.branchName,
+                  });
+                  eventLogService
+                    .append(repoPath, {
+                      timestamp: new Date().toISOString(),
+                      projectId,
+                      taskId: job.taskId,
+                      event: "merge.resolved",
+                      data: {
+                        stage: "merge_to_main",
+                        branchName: job.branchName,
+                        conflictedFiles: mergeErr.conflictedFiles,
+                        resolvedBy: "merger",
+                      },
+                    })
+                    .catch(() => {});
+                } catch (continueErr) {
+                  log.warn("merge commit failed after merger", {
+                    branchName: job.branchName,
+                    continueErr,
+                  });
+                  await this.branchManager.mergeAbort(mergeCandidate.worktreePath);
+                  throw continueErr instanceof Error ? continueErr : new Error(String(continueErr));
+                }
+              } else {
+                log.warn("Merger agent failed to resolve merge conflicts", {
                   branchName: job.branchName,
-                  continueErr,
                 });
-                await this.branchManager.mergeAbort(repoPath);
-                throw continueErr instanceof Error ? continueErr : new Error(String(continueErr));
+                await this.branchManager.mergeAbort(mergeCandidate.worktreePath);
+                throw new MergeJobError(
+                  `Merge conflict in ${mergeErr.conflictedFiles.length} file(s): ${mergeErr.conflictedFiles.join(", ")}`,
+                  "merge_to_main",
+                  mergeErr.conflictedFiles
+                );
               }
             } else {
-              log.warn("Merger agent failed to resolve merge conflicts", {
-                branchName: job.branchName,
-              });
-              await this.branchManager.mergeAbort(repoPath);
-              throw new MergeJobError(
-                `Merge conflict in ${mergeErr.conflictedFiles.length} file(s): ${mergeErr.conflictedFiles.join(", ")}`,
-                "merge_to_main",
-                mergeErr.conflictedFiles
-              );
+              throw mergeErr;
             }
-          } else {
-            throw mergeErr;
           }
-        }
 
-        await this.branchManager.stripRuntimePathsFromMergeResult(repoPath);
+          await this.branchManager.stripRuntimePathsFromMergeResult(mergeCandidate.worktreePath);
 
-        // If merge was "Already up to date", git does not set MERGE_HEAD — nothing to commit.
-        if (!(await this.branchManager.isMergeInProgress(repoPath))) {
-          log.info("Already up to date, skipping merge commit", { branchName: job.branchName });
-          break;
-        }
+          // If merge was "Already up to date", git does not set MERGE_HEAD — nothing to commit.
+          if (!(await this.branchManager.isMergeInProgress(mergeCandidate.worktreePath))) {
+            log.info("Already up to date, skipping merge commit", { branchName: job.branchName });
+            break;
+          }
 
-        const qualityGateFailure = await runMergeQualityGates(
-          {
-            projectId: projectId ?? "unknown",
-            repoPath,
-            worktreePath: repoPath,
-            taskId: job.taskId,
+          const qualityGateFailure = await runMergeQualityGates(
+            {
+              projectId: projectId ?? "unknown",
+              repoPath,
+              worktreePath: mergeCandidate.worktreePath,
+              taskId: job.taskId,
+              branchName: job.branchName,
+              baseBranch,
+              validationWorkspace: "merged_candidate",
+            },
+            {
+              symlinkNodeModules: this.branchManager.symlinkNodeModules.bind(this.branchManager),
+            }
+          );
+          if (qualityGateFailure) {
+            await this.branchManager.mergeAbort(mergeCandidate.worktreePath);
+            throw this.buildQualityGateJobError(qualityGateFailure, mergeCandidate.worktreePath);
+          }
+
+          const msg = formatMergeCommitMessage(job.taskId, taskTitle);
+          await waitForGitReady(mergeCandidate.worktreePath);
+          const noHooksMerge = getGitNoHooksPath();
+          await shellExec(
+            `git -c core.hooksPath="${noHooksMerge}" commit -m "${msg.replace(/"/g, '\\"')}"`,
+            {
+              cwd: mergeCandidate.worktreePath,
+              timeout: 30_000,
+            }
+          );
+          log.info("Merge commit created in candidate workspace", {
             branchName: job.branchName,
-            baseBranch,
-          },
-          {
-            symlinkNodeModules: this.branchManager.symlinkNodeModules.bind(this.branchManager),
-          }
-        );
-        if (qualityGateFailure) {
-          await this.branchManager.mergeAbort(repoPath);
-          throw this.buildQualityGateJobError(qualityGateFailure, repoPath);
-        }
+            candidateBranch: mergeCandidate.branchName,
+          });
 
-        const msg = formatMergeCommitMessage(job.taskId, taskTitle);
-        await waitForGitReady(repoPath);
-        const noHooksMerge = getGitNoHooksPath();
-        await shellExec(
-          `git -c core.hooksPath="${noHooksMerge}" commit -m "${msg.replace(/"/g, '\\"')}"`,
-          {
-            cwd: repoPath,
-            timeout: 30_000,
+          if (!mergeCandidate.branchName) {
+            throw new Error("Merge candidate workspace is missing a branch name");
           }
-        );
-        log.info("Merge commit created", { branchName: job.branchName });
+
+          await this.branchManager.ensureOnMain(repoPath, baseBranch);
+          await this.branchManager.withRepoRootAutoStash(
+            repoPath,
+            `publish validated merge ${job.branchName} into ${baseBranch}`,
+            async () => {
+              await waitForGitReady(repoPath);
+              await shellExec(`git merge --ff-only ${mergeCandidate.branchName}`, {
+                cwd: repoPath,
+                timeout: 30_000,
+              });
+            }
+          );
+        } finally {
+          await mergeCandidate.cleanup().catch((cleanupErr) =>
+            log.warn("Failed to clean up merge candidate workspace", {
+              taskId: job.taskId,
+              branchName: job.branchName,
+              cleanupErr,
+            })
+          );
+        }
         break;
       }
     }

@@ -45,6 +45,21 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Fetch PR base for affected workspace detection
+        if: matrix.gate == 'test' && github.event_name == 'pull_request'
+        run: git fetch --no-tags --prune --depth=1 origin "${{ github.base_ref }}"
+      - name: Determine affected test workspaces
+        if: matrix.gate == 'test'
+        id: affected_tests
+        run: |
+          mkdir -p artifacts/test-results
+          if [ "${{ github.event_name }}" = "push" ]; then
+            export OPENSPRINT_AFFECTED_ALL=1
+          fi
+
+          node scripts/affected-workspaces.mjs --coverage-only --json > artifacts/test-results/affected-workspaces.json
+          WORKSPACES="$(node -e 'const fs = require("fs"); const data = JSON.parse(fs.readFileSync("artifacts/test-results/affected-workspaces.json", "utf8")); process.stdout.write((data.workspaces || []).join(","));')"
+          echo "workspaces=$WORKSPACES" >> "$GITHUB_OUTPUT"
       - name: Verify desktop artifact names (fixed for permalinks)
         if: matrix.gate == 'build'
         run: npm run verify:desktop-artifacts
@@ -54,22 +69,33 @@ jobs:
       # Test gate runs tests with coverage; thresholds are enforced (Vitest exits non-zero if unmet).
       # Backend: 80% stmts/lines/fns, 70% branches. Frontend: 80% stmts/lines, 70% branches, 73% functions (SPEC >80%). Job fails if any workspace is below threshold.
       # Frontend run includes E2E tests (*.e2e.test.tsx). Step is bounded (20m) so the gate cannot hang.
-      - name: Run tests with coverage (enforce thresholds)
-        if: matrix.gate == 'test'
+      - name: Run shared tests with coverage
+        if: matrix.gate == 'test' && contains(steps.affected_tests.outputs.workspaces, 'shared')
         run: |
-          set -e
-          mkdir -p artifacts/test-results
-
-          timeout 20m bash -c '
-            for workspace in shared backend frontend; do
-              npm run test:coverage -w packages/$workspace -- \
-                --reporter=default \
-                --reporter=junit \
-                --reporter=json \
-                --outputFile.junit=../../artifacts/test-results/$workspace-junit.xml \
-                --outputFile.json=../../artifacts/test-results/$workspace-results.json
-            done
-          '
+          timeout 20m npm run test:coverage -w packages/shared -- \
+            --reporter=default \
+            --reporter=junit \
+            --reporter=json \
+            --outputFile.junit=../../artifacts/test-results/shared-junit.xml \
+            --outputFile.json=../../artifacts/test-results/shared-results.json
+      - name: Run backend tests with coverage
+        if: matrix.gate == 'test' && contains(steps.affected_tests.outputs.workspaces, 'backend')
+        run: |
+          timeout 20m npm run test:coverage -w packages/backend -- \
+            --reporter=default \
+            --reporter=junit \
+            --reporter=json \
+            --outputFile.junit=../../artifacts/test-results/backend-junit.xml \
+            --outputFile.json=../../artifacts/test-results/backend-results.json
+      - name: Run frontend tests with coverage
+        if: matrix.gate == 'test' && contains(steps.affected_tests.outputs.workspaces, 'frontend')
+        run: |
+          timeout 20m npm run test:coverage -w packages/frontend -- \
+            --reporter=default \
+            --reporter=junit \
+            --reporter=json \
+            --outputFile.junit=../../artifacts/test-results/frontend-junit.xml \
+            --outputFile.json=../../artifacts/test-results/frontend-results.json
       - name: Upload test reports
         if: always() && matrix.gate == 'test'
         uses: actions/upload-artifact@v6

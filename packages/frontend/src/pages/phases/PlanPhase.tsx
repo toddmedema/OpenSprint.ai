@@ -71,6 +71,19 @@ export function getPlanChatMessageDisplay(content: string): string {
   return /\[PLAN_UPDATE\]/.test(content) ? "Plan updated" : content;
 }
 
+const EMPTY_PLAN_ID_LIST: string[] = [];
+const EMPTY_OPTIMISTIC_PLAN_LIST: Plan[] = [];
+const EMPTY_ACTIVE_AGENTS: {
+  id: string;
+  projectId: string;
+  phase: string;
+  role: string;
+  label: string;
+  startedAt: string;
+  branchName?: string;
+}[] = [];
+const EMPTY_AUDITOR_OUTPUT_BY_PLAN_ID = Object.freeze({}) as Record<string, string>;
+
 /** Auditor live output section — status indicator + streaming output (reuses Execute UX patterns). */
 function PlanAuditorOutputSection({
   planId,
@@ -242,13 +255,17 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   const chatMessages = useAppSelector((s) => s.plan.chatMessages);
   const executingPlanId = useAppSelector((s) => s.plan.executingPlanId);
   const reExecutingPlanId = useAppSelector((s) => s.plan.reExecutingPlanId);
-  const planTasksPlanIds = useAppSelector((s) => s.plan.planTasksPlanIds);
-  const auditorOutputByPlanId = useAppSelector((s) => s.plan.auditorOutputByPlanId ?? {});
+  const planTasksPlanIds = useAppSelector((s) => s.plan.planTasksPlanIds ?? EMPTY_PLAN_ID_LIST);
+  const auditorOutputByPlanId = useAppSelector(
+    (s) => s.plan.auditorOutputByPlanId ?? EMPTY_AUDITOR_OUTPUT_BY_PLAN_ID
+  );
   const wsConnected = useAppSelector((s) => s.websocket?.connected ?? false);
-  const activeAgents = useAppSelector((s) => s.execute?.activeAgents ?? []);
+  const activeAgents = useAppSelector((s) => s.execute?.activeAgents ?? EMPTY_ACTIVE_AGENTS);
   const archivingPlanId = useAppSelector((s) => s.plan.archivingPlanId);
   const deletingPlanId = useAppSelector((s) => s.plan.deletingPlanId);
-  const optimisticPlans = useAppSelector((s) => s.plan.optimisticPlans ?? []);
+  const optimisticPlans = useAppSelector(
+    (s) => s.plan.optimisticPlans ?? EMPTY_OPTIMISTIC_PLAN_LIST
+  );
   const planError = useAppSelector((s) => s.plan.error);
   const executeError = useAppSelector((s) => s.plan.executeError);
 

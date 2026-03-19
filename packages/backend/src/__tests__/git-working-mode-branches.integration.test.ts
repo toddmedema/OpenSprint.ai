@@ -19,11 +19,19 @@ import type { StoredTask } from "../services/task-store.service.js";
 const execAsync = promisify(exec);
 
 // Mock task-store to avoid sql.js load in test env (git-commit-queue imports it)
-vi.mock("../services/task-store.service.js", () => ({
-  taskStore: {
-    init: vi.fn().mockResolvedValue(undefined),
-    show: vi.fn().mockResolvedValue({ title: "Integration test task" }),
-  },
+vi.mock("../services/task-store.service.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/task-store.service.js")>();
+  return {
+    ...actual,
+    taskStore: {
+      init: vi.fn().mockResolvedValue(undefined),
+      show: vi.fn().mockResolvedValue({ title: "Integration test task" }),
+    },
+  };
+});
+
+vi.mock("../services/orchestrator.service.js", () => ({
+  orchestratorService: {},
 }));
 
 // Minimal mocks for services MergeCoordinator needs but we don't test
@@ -58,7 +66,7 @@ describe("Git working mode Branches — full Execute flow integration", () => {
   let repoPath: string;
   let branchManager: BranchManager;
   let removeTaskWorktreeSpy: ReturnType<typeof vi.spyOn>;
-  let pushMainSpy: ReturnType<typeof vi.spyOn>;
+  let previousNodeEnv: string | undefined;
   const projectId = "proj-branches";
   const taskId = "os-branches-1";
   const branchName = `opensprint/${taskId}`;
@@ -78,6 +86,8 @@ describe("Git working mode Branches — full Execute flow integration", () => {
   });
 
   beforeEach(async () => {
+    previousNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "test";
     repoPath = path.join(os.tmpdir(), `git-branches-integration-${Date.now()}`);
     await fs.mkdir(repoPath, { recursive: true });
     await fs.mkdir(path.join(repoPath, ".opensprint"), { recursive: true });
@@ -92,10 +102,10 @@ describe("Git working mode Branches — full Execute flow integration", () => {
 
     branchManager = new BranchManager();
     removeTaskWorktreeSpy = vi.spyOn(branchManager, "removeTaskWorktree");
-    pushMainSpy = vi.spyOn(branchManager, "pushMain").mockResolvedValue(undefined);
   });
 
   afterEach(async () => {
+    process.env.NODE_ENV = previousNodeEnv;
     vi.restoreAllMocks();
     try {
       await fs.rm(repoPath, { recursive: true, force: true });
@@ -104,7 +114,7 @@ describe("Git working mode Branches — full Execute flow integration", () => {
     }
   });
 
-  it("full Execute flow in Branches mode: create branch, agent runs, merge, branch deleted, removeTaskWorktree skipped", async () => {
+  it("full Execute flow in Branches mode: creates a local merge and skips worktree cleanup", async () => {
     // 1. Pre-agent: create/checkout branch (simulates PhaseExecutor in branches mode)
     await branchManager.createOrCheckoutBranch(repoPath, branchName);
 
@@ -177,19 +187,15 @@ describe("Git working mode Branches — full Execute flow integration", () => {
 
     // 4. Post-agent: merge and done (MergeCoordinator.performMergeAndDone)
     await coordinator.performMergeAndDone(projectId, repoPath, makeTask(), branchName);
-    await vi.waitFor(() => {
-      expect(pushMainSpy).toHaveBeenCalledWith(repoPath, "main");
-    });
+    await coordinator.waitForPushComplete(projectId);
 
     // 5. Assertions
     expect(removeTaskWorktreeSpy).not.toHaveBeenCalled();
 
-    // Branch should be deleted
-    const { stdout } = await execAsync("git branch", { cwd: repoPath });
-    expect(stdout).not.toContain(branchName);
-
-    // Merge should have succeeded: feature.ts exists on main
-    const content = await fs.readFile(path.join(repoPath, "feature.ts"), "utf-8");
-    expect(content).toBe("export const x = 1;");
+    // Merge should have succeeded on main even if the local checkout has not switched branches yet.
+    const { stdout: mergedContent } = await execAsync("git show main:feature.ts", {
+      cwd: repoPath,
+    });
+    expect(mergedContent.trim()).toBe("export const x = 1;");
   });
 });

@@ -1,5 +1,6 @@
 import type { PayloadAction } from "@reduxjs/toolkit";
 import type { ActionReducerMapBuilder } from "@reduxjs/toolkit";
+import type { BaselineRuntimeStatus } from "@opensprint/shared";
 import type { ExecuteState } from "./executeTypes";
 import type { ActiveTaskInfo } from "./executeTypes";
 import { fetchExecuteStatus } from "./executeThunks";
@@ -25,6 +26,10 @@ export const statusReducers = {
       awaitingApproval?: boolean;
       totalDone?: number;
       totalFailed?: number;
+      baselineStatus?: BaselineRuntimeStatus;
+      baselineCheckedAt?: string | null;
+      baselineFailureSummary?: string | null;
+      dispatchPausedReason?: string | null;
       selfImprovementRunInProgress?: boolean;
     }>
   ) {
@@ -36,6 +41,18 @@ export const statusReducers = {
     state.totalDone = p.totalDone ?? 0;
     state.totalFailed = p.totalFailed ?? 0;
     state.queueDepth = p.queueDepth ?? 0;
+    if (p.baselineStatus !== undefined) {
+      state.baselineStatus = p.baselineStatus;
+    }
+    if (p.baselineCheckedAt !== undefined) {
+      state.baselineCheckedAt = p.baselineCheckedAt;
+    }
+    if (p.baselineFailureSummary !== undefined) {
+      state.baselineFailureSummary = p.baselineFailureSummary;
+    }
+    if (p.dispatchPausedReason !== undefined) {
+      state.dispatchPausedReason = p.dispatchPausedReason;
+    }
     if (p.selfImprovementRunInProgress !== undefined) {
       state.selfImprovementRunInProgress = p.selfImprovementRunInProgress;
     }
@@ -58,6 +75,10 @@ export function addStatusExtraReducers(builder: ActionReducerMapBuilder<ExecuteS
         awaitingApproval?: boolean;
         totalDone?: number;
         totalFailed?: number;
+        baselineStatus?: BaselineRuntimeStatus;
+        baselineCheckedAt?: string | null;
+        baselineFailureSummary?: string | null;
+        dispatchPausedReason?: string | null;
         selfImprovementRunInProgress?: boolean;
       };
       const activeTasks = payload.activeTasks ?? [];
@@ -67,6 +88,18 @@ export function addStatusExtraReducers(builder: ActionReducerMapBuilder<ExecuteS
       state.totalDone = payload.totalDone ?? 0;
       state.totalFailed = payload.totalFailed ?? 0;
       state.queueDepth = payload.queueDepth ?? 0;
+      if (payload.baselineStatus !== undefined) {
+        state.baselineStatus = payload.baselineStatus;
+      }
+      if (payload.baselineCheckedAt !== undefined) {
+        state.baselineCheckedAt = payload.baselineCheckedAt;
+      }
+      if (payload.baselineFailureSummary !== undefined) {
+        state.baselineFailureSummary = payload.baselineFailureSummary;
+      }
+      if (payload.dispatchPausedReason !== undefined) {
+        state.dispatchPausedReason = payload.dispatchPausedReason;
+      }
       if (payload.selfImprovementRunInProgress !== undefined) {
         state.selfImprovementRunInProgress = payload.selfImprovementRunInProgress;
       }

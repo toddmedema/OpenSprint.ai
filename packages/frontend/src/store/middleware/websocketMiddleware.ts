@@ -26,8 +26,7 @@ import {
   setAgentOutputBackfill,
   setOrchestratorRunning,
   setAwaitingApproval,
-  setActiveTasks,
-  setSelfImprovementRunInProgress,
+  setExecuteStatusPayload,
   setCompletionState,
   setSelectedTaskId,
   taskUpdated,
@@ -410,6 +409,9 @@ export const websocketMiddleware: Middleware = (storeApi) => {
         const synced = syncTaskFromExecuteStateToQueryCache(qc, getState, projectId, event.taskId);
         if (!synced) {
           void qc.invalidateQueries({ queryKey: queryKeys.tasks.list(projectId) });
+          void qc.invalidateQueries({
+            queryKey: queryKeys.tasks.detail(projectId, event.taskId),
+          });
         }
         break;
       }
@@ -491,10 +493,18 @@ export const websocketMiddleware: Middleware = (storeApi) => {
         if (statusEv.awaitingApproval !== undefined) {
           d(setAwaitingApproval(Boolean(statusEv.awaitingApproval)));
         }
-        if (statusEv.selfImprovementRunInProgress !== undefined) {
-          d(setSelfImprovementRunInProgress(Boolean(statusEv.selfImprovementRunInProgress)));
-        }
-        d(setActiveTasks(activeTasks));
+        d(
+          setExecuteStatusPayload({
+            activeTasks,
+            queueDepth: statusEv.queueDepth,
+            awaitingApproval: statusEv.awaitingApproval,
+            baselineStatus: statusEv.baselineStatus,
+            baselineCheckedAt: statusEv.baselineCheckedAt,
+            baselineFailureSummary: statusEv.baselineFailureSummary,
+            dispatchPausedReason: statusEv.dispatchPausedReason,
+            selfImprovementRunInProgress: statusEv.selfImprovementRunInProgress,
+          })
+        );
         break;
       }
 

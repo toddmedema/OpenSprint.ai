@@ -9,6 +9,9 @@ const mockShellExec = vi.fn();
 const mockGetMergeQualityGateCommands = vi.fn();
 const mockEventAppend = vi.fn();
 const mockEventReadForTask = vi.fn();
+const { createBaselineWorkspaceMock } = vi.hoisted(() => ({
+  createBaselineWorkspaceMock: vi.fn(),
+}));
 
 vi.mock("../services/task-store.service.js", () => ({
   taskStore: {},
@@ -22,6 +25,12 @@ vi.mock("../utils/shell-exec.js", () => ({
 
 vi.mock("../services/merge-quality-gates.js", () => ({
   getMergeQualityGateCommands: (...args: unknown[]) => mockGetMergeQualityGateCommands(...args),
+}));
+
+vi.mock("../services/validation-workspace.service.js", () => ({
+  validationWorkspaceService: {
+    createBaselineWorkspace: createBaselineWorkspaceMock,
+  },
 }));
 
 vi.mock("../services/event-log.service.js", () => ({
@@ -101,6 +110,12 @@ describe("Cross-service quality-gate regression integration", () => {
     process.env.NODE_ENV = "development";
     mockGetMergeQualityGateCommands.mockReturnValue(["npm run lint"]);
     mockEventAppend.mockResolvedValue(undefined);
+    createBaselineWorkspaceMock.mockResolvedValue({
+      kind: "baseline",
+      worktreePath: "/tmp/repo-baseline",
+      branchName: null,
+      cleanup: vi.fn().mockResolvedValue(undefined),
+    });
   });
 
   afterEach(() => {
@@ -116,7 +131,7 @@ describe("Cross-service quality-gate regression integration", () => {
 
     let worktreeLintCalls = 0;
     mockShellExec.mockImplementation(async (command: string, options?: { cwd?: string }) => {
-      if (command === "npm run lint" && options?.cwd === repoPath) {
+      if (command === "npm run lint" && options?.cwd !== worktreePath) {
         return { stdout: "baseline ok", stderr: "" };
       }
       if (command === "npm run lint" && options?.cwd === worktreePath) {
@@ -191,6 +206,7 @@ describe("Cross-service quality-gate regression integration", () => {
       },
       runMergerAgentAndWait: vi.fn().mockResolvedValue(false),
       runMergeQualityGates: (options) => orchestrator.runMergeQualityGates(options),
+      setBaselineRuntimeState: vi.fn().mockResolvedValue(undefined),
       sessionManager: {
         createSession: vi.fn().mockResolvedValue({ id: "sess-1" }),
         archiveSession: vi.fn().mockResolvedValue(undefined),
@@ -324,7 +340,7 @@ describe("Cross-service quality-gate regression integration", () => {
 
     let worktreeLintCalls = 0;
     mockShellExec.mockImplementation(async (command: string, options?: { cwd?: string }) => {
-      if (command === "npm run lint" && options?.cwd === repoPath) {
+      if (command === "npm run lint" && options?.cwd !== worktreePath) {
         return { stdout: "baseline ok", stderr: "" };
       }
       if (command === "npm run lint" && options?.cwd === worktreePath) {
@@ -396,6 +412,7 @@ describe("Cross-service quality-gate regression integration", () => {
       },
       runMergerAgentAndWait: vi.fn().mockResolvedValue(false),
       runMergeQualityGates: (options) => orchestrator.runMergeQualityGates(options),
+      setBaselineRuntimeState: vi.fn().mockResolvedValue(undefined),
       sessionManager: {
         createSession: vi.fn().mockResolvedValue({ id: "sess-1" }),
         archiveSession: vi.fn().mockResolvedValue(undefined),

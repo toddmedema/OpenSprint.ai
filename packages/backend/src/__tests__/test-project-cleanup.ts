@@ -15,7 +15,7 @@ export async function cleanupTestProject(options: CleanupTestProjectOptions): Pr
   const projectId = options.projectId?.trim();
   if (!projectId) return;
 
-  orchestratorService.stopProject(projectId);
+  orchestratorService.stopProject?.(projectId);
 
   for (const agent of activeAgentsService.listEntries(projectId)) {
     activeAgentsService.unregister(agent.id);

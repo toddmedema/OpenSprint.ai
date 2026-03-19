@@ -171,6 +171,18 @@ export class UnsafeCleanupPathError extends Error {
   }
 }
 
+export class RepoRootDirtyRestoreError extends Error {
+  constructor(
+    message: string,
+    public readonly stashRef: string,
+    public readonly originalError?: unknown,
+    public readonly restoreError?: unknown
+  ) {
+    super(message);
+    this.name = "RepoRootDirtyRestoreError";
+  }
+}
+
 /**
  * Manages git branches for the task lifecycle:
  * - Create task branches
@@ -200,6 +212,128 @@ export class BranchManager {
         `${reason}: ${err instanceof Error ? err.message : String(err)}`,
         resolvedCandidate
       );
+    }
+  }
+
+  private async getStatusPorcelain(repoPath: string): Promise<string> {
+    const { stdout } = await shellExec("git status --porcelain", {
+      cwd: repoPath,
+      timeout: 10_000,
+    });
+    return stdout.trim();
+  }
+
+  private async stashRepoRootIfDirty(repoPath: string, reason: string): Promise<string | null> {
+    const status = await this.getStatusPorcelain(repoPath).catch(() => "");
+    if (!status) return null;
+
+    const message = `opensprint-auto-stash:${reason}:${Date.now()}`;
+    const quotedMessage = message.replace(/"/g, '\\"');
+    await shellExec(`git stash push --include-untracked --message "${quotedMessage}"`, {
+      cwd: repoPath,
+      timeout: 30_000,
+    }).catch((err) => {
+      log.warn("Failed to create auto-stash for repo-root operation", {
+        repoPath,
+        reason,
+        err: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    });
+
+    const { stdout } = await shellExec("git stash list --format='%gd %s' -n 1", {
+      cwd: repoPath,
+      timeout: 10_000,
+    }).catch(() => ({ stdout: "" }));
+    const latest = stdout.trim();
+    if (!latest.includes(message)) {
+      return null;
+    }
+    const [stashRef] = latest.split(/\s+/, 1);
+    return stashRef ?? null;
+  }
+
+  async withRepoRootAutoStash<T>(
+    repoPath: string,
+    reason: string,
+    fn: () => Promise<T>
+  ): Promise<T> {
+    const stashRef = await this.stashRepoRootIfDirty(repoPath, reason);
+    let result: T | undefined;
+    let originalError: unknown;
+
+    try {
+      result = await fn();
+    } catch (err) {
+      originalError = err;
+    }
+
+    if (stashRef) {
+      try {
+        await shellExec(`git stash pop --index ${stashRef}`, {
+          cwd: repoPath,
+          timeout: 30_000,
+        });
+      } catch (restoreErr) {
+        throw new RepoRootDirtyRestoreError(
+          `Open Sprint temporarily stashed repo-root changes for "${reason}" but could not restore them cleanly. Resolve the working tree manually and retry.`,
+          stashRef,
+          originalError,
+          restoreErr
+        );
+      }
+    }
+
+    if (originalError) {
+      throw originalError;
+    }
+
+    return result as T;
+  }
+
+  private async createBranchInternal(
+    repoPath: string,
+    branchName: string,
+    baseBranch: string
+  ): Promise<void> {
+    await this.git(repoPath, `checkout ${baseBranch}`);
+    await this.git(repoPath, `checkout -b ${branchName}`);
+  }
+
+  private async ensureOnMainInternal(repoPath: string, baseBranch: string): Promise<void> {
+    let currentBranch: string;
+    try {
+      currentBranch = await this.getCurrentBranch(repoPath);
+    } catch {
+      return;
+    }
+    if (currentBranch !== baseBranch) {
+      log.warn("Expected %s but on different branch, switching", { baseBranch, currentBranch });
+      try {
+        await this.git(repoPath, "reset --hard HEAD");
+        await this.git(repoPath, `checkout ${baseBranch}`);
+      } catch {
+        await this.git(repoPath, `checkout -f ${baseBranch}`);
+      }
+    }
+
+    try {
+      if (process.platform === "win32") {
+        await shellExec("git checkout -f HEAD -- .opensprint/", {
+          cwd: repoPath,
+          timeout: 10000,
+        });
+      } else {
+        await shellExec(
+          [
+            'git ls-files .opensprint/ 2>/dev/null | while IFS= read -r f; do git update-index --no-assume-unchanged "$f" --no-skip-worktree "$f" 2>/dev/null; done',
+            "git checkout -f HEAD -- .opensprint/ 2>/dev/null || true",
+          ].join("; "),
+          { cwd: repoPath, timeout: 10000 }
+        );
+      }
+    } catch {
+      // Best-effort cleanup; merge may still succeed without it
     }
   }
 
@@ -235,8 +369,9 @@ export class BranchManager {
     baseBranch: string = "main"
   ): Promise<void> {
     await ensureRepoHasInitialCommit(repoPath, baseBranch);
-    await this.git(repoPath, `checkout ${baseBranch}`);
-    await this.git(repoPath, `checkout -b ${branchName}`);
+    await this.withRepoRootAutoStash(repoPath, `create branch ${branchName}`, async () => {
+      await this.createBranchInternal(repoPath, branchName, baseBranch);
+    });
   }
 
   /**
@@ -250,12 +385,15 @@ export class BranchManager {
     baseBranch: string = "main"
   ): Promise<void> {
     await this.waitForGitReady(repoPath);
-    try {
-      await shellExec(`git rev-parse --verify ${branchName}`, { cwd: repoPath });
-      await this.checkout(repoPath, branchName);
-    } catch {
-      await this.createBranch(repoPath, branchName, baseBranch);
-    }
+    await ensureRepoHasInitialCommit(repoPath, baseBranch);
+    await this.withRepoRootAutoStash(repoPath, `checkout branch ${branchName}`, async () => {
+      try {
+        await shellExec(`git rev-parse --verify ${branchName}`, { cwd: repoPath });
+        await this.checkout(repoPath, branchName);
+      } catch {
+        await this.createBranchInternal(repoPath, branchName, baseBranch);
+      }
+    });
   }
 
   /**
@@ -289,6 +427,30 @@ export class BranchManager {
   async getCurrentBranch(repoPath: string): Promise<string> {
     const { stdout } = await shellExec("git rev-parse --abbrev-ref HEAD", { cwd: repoPath });
     return stdout.trim();
+  }
+
+  private async resolveGitMetadataPath(repoPath: string, fileName: string): Promise<string> {
+    const dotGitPath = path.join(repoPath, ".git");
+    try {
+      const stat = await fs.stat(dotGitPath);
+      if (stat.isDirectory()) {
+        return path.join(dotGitPath, fileName);
+      }
+      if (stat.isFile()) {
+        const gitDirPointer = await fs.readFile(dotGitPath, "utf-8");
+        const match = gitDirPointer.match(/^gitdir:\s*(.+)$/m);
+        if (match?.[1]) {
+          const gitDir = match[1].trim();
+          const resolvedGitDir = path.isAbsolute(gitDir)
+            ? gitDir
+            : path.resolve(repoPath, gitDir);
+          return path.join(resolvedGitDir, fileName);
+        }
+      }
+    } catch {
+      // Fall back to the standard repo layout below.
+    }
+    return path.join(dotGitPath, fileName);
   }
 
   /**
@@ -669,7 +831,8 @@ export class BranchManager {
    */
   async isMergeInProgress(repoPath: string): Promise<boolean> {
     try {
-      await fs.access(path.join(repoPath, ".git", "MERGE_HEAD"));
+      const mergeHeadPath = await this.resolveGitMetadataPath(repoPath, "MERGE_HEAD");
+      await fs.access(mergeHeadPath);
       return true;
     } catch {
       return false;
@@ -795,9 +958,6 @@ export class BranchManager {
       return "up_to_date";
     }
     const currentBranch = await this.getCurrentBranch(repoPath).catch(() => "");
-    if (currentBranch !== baseBranch) {
-      await this.git(repoPath, `checkout ${baseBranch}`);
-    }
     const { stdout } = await shellExec(
       `git rev-list --left-right --count ${baseBranch}...${originRef}`,
       {
@@ -819,7 +979,12 @@ export class BranchManager {
     }
 
     if (localBehind > 0) {
-      await this.git(repoPath, `merge --ff-only ${originRef}`);
+      await this.withRepoRootAutoStash(repoPath, `sync ${baseBranch} with origin`, async () => {
+        if (currentBranch !== baseBranch) {
+          await this.git(repoPath, `checkout ${baseBranch}`);
+        }
+        await this.git(repoPath, `merge --ff-only ${originRef}`);
+      });
       log.info("syncMainWithOrigin: fast-forwarded branch to origin", { baseBranch });
       return "fast_forwarded";
     }
@@ -839,45 +1004,9 @@ export class BranchManager {
    */
   async ensureOnMain(repoPath: string, baseBranch: string = "main"): Promise<void> {
     await this.waitForGitReady(repoPath);
-
-    let currentBranch: string;
-    try {
-      currentBranch = await this.getCurrentBranch(repoPath);
-    } catch {
-      // No HEAD (e.g. new repo with no commits) — nothing to switch
-      return;
-    }
-    if (currentBranch !== baseBranch) {
-      log.warn("Expected %s but on different branch, switching", { baseBranch, currentBranch });
-      try {
-        await this.git(repoPath, "reset --hard HEAD");
-        await this.git(repoPath, `checkout ${baseBranch}`);
-      } catch {
-        await this.git(repoPath, `checkout -f ${baseBranch}`);
-      }
-    }
-
-    // Ensure .opensprint/ working tree matches HEAD so merge doesn't see
-    // local modifications. Don't delete or untrack — that creates
-    // modify/delete conflicts when branches have these files committed.
-    try {
-      if (process.platform === "win32") {
-        await shellExec("git checkout -f HEAD -- .opensprint/", {
-          cwd: repoPath,
-          timeout: 10000,
-        });
-      } else {
-        await shellExec(
-          [
-            'git ls-files .opensprint/ 2>/dev/null | while IFS= read -r f; do git update-index --no-assume-unchanged "$f" --no-skip-worktree "$f" 2>/dev/null; done',
-            "git checkout -f HEAD -- .opensprint/ 2>/dev/null || true",
-          ].join("; "),
-          { cwd: repoPath, timeout: 10000 }
-        );
-      }
-    } catch {
-      // Best-effort cleanup; merge may still succeed without it
-    }
+    await this.withRepoRootAutoStash(repoPath, `ensure on ${baseBranch}`, async () => {
+      await this.ensureOnMainInternal(repoPath, baseBranch);
+    });
   }
 
   // ─── No-Checkout Diff Capture ───
@@ -1643,27 +1772,21 @@ export class BranchManager {
     message?: string,
     baseBranch: string = "main"
   ): Promise<void> {
-    await this.ensureOnMain(repoPath, baseBranch);
-    if (message) {
-      const escaped = message.replace(/"/g, '\\"');
-      await this.git(repoPath, `merge -m "${escaped}" ${branchName}`);
-    } else {
-      await this.git(repoPath, `merge ${branchName}`);
-    }
+    await this.withRepoRootAutoStash(repoPath, `merge ${branchName} into ${baseBranch}`, async () => {
+      await this.ensureOnMainInternal(repoPath, baseBranch);
+      if (message) {
+        const escaped = message.replace(/"/g, '\\"');
+        await this.git(repoPath, `merge -m "${escaped}" ${branchName}`);
+      } else {
+        await this.git(repoPath, `merge ${branchName}`);
+      }
+    });
   }
 
-  /**
-   * Merge a branch into the base branch without committing. Leaves the merge result staged.
-   * Used when combining merge + task metadata into a single commit.
-   * Ensures we're on baseBranch before merging.
-   * @param baseBranch - Base branch to merge into (default: "main")
-   */
-  async mergeToMainNoCommit(
+  private async mergeBranchNoCommitInternal(
     repoPath: string,
-    branchName: string,
-    baseBranch: string = "main"
+    branchName: string
   ): Promise<MergeToMainResult> {
-    await this.ensureOnMain(repoPath, baseBranch);
     let autoResolvedFiles: string[] = [];
     try {
       await this.git(repoPath, `merge --no-commit --no-ff ${branchName}`);
@@ -1691,22 +1814,50 @@ export class BranchManager {
         try {
           await shellExec(`git rm -f ${shellQuote(file)}`, { cwd: repoPath, timeout: 5000 });
         } catch {
-          await shellExec(`git add ${shellQuote(file)}`, { cwd: repoPath, timeout: 5000 }).catch(
-            () => {}
-          );
+          await shellExec(`git add ${shellQuote(file)}`, {
+            cwd: repoPath,
+            timeout: 5000,
+          }).catch(() => {});
         }
       }
       autoResolvedFiles = infraFiles;
 
       if (codeConflicts.length > 0) {
         log.warn("Code conflicts remain after infra auto-resolve", { branchName, codeConflicts });
-        // Do NOT mergeAbort — leave repo in merge state so merger agent can resolve.
-        // Caller is responsible for mergeAbort if merger fails.
         throw new MergeConflictError(codeConflicts);
       }
       log.info("All conflicts auto-resolved", { branchName, resolvedCount: infraFiles.length });
     }
     return { autoResolvedFiles };
+  }
+
+  /**
+   * Merge a branch into the current checked-out branch without committing.
+   * Leaves the merge result staged in the current checkout.
+   */
+  async mergeBranchNoCommit(repoPath: string, branchName: string): Promise<MergeToMainResult> {
+    return this.mergeBranchNoCommitInternal(repoPath, branchName);
+  }
+
+  /**
+   * Merge a branch into the base branch without committing. Leaves the merge result staged.
+   * Used when combining merge + task metadata into a single commit.
+   * Ensures we're on baseBranch before merging.
+   * @param baseBranch - Base branch to merge into (default: "main")
+   */
+  async mergeToMainNoCommit(
+    repoPath: string,
+    branchName: string,
+    baseBranch: string = "main"
+  ): Promise<MergeToMainResult> {
+    return this.withRepoRootAutoStash(
+      repoPath,
+      `prepare merge candidate ${branchName} into ${baseBranch}`,
+      async () => {
+        await this.ensureOnMainInternal(repoPath, baseBranch);
+        return this.mergeBranchNoCommitInternal(repoPath, branchName);
+      }
+    );
   }
 
   /**

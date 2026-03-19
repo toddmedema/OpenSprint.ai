@@ -24,6 +24,7 @@ export interface RetryQualityGateDetail {
   outputSnippet?: string | null;
   worktreePath?: string | null;
   firstErrorLine?: string | null;
+  validationWorkspace?: string | null;
 }
 
 export interface RetryContext {

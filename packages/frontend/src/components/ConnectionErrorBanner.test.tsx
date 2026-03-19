@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Provider } from "react-redux";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -113,27 +113,32 @@ describe("ConnectionErrorBanner", () => {
   });
 
   it("keeps polling until backend responds when connectionError is true", async () => {
-    mockDbStatusGet
-      .mockRejectedValueOnce(new Error("Failed to fetch"))
-      .mockResolvedValueOnce({ ok: true, state: "connected", lastCheckedAt: null });
-    const store = configureStore({
-      reducer: { connection: connectionReducer },
-      preloadedState: { connection: { connectionError: true, lastRecoveredAt: null } },
-    });
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <Provider store={store}>
-          <ConnectionErrorBanner />
-        </Provider>
-      </QueryClientProvider>
-    );
-    await waitFor(
-      () => {
-        expect(store.getState().connection.connectionError).toBe(false);
-      },
-      { timeout: 5000 }
-    );
-    expect(mockDbStatusGet).toHaveBeenCalled();
+    vi.useFakeTimers();
+    try {
+      mockDbStatusGet
+        .mockRejectedValueOnce(new Error("Failed to fetch"))
+        .mockResolvedValueOnce({ ok: true, state: "connected", lastCheckedAt: null });
+      const store = configureStore({
+        reducer: { connection: connectionReducer },
+        preloadedState: { connection: { connectionError: true, lastRecoveredAt: null } },
+      });
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <QueryClientProvider client={queryClient}>
+          <Provider store={store}>
+            <ConnectionErrorBanner />
+          </Provider>
+        </QueryClientProvider>
+      );
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000);
+      });
+
+      expect(store.getState().connection.connectionError).toBe(false);
+      expect(mockDbStatusGet).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

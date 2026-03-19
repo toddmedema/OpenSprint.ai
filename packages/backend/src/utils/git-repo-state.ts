@@ -234,12 +234,7 @@ export async function resolveBaseBranch(
     return preferredBaseBranch.trim();
   }
 
-  const hasHead = await hasGitHead(repoPath);
   const currentBranch = await getCurrentGitBranch(repoPath);
-
-  if (hasHead && isValidBranchName(currentBranch)) {
-    return currentBranch.trim();
-  }
   if (await localBranchExists(repoPath, "main")) return "main";
   if (await localBranchExists(repoPath, "master")) return "master";
 
@@ -249,6 +244,10 @@ export async function resolveBaseBranch(
     if (isValidBranchName(remoteDefault)) {
       return remoteDefault.trim();
     }
+  }
+
+  if (isValidBranchName(currentBranch) && !currentBranch.startsWith("opensprint/")) {
+    return currentBranch.trim();
   }
 
   return "main";

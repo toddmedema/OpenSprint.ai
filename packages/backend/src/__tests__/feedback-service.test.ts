@@ -1,12 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import fs from "fs/promises";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import path from "path";
-import os from "os";
 import { FeedbackService } from "../services/feedback.service.js";
 import { ProjectService } from "../services/project.service.js";
 import { DEFAULT_HIL_CONFIG } from "@opensprint/shared";
 import { feedbackStore } from "../services/feedback-store.service.js";
 import type { DbClient } from "../db/client.js";
+import {
+  createReusedProjectFixture,
+  type ReusedProjectFixture,
+} from "./reused-project-fixture.js";
 
 const mockInvoke = vi.fn();
 vi.mock("../services/agent-client.js", () => ({
@@ -189,17 +191,26 @@ const feedbackServicePostgresOk =
 describe.skipIf(!feedbackServicePostgresOk)("FeedbackService", () => {
   let feedbackService: FeedbackService;
   let projectService: ProjectService;
-  let suiteTempDir: string;
-  let tempDir: string;
-  let currentRepoPath: string;
   let projectId: string;
-  let originalHome: string | undefined;
-  let caseCounter = 0;
+  let projectFixture: ReusedProjectFixture;
 
   beforeAll(async () => {
-    suiteTempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-feedback-suite-"));
-    originalHome = process.env.HOME;
-    process.env.HOME = suiteTempDir;
+    projectService = new ProjectService();
+    const { taskStore } = await import("../services/task-store.service.js");
+    const client = await taskStore.getDb();
+    projectFixture = await createReusedProjectFixture({
+      suitePrefix: "opensprint-feedback-suite-",
+      projectService,
+      dbClient: client,
+      createProjectInput: {
+        name: "Test Project",
+        simpleComplexityAgent: { type: "cursor", model: "claude-sonnet-4", cliCommand: null },
+        complexComplexityAgent: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
+        deployment: { mode: "custom" },
+        hilConfig: DEFAULT_HIL_CONFIG,
+      },
+    });
+    projectId = projectFixture.projectId;
   });
 
   beforeEach(async () => {
@@ -222,31 +233,15 @@ describe.skipIf(!feedbackServicePostgresOk)("FeedbackService", () => {
     });
     taskStoreCreateCallCount = 0;
     feedbackService = new FeedbackService();
-    projectService = new ProjectService();
-    tempDir = suiteTempDir;
-    currentRepoPath = path.join(tempDir, `my-project-${++caseCounter}`);
-
-    const project = await projectService.createProject({
-      name: "Test Project",
-      repoPath: currentRepoPath,
-      simpleComplexityAgent: { type: "cursor", model: "claude-sonnet-4", cliCommand: null },
-      complexComplexityAgent: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
-      deployment: { mode: "custom" },
-      hilConfig: DEFAULT_HIL_CONFIG,
-    });
-    projectId = project.id;
+    await projectFixture.reset();
+    projectId = projectFixture.projectId;
 
     const { taskStore } = await import("../services/task-store.service.js");
     await taskStore.init();
   });
 
-  afterEach(async () => {
-    await fs.rm(currentRepoPath, { recursive: true, force: true });
-  });
-
   afterAll(async () => {
-    process.env.HOME = originalHome;
-    await fs.rm(suiteTempDir, { recursive: true, force: true });
+    await projectFixture.cleanup();
   });
 
   it("should list feedback items with createdTaskIds for Build tab navigation", async () => {
@@ -1961,7 +1956,7 @@ describe.skipIf(!feedbackServicePostgresOk)("FeedbackService", () => {
     it("should prompt HIL for plan execution when scopeChanges is requires_approval", async () => {
       const projWithHil = await projectService.createProject({
         name: "HIL Project",
-        repoPath: path.join(tempDir, "hil-project"),
+        repoPath: path.join(projectFixture.suiteTempDir, "hil-project"),
         simpleComplexityAgent: { type: "cursor", model: "claude-sonnet-4", cliCommand: null },
         complexComplexityAgent: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
         deployment: { mode: "custom" },
@@ -2009,7 +2004,7 @@ describe.skipIf(!feedbackServicePostgresOk)("FeedbackService", () => {
     it("should not ship plan when HIL rejects (requires_approval)", async () => {
       const projWithHil = await projectService.createProject({
         name: "HIL Reject Project",
-        repoPath: path.join(tempDir, "hil-reject-project"),
+        repoPath: path.join(projectFixture.suiteTempDir, "hil-reject-project"),
         simpleComplexityAgent: { type: "cursor", model: "claude-sonnet-4", cliCommand: null },
         complexComplexityAgent: { type: "claude", model: "claude-sonnet-4", cliCommand: null },
         deployment: { mode: "custom" },
@@ -2108,17 +2103,9 @@ describe.skipIf(!feedbackServicePostgresOk)("FeedbackService", () => {
 
   describe("checkAutoResolveOnTaskDone (PRD §10.2)", () => {
     it("should auto-resolve feedback when all created tasks are closed and setting enabled", async () => {
-      const storePath = path.join(tempDir, ".opensprint", "settings.json");
-      const store = JSON.parse(await fs.readFile(storePath, "utf-8")) as Record<
-        string,
-        { settings: { deployment?: { autoResolveFeedbackOnTaskCompletion?: boolean } } }
-      >;
-      const entry = store[projectId];
-      if (entry?.settings) {
-        entry.settings.deployment = entry.settings.deployment ?? {};
-        entry.settings.deployment.autoResolveFeedbackOnTaskCompletion = true;
-        await fs.writeFile(storePath, JSON.stringify(store), "utf-8");
-      }
+      await projectService.updateSettings(projectId, {
+        deployment: { mode: "custom", autoResolveFeedbackOnTaskCompletion: true },
+      });
 
       await feedbackStore.insertFeedback(
         projectId,
@@ -2169,17 +2156,9 @@ describe.skipIf(!feedbackServicePostgresOk)("FeedbackService", () => {
     });
 
     it("should not resolve when not all created tasks are closed", async () => {
-      const storePath = path.join(tempDir, ".opensprint", "settings.json");
-      const store = JSON.parse(await fs.readFile(storePath, "utf-8")) as Record<
-        string,
-        { settings: { deployment?: { autoResolveFeedbackOnTaskCompletion?: boolean } } }
-      >;
-      const entry = store[projectId];
-      if (entry?.settings) {
-        entry.settings.deployment = entry.settings.deployment ?? {};
-        entry.settings.deployment.autoResolveFeedbackOnTaskCompletion = true;
-        await fs.writeFile(storePath, JSON.stringify(store), "utf-8");
-      }
+      await projectService.updateSettings(projectId, {
+        deployment: { mode: "custom", autoResolveFeedbackOnTaskCompletion: true },
+      });
 
       await feedbackStore.insertFeedback(
         projectId,

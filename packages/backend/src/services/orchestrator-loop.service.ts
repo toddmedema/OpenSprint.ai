@@ -18,7 +18,6 @@ import { getNextKey } from "./api-key-resolver.service.js";
 import { isExhausted, clearExhausted } from "./api-key-exhausted.service.js";
 import { getProviderOutageBackoff } from "./provider-outage-backoff.service.js";
 import { getComplexityForAgent } from "./plan-complexity.js";
-import { isSelfImprovementRunInProgress } from "./self-improvement-runner.service.js";
 import { WorktreeBranchInUseError } from "./branch-manager.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
 
@@ -41,7 +40,11 @@ export interface LoopState {
   loopRunId: number;
   loopActive: boolean;
   globalTimers: TimerRegistry;
-  status: { queueDepth: number };
+  status: {
+    queueDepth: number;
+    baselineStatus?: OrchestratorStatus["baselineStatus"];
+    dispatchPausedReason?: string | null;
+  };
 }
 
 export interface SchedulerResult {
@@ -100,6 +103,33 @@ export interface OrchestratorLoopHost {
 export class OrchestratorLoopService {
   constructor(private host: OrchestratorLoopHost) {}
 
+  private isBaselineQualityGateRemediationTask(task: StoredTask): boolean {
+    const source = (task as { source?: unknown }).source;
+    const kind = (task as { selfImprovementKind?: unknown }).selfImprovementKind;
+    const sourceId = (task as { baselineQualityGateSource?: unknown }).baselineQualityGateSource;
+    return (
+      source === "self-improvement" &&
+      (kind === "baseline-quality-gate" || sourceId === "merge-quality-gate-baseline")
+    );
+  }
+
+  private async broadcastExecuteStatus(projectId: string): Promise<void> {
+    const status = await this.host.getStatus(projectId);
+    broadcastToProject(projectId, {
+      type: "execute.status",
+      activeTasks: status.activeTasks,
+      queueDepth: status.queueDepth,
+      baselineStatus: status.baselineStatus,
+      baselineCheckedAt: status.baselineCheckedAt ?? null,
+      baselineFailureSummary: status.baselineFailureSummary ?? null,
+      dispatchPausedReason: status.dispatchPausedReason ?? null,
+      selfImprovementRunInProgress: status.selfImprovementRunInProgress,
+      ...(status.pendingFeedbackCategorizations && {
+        pendingFeedbackCategorizations: status.pendingFeedbackCategorizations,
+      }),
+    });
+  }
+
   async runLoop(projectId: string): Promise<void> {
     const state = this.host.getState(projectId);
 
@@ -136,16 +166,7 @@ export class OrchestratorLoopService {
           await this.host
             .getFeedbackService()
             .processFeedbackWithAnalyst(projectId, nextFeedbackId);
-          const status = await this.host.getStatus(projectId);
-          broadcastToProject(projectId, {
-            type: "execute.status",
-            activeTasks: status.activeTasks,
-            queueDepth: status.queueDepth,
-            selfImprovementRunInProgress: status.selfImprovementRunInProgress,
-            ...(status.pendingFeedbackCategorizations && {
-              pendingFeedbackCategorizations: status.pendingFeedbackCategorizations,
-            }),
-          });
+          await this.broadcastExecuteStatus(projectId);
         } catch (err) {
           log.error("Analyst failed for queued feedback; leaving in inbox for retry", {
             projectId,
@@ -176,18 +197,22 @@ export class OrchestratorLoopService {
 
       state.status.queueDepth = readyTasks.length;
 
+      if (state.status.baselineStatus === "failing") {
+        readyTasks = readyTasks.filter((task) => this.isBaselineQualityGateRemediationTask(task));
+        log.info("Baseline quality gates are failing; pausing non-remediation dispatch", {
+          projectId,
+          dispatchPausedReason: state.status.dispatchPausedReason ?? null,
+          remediationReadyTasks: readyTasks.length,
+        });
+      }
+
       const hasPendingPrdSpecHil = await notificationService.hasOpenPrdSpecHilApproval(projectId);
       if (hasPendingPrdSpecHil) {
         log.info("Open PRD/SPEC HIL approval — blocking task assignment until resolved", {
           projectId,
         });
         if (state.loopRunId === myRunId) state.loopActive = false;
-        broadcastToProject(projectId, {
-          type: "execute.status",
-          activeTasks: this.host.buildActiveTasks(state),
-          queueDepth: state.status.queueDepth,
-          selfImprovementRunInProgress: isSelfImprovementRunInProgress(projectId),
-        });
+        await this.broadcastExecuteStatus(projectId);
         return;
       }
 
@@ -199,12 +224,7 @@ export class OrchestratorLoopService {
           slotsAvailable,
         });
         if (state.loopRunId === myRunId) state.loopActive = false;
-        broadcastToProject(projectId, {
-          type: "execute.status",
-          activeTasks: this.host.buildActiveTasks(state),
-          queueDepth: state.status.queueDepth,
-          selfImprovementRunInProgress: isSelfImprovementRunInProgress(projectId),
-        });
+        await this.broadcastExecuteStatus(projectId);
         return;
       }
 
@@ -285,12 +305,7 @@ export class OrchestratorLoopService {
           await this.host.ensureApiBlockedNotificationsForExhaustedProviders(projectId);
         }
         if (state.loopRunId === myRunId) state.loopActive = false;
-        broadcastToProject(projectId, {
-          type: "execute.status",
-          activeTasks: this.host.buildActiveTasks(state),
-          queueDepth: state.status.queueDepth,
-          selfImprovementRunInProgress: isSelfImprovementRunInProgress(projectId),
-        });
+        await this.broadcastExecuteStatus(projectId);
         return;
       }
 
@@ -331,12 +346,7 @@ export class OrchestratorLoopService {
               testResults: null,
               reason: error.message.slice(0, 500),
             });
-            broadcastToProject(projectId, {
-              type: "execute.status",
-              activeTasks: this.host.buildActiveTasks(state),
-              queueDepth: state.status.queueDepth,
-              selfImprovementRunInProgress: isSelfImprovementRunInProgress(projectId),
-            });
+            await this.broadcastExecuteStatus(projectId);
             continue;
           }
           throw error;

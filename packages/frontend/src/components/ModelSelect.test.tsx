@@ -80,7 +80,8 @@ describe("ModelSelect", () => {
 
     render(<ModelSelect provider="cursor" value="gpt-4" onChange={onChange} />);
 
-    const select = await screen.findByRole("combobox", { name: /model selection/i });
+    await screen.findByRole("option", { name: "gpt-4" });
+    const select = screen.getByRole("combobox", { name: /model selection/i });
     fireEvent.change(select, { target: { value: "" } });
     expect(onChange).toHaveBeenCalledWith(null);
   });

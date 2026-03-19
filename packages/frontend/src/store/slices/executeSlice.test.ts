@@ -143,6 +143,10 @@ describe("executeSlice", () => {
       expect(state.async.tasks.loading).toBe(false);
       expect(state.error).toBeNull();
       expect(state.selfImprovementRunInProgress).toBe(false);
+      expect(state.baselineStatus).toBe("unknown");
+      expect(state.baselineCheckedAt).toBeNull();
+      expect(state.baselineFailureSummary).toBeNull();
+      expect(state.dispatchPausedReason).toBeNull();
     });
   });
 
@@ -326,6 +330,30 @@ describe("executeSlice", () => {
         })
       );
       expect(store.getState().execute.selfImprovementRunInProgress).toBe(false);
+    });
+
+    it("setExecuteStatusPayload stores baseline pause details when provided", () => {
+      const store = createStore();
+      const checkedAt = "2026-03-18T22:30:00.000Z";
+      store.dispatch(
+        setExecuteStatusPayload({
+          activeTasks: [],
+          queueDepth: 0,
+          baselineStatus: "failing",
+          baselineCheckedAt: checkedAt,
+          baselineFailureSummary: "npm run test: expected 1 to be 2",
+          dispatchPausedReason:
+            "Only the baseline-remediation task will be assigned until the baseline passes.",
+        })
+      );
+
+      const state = store.getState().execute;
+      expect(state.baselineStatus).toBe("failing");
+      expect(state.baselineCheckedAt).toBe(checkedAt);
+      expect(state.baselineFailureSummary).toBe("npm run test: expected 1 to be 2");
+      expect(state.dispatchPausedReason).toBe(
+        "Only the baseline-remediation task will be assigned until the baseline passes."
+      );
     });
 
     it("setSelfImprovementRunInProgress sets self-improvement run state", () => {
@@ -708,6 +736,32 @@ describe("executeSlice", () => {
       const store = createStore();
       await store.dispatch(fetchExecuteStatus("proj-1"));
       expect(store.getState().execute.selfImprovementRunInProgress).toBe(true);
+    });
+
+    it("stores baseline pause fields from API response", async () => {
+      vi.mocked(api.execute.status).mockResolvedValue({
+        activeTasks: [],
+        queueDepth: 0,
+        totalDone: 0,
+        totalFailed: 0,
+        baselineStatus: "failing",
+        baselineCheckedAt: "2026-03-18T22:30:00.000Z",
+        baselineFailureSummary: "npm run lint: no-explicit-any in project.service.ts",
+        dispatchPausedReason:
+          "Only the baseline-remediation task will be assigned until the baseline passes.",
+      } as never);
+
+      const store = createStore();
+      await store.dispatch(fetchExecuteStatus("proj-1"));
+
+      expect(store.getState().execute.baselineStatus).toBe("failing");
+      expect(store.getState().execute.baselineCheckedAt).toBe("2026-03-18T22:30:00.000Z");
+      expect(store.getState().execute.baselineFailureSummary).toBe(
+        "npm run lint: no-explicit-any in project.service.ts"
+      );
+      expect(store.getState().execute.dispatchPausedReason).toBe(
+        "Only the baseline-remediation task will be assigned until the baseline passes."
+      );
     });
   });
 
