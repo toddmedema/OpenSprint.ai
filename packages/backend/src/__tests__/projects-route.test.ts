@@ -9,6 +9,7 @@ import { setGlobalSettings } from "../services/global-settings.service.js";
 import { API_PREFIX, DEFAULT_HIL_CONFIG, OPENSPRINT_DIR } from "@opensprint/shared";
 import { setBackendRuntimeInfoForTesting } from "../utils/runtime-info.js";
 import { cleanupTestProject } from "./test-project-cleanup.js";
+import { notificationService } from "../services/notification.service.js";
 
 vi.mock("drizzle-orm", () => ({
   and: (...args: unknown[]) => args,
@@ -176,6 +177,119 @@ describe.skipIf(!projectsPostgresOk)("Projects REST API — spec/sketch phase ro
     } else if (res.body.data.skipped) {
       expect(["no_changes", "run_in_progress"]).toContain(res.body.data.skipped);
     }
+  });
+
+  it("POST /projects/:id/self-improvement/approve promotes pending candidate, clears pending, resolves notification, and appends history", async () => {
+    await projectService.updateSettings(projectId, {
+      selfImprovementPendingCandidateId: "bv-candidate-1",
+    });
+    await notificationService.createSelfImprovementApproval({
+      projectId,
+      candidateId: "bv-candidate-1",
+      deepLinkPath: `/projects/${projectId}/settings`,
+    });
+
+    const res = await request(app)
+      .post(`${API_PREFIX}/projects/${projectId}/self-improvement/approve`)
+      .send();
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.pendingCandidateId).toBeUndefined();
+    expect(res.body.data.activeBehaviorVersionId).toBe("bv-candidate-1");
+    expect(res.body.data.behaviorVersions).toContainEqual(
+      expect.objectContaining({ id: "bv-candidate-1" })
+    );
+    expect(res.body.data.history.at(-1)).toMatchObject({
+      action: "approved",
+      behaviorVersionId: "bv-candidate-1",
+      candidateId: "bv-candidate-1",
+    });
+
+    const notifications = await notificationService.listByProject(projectId);
+    const stillOpen = notifications.find(
+      (n) => n.kind === "self_improvement_approval" && n.sourceId === "bv-candidate-1"
+    );
+    expect(stillOpen).toBeUndefined();
+  });
+
+  it("POST /projects/:id/self-improvement/reject clears pending, resolves notification, and appends history", async () => {
+    await projectService.updateSettings(projectId, {
+      selfImprovementPendingCandidateId: "bv-candidate-2",
+    });
+    await notificationService.createSelfImprovementApproval({
+      projectId,
+      candidateId: "bv-candidate-2",
+    });
+
+    const res = await request(app)
+      .post(`${API_PREFIX}/projects/${projectId}/self-improvement/reject`)
+      .send({ candidateId: "bv-candidate-2" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.pendingCandidateId).toBeUndefined();
+    expect(res.body.data.activeBehaviorVersionId).toBeUndefined();
+    expect(res.body.data.history.at(-1)).toMatchObject({
+      action: "rejected",
+      candidateId: "bv-candidate-2",
+    });
+
+    const notifications = await notificationService.listByProject(projectId);
+    const stillOpen = notifications.find(
+      (n) => n.kind === "self_improvement_approval" && n.sourceId === "bv-candidate-2"
+    );
+    expect(stillOpen).toBeUndefined();
+  });
+
+  it("POST /projects/:id/self-improvement/rollback switches active behavior version", async () => {
+    await projectService.updateSettings(projectId, {
+      selfImprovementActiveBehaviorVersionId: "bv-current",
+      selfImprovementBehaviorVersions: [
+        { id: "bv-current", promotedAt: "2025-03-10T00:00:00.000Z" },
+        { id: "bv-previous", promotedAt: "2025-03-09T00:00:00.000Z" },
+      ],
+    });
+
+    const res = await request(app)
+      .post(`${API_PREFIX}/projects/${projectId}/self-improvement/rollback`)
+      .send({ behaviorVersionId: "bv-previous" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.activeBehaviorVersionId).toBe("bv-previous");
+    expect(res.body.data.history.at(-1)).toMatchObject({
+      action: "rollback",
+      behaviorVersionId: "bv-previous",
+    });
+  });
+
+  it("POST /projects/:id/self-improvement/approve returns 404 when no pending candidate", async () => {
+    const res = await request(app)
+      .post(`${API_PREFIX}/projects/${projectId}/self-improvement/approve`)
+      .send();
+
+    expect(res.status).toBe(404);
+  });
+
+  it("POST /projects/:id/self-improvement/reject returns 400 when candidateId does not match pending", async () => {
+    await projectService.updateSettings(projectId, {
+      selfImprovementPendingCandidateId: "bv-candidate-3",
+    });
+    const res = await request(app)
+      .post(`${API_PREFIX}/projects/${projectId}/self-improvement/reject`)
+      .send({ candidateId: "wrong-id" });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /projects/:id/self-improvement/rollback returns 400 for non-promoted behavior version", async () => {
+    await projectService.updateSettings(projectId, {
+      selfImprovementBehaviorVersions: [{ id: "bv-a", promotedAt: "2025-03-10T00:00:00.000Z" }],
+    });
+
+    const res = await request(app)
+      .post(`${API_PREFIX}/projects/${projectId}/self-improvement/rollback`)
+      .send({ behaviorVersionId: "bv-missing" });
+
+    expect(res.status).toBe(400);
   });
 
   it("POST /projects/:id/archive removes project from list, keeps .opensprint", async () => {

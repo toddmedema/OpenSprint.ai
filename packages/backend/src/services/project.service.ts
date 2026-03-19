@@ -221,6 +221,10 @@ function buildDefaultSettings(): ProjectSettings {
     selfImprovementFrequency: "never",
     autoExecutePlans: false,
     runAgentEnhancementExperiments: false,
+    selfImprovementPendingCandidateId: undefined,
+    selfImprovementActiveBehaviorVersionId: undefined,
+    selfImprovementBehaviorVersions: undefined,
+    selfImprovementBehaviorHistory: undefined,
   };
 }
 
@@ -279,6 +283,29 @@ function toCanonicalSettings(s: ProjectSettings): ProjectSettings {
     }),
     autoExecutePlans: s.autoExecutePlans === true,
     runAgentEnhancementExperiments: s.runAgentEnhancementExperiments === true,
+    ...(s.selfImprovementPendingCandidateId && {
+      selfImprovementPendingCandidateId: s.selfImprovementPendingCandidateId,
+    }),
+    ...(s.selfImprovementActiveBehaviorVersionId && {
+      selfImprovementActiveBehaviorVersionId: s.selfImprovementActiveBehaviorVersionId,
+    }),
+    ...(Array.isArray(s.selfImprovementBehaviorVersions) &&
+      s.selfImprovementBehaviorVersions.length > 0 && {
+        selfImprovementBehaviorVersions: s.selfImprovementBehaviorVersions
+          .filter((v) => v?.id && v?.promotedAt)
+          .map((v) => ({ id: v.id, promotedAt: v.promotedAt })),
+      }),
+    ...(Array.isArray(s.selfImprovementBehaviorHistory) &&
+      s.selfImprovementBehaviorHistory.length > 0 && {
+        selfImprovementBehaviorHistory: s.selfImprovementBehaviorHistory
+          .filter((h) => h?.timestamp && h?.action)
+          .map((h) => ({
+            timestamp: h.timestamp,
+            action: h.action,
+            ...(h.behaviorVersionId && { behaviorVersionId: h.behaviorVersionId }),
+            ...(h.candidateId && { candidateId: h.candidateId }),
+          })),
+      }),
   };
 }
 

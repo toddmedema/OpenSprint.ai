@@ -507,6 +507,50 @@ export class NotificationService {
   }
 
   /**
+   * Resolve open self_improvement_approval notifications for a candidate.
+   * Used when pending candidate is approved/rejected from project settings API.
+   */
+  async resolveSelfImprovementApprovalNotifications(
+    projectId: string,
+    candidateId: string
+  ): Promise<Array<{ id: string; source: NotificationSource; sourceId: string }>> {
+    const client = await taskStore.getDb();
+    const rows = await client.query(
+      `SELECT id, source, source_id FROM open_questions
+       WHERE project_id = $1
+         AND status = 'open'
+         AND source = 'self-improvement'
+         AND source_id = $2
+         AND kind = 'self_improvement_approval'`,
+      [projectId, candidateId]
+    );
+
+    if (rows.length === 0) {
+      return [];
+    }
+
+    const resolvedAt = new Date().toISOString();
+    await taskStore.runWrite(async (tx) => {
+      await tx.execute(
+        `UPDATE open_questions
+         SET status = 'resolved', resolved_at = $1
+         WHERE project_id = $2
+           AND status = 'open'
+           AND source = 'self-improvement'
+           AND source_id = $3
+           AND kind = 'self_improvement_approval'`,
+        [resolvedAt, projectId, candidateId]
+      );
+    });
+
+    return rows.map((r) => ({
+      id: r.id as string,
+      source: r.source as NotificationSource,
+      sourceId: r.source_id as string,
+    }));
+  }
+
+  /**
    * Get the most recently resolved open_question notification for a task (source=execute, sourceId=taskId)
    * that has persisted responses. Used by context assembler to inject user answers into the Coder prompt.
    */

@@ -671,6 +671,22 @@ export interface ProjectSettings {
   autoExecutePlans?: boolean;
   /** When true, self-improvement runs execute the experiment/promote pipeline; when false, runs are audit-only. Default: false. */
   runAgentEnhancementExperiments?: boolean;
+  /** Candidate behavior version awaiting human decision (approve/reject). */
+  selfImprovementPendingCandidateId?: string;
+  /** Currently active behavior version id for self-improvement experiments. */
+  selfImprovementActiveBehaviorVersionId?: string;
+  /** Promoted behavior versions available for rollback. */
+  selfImprovementBehaviorVersions?: Array<{
+    id: string;
+    promotedAt: string;
+  }>;
+  /** Approval/rejection/rollback decision history for behavior versions. */
+  selfImprovementBehaviorHistory?: Array<{
+    timestamp: string;
+    action: "approved" | "rejected" | "rollback";
+    behaviorVersionId?: string;
+    candidateId?: string;
+  }>;
 }
 
 /** Planning agent roles — Dreamer/Analyst use fixed tiers; others inherit plan complexity */
@@ -873,6 +889,57 @@ export function parseSettings(raw: unknown): ProjectSettings {
   };
 
   const runAgentEnhancementExperiments = r?.runAgentEnhancementExperiments === true;
+  const selfImprovementPendingCandidateId =
+    typeof r?.selfImprovementPendingCandidateId === "string" &&
+    r.selfImprovementPendingCandidateId.trim()
+      ? r.selfImprovementPendingCandidateId.trim()
+      : undefined;
+  const selfImprovementActiveBehaviorVersionId =
+    typeof r?.selfImprovementActiveBehaviorVersionId === "string" &&
+    r.selfImprovementActiveBehaviorVersionId.trim()
+      ? r.selfImprovementActiveBehaviorVersionId.trim()
+      : undefined;
+  const selfImprovementBehaviorVersions = Array.isArray(r?.selfImprovementBehaviorVersions)
+    ? r.selfImprovementBehaviorVersions
+        .filter(
+          (v): v is { id: string; promotedAt: string } =>
+            !!v &&
+            typeof v === "object" &&
+            typeof (v as { id?: unknown }).id === "string" &&
+            Boolean((v as { id?: string }).id?.trim()) &&
+            typeof (v as { promotedAt?: unknown }).promotedAt === "string" &&
+            Boolean((v as { promotedAt?: string }).promotedAt?.trim())
+        )
+        .map((v) => ({ id: v.id.trim(), promotedAt: v.promotedAt.trim() }))
+    : undefined;
+  const selfImprovementBehaviorHistory = Array.isArray(r?.selfImprovementBehaviorHistory)
+    ? r.selfImprovementBehaviorHistory
+        .filter(
+          (
+            h
+          ): h is {
+            timestamp: string;
+            action: "approved" | "rejected" | "rollback";
+            behaviorVersionId?: string;
+            candidateId?: string;
+          } =>
+            !!h &&
+            typeof h === "object" &&
+            typeof (h as { timestamp?: unknown }).timestamp === "string" &&
+            Boolean((h as { timestamp?: string }).timestamp?.trim()) &&
+            ((h as { action?: unknown }).action === "approved" ||
+              (h as { action?: unknown }).action === "rejected" ||
+              (h as { action?: unknown }).action === "rollback")
+        )
+        .map((h) => ({
+          timestamp: h.timestamp.trim(),
+          action: h.action,
+          ...(typeof h.behaviorVersionId === "string" &&
+            h.behaviorVersionId.trim() && { behaviorVersionId: h.behaviorVersionId.trim() }),
+          ...(typeof h.candidateId === "string" &&
+            h.candidateId.trim() && { candidateId: h.candidateId.trim() }),
+        }))
+    : undefined;
   const { apiKeys: _omitApiKeys, ...rest } = r as Partial<ProjectSettings> & { apiKeys?: unknown };
   if (simpleObj && typeof simpleObj === "object" && complexObj && typeof complexObj === "object") {
     const simple = simpleObj as AgentConfig;
@@ -883,6 +950,10 @@ export function parseSettings(raw: unknown): ProjectSettings {
       complexComplexityAgent: complex,
       ...base,
       runAgentEnhancementExperiments,
+      ...(selfImprovementPendingCandidateId && { selfImprovementPendingCandidateId }),
+      ...(selfImprovementActiveBehaviorVersionId && { selfImprovementActiveBehaviorVersionId }),
+      ...(selfImprovementBehaviorVersions && { selfImprovementBehaviorVersions }),
+      ...(selfImprovementBehaviorHistory && { selfImprovementBehaviorHistory }),
     } as ProjectSettings;
   }
   const simple =
@@ -897,6 +968,10 @@ export function parseSettings(raw: unknown): ProjectSettings {
     complexComplexityAgent: complex,
     ...base,
     runAgentEnhancementExperiments,
+    ...(selfImprovementPendingCandidateId && { selfImprovementPendingCandidateId }),
+    ...(selfImprovementActiveBehaviorVersionId && { selfImprovementActiveBehaviorVersionId }),
+    ...(selfImprovementBehaviorVersions && { selfImprovementBehaviorVersions }),
+    ...(selfImprovementBehaviorHistory && { selfImprovementBehaviorHistory }),
   } as ProjectSettings;
 }
 

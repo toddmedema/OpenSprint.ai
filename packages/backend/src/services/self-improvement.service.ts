@@ -14,6 +14,10 @@ import {
 } from "./self-improvement-runner.service.js";
 import { taskStore } from "./task-store.service.js";
 import { createLogger } from "../utils/logger.js";
+import { updateSettingsInStore } from "./settings-store.service.js";
+import { notificationService } from "./notification.service.js";
+import { AppError } from "../middleware/error-handler.js";
+import { ErrorCodes } from "../middleware/error-codes.js";
 
 const log = createLogger("self-improvement");
 const BASELINE_QUALITY_GATE_TASK_SOURCE = "merge-quality-gate-baseline";
@@ -28,6 +32,18 @@ export type SelfImprovementRunResult =
 
 /** Trigger for runIfDue: scheduled (daily/weekly tick) or after plan execution. */
 export type SelfImprovementTrigger = "scheduled" | "after_each_plan";
+
+export interface SelfImprovementBehaviorStatus {
+  pendingCandidateId?: string;
+  activeBehaviorVersionId?: string;
+  behaviorVersions: Array<{ id: string; promotedAt: string }>;
+  history: Array<{
+    timestamp: string;
+    action: "approved" | "rejected" | "rollback";
+    behaviorVersionId?: string;
+    candidateId?: string;
+  }>;
+}
 
 /** Options for runIfDue: trigger and context (e.g. planId when trigger is after_each_plan). */
 export type RunIfDueOptions =
@@ -57,6 +73,143 @@ export class SelfImprovementService {
 
   private buildBaselineQualityGateTaskTitle(baseBranch: string): string {
     return `Restore baseline quality gates on ${baseBranch}`;
+  }
+
+  private toBehaviorStatus(settings: {
+    selfImprovementPendingCandidateId?: string;
+    selfImprovementActiveBehaviorVersionId?: string;
+    selfImprovementBehaviorVersions?: Array<{ id: string; promotedAt: string }>;
+    selfImprovementBehaviorHistory?: Array<{
+      timestamp: string;
+      action: "approved" | "rejected" | "rollback";
+      behaviorVersionId?: string;
+      candidateId?: string;
+    }>;
+  }): SelfImprovementBehaviorStatus {
+    return {
+      ...(settings.selfImprovementPendingCandidateId && {
+        pendingCandidateId: settings.selfImprovementPendingCandidateId,
+      }),
+      ...(settings.selfImprovementActiveBehaviorVersionId && {
+        activeBehaviorVersionId: settings.selfImprovementActiveBehaviorVersionId,
+      }),
+      behaviorVersions: settings.selfImprovementBehaviorVersions ?? [],
+      history: settings.selfImprovementBehaviorHistory ?? [],
+    };
+  }
+
+  async approvePendingCandidate(
+    projectId: string,
+    requestedCandidateId?: string
+  ): Promise<SelfImprovementBehaviorStatus> {
+    const settings = await this.projectService.getSettings(projectId);
+    const pendingCandidateId = settings.selfImprovementPendingCandidateId;
+    if (!pendingCandidateId) {
+      throw new AppError(404, ErrorCodes.NOT_FOUND, "No pending self-improvement candidate");
+    }
+    if (requestedCandidateId && requestedCandidateId !== pendingCandidateId) {
+      throw new AppError(400, ErrorCodes.INVALID_INPUT, "candidateId does not match pending candidate");
+    }
+
+    const now = new Date().toISOString();
+    await updateSettingsInStore(projectId, settings, (current) => {
+      const versions = current.selfImprovementBehaviorVersions ?? [];
+      const hasVersion = versions.some((v) => v.id === pendingCandidateId);
+      const nextVersions = hasVersion
+        ? versions
+        : [...versions, { id: pendingCandidateId, promotedAt: now }];
+      const history = current.selfImprovementBehaviorHistory ?? [];
+      return {
+        ...current,
+        selfImprovementPendingCandidateId: undefined,
+        selfImprovementActiveBehaviorVersionId: pendingCandidateId,
+        selfImprovementBehaviorVersions: nextVersions,
+        selfImprovementBehaviorHistory: [
+          ...history,
+          {
+            timestamp: now,
+            action: "approved",
+            behaviorVersionId: pendingCandidateId,
+            candidateId: pendingCandidateId,
+          },
+        ],
+      };
+    });
+
+    await notificationService.resolveSelfImprovementApprovalNotifications(projectId, pendingCandidateId);
+    const updated = await this.projectService.getSettings(projectId);
+    return this.toBehaviorStatus(updated);
+  }
+
+  async rejectPendingCandidate(
+    projectId: string,
+    requestedCandidateId?: string
+  ): Promise<SelfImprovementBehaviorStatus> {
+    const settings = await this.projectService.getSettings(projectId);
+    const pendingCandidateId = settings.selfImprovementPendingCandidateId;
+    if (!pendingCandidateId) {
+      throw new AppError(404, ErrorCodes.NOT_FOUND, "No pending self-improvement candidate");
+    }
+    if (requestedCandidateId && requestedCandidateId !== pendingCandidateId) {
+      throw new AppError(400, ErrorCodes.INVALID_INPUT, "candidateId does not match pending candidate");
+    }
+
+    const now = new Date().toISOString();
+    await updateSettingsInStore(projectId, settings, (current) => {
+      const history = current.selfImprovementBehaviorHistory ?? [];
+      return {
+        ...current,
+        selfImprovementPendingCandidateId: undefined,
+        selfImprovementBehaviorHistory: [
+          ...history,
+          {
+            timestamp: now,
+            action: "rejected",
+            candidateId: pendingCandidateId,
+          },
+        ],
+      };
+    });
+
+    await notificationService.resolveSelfImprovementApprovalNotifications(projectId, pendingCandidateId);
+    const updated = await this.projectService.getSettings(projectId);
+    return this.toBehaviorStatus(updated);
+  }
+
+  async rollbackToBehaviorVersion(
+    projectId: string,
+    behaviorVersionId: string
+  ): Promise<SelfImprovementBehaviorStatus> {
+    const settings = await this.projectService.getSettings(projectId);
+    const versions = settings.selfImprovementBehaviorVersions ?? [];
+    const exists = versions.some((v) => v.id === behaviorVersionId);
+    if (!exists) {
+      throw new AppError(
+        400,
+        ErrorCodes.INVALID_INPUT,
+        "behaviorVersionId is not a promoted version for this project"
+      );
+    }
+
+    const now = new Date().toISOString();
+    await updateSettingsInStore(projectId, settings, (current) => {
+      const history = current.selfImprovementBehaviorHistory ?? [];
+      return {
+        ...current,
+        selfImprovementActiveBehaviorVersionId: behaviorVersionId,
+        selfImprovementBehaviorHistory: [
+          ...history,
+          {
+            timestamp: now,
+            action: "rollback",
+            behaviorVersionId,
+          },
+        ],
+      };
+    });
+
+    const updated = await this.projectService.getSettings(projectId);
+    return this.toBehaviorStatus(updated);
   }
 
   private buildBaselineQualityGateTaskDescription(input: BaselineQualityGateTaskInput): string {

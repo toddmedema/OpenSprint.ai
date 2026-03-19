@@ -7,6 +7,8 @@ import {
   scaffoldProjectBodySchema,
   updateProjectBodySchema,
   selfImprovementHistoryQuerySchema,
+  selfImprovementApproveRejectBodySchema,
+  selfImprovementRollbackBodySchema,
   updateSettingsBodySchema,
 } from "../schemas/request-projects.js";
 import type { ProjectService } from "../services/project.service.js";
@@ -125,6 +127,48 @@ export function createProjectsRouter(
       await projectService.getProject(projectId);
       const result = await selfImprovementService.run(projectId);
       res.json({ data: result });
+    })
+  );
+
+  // POST /projects/:id/self-improvement/approve — promote pending candidate and clear pending state
+  router.post(
+    "/:id/self-improvement/approve",
+    validateParams(projectIdParamSchema),
+    validateBody(selfImprovementApproveRejectBodySchema),
+    wrapAsync(async (req: Request<ProjectParams>, res) => {
+      const projectId = getProjectId(req);
+      await projectService.getProject(projectId);
+      const body = (req.body as { candidateId?: string } | undefined) ?? {};
+      const data = await selfImprovementService.approvePendingCandidate(projectId, body.candidateId);
+      res.json({ data });
+    })
+  );
+
+  // POST /projects/:id/self-improvement/reject — reject pending candidate and clear pending state
+  router.post(
+    "/:id/self-improvement/reject",
+    validateParams(projectIdParamSchema),
+    validateBody(selfImprovementApproveRejectBodySchema),
+    wrapAsync(async (req: Request<ProjectParams>, res) => {
+      const projectId = getProjectId(req);
+      await projectService.getProject(projectId);
+      const body = (req.body as { candidateId?: string } | undefined) ?? {};
+      const data = await selfImprovementService.rejectPendingCandidate(projectId, body.candidateId);
+      res.json({ data });
+    })
+  );
+
+  // POST /projects/:id/self-improvement/rollback — switch active behavior version to a previous promoted version
+  router.post(
+    "/:id/self-improvement/rollback",
+    validateParams(projectIdParamSchema),
+    validateBody(selfImprovementRollbackBodySchema),
+    wrapAsync(async (req: Request<ProjectParams>, res) => {
+      const projectId = getProjectId(req);
+      await projectService.getProject(projectId);
+      const { behaviorVersionId } = req.body as { behaviorVersionId: string };
+      const data = await selfImprovementService.rollbackToBehaviorVersion(projectId, behaviorVersionId);
+      res.json({ data });
     })
   );
 

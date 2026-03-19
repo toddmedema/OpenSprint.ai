@@ -32,5 +32,16 @@ export const selfImprovementHistoryQuerySchema = z.object({
   limit: z.coerce.number().int().positive().optional(),
 });
 
+export const selfImprovementApproveRejectBodySchema = z
+  .object({
+    candidateId: z.string().min(1).optional(),
+  })
+  .optional()
+  .default({});
+
+export const selfImprovementRollbackBodySchema = z.object({
+  behaviorVersionId: z.string().min(1),
+});
+
 /** PUT /projects/:id/settings — accepts partial project settings (apiKeys stripped by route) */
 export const updateSettingsBodySchema = z.record(z.string(), z.unknown()).optional().default({});
