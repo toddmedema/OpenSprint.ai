@@ -7,7 +7,11 @@ import os from "os";
 import { setEnvPathForTesting } from "../routes/env.js";
 import { API_PREFIX } from "@opensprint/shared";
 import { errorHandler } from "../middleware/error-handler.js";
-import { getGlobalSettings, setGlobalSettings } from "../services/global-settings.service.js";
+import {
+  getGlobalSettings,
+  setGlobalSettings,
+  setGlobalSettingsPathForTesting,
+} from "../services/global-settings.service.js";
 import { setBackendRuntimeInfoForTesting } from "../utils/runtime-info.js";
 
 vi.mock("node:child_process", async (importOriginal) => {
@@ -71,7 +75,6 @@ function createMinimalEnvApp() {
 describe("Env API", () => {
   let app: ReturnType<typeof createMinimalEnvApp>;
   let tmpDir: string;
-  let originalHome: string | undefined;
 
   beforeEach(() => {
     app = createMinimalEnvApp();
@@ -84,14 +87,13 @@ describe("Env API", () => {
     const envPath = path.join(tmpDir, ".env");
     fs.writeFileSync(envPath, "", "utf-8");
     setEnvPathForTesting(envPath);
-    originalHome = process.env.HOME;
-    process.env.HOME = tmpDir;
+    setGlobalSettingsPathForTesting(path.join(tmpDir, ".opensprint", "global-settings.json"));
   });
 
   afterEach(() => {
     setEnvPathForTesting(null);
+    setGlobalSettingsPathForTesting(null);
     setBackendRuntimeInfoForTesting(null);
-    process.env.HOME = originalHome;
     try {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     } catch {

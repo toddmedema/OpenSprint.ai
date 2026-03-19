@@ -11,6 +11,8 @@ import type { GlobalSettings } from "@opensprint/shared";
 import { sanitizeApiKeys, mergeApiKeysWithCurrent, validateDatabaseUrl } from "@opensprint/shared";
 import { writeJsonAtomic } from "../utils/file-utils.js";
 
+let globalSettingsPathForTesting: string | null = null;
+
 /**
  * Default database URL (SQLite under ~/.opensprint/data/opensprint.sqlite).
  * Node only; shared package is browser-safe and does not implement this.
@@ -20,8 +22,13 @@ export function getDefaultDatabaseUrl(): string {
 }
 
 function getGlobalSettingsPath(): string {
+  if (globalSettingsPathForTesting) return globalSettingsPathForTesting;
   const home = process.env.HOME ?? process.env.USERPROFILE ?? os.homedir();
   return path.join(home, ".opensprint", "global-settings.json");
+}
+
+export function setGlobalSettingsPathForTesting(testPath: string | null): void {
+  globalSettingsPathForTesting = testPath;
 }
 
 /** Default empty settings */
