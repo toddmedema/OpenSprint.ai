@@ -1,5 +1,5 @@
 import { spawn, exec } from "child_process";
-import { readFileSync, openSync, closeSync, mkdirSync, appendFileSync } from "fs";
+import { readFileSync, openSync, closeSync, mkdirSync, appendFileSync, writeFileSync } from "fs";
 import { open as fsOpen, stat as fsStat, readFile, rm as fsRm } from "fs/promises";
 import os from "os";
 import path from "path";
@@ -113,11 +113,26 @@ function buildCursorSpawnEnv(
   const isolatedConfigDir = path.join(baseConfigDir, runConfigToken);
   mkdirSync(isolatedConfigDir, { recursive: true });
 
+  let nodeOptions = process.env.NODE_OPTIONS?.trim() || undefined;
+  let xdgConfigHome = process.env.XDG_CONFIG_HOME;
+  if (process.platform === "darwin") {
+    const hookPath = path.join(isolatedConfigDir, "opensprint-cursor-force-file-auth.cjs");
+    writeFileSync(
+      hookPath,
+      'const os = require("node:os");\nos.platform = () => "linux";\n',
+      { mode: 0o600 }
+    );
+    nodeOptions = [nodeOptions, `--require ${hookPath}`].filter(Boolean).join(" ");
+    xdgConfigHome = isolatedConfigDir;
+  }
+
   return {
     env: normalizeSpawnEnvPath({
       ...process.env,
       CURSOR_API_KEY: cursorApiKey,
       CURSOR_CONFIG_DIR: isolatedConfigDir,
+      NODE_OPTIONS: nodeOptions,
+      XDG_CONFIG_HOME: xdgConfigHome,
     }),
     isolatedConfigDir,
   };

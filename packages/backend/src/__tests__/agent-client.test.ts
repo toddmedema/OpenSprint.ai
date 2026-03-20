@@ -506,6 +506,14 @@ describe("AgentClient", () => {
         expect(spawnOptions.env.CURSOR_CONFIG_DIR).toBeTruthy();
         expect(spawnOptions.env.CURSOR_CONFIG_DIR).not.toBe(baseConfigDir);
         expect(spawnOptions.env.CURSOR_CONFIG_DIR?.startsWith(baseConfigDir)).toBe(true);
+        if (process.platform === "darwin") {
+          const hookPath = path.join(
+            spawnOptions.env.CURSOR_CONFIG_DIR!,
+            "opensprint-cursor-force-file-auth.cjs"
+          );
+          expect(spawnOptions.env.XDG_CONFIG_HOME).toBe(spawnOptions.env.CURSOR_CONFIG_DIR);
+          expect(spawnOptions.env.NODE_OPTIONS).toContain(`--require ${hookPath}`);
+        }
         expect(result.content).toContain("Cursor response");
       } finally {
         if (originalCursorConfigDir === undefined) {
@@ -1140,6 +1148,14 @@ describe("AgentClient", () => {
         expect(spawnOptions.env.CURSOR_CONFIG_DIR).toBeTruthy();
         expect(spawnOptions.env.CURSOR_CONFIG_DIR).not.toBe(baseConfigDir);
         expect(spawnOptions.env.CURSOR_CONFIG_DIR?.startsWith(baseConfigDir)).toBe(true);
+        if (process.platform === "darwin") {
+          const hookPath = path.join(
+            spawnOptions.env.CURSOR_CONFIG_DIR!,
+            "opensprint-cursor-force-file-auth.cjs"
+          );
+          expect(spawnOptions.env.XDG_CONFIG_HOME).toBe(spawnOptions.env.CURSOR_CONFIG_DIR);
+          expect(spawnOptions.env.NODE_OPTIONS).toContain(`--require ${hookPath}`);
+        }
       } finally {
         if (originalCursorConfigDir === undefined) {
           delete process.env.CURSOR_CONFIG_DIR;
