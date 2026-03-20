@@ -29,7 +29,9 @@
     "build:linux:arm64": "node scripts/build-target.js --platform linux --arch arm64",
     "test": "npx vitest run"
   },
-  "dependencies": {},
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
   "devDependencies": {
     "@electron/rebuild": "^4.0.3",
     "vitest": "^2.1.0",
@@ -39,10 +41,17 @@
     "sharp": "^0.33.5",
     "typescript": "^5.7.2"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/opensprint/opensprint.git"
+  },
   "build": {
     "appId": "com.opensprint.app",
     "productName": "Open Sprint",
     "electronVersion": "41.0.2",
+    "publish": {
+      "provider": "github"
+    },
     "afterSign": "./scripts/after-sign-notarize.js",
     "compression": "maximum",
     "directories": {

@@ -93,7 +93,10 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           draft: true
-          files: packages/electron/dist/*.dmg
+          files: |
+            packages/electron/dist/*.dmg
+            packages/electron/dist/*.yml
+            packages/electron/dist/*.blockmap
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -118,7 +121,10 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           draft: true
-          files: packages/electron/dist/*.exe
+          files: |
+            packages/electron/dist/*.exe
+            packages/electron/dist/*.yml
+            packages/electron/dist/*.blockmap
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -142,7 +148,10 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           draft: true
-          files: packages/electron/dist/*.AppImage
+          files: |
+            packages/electron/dist/*.AppImage
+            packages/electron/dist/*.yml
+            packages/electron/dist/*.blockmap
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

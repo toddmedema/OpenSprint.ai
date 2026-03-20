@@ -180,10 +180,7 @@ describe("TimelineList", () => {
     const wrap = within(row).getByTestId("timeline-waiting-to-merge-badge");
     expect(wrap).toBeInTheDocument();
     const titled = wrap.querySelector("[title]");
-    expect(titled).toHaveAttribute(
-      "title",
-      "Waiting to Merge · Blocked on main"
-    );
+    expect(titled).toHaveAttribute("title", "Waiting to Merge · Blocked on main");
     expect(screen.queryByText("Blocked on main")).not.toBeInTheDocument();
     expect(screen.queryByText(/Retry eligible/i)).not.toBeInTheDocument();
   });
@@ -207,10 +204,7 @@ describe("TimelineList", () => {
 
     const wrap = screen.getByTestId("timeline-waiting-to-merge-badge");
     const titled = wrap.querySelector("[title]");
-    expect(titled).toHaveAttribute(
-      "title",
-      "Waiting to Merge · Retry eligible soon"
-    );
+    expect(titled).toHaveAttribute("title", "Waiting to Merge · Retry eligible soon");
   });
 
   it("displays Up Next section when backlog/planning tasks exist", () => {

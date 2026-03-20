@@ -19,6 +19,10 @@ import {
 import { buildWindowOptions } from "./window-options";
 import { renderBootHtml } from "./boot-screen";
 
+// ESM workaround: electron-updater is CJS; destructure after default import.
+import electronUpdater from "electron-updater";
+const { autoUpdater } = electronUpdater;
+
 const APP_NAME = "Open Sprint";
 const DEFAULT_BACKEND_PORT = 3100;
 const HEALTH_POLL_MS = 200;
@@ -561,6 +565,26 @@ function getWindowsPathFromRegistry(): string | undefined {
   }
 }
 
+/** Check git/node with a given PATH (used when login shell misses them, e.g. zsh-only PATH). */
+function checkPrerequisitesWithPath(pathEnv: string): { hasGit: boolean; hasNode: boolean } {
+  const env = { ...process.env, PATH: pathEnv };
+  let hasGit = false;
+  let hasNode = false;
+  try {
+    execSync("git --version", { encoding: "utf8", timeout: 5000, env });
+    hasGit = true;
+  } catch {
+    // leave hasGit false
+  }
+  try {
+    const out = execSync("node --version", { encoding: "utf8", timeout: 5000, env });
+    hasNode = /v\d+\.\d+\.\d+/.test(out);
+  } catch {
+    // leave hasNode false
+  }
+  return { hasGit, hasNode };
+}
+
 /** Run prerequisite check in a fresh shell (login shell on Unix) so we see newly installed tools. */
 function checkPrerequisitesFresh(): Promise<PrerequisitesCheckResult> {
   const platform = process.platform;
@@ -584,6 +608,9 @@ function checkPrerequisitesFresh(): Promise<PrerequisitesCheckResult> {
   }
 
   // Unix: use login shell so we pick up profile-updated PATH (e.g. after installing nvm/node).
+  // When the app is launched from Finder/Dock, /bin/sh -l does not source zsh config, so Node
+  // in ~/.fnm, Homebrew, or nvm may be missed. We fall back to the same PATH we give the backend
+  // (buildBackendPath), which includes those locations.
   return new Promise((resolve) => {
     const script =
       'echo "__PATH__$PATH"; (git --version 2>/dev/null && node --version 2>/dev/null) || true';
@@ -599,6 +626,10 @@ function checkPrerequisitesFresh(): Promise<PrerequisitesCheckResult> {
         // ignore
       }
       result.missing = ["Git", "Node.js"];
+      const backendPath = buildBackendPath(process.env.PATH ?? result.path ?? "");
+      const fallback = checkPrerequisitesWithPath(backendPath);
+      if (fallback.hasGit) result.missing = result.missing.filter((m) => m !== "Git");
+      if (fallback.hasNode) result.missing = result.missing.filter((m) => m !== "Node.js");
       resolve(result);
     }, PREREQ_CHECK_TIMEOUT_MS);
     const finish = (): void => {
@@ -611,6 +642,15 @@ function checkPrerequisitesFresh(): Promise<PrerequisitesCheckResult> {
       const hasNode = /v\d+\.\d+\.\d+/.test(stdout) || /v\d+\.\d+\.\d+/.test(stderr);
       if (!hasGit) result.missing.push("Git");
       if (!hasNode) result.missing.push("Node.js");
+      // When launched from GUI, login shell may not see Node (e.g. zsh-only PATH). Re-check with
+      // the same PATH we pass to the backend so the checklist matches what the backend will use.
+      if (result.missing.length > 0) {
+        const backendPath = buildBackendPath(process.env.PATH ?? result.path ?? "");
+        const fallback = checkPrerequisitesWithPath(backendPath);
+        if (fallback.hasGit) result.missing = result.missing.filter((m) => m !== "Git");
+        if (fallback.hasNode) result.missing = result.missing.filter((m) => m !== "Node.js");
+        if (result.path === undefined) result.path = backendPath;
+      }
       resolve(result);
     };
     child.on("error", () => {
@@ -1265,7 +1305,51 @@ app.whenReady().then(async () => {
   }
   createTray();
   trayRefreshInterval = setInterval(refreshTrayMenu, TRAY_REFRESH_MS);
+
+  setupAutoUpdater();
 });
+
+function setupAutoUpdater(): void {
+  if (!app.isPackaged) return;
+
+  autoUpdater.allowPrerelease = false;
+
+  autoUpdater.on("update-available", () => {
+    console.log("Update available; downloading in background.");
+  });
+
+  autoUpdater.on("update-not-available", () => {
+    console.log("No update available.");
+  });
+
+  autoUpdater.on("update-downloaded", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      dialog
+        .showMessageBox(mainWindow, {
+          type: "info",
+          title: "Update Ready",
+          message: "A new version has been downloaded. Restart the app to install.",
+          buttons: ["Restart Now", "Later"],
+          defaultId: 0,
+        })
+        .then(({ response }) => {
+          if (response === 0) {
+            isQuitting = true;
+            autoUpdater.quitAndInstall(false, true);
+          }
+        });
+    }
+  });
+
+  autoUpdater.on("error", (err: Error) => {
+    console.error("Auto-updater error:", err.message);
+  });
+
+  // Defer check so startup is not blocked.
+  setTimeout(() => {
+    void autoUpdater.checkForUpdatesAndNotify();
+  }, 3000);
+}
 
 app.on("activate", () => {
   if (mainWindow) {
@@ -1296,6 +1380,8 @@ app.on("before-quit", (event) => {
   event.preventDefault();
   quitAfterBackendStop = true;
   void killBackend().finally(() => {
-    app.quit();
+    // Use exit(0) so macOS never shows "quit unexpectedly" (e.g. if backend
+    // exited with code 1 due to forced shutdown timeout).
+    app.exit(0);
   });
 });
