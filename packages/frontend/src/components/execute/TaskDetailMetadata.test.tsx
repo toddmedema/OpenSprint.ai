@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { screen } from "@testing-library/react";
 import type { Task } from "@opensprint/shared";
 import { TaskDetailMetadata } from "./TaskDetailMetadata";
@@ -20,6 +20,10 @@ const baseTask = {
 };
 
 describe("TaskDetailMetadata", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("shows Blocked on main hint when waiting_to_merge and mergeWaitingOnMain", () => {
     const task = {
       ...baseTask,
@@ -73,5 +77,36 @@ describe("TaskDetailMetadata", () => {
     );
 
     expect(screen.queryByTestId("task-detail-merge-waiting-on-main-hint")).not.toBeInTheDocument();
+  });
+
+  it("shows Retry eligible suffix when waiting_to_merge and mergePausedUntil is set", () => {
+    vi.useFakeTimers({ now: new Date("2024-06-01T12:00:00Z").getTime() });
+
+    const task = {
+      ...baseTask,
+      kanbanColumn: "waiting_to_merge" as const,
+      mergeGateState: "blocked_on_baseline" as const,
+      mergeWaitingOnMain: true,
+      mergePausedUntil: "2024-06-01T12:05:00Z",
+    } as Task;
+
+    renderWithProviders(
+      <TaskDetailMetadata
+        projectId="p1"
+        selectedTask="t1"
+        task={task}
+        taskDetailLoading={false}
+        taskDetailError={null}
+        taskIdToStartedAt={{}}
+        roleLabel={null}
+        isDoneTask={false}
+        isBlockedTask={false}
+      />
+    );
+
+    const hint = screen.getByTestId("task-detail-merge-waiting-on-main-hint");
+    expect(hint).toHaveTextContent("Blocked on main");
+    expect(hint).toHaveTextContent("Retry eligible in 5m");
+    expect(hint).toHaveAttribute("title", "Blocked on main · Retry eligible in 5m");
   });
 });

@@ -1209,6 +1209,9 @@ export class BranchManager {
     // Create worktree with hooks disabled so post-checkout hooks do not run
     // in the worktree; task store operations only run from the main repo.
     await fs.mkdir(path.dirname(wtPath), { recursive: true });
+    // Defensively clear the target path so "fatal: '...' already exists" cannot occur
+    // (e.g. leftover dir from crash, or path not fully removed by removeTaskWorktree).
+    await this.ensureWorktreePathClear(repoPath, worktreeKey, wtPath);
     const noHooksWorktree = getGitNoHooksPath();
     await shellExec(
       `git -c core.hooksPath="${noHooksWorktree}" worktree add ${shellQuote(wtPath)} ${shellQuote(branchName)}`,
@@ -1223,6 +1226,38 @@ export class BranchManager {
     await this.symlinkNodeModules(repoPath, wtPath);
 
     return wtPath;
+  }
+
+  /**
+   * Ensures the worktree path is absent so `git worktree add` cannot fail with "already exists".
+   * Removes the path if present (via git worktree remove when registered, then fs.rm if needed).
+   */
+  private async ensureWorktreePathClear(
+    repoPath: string,
+    worktreeKey: string,
+    wtPath: string
+  ): Promise<void> {
+    try {
+      await fs.access(wtPath);
+    } catch {
+      return;
+    }
+    try {
+      await this.git(repoPath, `worktree remove ${shellQuote(wtPath)} --force`);
+    } catch {
+      // Path may not be a registered worktree; remove directory directly.
+    }
+    try {
+      await fs.access(wtPath);
+    } catch {
+      return;
+    }
+    await this.removeWorktreeDirectorySafely(
+      repoPath,
+      worktreeKey,
+      wtPath,
+      "Pre-worktree-add cleanup"
+    );
   }
 
   /**
@@ -1673,7 +1708,10 @@ export class BranchManager {
       }
     }
 
-    return worktrees.find((worktree) => worktree.taskId === taskId)?.worktreePath ?? null;
+    // Only return a path when it matches candidatePath. Do not return another worktree path
+    // for the same taskId (e.g. from a different tmpdir), or we would remove the wrong path
+    // and leave a directory at candidatePath, causing "fatal: '...' already exists" on worktree add.
+    return null;
   }
 
   /**

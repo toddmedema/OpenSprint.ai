@@ -10,7 +10,7 @@ import {
 } from "../../lib/executeTaskSort";
 import { isTaskInPlanningPlan, isSelfImprovementTask } from "../../lib/executeTaskFilter";
 import { getEpicTitleFromPlan } from "../../lib/planContentUtils";
-import { formatUptime, formatTimestamp } from "../../lib/formatting";
+import { formatUptime, formatTimestamp, formatUntilTimestamp } from "../../lib/formatting";
 import { PriorityIcon } from "../PriorityIcon";
 import { ComplexityIcon } from "../ComplexityIcon";
 import { TaskStatusBadge } from "../kanban";
@@ -69,37 +69,54 @@ function waitingToMergeLabel(task: Task): string {
   }
 }
 
+function waitingToMergeRetrySuffix(task: Task): string {
+  if (!task.mergePausedUntil) return "";
+  const until = formatUntilTimestamp(task.mergePausedUntil);
+  return until === "soon" ? "" : ` · Retry eligible ${until}`;
+}
+
 function waitingToMergeTitle(task: Task): string {
+  let base: string;
   switch (task.mergeGateState) {
     case "blocked_on_baseline":
-      return "Blocked on main";
+      base = "Blocked on main";
+      break;
     case "candidate_fix_needed":
-      return "Merge validation found a candidate code issue";
+      base = "Merge validation found a candidate code issue";
+      break;
     case "environment_repair_needed":
-      return "Merge validation found an environment setup issue";
+      base = "Merge validation found an environment setup issue";
+      break;
     case "merging":
-      return "Merge is currently rebasing or merging into the default branch";
+      base = "Merge is currently rebasing or merging into the default branch";
+      break;
     case "validating":
-      return "Merge validation is currently running";
+      base = "Merge validation is currently running";
+      break;
     default:
-      return task.mergeWaitingOnMain
+      base = task.mergeWaitingOnMain
         ? "Blocked on main"
         : "Waiting to merge into the default branch";
   }
+  const suffix = waitingToMergeRetrySuffix(task);
+  return suffix ? `${base}${suffix}` : base;
 }
 
 function waitingToMergeAriaLabel(task: Task): string {
+  let base: string;
   if (task.mergeGateState === "blocked_on_baseline" || task.mergeWaitingOnMain) {
-    return "Waiting to merge. Blocked on main.";
-  }
-  if (
+    base = "Waiting to merge. Blocked on main.";
+  } else if (
     task.mergeGateState &&
     task.mergeGateState !== "validating" &&
     task.mergeGateState !== "merging"
   ) {
-    return `Waiting to merge. ${waitingToMergeLabel(task)}.`;
+    base = `Waiting to merge. ${waitingToMergeLabel(task)}.`;
+  } else {
+    base = "Waiting to merge.";
   }
-  return "Waiting to merge.";
+  const suffix = waitingToMergeRetrySuffix(task);
+  return suffix ? `${base} ${suffix.trim()}` : base;
 }
 
 function TimelineRow({
@@ -167,6 +184,15 @@ function TimelineRow({
             >
               <TaskStatusBadge column="waiting_to_merge" size="xs" title="Waiting to Merge" />
               <span aria-hidden="true">{waitingToMergeLabel(task)}</span>
+              {waitingToMergeRetrySuffix(task) && (
+                <span
+                  className="shrink-0 text-theme-muted"
+                  aria-hidden="true"
+                  data-testid="task-badge-waiting-to-merge-retry"
+                >
+                  {waitingToMergeRetrySuffix(task)}
+                </span>
+              )}
               {task.lastExecutionSummary && (
                 <span
                   className="max-w-[340px] truncate text-theme-muted"

@@ -9,6 +9,7 @@ import type { Plan } from "@opensprint/shared";
 vi.mock("../../lib/formatting", () => ({
   formatUptime: vi.fn((startedAt: string) => `uptime:${startedAt}`),
   formatTimestamp: vi.fn((ts: string) => `relative:${ts}`),
+  formatUntilTimestamp: vi.fn((_iso: string) => "in 5m"),
 }));
 
 const mockUpdateTask = vi.fn();
@@ -41,6 +42,7 @@ const createMockTask = (
     complexity: Task["complexity"];
     source: string;
     mergeWaitingOnMain: boolean;
+    mergePausedUntil: string | null;
   }> = {}
 ): Task =>
   ({
@@ -162,6 +164,33 @@ describe("TimelineList", () => {
     const badge = screen.getByTestId("task-badge-waiting-to-merge");
     expect(badge).toHaveAttribute("title", "Blocked on main");
     expect(badge).toHaveAttribute("aria-label", "Waiting to merge. Blocked on main.");
+  });
+
+  it("waiting_to_merge with mergePausedUntil shows retry-eligible suffix in title, aria-label, and badge", () => {
+    const tasks = [
+      createMockTask({
+        id: "w",
+        kanbanColumn: "waiting_to_merge",
+        title: "Merge me",
+        mergeGateState: "blocked_on_baseline",
+        mergeWaitingOnMain: true,
+        mergePausedUntil: "2024-06-01T12:05:00Z",
+      }),
+    ];
+    const plans = [createMockPlan("epic-1", "Auth Epic")];
+
+    renderWithProviders(
+      <TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} {...defaultListProps} />
+    );
+
+    const badge = screen.getByTestId("task-badge-waiting-to-merge");
+    expect(badge).toHaveAttribute("title", "Blocked on main · Retry eligible in 5m");
+    expect(badge).toHaveAttribute(
+      "aria-label",
+      "Waiting to merge. Blocked on main. · Retry eligible in 5m"
+    );
+    const retrySuffix = screen.getByTestId("task-badge-waiting-to-merge-retry");
+    expect(retrySuffix).toHaveTextContent(/Retry eligible in 5m/);
   });
 
   it("displays Up Next section when backlog/planning tasks exist", () => {

@@ -87,3 +87,22 @@ export function formatTimestamp(ts: string): string {
   if (diffDays < 7) return `${diffDays}d ago`;
   return d.toLocaleDateString();
 }
+
+/**
+ * Formats a future timestamp as relative time ("in 4m", "in 1h") or short locale time.
+ * Used for merge backoff / retry-eligible copy. If ts is in the past, returns "soon".
+ * @param iso ISO 8601 timestamp string (expected to be in the future)
+ * @param now Optional reference time (defaults to now). Used for tests.
+ */
+export function formatUntilTimestamp(iso: string, now: Date = new Date()): string {
+  const d = new Date(iso);
+  const diffMs = d.getTime() - now.getTime();
+  if (diffMs <= 0) return "soon";
+  const diffMins = Math.ceil(diffMs / 60000);
+  const diffHours = Math.ceil(diffMs / 3600000);
+  const diffDays = Math.ceil(diffMs / 86400000);
+  if (diffMins < 60) return `in ${diffMins}m`;
+  if (diffHours < 24) return `in ${diffHours}h`;
+  if (diffDays < 7) return `in ${diffDays}d`;
+  return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}

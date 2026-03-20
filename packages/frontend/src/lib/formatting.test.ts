@@ -4,6 +4,7 @@ import {
   formatSectionKey,
   formatTaskDuration,
   formatTimestamp,
+  formatUntilTimestamp,
   formatUptime,
 } from "./formatting";
 
@@ -149,6 +150,25 @@ describe("formatting", () => {
     it("returns null for invalid timestamps", () => {
       expect(formatTaskDuration("invalid", "2026-02-16T12:05:30.000Z")).toBeNull();
       expect(formatTaskDuration("2026-02-16T12:00:00.000Z", "invalid")).toBeNull();
+    });
+  });
+
+  describe("formatUntilTimestamp", () => {
+    const mockNow = new Date("2026-02-16T12:00:00.000Z");
+
+    it("returns 'in Nm' for future timestamps within an hour", () => {
+      const ts = new Date("2026-02-16T12:05:00.000Z").toISOString();
+      expect(formatUntilTimestamp(ts, mockNow)).toBe("in 5m");
+    });
+
+    it("returns 'in Nh' for future timestamps within a day", () => {
+      const ts = new Date("2026-02-16T14:00:00.000Z").toISOString();
+      expect(formatUntilTimestamp(ts, mockNow)).toBe("in 2h");
+    });
+
+    it("returns 'soon' when timestamp is in the past", () => {
+      const ts = new Date("2026-02-16T11:00:00.000Z").toISOString();
+      expect(formatUntilTimestamp(ts, mockNow)).toBe("soon");
     });
   });
 });

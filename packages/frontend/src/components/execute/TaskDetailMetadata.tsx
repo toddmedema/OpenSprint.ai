@@ -10,7 +10,7 @@ import { ComplexityIcon } from "../ComplexityIcon";
 import { TaskPriorityDropdown } from "./TaskPriorityDropdown";
 import { AssigneeSelector } from "./AssigneeSelector";
 import { TaskStatusBadge, COLUMN_LABELS } from "../kanban";
-import { formatUptime, formatTaskDuration } from "../../lib/formatting";
+import { formatUptime, formatTaskDuration, formatUntilTimestamp } from "../../lib/formatting";
 
 export interface TaskDetailMetadataProps {
   projectId: string;
@@ -56,6 +56,12 @@ export function TaskDetailMetadata({
               : task?.mergeWaitingOnMain
                 ? "Blocked on main"
                 : null;
+  const mergeRetrySuffix =
+    task?.mergePausedUntil &&
+    (() => {
+      const until = formatUntilTimestamp(task.mergePausedUntil!);
+      return until === "soon" ? null : `Retry eligible ${until}`;
+    })();
 
   return (
     <div className="px-4 pt-2 pb-0">
@@ -72,19 +78,26 @@ export function TaskDetailMetadata({
                 title={COLUMN_LABELS[task.kanbanColumn]}
               />
               <span>{COLUMN_LABELS[task.kanbanColumn]}</span>
-              {task.kanbanColumn === "waiting_to_merge" && mergeStateLabel && (
-                <span
-                  className="text-theme-muted"
-                  title={mergeStateLabel}
-                  data-testid={
-                    mergeStateLabel === "Blocked on main"
-                      ? "task-detail-merge-waiting-on-main-hint"
-                      : "task-detail-merge-state-hint"
-                  }
-                >
-                  · {mergeStateLabel}
-                </span>
-              )}
+              {task.kanbanColumn === "waiting_to_merge" &&
+                (mergeStateLabel || mergeRetrySuffix) && (
+                  <span
+                    className="text-theme-muted"
+                    title={[mergeStateLabel, mergeRetrySuffix].filter(Boolean).join(" · ")}
+                    data-testid={
+                      mergeStateLabel === "Blocked on main"
+                        ? "task-detail-merge-waiting-on-main-hint"
+                        : "task-detail-merge-state-hint"
+                    }
+                  >
+                    {mergeStateLabel && <>· {mergeStateLabel}</>}
+                    {mergeRetrySuffix && (
+                      <>
+                        {mergeStateLabel ? " · " : "· "}
+                        {mergeRetrySuffix}
+                      </>
+                    )}
+                  </span>
+                )}
             </span>
             <TaskPriorityDropdown
               projectId={projectId}
