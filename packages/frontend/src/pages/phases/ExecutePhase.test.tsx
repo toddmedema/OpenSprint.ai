@@ -4220,6 +4220,59 @@ describe("ExecutePhase task detail cached state", () => {
     expect(badge).toBeInTheDocument();
   });
 
+  it("task detail shows Waiting to Merge when list task has kanbanColumn waiting_to_merge", () => {
+    mockGet.mockImplementation(() => neverResolves());
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Queued merge",
+        epicId: "epic-1",
+        kanbanColumn: "waiting_to_merge" as const,
+        priority: 0,
+        assignee: null,
+      },
+    ];
+    const store = createStore(tasks, { selectedTaskId: "epic-1.1" });
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <ExecutePhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>
+    );
+
+    const row = screen.getByTestId("task-detail-priority-state-row");
+    expect(row).toHaveTextContent("Waiting to Merge");
+    expect(row.querySelector('[title="Waiting to Merge"]')).toBeInTheDocument();
+  });
+
+  it("task detail shows Blocked on main hint when waiting_to_merge and mergeWaitingOnMain", () => {
+    mockGet.mockImplementation(() => neverResolves());
+    const tasks = [
+      {
+        id: "epic-1.1",
+        title: "Paused merge",
+        epicId: "epic-1",
+        kanbanColumn: "waiting_to_merge" as const,
+        priority: 0,
+        assignee: null,
+        mergeWaitingOnMain: true,
+      },
+    ];
+    const store = createStore(tasks, { selectedTaskId: "epic-1.1" });
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <ExecutePhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByTestId("task-detail-merge-waiting-on-main-hint")).toHaveTextContent(
+      "· Blocked on main"
+    );
+  });
+
   it("shows running time in active-agent section when task has active agent", async () => {
     mockGet.mockImplementation(() => new Promise(() => {}));
     const startedAt = new Date(Date.now() - 125000).toISOString(); // 2m 5s ago

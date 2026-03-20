@@ -60,7 +60,7 @@ export function TaskDetailMetadata({
     task?.mergePausedUntil &&
     (() => {
       const until = formatUntilTimestamp(task.mergePausedUntil!);
-      return until === "soon" ? null : `Retry eligible ${until}`;
+      return until === "soon" ? "Retry eligible soon" : `Retry eligible ${until}`;
     })();
 
   return (

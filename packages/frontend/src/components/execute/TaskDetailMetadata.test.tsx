@@ -79,6 +79,34 @@ describe("TaskDetailMetadata", () => {
     expect(screen.queryByTestId("task-detail-merge-waiting-on-main-hint")).not.toBeInTheDocument();
   });
 
+  it("shows Retry eligible soon when mergePausedUntil is in the past (no mergeWaitingOnMain)", () => {
+    vi.useFakeTimers({ now: new Date("2024-06-01T12:00:00Z").getTime() });
+
+    const task = {
+      ...baseTask,
+      kanbanColumn: "waiting_to_merge" as const,
+      mergePausedUntil: "2024-06-01T11:00:00Z",
+    } as Task;
+
+    renderWithProviders(
+      <TaskDetailMetadata
+        projectId="p1"
+        selectedTask="t1"
+        task={task}
+        taskDetailLoading={false}
+        taskDetailError={null}
+        taskIdToStartedAt={{}}
+        roleLabel={null}
+        isDoneTask={false}
+        isBlockedTask={false}
+      />
+    );
+
+    const hint = screen.getByTestId("task-detail-merge-state-hint");
+    expect(hint).toHaveTextContent("Retry eligible soon");
+    expect(hint).toHaveAttribute("title", "Retry eligible soon");
+  });
+
   it("shows Retry eligible suffix when waiting_to_merge and mergePausedUntil is set", () => {
     vi.useFakeTimers({ now: new Date("2024-06-01T12:00:00Z").getTime() });
 
