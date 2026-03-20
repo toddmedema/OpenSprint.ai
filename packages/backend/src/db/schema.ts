@@ -224,17 +224,27 @@ CREATE TABLE IF NOT EXISTS auditor_runs (
 );
 CREATE INDEX IF NOT EXISTS idx_auditor_runs_project_plan ON auditor_runs(project_id, plan_id);
 
--- Self-improvement run history (timestamp, status, tasks_created_count per run)
+-- Self-improvement run history (timestamp, status, tasks_created_count, mode, outcome, summary, version ids)
 CREATE TABLE IF NOT EXISTS self_improvement_runs (
-    id                   SERIAL PRIMARY KEY,
-    project_id           TEXT NOT NULL,
-    run_id               TEXT NOT NULL,
-    completed_at         TEXT NOT NULL,
-    status               TEXT NOT NULL,
-    tasks_created_count  INTEGER NOT NULL DEFAULT 0
+    id                     SERIAL PRIMARY KEY,
+    project_id             TEXT NOT NULL,
+    run_id                 TEXT NOT NULL,
+    completed_at           TEXT NOT NULL,
+    status                 TEXT NOT NULL,
+    tasks_created_count    INTEGER NOT NULL DEFAULT 0,
+    run_mode               TEXT NOT NULL DEFAULT 'audit_only',
+    outcome                TEXT NOT NULL DEFAULT 'no_changes',
+    summary                TEXT NOT NULL DEFAULT '',
+    promoted_version_id    TEXT,
+    pending_candidate_id   TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_self_improvement_runs_project ON self_improvement_runs(project_id);
 CREATE INDEX IF NOT EXISTS idx_self_improvement_runs_completed ON self_improvement_runs(project_id, completed_at DESC);
+ALTER TABLE self_improvement_runs ADD COLUMN IF NOT EXISTS run_mode TEXT NOT NULL DEFAULT 'audit_only';
+ALTER TABLE self_improvement_runs ADD COLUMN IF NOT EXISTS outcome TEXT NOT NULL DEFAULT 'no_changes';
+ALTER TABLE self_improvement_runs ADD COLUMN IF NOT EXISTS summary TEXT NOT NULL DEFAULT '';
+ALTER TABLE self_improvement_runs ADD COLUMN IF NOT EXISTS promoted_version_id TEXT;
+ALTER TABLE self_improvement_runs ADD COLUMN IF NOT EXISTS pending_candidate_id TEXT;
 
 -- Open questions / notifications (agent clarification requests + API-blocked human notifications)
 CREATE TABLE IF NOT EXISTS open_questions (
@@ -532,15 +542,25 @@ CREATE TABLE IF NOT EXISTS auditor_runs (
 CREATE INDEX IF NOT EXISTS idx_auditor_runs_project_plan ON auditor_runs(project_id, plan_id);
 
 CREATE TABLE IF NOT EXISTS self_improvement_runs (
-    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
-    project_id           TEXT NOT NULL,
-    run_id               TEXT NOT NULL,
-    completed_at         TEXT NOT NULL,
-    status               TEXT NOT NULL,
-    tasks_created_count  INTEGER NOT NULL DEFAULT 0
+    id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id             TEXT NOT NULL,
+    run_id                 TEXT NOT NULL,
+    completed_at           TEXT NOT NULL,
+    status                 TEXT NOT NULL,
+    tasks_created_count    INTEGER NOT NULL DEFAULT 0,
+    run_mode               TEXT NOT NULL DEFAULT 'audit_only',
+    outcome                TEXT NOT NULL DEFAULT 'no_changes',
+    summary                TEXT NOT NULL DEFAULT '',
+    promoted_version_id    TEXT,
+    pending_candidate_id   TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_self_improvement_runs_project ON self_improvement_runs(project_id);
 CREATE INDEX IF NOT EXISTS idx_self_improvement_runs_completed ON self_improvement_runs(project_id, completed_at DESC);
+ALTER TABLE self_improvement_runs ADD COLUMN IF NOT EXISTS run_mode TEXT NOT NULL DEFAULT 'audit_only';
+ALTER TABLE self_improvement_runs ADD COLUMN IF NOT EXISTS outcome TEXT NOT NULL DEFAULT 'no_changes';
+ALTER TABLE self_improvement_runs ADD COLUMN IF NOT EXISTS summary TEXT NOT NULL DEFAULT '';
+ALTER TABLE self_improvement_runs ADD COLUMN IF NOT EXISTS promoted_version_id TEXT;
+ALTER TABLE self_improvement_runs ADD COLUMN IF NOT EXISTS pending_candidate_id TEXT;
 
 CREATE TABLE IF NOT EXISTS open_questions (
     id           TEXT PRIMARY KEY,

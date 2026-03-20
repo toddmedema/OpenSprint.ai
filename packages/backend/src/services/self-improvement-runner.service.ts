@@ -753,12 +753,21 @@ Review the codebase and output a structured list of improvement tasks (JSON arra
       }));
     }
 
+    const experimentsEnabled = settings.runAgentEnhancementExperiments === true;
+    const summary =
+      createdCount > 0
+        ? `Created ${createdCount} self-improvement task(s).`
+        : "Audit completed; no new improvement tasks.";
+
     await taskStoreSingleton.insertSelfImprovementRunHistory({
       projectId,
       runId,
       completedAt: new Date().toISOString(),
       status: "success",
       tasksCreatedCount: createdCount,
+      mode: experimentsEnabled ? "audit_and_experiments" : "audit_only",
+      outcome: createdCount > 0 ? "tasks_created" : "no_changes",
+      summary,
     });
 
     return { tasksCreated: createdCount, runId };

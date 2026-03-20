@@ -112,7 +112,12 @@ export function createProjectsRouter(
         timestamp: r.timestamp,
         status: r.status,
         tasksCreatedCount: r.tasksCreatedCount,
+        mode: r.mode,
+        outcome: r.outcome,
+        summary: r.summary,
         ...(r.runId && { runId: r.runId }),
+        ...(r.promotedVersionId != null && { promotedVersionId: r.promotedVersionId }),
+        ...(r.pendingCandidateId != null && { pendingCandidateId: r.pendingCandidateId }),
       }));
       res.json({ data });
     })

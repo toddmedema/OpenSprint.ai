@@ -148,6 +148,10 @@ describe.skipIf(!projectsPostgresOk)("Projects REST API — spec/sketch phase ro
       completedAt,
       status: "success",
       tasksCreatedCount: 3,
+      mode: "audit_only",
+      outcome: "tasks_created",
+      summary: "Created 3 self-improvement task(s).",
+      promotedVersionId: "bv-promo",
     });
 
     const res = await request(app).get(
@@ -160,6 +164,10 @@ describe.skipIf(!projectsPostgresOk)("Projects REST API — spec/sketch phase ro
       timestamp: completedAt,
       status: "success",
       tasksCreatedCount: 3,
+      mode: "audit_only",
+      outcome: "tasks_created",
+      summary: "Created 3 self-improvement task(s).",
+      promotedVersionId: "bv-promo",
     });
     expect(res.body.data[0].runId).toBe("si-test-1");
   });

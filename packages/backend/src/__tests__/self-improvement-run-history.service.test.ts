@@ -16,7 +16,7 @@ describe("SelfImprovementRunHistoryStore", () => {
     };
   });
 
-  it("insert returns record with timestamp, status, tasksCreatedCount", async () => {
+  it("insert returns record with timestamp, status, tasksCreatedCount, mode, outcome, summary", async () => {
     const completedAt = "2025-03-10T12:00:00.000Z";
     mockClient.queryOne.mockResolvedValue({
       id: 1,
@@ -25,6 +25,11 @@ describe("SelfImprovementRunHistoryStore", () => {
       completed_at: completedAt,
       status: "success",
       tasks_created_count: 2,
+      run_mode: "audit_only",
+      outcome: "tasks_created",
+      summary: "Created 2 tasks.",
+      promoted_version_id: null,
+      pending_candidate_id: null,
     });
 
     const store = new SelfImprovementRunHistoryStore(() => mockClient as never);
@@ -34,6 +39,9 @@ describe("SelfImprovementRunHistoryStore", () => {
       completedAt,
       status: "success",
       tasksCreatedCount: 2,
+      mode: "audit_only",
+      outcome: "tasks_created",
+      summary: "Created 2 tasks.",
     });
 
     expect(record).toEqual({
@@ -43,8 +51,44 @@ describe("SelfImprovementRunHistoryStore", () => {
       timestamp: completedAt,
       status: "success",
       tasksCreatedCount: 2,
+      mode: "audit_only",
+      outcome: "tasks_created",
+      summary: "Created 2 tasks.",
     });
     expect(mockClient.queryOne).toHaveBeenCalled();
+  });
+
+  it("insert maps optional promotedVersionId and pendingCandidateId", async () => {
+    const completedAt = "2025-03-10T12:00:00.000Z";
+    mockClient.queryOne.mockResolvedValue({
+      id: 2,
+      project_id: "proj-1",
+      run_id: "si-2",
+      completed_at: completedAt,
+      status: "success",
+      tasks_created_count: 0,
+      run_mode: "audit_and_experiments",
+      outcome: "promotion_pending",
+      summary: "Awaiting approval.",
+      promoted_version_id: null,
+      pending_candidate_id: "cand-9",
+    });
+
+    const store = new SelfImprovementRunHistoryStore(() => mockClient as never);
+    const record = await store.insert({
+      projectId: "proj-1",
+      runId: "si-2",
+      completedAt,
+      status: "success",
+      tasksCreatedCount: 0,
+      mode: "audit_and_experiments",
+      outcome: "promotion_pending",
+      summary: "Awaiting approval.",
+      pendingCandidateId: "cand-9",
+    });
+
+    expect(record.pendingCandidateId).toBe("cand-9");
+    expect(record.promotedVersionId).toBeUndefined();
   });
 
   it("listByProjectId returns records ordered by completed_at DESC", async () => {
@@ -56,6 +100,11 @@ describe("SelfImprovementRunHistoryStore", () => {
         completed_at: "2025-03-10T14:00:00.000Z",
         status: "success",
         tasks_created_count: 1,
+        run_mode: "audit_only",
+        outcome: "tasks_created",
+        summary: "s2",
+        promoted_version_id: "bv-1",
+        pending_candidate_id: null,
       },
       {
         id: 1,
@@ -64,6 +113,11 @@ describe("SelfImprovementRunHistoryStore", () => {
         completed_at: "2025-03-10T12:00:00.000Z",
         status: "success",
         tasks_created_count: 3,
+        run_mode: "audit_only",
+        outcome: "tasks_created",
+        summary: "s1",
+        promoted_version_id: null,
+        pending_candidate_id: null,
       },
     ];
     mockClient.query.mockResolvedValue(rows);
@@ -76,11 +130,16 @@ describe("SelfImprovementRunHistoryStore", () => {
       runId: "si-2",
       timestamp: "2025-03-10T14:00:00.000Z",
       tasksCreatedCount: 1,
+      mode: "audit_only",
+      outcome: "tasks_created",
+      promotedVersionId: "bv-1",
     });
     expect(list[1]).toMatchObject({
       runId: "si-1",
       timestamp: "2025-03-10T12:00:00.000Z",
       tasksCreatedCount: 3,
+      mode: "audit_only",
+      outcome: "tasks_created",
     });
     expect(mockClient.query).toHaveBeenCalledWith(
       expect.stringContaining("ORDER BY completed_at DESC"),

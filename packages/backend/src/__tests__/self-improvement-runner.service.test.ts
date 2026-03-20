@@ -18,6 +18,9 @@ vi.mock("../services/task-store.service.js", () => ({
       timestamp: new Date().toISOString(),
       status: "success",
       tasksCreatedCount: 0,
+      mode: "audit_only",
+      outcome: "no_changes",
+      summary: "Audit completed; no new improvement tasks.",
     }),
     runWrite: vi
       .fn()
