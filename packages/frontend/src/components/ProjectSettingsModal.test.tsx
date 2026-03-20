@@ -1211,12 +1211,13 @@ describe("ProjectSettingsModal", () => {
     expect(screen.queryByTestId("unknown-scope-strategy-select")).not.toBeInTheDocument();
   });
 
-  it("saves maxConcurrentCoders and unknownScopeStrategy on blur", async () => {
+  it("saves maxConcurrentCoders immediately when parallelism slider changes", async () => {
     mockGetSettings.mockResolvedValue({
       ...mockSettings,
-      maxConcurrentCoders: 3,
+      maxConcurrentCoders: 2,
       unknownScopeStrategy: "conservative",
     });
+    mockUpdateSettings.mockResolvedValue({});
 
     renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} onSaved={onSaved} />);
     await waitForModalReady();
@@ -1226,7 +1227,7 @@ describe("ProjectSettingsModal", () => {
 
     await screen.findByText("Parallelism");
     const slider = screen.getByTestId("max-concurrent-coders-slider");
-    fireEvent.blur(slider);
+    fireEvent.change(slider, { target: { value: "3" } });
 
     await waitFor(() =>
       expect(mockUpdateSettings).toHaveBeenCalledWith(

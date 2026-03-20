@@ -10,6 +10,7 @@ import {
   Suspense,
 } from "react";
 import { useModalA11y } from "../hooks/useModalA11y";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, Link } from "react-router-dom";
 import { FolderBrowser } from "./FolderBrowser";
 import { CloseButton } from "./CloseButton";
@@ -41,6 +42,7 @@ import {
   type AutoDeployTrigger,
 } from "@opensprint/shared";
 import { MIN_SAVE_SPINNER_MS, SETTINGS_HELP_CONTAINER_CLASS } from "../lib/constants";
+import { queryKeys } from "../api/queryKeys";
 
 const DEFAULT_LMSTUDIO_BASE_URL = "http://localhost:1234";
 
@@ -96,6 +98,7 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
     },
     ref
   ) {
+    const queryClient = useQueryClient();
     const [searchParams, setSearchParams] = useSearchParams();
     const tabFromUrl = fullScreen ? parseTabFromSearch(searchParams.toString()) : null;
     const [internalActiveTab, setInternalActiveTab] = useState<SettingsSubTab>(
@@ -393,6 +396,7 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                 "never",
             }),
           ]);
+          void queryClient.invalidateQueries({ queryKey: queryKeys.projects.settings(project.id) });
           if (notifyOnComplete) onSaved?.();
         } catch (err) {
           setError(err instanceof Error ? err.message : "Failed to save settings");
@@ -424,6 +428,7 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
         mergeStrategy,
         loading,
         onSaved,
+        queryClient,
       ]
     );
 

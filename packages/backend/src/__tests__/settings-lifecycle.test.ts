@@ -168,6 +168,27 @@ describe("Settings lifecycle — service-level", () => {
     expect(persisted.maxConcurrentCoders).toBe(3);
   });
 
+  it("preserves maxConcurrentCoders when validation timing samples are recorded (no clobber)", async () => {
+    const repoPath = path.join(tempDir, "parallelism-keep");
+    const project = await projectService.createProject({
+      name: "Parallelism Keep",
+      repoPath,
+      simpleComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+      complexComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    await projectService.updateSettings(project.id, { maxConcurrentCoders: 4 });
+    await projectService.recordValidationDuration(project.id, "scoped", 12_000);
+
+    const fetched = await projectService.getSettings(project.id);
+    expect(fetched.maxConcurrentCoders).toBe(4);
+
+    const persisted = await readProjectFromGlobalStore(tempDir, project.id);
+    expect(persisted.maxConcurrentCoders).toBe(4);
+  });
+
   it("getSettings does not return apiKeys (stored in global settings only)", async () => {
     const repoPath = path.join(tempDir, "apikeys");
     const project = await projectService.createProject({

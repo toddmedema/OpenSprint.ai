@@ -119,18 +119,28 @@ describe("WorkflowSettingsContent", () => {
     });
   });
 
-  it("uses blur-save handlers for test command and parallelism slider", () => {
+  it("persists max concurrent coders immediately on slider change", () => {
+    const { persistSettings } = renderWorkflowContent();
+
+    fireEvent.change(screen.getByTestId("max-concurrent-coders-slider"), {
+      target: { value: "4" },
+    });
+
+    expect(persistSettings).toHaveBeenCalledWith(undefined, { maxConcurrentCoders: 4 });
+  });
+
+  it("uses blur-save for test command only", () => {
     const { scheduleSaveOnBlur } = renderWorkflowContent();
 
     const testCommandInput = screen.getByPlaceholderText("e.g. npm test or npx vitest run");
     fireEvent.change(testCommandInput, { target: { value: "npm test" } });
     fireEvent.blur(testCommandInput);
 
-    const slider = screen.getByTestId("max-concurrent-coders-slider");
-    fireEvent.change(slider, { target: { value: "3" } });
-    fireEvent.blur(slider);
+    fireEvent.change(screen.getByTestId("max-concurrent-coders-slider"), {
+      target: { value: "3" },
+    });
 
-    expect(scheduleSaveOnBlur).toHaveBeenCalledTimes(2);
+    expect(scheduleSaveOnBlur).toHaveBeenCalledTimes(1);
   });
 
   it("shows Run now button in Continuous Improvement section", () => {

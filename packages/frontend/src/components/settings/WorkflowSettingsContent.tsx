@@ -227,13 +227,11 @@ export function WorkflowSettingsContent({
                   max={10}
                   step={1}
                   value={maxConcurrentCoders}
-                  onChange={(e) =>
-                    applySettingsUpdate((s) => ({
-                      ...s,
-                      maxConcurrentCoders: Number(e.target.value),
-                    }))
-                  }
-                  onBlur={scheduleSaveOnBlur}
+                  onChange={(e) => {
+                    const n = Number(e.target.value);
+                    applySettingsUpdate((s) => ({ ...s, maxConcurrentCoders: n }));
+                    void persistSettings(undefined, { maxConcurrentCoders: n });
+                  }}
                   className="w-full accent-brand-600"
                   data-testid="max-concurrent-coders-slider"
                 />
