@@ -62,7 +62,7 @@ During the macOS job, the workflow writes `APPLE_API_KEY_P8` to a temporary `.p8
 
 If any required secret is missing, the macOS release job fails before dependency install or packaging work begins.
 
-The notarization hook uses `xcrun notarytool submit --wait --progress` so the GitHub Actions logs show Apple notarization progress instead of appearing frozen. By default it waits up to `30m`; override that by setting `OPENSPRINT_NOTARY_TIMEOUT` in the macOS job environment if Apple processing is unusually slow.
+The notarization hook submits once, captures the Apple submission ID, and then polls `xcrun notarytool info` every 30 seconds so the GitHub Actions logs keep showing status while Apple is still processing. By default it waits up to `90m`; override that by setting `OPENSPRINT_NOTARY_TIMEOUT` in the macOS job environment if Apple processing is unusually slow.
 
 ## Verification Commands
 
