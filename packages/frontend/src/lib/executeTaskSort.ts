@@ -14,7 +14,8 @@ export type TimelineSection = (typeof TIMELINE_SECTION)[keyof typeof TIMELINE_SE
 export function getTimelineSection(column: KanbanColumn): TimelineSection {
   if (column === "in_progress" || column === "in_review") return TIMELINE_SECTION.active;
   if (column === "done") return TIMELINE_SECTION.completed;
-  return TIMELINE_SECTION.queue; // ready, waiting_to_merge, backlog, planning, blocked
+  if (column === "waiting_to_merge") return TIMELINE_SECTION.queue;
+  return TIMELINE_SECTION.queue; // ready, backlog, planning, blocked
 }
 
 /** Tier order for timeline sort: active (0) → queue (1) → completed (2) */

@@ -8,7 +8,8 @@ describe("TaskStatusBadge", () => {
 
     const dot = container.querySelector("span.rounded-full");
     expect(dot).toBeInTheDocument();
-    expect(dot).toHaveClass("bg-theme-ring");
+    expect(dot).toHaveClass("bg-theme-status-in-review");
+    expect(dot).not.toHaveClass("bg-theme-status-ready");
     expect(dot).toHaveAttribute("title", COLUMN_LABELS.waiting_to_merge);
     expect(COLUMN_LABELS.waiting_to_merge).toBe("Waiting to Merge");
   });
