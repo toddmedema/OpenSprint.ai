@@ -55,10 +55,10 @@ During the macOS job, the workflow writes `APPLE_API_KEY_P8` to a temporary `.p8
 ## Release Flow
 
 1. Push a version tag such as `v1.0.0`.
-2. GitHub Actions creates the release shell.
-3. The macOS job verifies that all required signing and notarization secrets are present.
-4. The job writes the temporary App Store Connect key file, builds the macOS app, signs it, notarizes it, and staples the notarization ticket.
-5. The job validates the built `.app` before uploading `packages/electron/dist/*.dmg` to the GitHub Release.
+2. GitHub Actions creates the release as a **draft** (no assets yet).
+3. Windows, Linux, and macOS build jobs run in parallel; each uploads its artifacts (exe, AppImage, dmg) to that draft. The release stays a draft so that `releases/latest` still points at the previous published release.
+4. After all three builds complete (including macOS notarization, which can take an hour or more), a **publish-release** job runs and publishes the draft. Only then does `releases/latest` and the permalink `.../releases/latest/download/Open.Sprint-x64.dmg` point to this release with all three platform artifacts.
+5. Within the macOS job: the workflow verifies that all required signing and notarization secrets are present, writes the temporary App Store Connect key file, builds the macOS app, signs it, notarizes it, staples the notarization ticket, validates the built `.app`, then uploads `packages/electron/dist/*.dmg` to the draft release.
 
 If any required secret is missing, the macOS release job fails before dependency install or packaging work begins.
 
