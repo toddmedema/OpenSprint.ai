@@ -13,6 +13,7 @@ import { getEpicTitleFromPlan } from "../../lib/planContentUtils";
 import { formatUptime, formatTimestamp } from "../../lib/formatting";
 import { PriorityIcon } from "../PriorityIcon";
 import { ComplexityIcon } from "../ComplexityIcon";
+import { TaskStatusBadge } from "../kanban";
 import { AssigneeSelector } from "./AssigneeSelector";
 import type { StatusFilter } from "../../lib/executeTaskFilter";
 
@@ -105,6 +106,25 @@ function TimelineRow({
               data-testid="task-badge-self-improvement"
             >
               Self-improvement
+            </span>
+          )}
+          {task.kanbanColumn === "waiting_to_merge" && (
+            <span
+              className="hidden md:inline shrink-0 inline-flex items-center gap-1 text-xs font-medium text-theme-muted"
+              title={
+                task.mergeWaitingOnMain
+                  ? "Blocked on main"
+                  : "Waiting to merge into the default branch"
+              }
+              aria-label={
+                task.mergeWaitingOnMain
+                  ? "Waiting to merge. Blocked on main."
+                  : "Waiting to merge."
+              }
+              data-testid="task-badge-waiting-to-merge"
+            >
+              <TaskStatusBadge column="waiting_to_merge" size="xs" title="Waiting to Merge" />
+              <span aria-hidden="true">Waiting to Merge</span>
             </span>
           )}
           <span className="hidden md:inline text-xs text-theme-muted shrink-0 truncate max-w-[120px]">
@@ -211,7 +231,11 @@ export function TimelineList({
     );
     const ready = sorted.filter((t) => t.kanbanColumn === "ready" && notInPlanning(t));
     const inLine = sorted.filter(
-      (t) => (t.kanbanColumn === "backlog" || t.kanbanColumn === "planning") && notInPlanning(t)
+      (t) =>
+        (t.kanbanColumn === "backlog" ||
+          t.kanbanColumn === "planning" ||
+          t.kanbanColumn === "waiting_to_merge") &&
+        notInPlanning(t)
     );
     const blockedExcludingPlanning = blockedTasks.filter(notInPlanning);
 

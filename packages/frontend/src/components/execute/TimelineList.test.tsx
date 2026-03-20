@@ -40,6 +40,7 @@ const createMockTask = (
     createdAt: string;
     complexity: Task["complexity"];
     source: string;
+    mergeWaitingOnMain: boolean;
   }> = {}
 ): Task =>
   ({
@@ -119,6 +120,48 @@ describe("TimelineList", () => {
     expect(screen.getByRole("heading", { name: "In Progress" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Ready" })).toBeInTheDocument();
     expect(screen.getByText("Queued Task")).toBeInTheDocument();
+  });
+
+  it("displays Up Next section when waiting_to_merge tasks exist (no separate column)", () => {
+    const tasks = [
+      createMockTask({ id: "a", kanbanColumn: "in_progress", title: "Active Task" }),
+      createMockTask({
+        id: "w",
+        kanbanColumn: "waiting_to_merge",
+        title: "Merge me",
+      }),
+    ];
+    const plans = [createMockPlan("epic-1", "Auth Epic")];
+
+    renderWithProviders(
+      <TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} {...defaultListProps} />
+    );
+
+    expect(screen.getByRole("heading", { name: "Up Next" })).toBeInTheDocument();
+    expect(screen.getByText("Merge me")).toBeInTheDocument();
+    const badge = screen.getByTestId("task-badge-waiting-to-merge");
+    expect(badge).toHaveTextContent("Waiting to Merge");
+    expect(badge).toHaveAttribute("aria-label", "Waiting to merge.");
+  });
+
+  it("waiting_to_merge with mergeWaitingOnMain uses Blocked on main tooltip and aria-label", () => {
+    const tasks = [
+      createMockTask({
+        id: "w",
+        kanbanColumn: "waiting_to_merge",
+        title: "Merge me",
+        mergeWaitingOnMain: true,
+      }),
+    ];
+    const plans = [createMockPlan("epic-1", "Auth Epic")];
+
+    renderWithProviders(
+      <TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} {...defaultListProps} />
+    );
+
+    const badge = screen.getByTestId("task-badge-waiting-to-merge");
+    expect(badge).toHaveAttribute("title", "Blocked on main");
+    expect(badge).toHaveAttribute("aria-label", "Waiting to merge. Blocked on main.");
   });
 
   it("displays Up Next section when backlog/planning tasks exist", () => {

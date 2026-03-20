@@ -2833,11 +2833,8 @@ describe("ExecutePhase Redux integration", () => {
 
     await vi.waitFor(() => {
       expect(screen.getByTestId("execute-baseline-paused-banner")).toBeInTheDocument();
-      expect(screen.getByText("Merge queue paused on baseline")).toBeInTheDocument();
       expect(
-        screen.getByText(
-          "Only the baseline-remediation task will be assigned until the baseline passes."
-        )
+        screen.getByText("Merge queue paused until baseline quality gates on main pass.")
       ).toBeInTheDocument();
       expect(
         screen.getByText("npm run test: src/task-route.test.ts expected 200 to be 500")

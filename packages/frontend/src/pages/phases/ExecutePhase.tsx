@@ -108,7 +108,6 @@ export function ExecutePhase({
   const awaitingApproval = useAppSelector((s) => s.execute.awaitingApproval);
   const baselineStatus = useAppSelector((s) => s.execute.baselineStatus);
   const baselineFailureSummary = useAppSelector((s) => s.execute.baselineFailureSummary);
-  const dispatchPausedReason = useAppSelector((s) => s.execute.dispatchPausedReason);
   const selfImprovementRunInProgress = useAppSelector(
     (s) => s.execute.selfImprovementRunInProgress ?? false
   );
@@ -387,10 +386,8 @@ export function ExecutePhase({
               data-testid="execute-baseline-paused-banner"
               role="status"
             >
-              <div className="text-sm font-semibold">Merge queue paused on baseline</div>
-              <p className="mt-1 text-sm">
-                {dispatchPausedReason ??
-                  "Only the baseline-remediation task will be assigned until the baseline passes."}
+              <p className="text-sm">
+                Merge queue paused until baseline quality gates on main pass.
               </p>
               {baselineFailureSummary && (
                 <p className="mt-1 text-xs opacity-90">{baselineFailureSummary}</p>

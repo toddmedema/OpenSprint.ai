@@ -51,13 +51,22 @@ export function TaskDetailMetadata({
             className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5 mb-1 text-xs text-theme-muted"
             data-testid="task-detail-priority-state-row"
           >
-            <span className="inline-flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-1.5 flex-wrap">
               <TaskStatusBadge
                 column={task.kanbanColumn}
                 size="xs"
                 title={COLUMN_LABELS[task.kanbanColumn]}
               />
               <span>{COLUMN_LABELS[task.kanbanColumn]}</span>
+              {task.kanbanColumn === "waiting_to_merge" && task.mergeWaitingOnMain && (
+                <span
+                  className="text-theme-muted"
+                  title="Blocked on main"
+                  data-testid="task-detail-merge-waiting-on-main-hint"
+                >
+                  · Blocked on main
+                </span>
+              )}
             </span>
             <TaskPriorityDropdown
               projectId={projectId}
