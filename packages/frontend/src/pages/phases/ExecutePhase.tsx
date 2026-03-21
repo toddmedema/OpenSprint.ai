@@ -10,6 +10,7 @@ import {
   selectTaskById,
   selectSelectedTaskOutput,
   selectCompletionState,
+  sweepExpiredBaselineMergePauseTick,
 } from "../../store/slices/executeSlice";
 import { wsSend } from "../../store/middleware/websocketMiddleware";
 import {
@@ -64,6 +65,9 @@ const EMPTY_ACTIVE_TASKS: {
 }[] = [];
 const EMPTY_TASK_STARTED_AT = Object.freeze({}) as Record<string, string>;
 
+/** Clears stale baseline-merge pause UI when server derives expiry without a DB write. */
+const BASELINE_MERGE_PAUSE_SWEEP_MS = 8000;
+
 export function ExecutePhase({
   projectId,
   initialTaskIdFromUrl,
@@ -72,9 +76,17 @@ export function ExecutePhase({
 }: ExecutePhaseProps) {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const gitMergeQueue = useAppSelector((s) => s.execute?.gitMergeQueue ?? null);
   useEffect(() => {
     dispatch(clearPhaseUnread({ projectId, phase: "execute" }));
   }, [dispatch, projectId]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      dispatch(sweepExpiredBaselineMergePauseTick());
+    }, BASELINE_MERGE_PAUSE_SWEEP_MS);
+    return () => window.clearInterval(id);
+  }, [dispatch]);
   const [viewMode, setViewMode] = useState<"kanban" | "timeline">(() => {
     const stored = localStorage.getItem("opensprint.executeView");
     return stored === "kanban" || stored === "timeline" ? stored : "timeline";
@@ -158,7 +170,13 @@ export function ExecutePhase({
   const liveOutputData = liveOutputQuery.data;
   const liveOutputRefetch = liveOutputQuery.refetch;
   const markDoneLoading = markDoneMutation.isPending;
-  const unblockLoading = unblockMutation.isPending;
+  const unblockingTaskId =
+    unblockMutation.isPending && unblockMutation.variables
+      ? unblockMutation.variables.taskId
+      : null;
+  const unblockLoading = Boolean(
+    effectiveSelectedTask && unblockingTaskId === effectiveSelectedTask
+  );
   // Merge priority from Redux when both exist so optimistic update shows immediately
   const selectedTaskData = (() => {
     if (!effectiveSelectedTask) return null;
@@ -265,7 +283,7 @@ export function ExecutePhase({
     markDoneMutation.mutate(effectiveSelectedTask);
   };
 
-  const handleUnblock = async () => {
+  const handleUnblock = () => {
     if (!effectiveSelectedTask || !isBlockedTask) return;
     unblockMutation.mutate({ taskId: effectiveSelectedTask });
   };
@@ -455,6 +473,7 @@ export function ExecutePhase({
                             }
                             taskIdToStartedAt={taskIdToStartedAt}
                             selectedTaskId={effectiveSelectedTask}
+                            unblockingTaskId={unblockingTaskId}
                           />
                         ))}
                       </div>
@@ -483,6 +502,7 @@ export function ExecutePhase({
                             }
                             taskIdToStartedAt={taskIdToStartedAt}
                             selectedTaskId={effectiveSelectedTask}
+                            unblockingTaskId={unblockingTaskId}
                           />
                         ))}
                       </div>
@@ -511,6 +531,7 @@ export function ExecutePhase({
                             }
                             taskIdToStartedAt={taskIdToStartedAt}
                             selectedTaskId={effectiveSelectedTask}
+                            unblockingTaskId={unblockingTaskId}
                           />
                         ))}
                       </div>
@@ -540,6 +561,7 @@ export function ExecutePhase({
                             }
                             taskIdToStartedAt={taskIdToStartedAt}
                             selectedTaskId={effectiveSelectedTask}
+                            unblockingTaskId={unblockingTaskId}
                           />
                         ))}
                       </div>
@@ -583,6 +605,7 @@ export function ExecutePhase({
                       }
                       taskIdToStartedAt={taskIdToStartedAt}
                       selectedTaskId={effectiveSelectedTask}
+                      unblockingTaskId={unblockingTaskId}
                     />
                   ))}
                 </div>
@@ -603,6 +626,7 @@ export function ExecutePhase({
                 plans={plans}
                 onTaskSelect={(taskId) => dispatch(setSelectedTaskId(taskId))}
                 onUnblock={(taskId) => unblockMutation.mutate({ taskId })}
+                unblockingTaskId={unblockingTaskId}
                 taskIdToStartedAt={taskIdToStartedAt}
                 statusFilter={statusFilter}
                 scrollRef={executeScrollRef}
@@ -610,6 +634,7 @@ export function ExecutePhase({
                 projectId={projectId}
                 teamMembers={projectSettingsQuery.data?.teamMembers ?? []}
                 enableHumanTeammates={projectSettingsQuery.data?.enableHumanTeammates ?? false}
+                gitMergeQueue={gitMergeQueue}
               />
             </>
           )}

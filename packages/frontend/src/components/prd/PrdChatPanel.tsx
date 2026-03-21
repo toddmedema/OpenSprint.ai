@@ -1,4 +1,4 @@
-import { useState, useRef, useLayoutEffect, useCallback } from "react";
+import { useState, useRef, useLayoutEffect, useCallback, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AGENT_ROLE_LABELS, type AgentRole } from "@opensprint/shared";
@@ -6,6 +6,7 @@ import { ChatInput } from "../ChatInput";
 import { ChatIcon, ChevronLeftIcon, ChevronRightIcon, SparklesIcon } from "../icons/PrdIcons";
 import { CloseButton } from "../CloseButton";
 import { formatSectionKey } from "../../lib/formatting";
+import { clearTextDraft, loadTextDraft, saveTextDraft } from "../../lib/agentInputDraftStorage";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -25,7 +26,13 @@ export interface PrdChatPanelProps {
   sending: boolean;
   selectionContext: SelectionContext | null;
   onClearSelectionContext: () => void;
-  onSend: (message: string) => void;
+  /**
+   * Send the message. Return false if the request failed so the composer keeps the text.
+   * Return void or any other value to clear the input (success). May be async.
+   */
+  onSend: (message: string) => void | boolean | Promise<void | boolean>;
+  /** When set, composer text is restored from localStorage and saved on change until a successful send clears it. */
+  draftStorageKey?: string;
   inputRef?: React.RefObject<HTMLTextAreaElement | null>;
   /** "floating" = overlay panel with toggle button; "inline" = always-visible sidebar in split-pane */
   variant?: "floating" | "inline";
@@ -70,6 +77,7 @@ export function PrdChatPanel({
   selectionContext,
   onClearSelectionContext,
   onSend,
+  draftStorageKey,
   inputRef: externalInputRef,
   variant = "floating",
   collapsed = false,
@@ -77,7 +85,10 @@ export function PrdChatPanel({
   resizable = false,
   agentRole = "dreamer",
 }: PrdChatPanelProps) {
-  const [chatInput, setChatInput] = useState("");
+  const [chatInput, setChatInput] = useState(() =>
+    draftStorageKey ? loadTextDraft(draftStorageKey) : ""
+  );
+  const [localSendBusy, setLocalSendBusy] = useState(false);
   const chatMessagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const internalInputRef = useRef<HTMLTextAreaElement>(null);
@@ -86,6 +97,15 @@ export function PrdChatPanel({
   const isCollapsed = isInline && collapsed;
   const agentLabel = AGENT_ROLE_LABELS[agentRole];
   const prevMessageCountRef = useRef(0);
+
+  useLayoutEffect(() => {
+    setChatInput(draftStorageKey ? loadTextDraft(draftStorageKey) : "");
+  }, [draftStorageKey]);
+
+  useEffect(() => {
+    if (!draftStorageKey) return;
+    saveTextDraft(draftStorageKey, chatInput);
+  }, [draftStorageKey, chatInput]);
 
   const scrollToBottom = useCallback(() => {
     const scrollEl = scrollContainerRef.current ?? chatMessagesEndRef.current?.parentElement;
@@ -119,12 +139,24 @@ export function PrdChatPanel({
     return () => cancelAnimationFrame(id);
   }, [messages.length, open, collapsed, scrollToBottom, scrollToTop]);
 
-  const handleSend = () => {
+  const runSend = useCallback(async () => {
     const text = chatInput.trim();
-    if (!text || sending) return;
-    setChatInput("");
-    onSend(text);
-  };
+    if (!text || sending || localSendBusy) return;
+    setLocalSendBusy(true);
+    try {
+      const outcome = await Promise.resolve(onSend(text));
+      if (outcome !== false) {
+        setChatInput("");
+        if (draftStorageKey) clearTextDraft(draftStorageKey);
+      }
+    } finally {
+      setLocalSendBusy(false);
+    }
+  }, [chatInput, sending, localSendBusy, onSend, draftStorageKey]);
+
+  const handleSend = useCallback(() => {
+    void runSend();
+  }, [runSend]);
 
   // In inline mode: single container with smooth width transition when opening/closing
   if (isInline) {
@@ -229,9 +261,11 @@ export function PrdChatPanel({
                 value={chatInput}
                 onChange={setChatInput}
                 onSend={handleSend}
-                sendDisabled={sending}
+                sendDisabled={sending || localSendBusy}
                 sendDisabledTooltip={
-                  sending ? `Waiting on ${agentLabel} to finish current response` : undefined
+                  sending || localSendBusy
+                    ? `Waiting on ${agentLabel} to finish current response`
+                    : undefined
                 }
                 placeholder={
                   selectionContext ? "Comment on this selection..." : "Ask about your PRD..."
@@ -343,9 +377,11 @@ export function PrdChatPanel({
           value={chatInput}
           onChange={setChatInput}
           onSend={handleSend}
-          sendDisabled={sending}
+          sendDisabled={sending || localSendBusy}
           sendDisabledTooltip={
-            sending ? `Waiting on ${agentLabel} to finish current response` : undefined
+            sending || localSendBusy
+              ? `Waiting on ${agentLabel} to finish current response`
+              : undefined
           }
           placeholder={selectionContext ? "Comment on this selection..." : "Ask about your PRD..."}
           inputRef={inputRef}

@@ -30,6 +30,7 @@ import { finalReviewService } from "./final-review.service.js";
 import { notificationService } from "./notification.service.js";
 import { selfImprovementService } from "./self-improvement.service.js";
 import { broadcastToProject } from "../websocket/index.js";
+import { broadcastAuthoritativeTaskUpdated } from "../task-store-events.js";
 import type { TimerRegistry } from "./timer-registry.js";
 import { createLogger } from "../utils/logger.js";
 import { buildTaskLastExecutionSummary, compactExecutionText } from "./task-execution-summary.js";
@@ -1460,6 +1461,19 @@ export class MergeCoordinatorService {
     const slot = state.slots.get(task.id);
     if (!slot) {
       log.warn("performMergeAndDone: no slot found for task", { taskId: task.id });
+      try {
+        await this.host.taskStore.update(projectId, task.id, {
+          status: "open",
+          assignee: "",
+        });
+      } catch (err) {
+        log.warn("performMergeAndDone: failed to requeue task after missing slot", {
+          taskId: task.id,
+          err,
+        });
+      }
+      await broadcastAuthoritativeTaskUpdated(broadcastToProject, projectId, task.id);
+      this.host.nudge(projectId);
       return;
     }
     const wtPath = slot.worktreePath ?? repoPath;

@@ -122,8 +122,11 @@ export class OrchestratorLoopService {
       baselineStatus: status.baselineStatus,
       baselineCheckedAt: status.baselineCheckedAt ?? null,
       baselineFailureSummary: status.baselineFailureSummary ?? null,
+      mergeValidationStatus: status.mergeValidationStatus,
+      mergeValidationFailureSummary: status.mergeValidationFailureSummary ?? null,
       dispatchPausedReason: status.dispatchPausedReason ?? null,
       selfImprovementRunInProgress: status.selfImprovementRunInProgress,
+      gitMergeQueue: status.gitMergeQueue,
       ...(status.pendingFeedbackCategorizations && {
         pendingFeedbackCategorizations: status.pendingFeedbackCategorizations,
       }),

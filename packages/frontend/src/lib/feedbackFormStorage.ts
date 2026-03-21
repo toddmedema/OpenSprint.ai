@@ -72,16 +72,22 @@ export function saveFeedbackFormDraft(projectId: string, draft: FeedbackFormDraf
       truncated.push(img);
       totalBytes += size;
     }
+    const rawText = typeof draft.text === "string" ? draft.text : "";
+    const priority =
+      typeof draft.priority === "number" &&
+      Number.isInteger(draft.priority) &&
+      draft.priority >= 0 &&
+      draft.priority <= 4
+        ? draft.priority
+        : null;
+    if (!rawText.trim() && truncated.length === 0 && priority == null) {
+      clearFeedbackFormDraft(projectId);
+      return;
+    }
     const toStore: FeedbackFormDraft = {
-      text: typeof draft.text === "string" ? draft.text : "",
+      text: rawText,
       images: truncated,
-      priority:
-        typeof draft.priority === "number" &&
-        Number.isInteger(draft.priority) &&
-        draft.priority >= 0 &&
-        draft.priority <= 4
-          ? draft.priority
-          : null,
+      priority,
     };
     localStorage.setItem(getStorageKey(projectId), JSON.stringify(toStore));
   } catch {

@@ -1315,6 +1315,8 @@ export class TaskStoreService {
     if (stage && stage.trim()) {
       await this.addLabel(projectId, id, `merge_stage:${stage.trim()}`);
     }
+    const updated = await this.show(projectId, id);
+    this.emitTaskChange(projectId, "update", updated);
   }
 
   /** No-op. Dolt sync removed — persistence is handled by Postgres. */

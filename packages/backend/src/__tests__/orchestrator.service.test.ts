@@ -390,6 +390,10 @@ vi.mock("../services/git-commit-queue.service.js", async (importOriginal) => {
       enqueue: mockGitQueueEnqueue,
       enqueueAndWait: mockGitQueueEnqueueAndWait,
       drain: vi.fn().mockResolvedValue(undefined),
+      getMergeQueueSnapshotForRepo: vi.fn().mockReturnValue({
+        activeTaskId: null,
+        pendingTaskIds: [],
+      }),
     },
   };
 });

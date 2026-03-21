@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { Task } from "@opensprint/shared";
+import type { GitMergeQueueSnapshot, Task } from "@opensprint/shared";
 import type { Plan } from "@opensprint/shared";
 import { isAgentAssignee } from "@opensprint/shared";
 import {
@@ -27,6 +27,8 @@ export interface TimelineListProps {
   plans: Plan[];
   onTaskSelect: (taskId: string) => void;
   onUnblock?: (taskId: string) => void;
+  /** When set, the Retry control for that task shows a spinner and is disabled. */
+  unblockingTaskId?: string | null;
   taskIdToStartedAt?: Record<string, string>;
   /** When "all", a Failures section is shown at top when blocked tasks exist. */
   statusFilter?: StatusFilter;
@@ -40,11 +42,15 @@ export interface TimelineListProps {
   teamMembers: Array<{ id: string; name: string }>;
   /** When false, assignee is not editable (show as text only). */
   enableHumanTeammates?: boolean;
+  /** Git worktree_merge queue snapshot (from execute.status) for position hints. */
+  gitMergeQueue?: GitMergeQueueSnapshot | null;
 }
 
-/** Tooltip for the waiting-to-merge row badge (aligned with TaskDetailMetadata merge hints). */
-function waitingToMergeBadgeTitle(task: Task): string {
-  const base = "Waiting to Merge";
+/** Merge sub-state and retry hint for waiting-to-merge rows (inline + tooltip). */
+function waitingToMergeMergeParts(task: Task): {
+  mergeStateLabel: string | null;
+  mergeRetrySuffix: string | null;
+} {
   const mergeStateLabel =
     task.mergeGateState === "blocked_on_baseline"
       ? "Blocked on main"
@@ -66,9 +72,29 @@ function waitingToMergeBadgeTitle(task: Task): string {
           return until === "soon" ? "Retry eligible soon" : `Retry eligible ${until}`;
         })()
       : null;
+  return { mergeStateLabel, mergeRetrySuffix };
+}
+
+/** Tooltip for the waiting-to-merge row badge (aligned with TaskDetailMetadata merge hints). */
+function waitingToMergeBadgeTitle(task: Task): string {
+  const base = "Waiting to Merge";
+  const { mergeStateLabel, mergeRetrySuffix } = waitingToMergeMergeParts(task);
   const extra = [mergeStateLabel, mergeRetrySuffix].filter(Boolean);
   if (extra.length === 0) return base;
   return `${base} · ${extra.join(" · ")}`;
+}
+
+function mergeQueuePositionHint(
+  taskId: string,
+  q: GitMergeQueueSnapshot | null | undefined
+): string | null {
+  if (!q) return null;
+  if (q.activeTaskId === taskId) return "Merging now";
+  const idx = q.pendingTaskIds.indexOf(taskId);
+  if (idx < 0) return null;
+  const ahead = (q.activeTaskId ? 1 : 0) + idx;
+  if (ahead === 0) return "Next in merge queue";
+  return `${ahead} ahead in merge queue`;
 }
 
 const SECTION_LABELS: Record<string, string> = {
@@ -88,22 +114,27 @@ function TimelineRow({
   relativeTime,
   onTaskSelect,
   onUnblock,
+  unblockingTaskId,
   projectId,
   teamMembers,
   enableHumanTeammates,
   onAssigneeDropdownOpenChange,
+  gitMergeQueue,
 }: {
   task: Task;
   epicName: string;
   relativeTime: string;
   onTaskSelect: (taskId: string) => void;
   onUnblock?: (taskId: string) => void;
+  unblockingTaskId?: string | null;
   projectId: string;
   teamMembers: Array<{ id: string; name: string }>;
   enableHumanTeammates?: boolean;
   onAssigneeDropdownOpenChange?: (taskId: string, open: boolean) => void;
+  gitMergeQueue?: GitMergeQueueSnapshot | null;
 }) {
   const isBlocked = task.kanbanColumn === "blocked";
+  const isUnblocking = Boolean(unblockingTaskId && unblockingTaskId === task.id);
   const isDone = task.kanbanColumn === "done";
   const isInProgress = task.kanbanColumn === "in_progress" || task.kanbanColumn === "in_review";
   const [assigneeDropdownOpen, setAssigneeDropdownOpen] = useState(false);
@@ -139,12 +170,32 @@ function TimelineRow({
             </span>
           )}
           {task.kanbanColumn === "waiting_to_merge" && (
-            <span className="inline-flex shrink-0" data-testid="timeline-waiting-to-merge-badge">
+            <span
+              className="inline-flex items-center gap-1.5 shrink-0 min-w-0"
+              data-testid="timeline-waiting-to-merge-badge"
+            >
               <TaskStatusBadge
                 column="waiting_to_merge"
                 size="xs"
                 title={waitingToMergeBadgeTitle(task)}
+                mergeGateState={task.mergeGateState}
               />
+              {(() => {
+                const { mergeStateLabel, mergeRetrySuffix } = waitingToMergeMergeParts(task);
+                const queueHint = mergeQueuePositionHint(task.id, gitMergeQueue);
+                const parts = [mergeStateLabel, queueHint, mergeRetrySuffix].filter(Boolean);
+                if (parts.length === 0) return null;
+                const text = parts.join(" · ");
+                return (
+                  <span
+                    className="hidden sm:inline text-xs text-theme-muted truncate max-w-[240px]"
+                    data-testid="timeline-waiting-to-merge-inline-hint"
+                    title={text}
+                  >
+                    {text}
+                  </span>
+                );
+              })()}
             </span>
           )}
           <span className="hidden md:inline text-xs text-theme-muted shrink-0 truncate max-w-[120px]">
@@ -184,9 +235,20 @@ function TimelineRow({
               e.stopPropagation();
               onUnblock(task.id);
             }}
-            className="shrink-0 text-xs font-medium text-theme-error-text hover:bg-theme-error-bg px-2 py-1 rounded transition-colors"
+            disabled={isUnblocking}
+            aria-busy={isUnblocking}
+            aria-label={isUnblocking ? "Retrying" : "Retry"}
+            className="shrink-0 text-xs font-medium text-theme-error-text hover:bg-theme-error-bg px-2 py-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[3.25rem] min-h-[1.75rem] inline-flex items-center justify-center"
+            data-testid={`timeline-retry-${task.id}`}
           >
-            Retry
+            {isUnblocking ? (
+              <span
+                className="inline-block w-3.5 h-3.5 border-2 border-theme-border border-t-brand-500 rounded-full animate-spin"
+                aria-hidden
+              />
+            ) : (
+              "Retry"
+            )}
           </button>
         )}
       </div>
@@ -205,6 +267,7 @@ type TimelineItem =
       projectId: string;
       teamMembers: Array<{ id: string; name: string }>;
       enableHumanTeammates?: boolean;
+      gitMergeQueue: GitMergeQueueSnapshot | null;
     };
 
 export function TimelineList({
@@ -212,6 +275,7 @@ export function TimelineList({
   plans,
   onTaskSelect,
   onUnblock,
+  unblockingTaskId = null,
   taskIdToStartedAt = {},
   statusFilter = "all",
   scrollRef,
@@ -219,6 +283,7 @@ export function TimelineList({
   projectId,
   teamMembers,
   enableHumanTeammates = false,
+  gitMergeQueue = null,
 }: TimelineListProps) {
   const epicIdToTitle = useMemo(() => {
     const m = new Map<string, string>();
@@ -310,6 +375,7 @@ export function TimelineList({
           projectId,
           teamMembers,
           enableHumanTeammates,
+          gitMergeQueue: gitMergeQueue ?? null,
         });
       }
     }
@@ -322,6 +388,7 @@ export function TimelineList({
     projectId,
     teamMembers,
     enableHumanTeammates,
+    gitMergeQueue,
   ]);
 
   const taskIdToIndex = useMemo(() => {
@@ -383,12 +450,14 @@ export function TimelineList({
                     relativeTime={getRelativeTime(task)}
                     onTaskSelect={onTaskSelect}
                     onUnblock={task.kanbanColumn === "blocked" ? onUnblock : undefined}
+                    unblockingTaskId={unblockingTaskId}
                     projectId={projectId}
                     teamMembers={teamMembers}
                     enableHumanTeammates={enableHumanTeammates}
                     onAssigneeDropdownOpenChange={(taskId, open) =>
                       setOpenAssigneeTaskId(open ? taskId : null)
                     }
+                    gitMergeQueue={gitMergeQueue}
                   />
                 ))}
               </ul>
@@ -456,12 +525,14 @@ export function TimelineList({
                   relativeTime={item.relativeTime}
                   onTaskSelect={onTaskSelect}
                   onUnblock={item.onUnblock}
+                  unblockingTaskId={unblockingTaskId}
                   projectId={item.projectId}
                   teamMembers={item.teamMembers}
                   enableHumanTeammates={item.enableHumanTeammates}
                   onAssigneeDropdownOpenChange={(taskId, open) =>
                     setOpenAssigneeTaskId(open ? taskId : null)
                   }
+                  gitMergeQueue={item.gitMergeQueue}
                 />
               </ul>
             </div>

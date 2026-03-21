@@ -51,6 +51,16 @@ import type { PrdProposedDiffResponse, PrdVersionDiffResponse } from "./prdDiffT
 /** API base; set VITE_API_BASE for production/staging (e.g. empty for same-origin, or full origin). */
 const BASE_URL = `${(import.meta.env.VITE_API_BASE as string | undefined) ?? ""}/api/v1`;
 
+/** Default upper bound for how long any API `fetch` may stay pending before aborting. */
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+
+/** Abort when either the timeout elapses or the caller's signal aborts (whichever comes first). */
+function mergeRequestSignal(timeoutMs: number, userSignal?: AbortSignal | null): AbortSignal {
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  if (userSignal == null) return timeoutSignal;
+  return AbortSignal.any([timeoutSignal, userSignal]);
+}
+
 /** Error thrown by request() when response is not ok; carries backend code, message, and optional details. */
 export class ApiError extends Error {
   constructor(
@@ -94,11 +104,12 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   const url = `${BASE_URL}${endpoint}`;
 
   const response = await fetch(url, {
+    ...options,
     headers: {
       "Content-Type": "application/json",
       ...options.headers,
     },
-    ...options,
+    signal: mergeRequestSignal(DEFAULT_REQUEST_TIMEOUT_MS, options.signal),
   });
 
   if (!response.ok) {

@@ -15,6 +15,12 @@ import { HelpAnalyticsChart } from "./HelpAnalyticsChart";
 import { api } from "../api/client";
 import { ASSET_BASE, NAVBAR_HEIGHT } from "../lib/constants";
 import { getKeyboardShortcuts } from "../lib/keybindings";
+import {
+  clearTextDraft,
+  helpAskDraftStorageKey,
+  loadTextDraft,
+  saveTextDraft,
+} from "../lib/agentInputDraftStorage";
 
 export interface HelpContentProps {
   /** Optional project context (per-project view vs homepage) */
@@ -241,14 +247,23 @@ function AskQuestionContent({
   project?: { id: string; name: string } | null;
   isActive: boolean;
 }) {
+  const draftKey = useMemo(() => helpAskDraftStorageKey(project?.id ?? null), [project?.id]);
   const [messages, setMessages] = useState<HelpChatMessage[]>([]);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(() => loadTextDraft(draftKey));
   const [sending, setSending] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
+
+  useLayoutEffect(() => {
+    setInput(loadTextDraft(draftKey));
+  }, [draftKey]);
+
+  useEffect(() => {
+    saveTextDraft(draftKey, input);
+  }, [draftKey, input]);
 
   useEffect(() => {
     let cancelled = false;
@@ -287,10 +302,9 @@ function AskQuestionContent({
     }
   }, [isActive]);
 
-  const handleSend = async () => {
+  const handleSend = useCallback(async () => {
     const text = input.trim();
     if (!text || sending) return;
-    setInput("");
     setError(null);
     const userMsg: HelpChatMessage = { role: "user", content: text };
     setMessages((prev) => [...prev, userMsg]);
@@ -303,6 +317,8 @@ function AskQuestionContent({
         messages: priorMessages,
       });
       setMessages((prev) => [...prev, { role: "assistant", content: res.message }]);
+      setInput("");
+      clearTextDraft(draftKey);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       setError(msg);
@@ -310,7 +326,7 @@ function AskQuestionContent({
     } finally {
       setSending(false);
     }
-  };
+  }, [input, sending, messages, project?.id, draftKey]);
 
   return (
     <div className="flex flex-col gap-2 min-h-0 flex-1 overflow-hidden">
@@ -367,7 +383,9 @@ function AskQuestionContent({
         <ChatInput
           value={input}
           onChange={setInput}
-          onSend={handleSend}
+          onSend={() => {
+            void handleSend();
+          }}
           sendDisabled={sending}
           placeholder="Ask a question..."
           aria-label="Help chat message"

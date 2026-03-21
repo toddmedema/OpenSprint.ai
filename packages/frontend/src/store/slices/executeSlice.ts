@@ -48,6 +48,7 @@ export const {
   setTasks,
   setExecuteError,
   setExecuteStatusPayload,
+  sweepExpiredBaselineMergePauseTick,
   setSelfImprovementRunInProgress,
   setArchivedSessions,
   setActiveAgentsPayload,

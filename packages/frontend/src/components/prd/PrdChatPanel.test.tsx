@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PrdChatPanel } from "./PrdChatPanel";
 
@@ -417,7 +417,9 @@ describe("PrdChatPanel", () => {
       const input = screen.getByPlaceholderText(/Ask about your PRD/);
       await user.type(input, "Hello{Enter}");
 
-      expect(onSend).toHaveBeenCalledWith("Hello");
+      await waitFor(() => {
+        expect(onSend).toHaveBeenCalledWith("Hello");
+      });
     });
 
     it("Shift+Enter inserts newline and does not submit", async () => {

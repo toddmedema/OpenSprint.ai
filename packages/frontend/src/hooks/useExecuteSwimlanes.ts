@@ -196,6 +196,7 @@ export function useExecuteSwimlanes(
   const inProgressCount = implTasks.filter((t) => t.kanbanColumn === "in_progress").length;
   const inReviewCount = implTasks.filter((t) => t.kanbanColumn === "in_review").length;
   const doneCount = implTasks.filter((t) => t.kanbanColumn === "done").length;
+  const waitingToMergeCount = implTasks.filter((t) => t.kanbanColumn === "waiting_to_merge").length;
 
   const selfImprovementCount = implTasks.filter((t) => isSelfImprovementTask(t)).length;
   const chipConfig: { label: string; filter: StatusFilter; count: number }[] = [
@@ -203,6 +204,15 @@ export function useExecuteSwimlanes(
     { label: "Planning", filter: "planning", count: planningCount },
     { label: "Up Next", filter: "in_line", count: inLineCount },
     { label: "Ready", filter: "ready", count: readyCount },
+    ...(waitingToMergeCount > 0
+      ? [
+          {
+            label: "Waiting to Merge",
+            filter: "waiting_to_merge" as StatusFilter,
+            count: waitingToMergeCount,
+          },
+        ]
+      : []),
     { label: "In Progress", filter: "in_progress", count: inProgressCount + inReviewCount },
     { label: "Done", filter: "done", count: doneCount },
     ...(blockedOnHumanCount > 0

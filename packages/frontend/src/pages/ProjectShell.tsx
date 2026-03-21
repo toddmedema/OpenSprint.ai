@@ -231,6 +231,7 @@ export function ProjectShell() {
         mergeValidationFailureSummary: executeStatusData.mergeValidationFailureSummary,
         dispatchPausedReason: executeStatusData.dispatchPausedReason,
         selfImprovementRunInProgress: executeStatusData.selfImprovementRunInProgress,
+        gitMergeQueue: executeStatusData.gitMergeQueue ?? null,
       })
     );
   }, [projectId, executeStatusData, dispatch]);

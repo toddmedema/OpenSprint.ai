@@ -1776,9 +1776,6 @@ export function EvalPhase({
     const text = input.trim();
     const imagePayload = imageAttachment.images.length > 0 ? imageAttachment.images : undefined;
     const priorityPayload = priority != null ? priority : undefined;
-    setInput("");
-    imageAttachment.reset();
-    setPriority(null);
     const result = await dispatch(
       submitFeedback({
         projectId,
@@ -1788,6 +1785,9 @@ export function EvalPhase({
       })
     );
     if (submitFeedback.fulfilled.match(result)) {
+      setInput("");
+      imageAttachment.reset();
+      setPriority(null);
       setReconcilingFeedbackIds((prev) => new Set(prev).add(result.payload.id));
       clearFeedbackFormDraft(projectId);
       feedbackInputRef.current?.focus();

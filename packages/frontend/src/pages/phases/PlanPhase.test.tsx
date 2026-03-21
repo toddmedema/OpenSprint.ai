@@ -2841,6 +2841,7 @@ describe("PlanPhase Generate Plan", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     Element.prototype.scrollIntoView = vi.fn();
+    localStorage.removeItem("opensprint-plan-idea-draft-v1-proj-1");
   });
 
   it("enables Generate Plan button when user types a description in Add Plan modal", async () => {
@@ -2909,7 +2910,7 @@ describe("PlanPhase Generate Plan", () => {
     const button = screen.getByTestId("generate-plan-button");
     await user.click(button);
 
-    expect(screen.queryByTestId("add-plan-modal")).not.toBeInTheDocument();
+    expect(screen.getByTestId("add-plan-modal")).toBeInTheDocument();
     const { optimisticPlans } = store.getState().plan;
     expect(optimisticPlans).toHaveLength(1);
     expect(optimisticPlans[0].title).toBe("Add dark mode support");
@@ -2932,6 +2933,7 @@ describe("PlanPhase Generate Plan", () => {
       },
     });
     await waitFor(() => {
+      expect(screen.queryByTestId("add-plan-modal")).not.toBeInTheDocument();
       expect(store.getState().plan.optimisticPlans).toHaveLength(0);
       expect(store.getState().plan.plans).toHaveLength(2);
     });
@@ -2953,7 +2955,9 @@ describe("PlanPhase Generate Plan", () => {
     await user.type(screen.getByTestId("feature-description-input"), "Some feature");
     await user.click(screen.getByTestId("generate-plan-button"));
 
-    expect(screen.queryByTestId("add-plan-modal")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByTestId("add-plan-modal")).not.toBeInTheDocument();
+    });
   });
 
   it("shows error notification when generation fails", async () => {
@@ -3228,6 +3232,10 @@ describe("PlanPhase Generate Plan", () => {
 
     expect(store.getState().plan.optimisticPlans).toHaveLength(1);
     expect(store.getState().plan.optimisticPlans[0].title).toBe("First feature idea");
+
+    const backdrop = document.querySelector(".bg-theme-overlay");
+    expect(backdrop).toBeTruthy();
+    await user.click(backdrop!);
 
     await user.click(screen.getByTestId("add-plan-button"));
     await user.type(screen.getByTestId("feature-description-input"), "Second feature idea");

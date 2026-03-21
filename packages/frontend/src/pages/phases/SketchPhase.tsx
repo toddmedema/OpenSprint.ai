@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppDispatch, useAppSelector } from "../../store";
 import {
@@ -45,6 +45,12 @@ import { api } from "../../api/client";
 import { isApiError } from "../../api/client";
 import { isNotificationManagedAgentFailure } from "../../lib/agentApiError";
 import { clearPhaseUnread } from "../../store/slices/unreadPhaseSlice";
+import { chatDraftStorageKey } from "../../lib/agentInputDraftStorage";
+import {
+  clearSketchInitialPromptDraft,
+  loadSketchInitialPromptDraft,
+  saveSketchInitialPromptDraft,
+} from "../../lib/sketchInitialPromptStorage";
 
 /* ── Types ──────────────────────────────────────────────── */
 
@@ -174,8 +180,9 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
   const decomposing = decomposeMutation.isPending;
 
   /* ── Local UI state (preserved by mount-all) ── */
-  const [initialInput, setInitialInput] = useState("");
-  const imageAttachment = useImageAttachment();
+  const initialSketchDraft = useMemo(() => loadSketchInitialPromptDraft(projectId), [projectId]);
+  const [initialInput, setInitialInput] = useState(initialSketchDraft.text);
+  const imageAttachment = useImageAttachment(initialSketchDraft.images);
   const [selection, setSelection] = useState<SelectionInfo | null>(null);
   const [selectionContext, setSelectionContext] = useState<{
     text: string;
@@ -196,6 +203,21 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
     setTocCollapsedState(collapsed);
     saveSketchTocSidebarCollapsed(collapsed);
   }, []);
+
+  useEffect(() => {
+    const d = loadSketchInitialPromptDraft(projectId);
+    setInitialInput(d.text);
+    imageAttachment.resetTo(d.images);
+  }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps -- resetTo is stable
+
+  useEffect(() => {
+    saveSketchInitialPromptDraft(projectId, {
+      text: initialInput,
+      images: imageAttachment.images,
+    });
+  }, [projectId, initialInput, imageAttachment.images]);
+
+  const sketchDiscussDraftKey = chatDraftStorageKey(projectId, "sketch");
 
   const viewportWidth = useViewportWidth();
   const isMobile = viewportWidth < MOBILE_BREAKPOINT;
@@ -422,7 +444,6 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
   const handleInitialSubmit = useCallback(async () => {
     const text = initialInput.trim();
     if (text.length < 10 || sending) return;
-    setInitialInput("");
 
     dispatch(
       addUserMessage({
@@ -435,7 +456,9 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
     const images = imageAttachment.images.length > 0 ? imageAttachment.images : undefined;
     const result = await dispatch(sendSketchMessage({ projectId, message: text, images }));
     if (sendSketchMessage.fulfilled.match(result)) {
+      setInitialInput("");
       imageAttachment.reset();
+      clearSketchInitialPromptDraft(projectId);
       triggerRefreshCascade();
     }
   }, [initialInput, sending, projectId, dispatch, imageAttachment, triggerRefreshCascade]);
@@ -510,7 +533,9 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
       );
       if (sendSketchMessage.fulfilled.match(result)) {
         triggerRefreshCascade();
+        return true;
       }
+      return false;
     },
     [selectionContext, projectId, dispatch, triggerRefreshCascade]
   );
@@ -845,6 +870,7 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
           selectionContext={selectionContext}
           onClearSelectionContext={() => setSelectionContext(null)}
           onSend={handleChatSend}
+          draftStorageKey={sketchDiscussDraftKey}
           inputRef={chatInputRef}
           variant="inline"
           collapsed={true}
@@ -868,6 +894,7 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
             selectionContext={selectionContext}
             onClearSelectionContext={() => setSelectionContext(null)}
             onSend={handleChatSend}
+            draftStorageKey={sketchDiscussDraftKey}
             inputRef={chatInputRef}
             variant="inline"
             collapsed={false}

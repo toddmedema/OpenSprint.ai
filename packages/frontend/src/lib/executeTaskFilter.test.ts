@@ -69,6 +69,12 @@ describe("executeTaskFilter", () => {
       expect(matchesStatusFilter("ready", "self_improvement")).toBe(false);
       expect(matchesStatusFilter("done", "self_improvement")).toBe(false);
     });
+
+    it("waiting_to_merge filter matches only waiting_to_merge column", () => {
+      expect(matchesStatusFilter("waiting_to_merge", "waiting_to_merge")).toBe(true);
+      expect(matchesStatusFilter("ready", "waiting_to_merge")).toBe(false);
+      expect(matchesStatusFilter("in_progress", "waiting_to_merge")).toBe(false);
+    });
   });
 
   describe("isSelfImprovementTask", () => {
@@ -257,6 +263,17 @@ describe("executeTaskFilter", () => {
       const result = filterTasksByStatusAndSearch(inProgressTasks, "in_progress", "");
       expect(result).toHaveLength(2);
       expect(result.map((t) => t.id)).toEqual(["t1", "t2"]);
+    });
+
+    it("waiting_to_merge filter returns only waiting_to_merge tasks", () => {
+      const mixed: Task[] = [
+        { ...baseTask, id: "t1", kanbanColumn: "waiting_to_merge" as const },
+        { ...baseTask, id: "t2", kanbanColumn: "ready" as const },
+        { ...baseTask, id: "t3", kanbanColumn: "waiting_to_merge" as const },
+      ];
+      const result = filterTasksByStatusAndSearch(mixed, "waiting_to_merge", "");
+      expect(result).toHaveLength(2);
+      expect(result.map((t) => t.id)).toEqual(["t1", "t3"]);
     });
 
     it("clearing search restores full view", () => {

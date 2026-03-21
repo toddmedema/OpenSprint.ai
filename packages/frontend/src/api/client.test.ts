@@ -27,6 +27,20 @@ describe("api client", () => {
       );
     });
 
+    it("passes an AbortSignal to fetch so requests use the default timeout", async () => {
+      vi.mocked(fetch).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({ data: [] }),
+      } as Response);
+
+      await api.projects.list();
+      const [, init] = vi.mocked(fetch).mock.calls[0]!;
+      expect(init).toEqual(
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      );
+    });
+
     it("returns undefined for 204 No Content", async () => {
       vi.mocked(fetch).mockResolvedValue({
         ok: true,

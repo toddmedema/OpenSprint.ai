@@ -181,7 +181,9 @@ describe("TimelineList", () => {
     expect(wrap).toBeInTheDocument();
     const titled = wrap.querySelector("[title]");
     expect(titled).toHaveAttribute("title", "Waiting to Merge · Blocked on main");
-    expect(screen.queryByText("Blocked on main")).not.toBeInTheDocument();
+    expect(within(row).getByTestId("timeline-waiting-to-merge-inline-hint")).toHaveTextContent(
+      "Blocked on main"
+    );
     expect(screen.queryByText(/Retry eligible/i)).not.toBeInTheDocument();
   });
 

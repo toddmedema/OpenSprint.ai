@@ -1,6 +1,10 @@
 import type { PayloadAction } from "@reduxjs/toolkit";
 import type { ActionReducerMapBuilder } from "@reduxjs/toolkit";
-import type { BaselineRuntimeStatus, MergeValidationRuntimeStatus } from "@opensprint/shared";
+import type {
+  BaselineRuntimeStatus,
+  GitMergeQueueSnapshot,
+  MergeValidationRuntimeStatus,
+} from "@opensprint/shared";
 import type { ExecuteState } from "./executeTypes";
 import type { ActiveTaskInfo } from "./executeTypes";
 import { fetchExecuteStatus } from "./executeThunks";
@@ -29,6 +33,10 @@ export function sweepExpiredBaselineMergePause(state: ExecuteState): void {
 }
 
 export const statusReducers = {
+  /** Periodic tick so baseline merge pause UI clears without waiting for execute.status. */
+  sweepExpiredBaselineMergePauseTick(state: ExecuteState) {
+    sweepExpiredBaselineMergePause(state);
+  },
   setOrchestratorRunning(state: ExecuteState, action: PayloadAction<boolean>) {
     state.orchestratorRunning = action.payload;
   },
@@ -54,6 +62,7 @@ export const statusReducers = {
       mergeValidationFailureSummary?: string | null;
       dispatchPausedReason?: string | null;
       selfImprovementRunInProgress?: boolean;
+      gitMergeQueue?: GitMergeQueueSnapshot | null;
     }>
   ) {
     const p = action.payload;
@@ -85,6 +94,9 @@ export const statusReducers = {
     if (p.selfImprovementRunInProgress !== undefined) {
       state.selfImprovementRunInProgress = p.selfImprovementRunInProgress;
     }
+    if (p.gitMergeQueue !== undefined) {
+      state.gitMergeQueue = p.gitMergeQueue;
+    }
     sweepExpiredBaselineMergePause(state);
   },
   setSelfImprovementRunInProgress(state: ExecuteState, action: PayloadAction<boolean>) {
@@ -112,6 +124,7 @@ export function addStatusExtraReducers(builder: ActionReducerMapBuilder<ExecuteS
         mergeValidationFailureSummary?: string | null;
         dispatchPausedReason?: string | null;
         selfImprovementRunInProgress?: boolean;
+        gitMergeQueue?: GitMergeQueueSnapshot | null;
       };
       const activeTasks = payload.activeTasks ?? [];
       state.activeTasks = activeTasks;
@@ -140,6 +153,9 @@ export function addStatusExtraReducers(builder: ActionReducerMapBuilder<ExecuteS
       }
       if (payload.selfImprovementRunInProgress !== undefined) {
         state.selfImprovementRunInProgress = payload.selfImprovementRunInProgress;
+      }
+      if (payload.gitMergeQueue !== undefined) {
+        state.gitMergeQueue = payload.gitMergeQueue;
       }
       sweepExpiredBaselineMergePause(state);
     },

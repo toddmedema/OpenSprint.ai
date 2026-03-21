@@ -3,6 +3,7 @@ import type {
   AgentRuntimeState,
   AgentSuspendReason,
   BaselineRuntimeStatus,
+  GitMergeQueueSnapshot,
   MergeValidationRuntimeStatus,
   TestResults,
 } from "./agent.js";
@@ -164,6 +165,8 @@ export interface ExecuteStatusEvent {
   pendingFeedbackCategorizations?: Array<{ feedbackId: string; category?: string }>;
   /** True when a self-improvement run is in progress for this project */
   selfImprovementRunInProgress?: boolean;
+  /** Serialized git worktree_merge queue for this project's repo (FIFO). */
+  gitMergeQueue?: GitMergeQueueSnapshot;
 }
 
 export interface HilRequestEvent {

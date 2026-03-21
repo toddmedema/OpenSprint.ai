@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from "react";
 import { shallowEqual } from "react-redux";
 import { useQueryClient, useIsMutating } from "@tanstack/react-query";
 import type { Plan, PlanStatus } from "@opensprint/shared";
@@ -53,6 +53,12 @@ import { OpenQuestionsBlock } from "../../components/OpenQuestionsBlock";
 import { selectTasksForEpic } from "../../store/slices/executeSlice";
 import { wsSend, wsConnect } from "../../store/middleware/websocketMiddleware";
 import { usePlanFilter } from "../../hooks/usePlanFilter";
+import {
+  chatDraftStorageKey,
+  clearTextDraft,
+  loadTextDraft,
+  saveTextDraft,
+} from "../../lib/agentInputDraftStorage";
 import { useAutoScroll } from "../../hooks/useAutoScroll";
 import { VirtualizedAgentOutput } from "../../components/execute/VirtualizedAgentOutput";
 import { CollapsibleSection } from "../../components/execute/CollapsibleSection";
@@ -376,7 +382,9 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
 
   const planQueueRef = useRef<string[]>([]);
   const processingQueueRef = useRef(false);
-  const generateQueueRef = useRef<Array<{ description: string; tempId: string }>>([]);
+  const generateQueueRef = useRef<
+    Array<{ description: string; tempId: string; resolve?: (ok: boolean) => void }>
+  >([]);
   const processingGenerateRef = useRef(false);
 
   const filteredAndSortedPlans = useMemo(() => {
@@ -464,10 +472,11 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
     processingGenerateRef.current = true;
     try {
       while (generateQueueRef.current.length > 0) {
-        const { description, tempId } = generateQueueRef.current[0];
+        const { description, tempId, resolve } = generateQueueRef.current[0];
         generateQueueRef.current = generateQueueRef.current.slice(1);
         const result = await dispatch(generatePlan({ projectId, description, tempId }));
         if (generatePlan.fulfilled.match(result)) {
+          resolve?.(true);
           if (result.payload.status === "created") {
             void queryClient.invalidateQueries({ queryKey: queryKeys.plans.list(projectId) });
           } else {
@@ -480,13 +489,16 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
             );
             void refetchNotifications();
           }
-        } else if (generatePlan.rejected.match(result)) {
-          dispatch(
-            addNotification({
-              message: result.error?.message || "Failed to generate plan",
-              severity: "error",
-            })
-          );
+        } else {
+          resolve?.(false);
+          if (generatePlan.rejected.match(result)) {
+            dispatch(
+              addNotification({
+                message: result.error?.message || "Failed to generate plan",
+                severity: "error",
+              })
+            );
+          }
         }
       }
     } finally {
@@ -596,6 +608,19 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
       }
     }
   }, [planContext]);
+
+  useLayoutEffect(() => {
+    if (!planContext) {
+      setChatInput("");
+      return;
+    }
+    setChatInput(loadTextDraft(chatDraftStorageKey(projectId, planContext)));
+  }, [projectId, planContext]);
+
+  useEffect(() => {
+    if (!planContext) return;
+    saveTextDraft(chatDraftStorageKey(projectId, planContext), chatInput);
+  }, [projectId, planContext, chatInput]);
 
   // Auto-scroll chat to bottom only when new messages arrive (not on initial open)
   useEffect(() => {
@@ -873,16 +898,21 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   };
 
   const handleGeneratePlan = useCallback(
-    (description: string) => {
+    (description: string): Promise<boolean> => {
       const trimmed = description.trim();
-      if (!trimmed) return;
+      if (!trimmed) return Promise.resolve(false);
 
       const title = trimmed.slice(0, 45);
       const tempId = `opt-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
       dispatch(addOptimisticPlan({ tempId, title }));
-      generateQueueRef.current = [...generateQueueRef.current, { description: trimmed, tempId }];
-      processGenerateQueue();
+      return new Promise<boolean>((resolve) => {
+        generateQueueRef.current = [
+          ...generateQueueRef.current,
+          { description: trimmed, tempId, resolve },
+        ];
+        processGenerateQueue();
+      });
     },
     [dispatch, processGenerateQueue]
   );
@@ -915,7 +945,6 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
     if (!chatInput.trim() || !planContext || chatSending) return;
 
     const text = chatInput.trim();
-    setChatInput("");
     setChatSending(true);
 
     const result = await dispatch(
@@ -923,6 +952,8 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
     );
 
     if (sendPlanMessage.fulfilled.match(result)) {
+      setChatInput("");
+      clearTextDraft(chatDraftStorageKey(projectId, planContext));
       const response = result.payload?.response;
       if (response?.planUpdate && selectedPlanId) {
         await dispatch(
@@ -1140,7 +1171,11 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
       </div>
 
       {addPlanModalOpen && (
-        <AddPlanModal onGenerate={handleGeneratePlan} onClose={() => setAddPlanModalOpen(false)} />
+        <AddPlanModal
+          projectId={projectId}
+          onGenerate={handleGeneratePlan}
+          onClose={() => setAddPlanModalOpen(false)}
+        />
       )}
 
       {crossEpicModal && (

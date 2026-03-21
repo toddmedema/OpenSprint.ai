@@ -46,6 +46,12 @@ describe("useTaskFilter", () => {
     expect(result.current.statusFilter).toBe("self_improvement");
   });
 
+  it("accepts waiting_to_merge as valid statusFilter", () => {
+    const { result } = renderHook(() => useTaskFilter());
+    act(() => result.current.setStatusFilter("waiting_to_merge"));
+    expect(result.current.statusFilter).toBe("waiting_to_merge");
+  });
+
   it("expands search when handleSearchExpand is called", () => {
     const { result } = renderHook(() => useTaskFilter());
 

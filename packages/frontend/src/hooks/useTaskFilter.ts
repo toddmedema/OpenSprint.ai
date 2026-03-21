@@ -9,6 +9,7 @@ const VALID_STATUS_FILTERS: StatusFilter[] = [
   "planning",
   "in_line",
   "ready",
+  "waiting_to_merge",
   "in_progress",
   "done",
   "blocked",

@@ -120,13 +120,22 @@ export function TaskDetailHeader({
                       role="menuitem"
                       onClick={() => {
                         onUnblock();
-                        setActionsMenuOpen(false);
                       }}
                       disabled={unblockLoading}
-                      className="dropdown-item w-full flex items-center gap-2 text-left text-xs text-theme-error-text hover:bg-theme-error-bg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-busy={unblockLoading}
+                      aria-label={unblockLoading ? "Retrying" : "Retry"}
+                      className="dropdown-item w-full flex items-center justify-center gap-2 text-left text-xs text-theme-error-text hover:bg-theme-error-bg transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-h-[2rem]"
                       data-testid="sidebar-retry-btn"
                     >
-                      {unblockLoading ? "Retrying…" : "Retry"}
+                      {unblockLoading ? (
+                        <span
+                          className="inline-block w-4 h-4 border-2 border-theme-border border-t-brand-500 rounded-full animate-spin shrink-0"
+                          aria-hidden
+                          data-testid="sidebar-retry-spinner"
+                        />
+                      ) : (
+                        "Retry"
+                      )}
                     </button>
                   </li>
                 )}

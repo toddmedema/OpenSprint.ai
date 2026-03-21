@@ -22,17 +22,20 @@ const EpicTaskRow = memo(function EpicTaskRow({
   elapsed,
   onTaskSelect,
   onUnblock,
+  unblockingTaskId,
 }: {
   taskId: string;
   task?: Task;
   elapsed: string | null;
   onTaskSelect: (taskId: string) => void;
   onUnblock?: (taskId: string) => void;
+  unblockingTaskId?: string | null;
 }) {
   const taskFromRedux = useAppSelector((s) => selectTaskById(s, taskId), shallowEqual);
   const task = taskProp ?? taskFromRedux;
   if (!task) return null;
 
+  const isUnblocking = Boolean(unblockingTaskId && unblockingTaskId === task.id);
   const rightContent = [task.assignee, elapsed].filter(Boolean).join(" · ");
   return (
     <li data-testid={task.kanbanColumn === "blocked" ? "task-blocked" : undefined}>
@@ -46,6 +49,7 @@ const EpicTaskRow = memo(function EpicTaskRow({
             column={task.kanbanColumn}
             size="xs"
             title={COLUMN_LABELS[task.kanbanColumn]}
+            mergeGateState={task.mergeGateState}
           />
           <PriorityIcon priority={task.priority ?? 1} size="xs" />
           <ComplexityIcon complexity={task.complexity} size="xs" />
@@ -77,9 +81,20 @@ const EpicTaskRow = memo(function EpicTaskRow({
               e.stopPropagation();
               onUnblock(task.id);
             }}
-            className="shrink-0 text-xs font-medium text-theme-error-text hover:bg-theme-error-bg px-2 py-1 rounded transition-colors"
+            disabled={isUnblocking}
+            aria-busy={isUnblocking}
+            aria-label={isUnblocking ? "Retrying" : "Retry"}
+            className="shrink-0 text-xs font-medium text-theme-error-text hover:bg-theme-error-bg px-2 py-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[3.25rem] min-h-[1.75rem] inline-flex items-center justify-center"
+            data-testid={`task-row-retry-${task.id}`}
           >
-            Retry
+            {isUnblocking ? (
+              <span
+                className="inline-block w-3.5 h-3.5 border-2 border-theme-border border-t-brand-500 rounded-full animate-spin"
+                aria-hidden
+              />
+            ) : (
+              "Retry"
+            )}
           </button>
         )}
       </div>
@@ -107,6 +122,8 @@ export interface BuildEpicCardProps {
   filteringActive?: boolean;
   onTaskSelect: (taskId: string) => void;
   onUnblock?: (taskId: string) => void;
+  /** When set, the Retry control for that task shows a spinner and is disabled. */
+  unblockingTaskId?: string | null;
   /** Navigate to the plan associated with this epic */
   onViewPlan?: () => void;
   /** Map of task ID to startedAt for active tasks (elapsed time display) */
@@ -125,6 +142,7 @@ export function BuildEpicCard({
   filteringActive = false,
   onTaskSelect,
   onUnblock,
+  unblockingTaskId = null,
   onViewPlan,
   taskIdToStartedAt = {},
   selectedTaskId,
@@ -276,6 +294,7 @@ export function BuildEpicCard({
                           }
                           onTaskSelect={onTaskSelect}
                           onUnblock={onUnblock}
+                          unblockingTaskId={unblockingTaskId}
                         />
                       </ul>
                     </div>
@@ -293,6 +312,7 @@ export function BuildEpicCard({
                   elapsed={taskIdToStartedAt[t.id] ? formatUptime(taskIdToStartedAt[t.id]) : null}
                   onTaskSelect={onTaskSelect}
                   onUnblock={onUnblock}
+                  unblockingTaskId={unblockingTaskId}
                 />
               ))}
             </ul>

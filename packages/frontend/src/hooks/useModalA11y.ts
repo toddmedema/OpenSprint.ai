@@ -16,6 +16,8 @@ export interface UseModalA11yOptions {
   onClose: () => void;
   /** Optional ref to the element that opened the modal; focus returns here on close */
   triggerRef?: RefObject<HTMLElement | null>;
+  /** When set, this element receives initial focus instead of the first focusable in DOM order */
+  initialFocusRef?: RefObject<HTMLElement | null>;
   /** Whether the modal is open (enables/disables the hook) */
   isOpen?: boolean;
 }
@@ -30,6 +32,7 @@ export function useModalA11y({
   containerRef,
   onClose,
   triggerRef,
+  initialFocusRef,
   isOpen = true,
 }: UseModalA11yOptions): void {
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
@@ -43,9 +46,11 @@ export function useModalA11y({
     previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
     const triggerElement = triggerRef?.current;
 
-    // Focus first focusable element inside the modal
     const focusable = getFocusableElements(container);
-    if (focusable.length > 0) {
+    const initial = initialFocusRef?.current;
+    if (initial && container.contains(initial) && !initial.hasAttribute("disabled")) {
+      initial.focus();
+    } else if (focusable.length > 0) {
       focusable[0].focus();
     } else {
       container.focus();
@@ -94,5 +99,5 @@ export function useModalA11y({
         }
       });
     };
-  }, [isOpen, onClose, containerRef, triggerRef]);
+  }, [isOpen, onClose, containerRef, triggerRef, initialFocusRef]);
 }

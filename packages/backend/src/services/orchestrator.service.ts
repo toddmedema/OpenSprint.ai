@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import type {
+  GitMergeQueueSnapshot,
   OrchestratorStatus,
   ActiveAgent,
   CodingAgentResult,
@@ -95,6 +96,7 @@ import {
   type PersistedOrchestratorTestStatus,
 } from "./orchestrator-test-status.js";
 import { isSelfImprovementRunInProgress } from "./self-improvement-runner.service.js";
+import { gitCommitQueue } from "./git-commit-queue.service.js";
 import {
   OrchestratorStatusService,
   buildReviewAgentId,
@@ -338,6 +340,15 @@ export class OrchestratorService {
     return this.state.get(projectId)!;
   }
 
+  /** Git worktree_merge queue for execute.status / HTTP (empty when repo path unknown). */
+  private getGitMergeQueueSnapshot(projectId: string): GitMergeQueueSnapshot {
+    const repoPath = this.repoPathCache.get(projectId);
+    if (!repoPath) {
+      return { activeTaskId: null, pendingTaskIds: [] };
+    }
+    return gitCommitQueue.getMergeQueueSnapshotForRepo(repoPath);
+  }
+
   hasActiveTask(projectId: string, taskId: string): boolean {
     return this.state.get(projectId)?.slots.has(taskId) ?? false;
   }
@@ -432,6 +443,7 @@ export class OrchestratorService {
         pendingFeedbackCategorizations: overrides.pendingFeedbackCategorizations,
       }),
       selfImprovementRunInProgress: isSelfImprovementRunInProgress(projectId),
+      gitMergeQueue: this.getGitMergeQueueSnapshot(projectId),
     };
   }
 
@@ -1567,6 +1579,7 @@ export class OrchestratorService {
         state.slots.size === 1 ? ([...state.slots.values()][0]?.worktreePath ?? null) : null,
       pendingFeedbackCategorizations,
       selfImprovementRunInProgress: isSelfImprovementRunInProgress(projectId),
+      gitMergeQueue: this.getGitMergeQueueSnapshot(projectId),
     };
   }
 

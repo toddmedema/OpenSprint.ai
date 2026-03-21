@@ -1,29 +1,55 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { CloseButton } from "../CloseButton";
 import { useSubmitShortcut } from "../../hooks/useSubmitShortcut";
 import { useModalA11y } from "../../hooks/useModalA11y";
+import {
+  clearTextDraft,
+  loadTextDraft,
+  planIdeaDraftStorageKey,
+  saveTextDraft,
+} from "../../lib/agentInputDraftStorage";
 
 export interface AddPlanModalProps {
-  onGenerate: (description: string) => void;
+  projectId: string;
+  onGenerate: (description: string) => Promise<boolean>;
   onClose: () => void;
 }
 
-export function AddPlanModal({ onGenerate, onClose }: AddPlanModalProps) {
-  const [featureDescription, setFeatureDescription] = useState("");
+export function AddPlanModal({ projectId, onGenerate, onClose }: AddPlanModalProps) {
+  const draftKey = planIdeaDraftStorageKey(projectId);
+  const [featureDescription, setFeatureDescription] = useState(() => loadTextDraft(draftKey));
+  const [busy, setBusy] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  useModalA11y({ containerRef, onClose, isOpen: true });
+  const featureInputRef = useRef<HTMLTextAreaElement>(null);
+  useModalA11y({ containerRef, onClose, isOpen: true, initialFocusRef: featureInputRef });
 
-  const handleGenerate = () => {
+  useLayoutEffect(() => {
+    setFeatureDescription(loadTextDraft(draftKey));
+  }, [draftKey]);
+
+  useEffect(() => {
+    saveTextDraft(draftKey, featureDescription);
+  }, [draftKey, featureDescription]);
+
+  const handleGenerate = async () => {
     const description = featureDescription.trim();
-    if (!description) return;
-    onGenerate(description);
-    setFeatureDescription("");
-    onClose();
+    if (!description || busy) return;
+    setBusy(true);
+    try {
+      const ok = await onGenerate(description);
+      if (ok) {
+        setFeatureDescription("");
+        clearTextDraft(draftKey);
+        onClose();
+      }
+    } finally {
+      setBusy(false);
+    }
   };
 
   const onKeyDown = useSubmitShortcut(handleGenerate, {
     multiline: true,
-    disabled: !featureDescription.trim(),
+    disabled: !featureDescription.trim() || busy,
   });
 
   return (
@@ -54,6 +80,7 @@ export function AddPlanModal({ onGenerate, onClose }: AddPlanModalProps) {
             Feature plan idea
           </label>
           <textarea
+            ref={featureInputRef}
             id="add-plan-feature-description"
             className="input w-full text-sm min-h-[100px] resize-y"
             value={featureDescription}
@@ -61,20 +88,23 @@ export function AddPlanModal({ onGenerate, onClose }: AddPlanModalProps) {
             onKeyDown={onKeyDown}
             placeholder="Describe your feature idea…"
             data-testid="feature-description-input"
+            disabled={busy}
           />
         </div>
         <div className="flex justify-end gap-2 px-5 py-4 border-t border-theme-border bg-theme-bg rounded-b-xl">
-          <button type="button" onClick={onClose} className="btn-secondary">
+          <button type="button" onClick={onClose} className="btn-secondary" disabled={busy}>
             Cancel
           </button>
           <button
             type="button"
-            onClick={handleGenerate}
-            disabled={!featureDescription.trim()}
+            onClick={() => {
+              void handleGenerate();
+            }}
+            disabled={!featureDescription.trim() || busy}
             className="btn-primary text-sm disabled:opacity-50"
             data-testid="generate-plan-button"
           >
-            Generate Plan
+            {busy ? "Generating…" : "Generate Plan"}
           </button>
         </div>
       </div>

@@ -6,6 +6,7 @@ export type StatusFilter =
   | "planning"
   | "in_line"
   | "ready"
+  | "waiting_to_merge"
   | "in_progress"
   | "done"
   | "blocked"
@@ -20,6 +21,7 @@ export function matchesStatusFilter(kanbanColumn: string, filter: StatusFilter):
   if (filter === "in_line") return kanbanColumn === "backlog" || kanbanColumn === "planning";
   if (filter === "in_progress")
     return kanbanColumn === "in_progress" || kanbanColumn === "in_review";
+  if (filter === "waiting_to_merge") return kanbanColumn === "waiting_to_merge";
   return kanbanColumn === filter;
 }
 

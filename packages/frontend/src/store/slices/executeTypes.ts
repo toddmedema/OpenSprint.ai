@@ -4,6 +4,7 @@ import type {
   AgentSuspendReason,
   AgentSession,
   BaselineRuntimeStatus,
+  GitMergeQueueSnapshot,
   MergeValidationRuntimeStatus,
   Task,
 } from "@opensprint/shared";
@@ -71,6 +72,8 @@ export interface ExecuteState {
   dispatchPausedReason: string | null;
   /** True when a self-improvement run is in progress (from execute status / WebSocket) */
   selfImprovementRunInProgress: boolean;
+  /** Serialized git worktree_merge queue for this project (from execute.status). */
+  gitMergeQueue: GitMergeQueueSnapshot | null;
   selectedTaskId: string | null;
   agentOutput: Record<string, string[]>;
   completionStateByTaskId: Record<
@@ -109,6 +112,7 @@ export const initialExecuteState: ExecuteState = {
   mergeValidationFailureSummary: null,
   dispatchPausedReason: null,
   selfImprovementRunInProgress: false,
+  gitMergeQueue: null,
   selectedTaskId: null,
   agentOutput: {},
   completionStateByTaskId: {},

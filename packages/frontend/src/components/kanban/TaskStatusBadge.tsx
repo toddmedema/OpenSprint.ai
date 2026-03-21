@@ -1,4 +1,4 @@
-import type { KanbanColumn } from "@opensprint/shared";
+import type { KanbanColumn, MergeGateState } from "@opensprint/shared";
 
 export const COLUMN_LABELS: Record<KanbanColumn, string> = {
   planning: "Planning",
@@ -26,11 +26,24 @@ export interface TaskStatusBadgeProps {
   column: KanbanColumn;
   size?: "sm" | "xs";
   title?: string;
+  /** When set with waiting_to_merge, pulse the dot during active merge pipeline work. */
+  mergeGateState?: MergeGateState | null;
 }
 
-export function TaskStatusBadge({ column, size = "sm", title }: TaskStatusBadgeProps) {
+function mergeGateShowsActivity(mergeGateState: MergeGateState | null | undefined): boolean {
+  return mergeGateState === "merging" || mergeGateState === "validating";
+}
+
+export function TaskStatusBadge({
+  column,
+  size = "sm",
+  title,
+  mergeGateState,
+}: TaskStatusBadgeProps) {
   const dim = size === "sm" ? "w-2.5 h-2.5" : "w-2 h-2";
   const label = title ?? COLUMN_LABELS[column];
+  const pulseDot =
+    column === "waiting_to_merge" && mergeGateShowsActivity(mergeGateState ?? undefined);
 
   if (column === "done") {
     return (
@@ -66,5 +79,11 @@ export function TaskStatusBadge({ column, size = "sm", title }: TaskStatusBadgeP
       </span>
     );
   }
-  return <span className={`${dim} rounded-full shrink-0 ${columnColors[column]}`} title={label} />;
+  return (
+    <span
+      className={`${dim} rounded-full shrink-0 ${columnColors[column]}${pulseDot ? " animate-pulse" : ""}`}
+      title={label}
+      data-testid={pulseDot ? "task-status-badge-pulse" : undefined}
+    />
+  );
 }

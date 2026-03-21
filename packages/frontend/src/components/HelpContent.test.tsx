@@ -1,10 +1,11 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { HelpContent } from "./HelpContent";
 import { api } from "../api/client";
+import { helpAskDraftStorageKey } from "../lib/agentInputDraftStorage";
 
 function renderHelpContent(
   props: React.ComponentProps<typeof HelpContent> = {},
@@ -31,6 +32,8 @@ vi.mock("../api/client", () => ({
 
 describe("HelpContent", () => {
   beforeEach(() => {
+    localStorage.removeItem(helpAskDraftStorageKey(null));
+    localStorage.removeItem(helpAskDraftStorageKey("proj-1"));
     vi.mocked(api.help.history).mockResolvedValue({ messages: [] });
     vi.mocked(api.help.analytics).mockResolvedValue({
       byComplexity: Array.from({ length: 10 }, (_, i) => ({
@@ -90,6 +93,56 @@ describe("HelpContent", () => {
     renderHelpContent({ project: { id: "proj-1", name: "My Project" } });
 
     expect(screen.getByText(/Ask about My Project/)).toBeInTheDocument();
+  });
+
+  it("restores Ask a Question input from localStorage", async () => {
+    localStorage.setItem(helpAskDraftStorageKey(null), JSON.stringify("saved help question"));
+    renderHelpContent();
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("help-chat-loading-history")).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("textbox", { name: "Help chat message" })).toHaveValue(
+      "saved help question"
+    );
+  });
+
+  it("clears ask draft in localStorage after successful send", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.help.chat).mockResolvedValue({ message: "Here is help." });
+    renderHelpContent();
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("help-chat-loading-history")).not.toBeInTheDocument();
+    });
+    const input = screen.getByRole("textbox", { name: "Help chat message" });
+    await user.type(input, "My question");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => {
+      expect(api.help.chat).toHaveBeenCalled();
+    });
+    expect(localStorage.getItem(helpAskDraftStorageKey(null))).toBeNull();
+    expect(input).toHaveValue("");
+  });
+
+  it("keeps ask draft in localStorage when chat API fails", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.help.chat).mockRejectedValue(new Error("Network down"));
+    renderHelpContent();
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("help-chat-loading-history")).not.toBeInTheDocument();
+    });
+    const input = screen.getByRole("textbox", { name: "Help chat message" });
+    await user.type(input, "Fails to send");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent("Network down");
+    });
+    expect(localStorage.getItem(helpAskDraftStorageKey(null))).toContain("Fails to send");
+    expect(input).toHaveValue("Fails to send");
   });
 
   it("switches to Analytics tab and shows chart", async () => {

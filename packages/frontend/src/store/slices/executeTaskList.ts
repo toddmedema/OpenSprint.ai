@@ -132,6 +132,10 @@ export function addTaskListExtraReducers(builder: ActionReducerMapBuilder<Execut
       );
       const merged = incoming.map((t) => {
         if (doneIds.has(t.id) && t.kanbanColumn !== "done") {
+          console.warn(
+            "[execute] Ignoring stale list row: task was done locally but server returned non-done",
+            { taskId: t.id, kanbanColumn: t.kanbanColumn }
+          );
           return { ...t, kanbanColumn: "done" as const, status: "closed" as const };
         }
         return t;

@@ -27,6 +27,7 @@ import {
   setOrchestratorRunning,
   setAwaitingApproval,
   setExecuteStatusPayload,
+  sweepExpiredBaselineMergePauseTick,
   setCompletionState,
   setSelectedTaskId,
   taskUpdated,
@@ -155,6 +156,7 @@ export const websocketMiddleware: Middleware = (storeApi) => {
       reconnectAttempt = 0;
       dispatch(setConnected(true));
       dispatch(setConnectionError(false));
+      dispatch(sweepExpiredBaselineMergePauseTick());
       // On reconnect: invalidate tasks and plans so Execute page gets fresh data
       if (hadConnection) {
         try {
@@ -517,6 +519,7 @@ export const websocketMiddleware: Middleware = (storeApi) => {
             mergeValidationFailureSummary: statusEv.mergeValidationFailureSummary,
             dispatchPausedReason: statusEv.dispatchPausedReason,
             selfImprovementRunInProgress: statusEv.selfImprovementRunInProgress,
+            gitMergeQueue: statusEv.gitMergeQueue ?? null,
           })
         );
         break;

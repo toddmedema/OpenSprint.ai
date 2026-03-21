@@ -339,6 +339,14 @@ export interface ActiveTaskEntry {
 export type BaselineRuntimeStatus = "unknown" | "checking" | "healthy" | "failing";
 export type MergeValidationRuntimeStatus = "healthy" | "degraded";
 
+/** Serialized git worktree_merge queue for a repo (FIFO). */
+export interface GitMergeQueueSnapshot {
+  /** Task currently running worktree_merge, if any. */
+  activeTaskId: string | null;
+  /** Waiting worktree_merge jobs for this repo, in order. */
+  pendingTaskIds: string[];
+}
+
 /** Build orchestrator status (always-on per PRDv2 §5.7, v2 multi-slot model) */
 export interface OrchestratorStatus {
   activeTasks: ActiveTaskEntry[];
@@ -365,4 +373,6 @@ export interface OrchestratorStatus {
   pendingFeedbackCategorizations?: PendingFeedbackCategorization[];
   /** True when a self-improvement run is in progress for this project */
   selfImprovementRunInProgress?: boolean;
+  /** Serialized git merge queue (worktree_merge jobs) for this project's repo. */
+  gitMergeQueue?: GitMergeQueueSnapshot;
 }

@@ -114,12 +114,19 @@ export function formatMergeCommitMessage(taskId: string, taskTitle: string): str
 
 export type GitCommitJob = PrdUpdateJob | WorktreeMergeJob;
 
+export interface GitMergeQueueSnapshotForRepo {
+  activeTaskId: string | null;
+  pendingTaskIds: string[];
+}
+
 export interface GitCommitQueueService {
   enqueue(job: GitCommitJob): Promise<void>;
   /** Enqueue and wait for this job to complete. Use when caller must wait (e.g. before cleanup). */
   enqueueAndWait(job: GitCommitJob): Promise<void>;
   /** Wait for all queued jobs to complete (for tests). */
   drain(): Promise<void>;
+  /** worktree_merge jobs for this repo: active runner + pending FIFO (for execute.status / UI). */
+  getMergeQueueSnapshotForRepo(repoPath: string): GitMergeQueueSnapshotForRepo;
 }
 
 interface QueuedItem {
@@ -131,6 +138,8 @@ interface QueuedItem {
 class GitCommitQueueImpl implements GitCommitQueueService {
   private queue: QueuedItem[] = [];
   private processing = false;
+  /** Job currently executing in processNext (between shift and finally). */
+  private currentJob: GitCommitJob | null = null;
   private taskStore = taskStoreSingleton;
   private branchManager = new BranchManager();
   private projectService = new ProjectService();
@@ -265,6 +274,7 @@ class GitCommitQueueImpl implements GitCommitQueueService {
   private async processNext(): Promise<void> {
     if (this.queue.length === 0) {
       this.processing = false;
+      this.currentJob = null;
       for (const resolve of this.drainResolvers) resolve();
       this.drainResolvers = [];
       return;
@@ -272,45 +282,50 @@ class GitCommitQueueImpl implements GitCommitQueueService {
 
     const item = this.queue.shift()!;
     const job = item.job;
+    this.currentJob = job;
     const maxRetries = 2;
 
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        const unmerged = await this.hasUnmergedFiles(job.repoPath);
-        if (unmerged.length > 0) {
-          throw new RepoConflictError(unmerged);
-        }
+    try {
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+          const unmerged = await this.hasUnmergedFiles(job.repoPath);
+          if (unmerged.length > 0) {
+            throw new RepoConflictError(unmerged);
+          }
 
-        await this.executeJob(job);
-        item.resolve?.();
-        break;
-      } catch (err) {
-        log.warn("Job failed", { jobType: job.type, attempt: attempt + 1, maxRetries, err });
-        if (
-          err instanceof MergeConflictError ||
-          err instanceof RepoConflictError ||
-          err instanceof RebaseConflictError ||
-          err instanceof MergeJobError
-        ) {
-          item.reject?.(err);
+          await this.executeJob(job);
+          item.resolve?.();
           break;
-        }
-        if (job.type === "worktree_merge") {
-          try {
-            await this.branchManager.mergeAbort(job.repoPath);
-          } catch {
-            /* no merge in progress — fine */
+        } catch (err) {
+          log.warn("Job failed", { jobType: job.type, attempt: attempt + 1, maxRetries, err });
+          if (
+            err instanceof MergeConflictError ||
+            err instanceof RepoConflictError ||
+            err instanceof RebaseConflictError ||
+            err instanceof MergeJobError
+          ) {
+            item.reject?.(err);
+            break;
           }
-          try {
-            await this.branchManager.rebaseAbort(job.worktreePath);
-          } catch {
-            /* no rebase in progress — fine */
+          if (job.type === "worktree_merge") {
+            try {
+              await this.branchManager.mergeAbort(job.repoPath);
+            } catch {
+              /* no merge in progress — fine */
+            }
+            try {
+              await this.branchManager.rebaseAbort(job.worktreePath);
+            } catch {
+              /* no rebase in progress — fine */
+            }
           }
-        }
-        if (attempt === maxRetries - 1) {
-          item.reject?.(err instanceof Error ? err : new Error(String(err)));
+          if (attempt === maxRetries - 1) {
+            item.reject?.(err instanceof Error ? err : new Error(String(err)));
+          }
         }
       }
+    } finally {
+      this.currentJob = null;
     }
 
     setImmediate(() => this.processNext());
@@ -674,6 +689,23 @@ class GitCommitQueueImpl implements GitCommitQueueService {
     return new Promise<void>((resolve) => {
       this.drainResolvers.push(resolve);
     });
+  }
+
+  getMergeQueueSnapshotForRepo(repoPath: string): GitMergeQueueSnapshotForRepo {
+    let activeTaskId: string | null = null;
+    if (
+      this.currentJob?.type === "worktree_merge" &&
+      this.currentJob.repoPath === repoPath
+    ) {
+      activeTaskId = this.currentJob.taskId;
+    }
+    const pendingTaskIds = this.queue
+      .filter(
+        (q): q is QueuedItem & { job: WorktreeMergeJob } =>
+          q.job.type === "worktree_merge" && q.job.repoPath === repoPath
+      )
+      .map((q) => q.job.taskId);
+    return { activeTaskId, pendingTaskIds };
   }
 }
 

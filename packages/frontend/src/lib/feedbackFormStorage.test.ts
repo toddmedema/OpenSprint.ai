@@ -134,6 +134,16 @@ describe("feedbackFormStorage", () => {
       const stored = JSON.parse(storage[`${FEEDBACK_FORM_DRAFT_KEY_PREFIX}-proj-1`]);
       expect(stored.images).toEqual([smallImage]);
     });
+
+    it("removes storage when draft is effectively empty", () => {
+      storage[`${FEEDBACK_FORM_DRAFT_KEY_PREFIX}-proj-1`] = JSON.stringify({
+        text: "x",
+        images: [],
+        priority: null,
+      });
+      saveFeedbackFormDraft("proj-1", { text: "   ", images: [], priority: null });
+      expect(storage[`${FEEDBACK_FORM_DRAFT_KEY_PREFIX}-proj-1`]).toBeUndefined();
+    });
   });
 
   describe("clearFeedbackFormDraft", () => {
