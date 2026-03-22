@@ -1,4 +1,5 @@
-import { useEffect, useState, type MutableRefObject } from "react";
+import { useEffect, useRef, useState, type MutableRefObject } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   ProjectSettings,
@@ -119,6 +120,20 @@ export function WorkflowSettingsContent({
   const [draftSettings, setDraftSettings] = useState<ProjectSettings>(settings);
   const queryClient = useQueryClient();
   const [runNowMessage, setRunNowMessage] = useState<string | null>(null);
+  const selfImprovementCardRef = useRef<HTMLElement>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focusParam = searchParams.get("focus");
+
+  useEffect(() => {
+    if (focusParam === "self-improvement" && selfImprovementCardRef.current) {
+      selfImprovementCardRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("focus");
+        return next;
+      }, { replace: true });
+    }
+  }, [focusParam, setSearchParams]);
 
   const selfImprovementStatusQuery = useQuery({
     queryKey: queryKeys.projects.selfImprovementStatus(projectId),
@@ -563,6 +578,7 @@ export function WorkflowSettingsContent({
       </section>
 
       <section
+        ref={selfImprovementCardRef}
         className="space-y-4 p-4 rounded-lg bg-theme-bg-elevated border border-theme-border"
         data-testid="workflow-continuous-improvement-card"
       >

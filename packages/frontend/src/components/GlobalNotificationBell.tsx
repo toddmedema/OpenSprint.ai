@@ -81,6 +81,11 @@ export function GlobalNotificationBell() {
 
   const handleNotificationClick = useCallback(
     (n: Notification) => {
+      if (n.kind === "self_improvement_approval") {
+        navigate(`/projects/${n.projectId}/settings?tab=workflow&focus=self-improvement`);
+        setOpen(false);
+        return;
+      }
       const phase =
         n.source === "plan"
           ? "plan"

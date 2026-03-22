@@ -40,7 +40,7 @@ const baseSettings: ProjectSettings = {
   selfImprovementFrequency: "never",
 };
 
-function renderWorkflowContent(overrides?: Partial<ProjectSettings>) {
+function renderWorkflowContent(overrides?: Partial<ProjectSettings>, routeEntries?: string[]) {
   const persistSettings = vi.fn();
   const scheduleSaveOnBlur = vi.fn();
   const lastReviewAnglesRef = { current: undefined as ProjectSettings["reviewAngles"] | undefined };
@@ -52,7 +52,8 @@ function renderWorkflowContent(overrides?: Partial<ProjectSettings>) {
       persistSettings={persistSettings}
       scheduleSaveOnBlur={scheduleSaveOnBlur}
       lastReviewAnglesRef={lastReviewAnglesRef}
-    />
+    />,
+    { routeEntries },
   );
 
   return {
@@ -707,6 +708,32 @@ describe("WorkflowSettingsContent", () => {
       });
 
       expect(screen.getByTestId("self-improvement-approval-card")).toHaveTextContent("cand-42");
+    });
+  });
+
+  describe("focus=self-improvement deep link", () => {
+    it("scrolls self-improvement card into view when focus=self-improvement is in URL", async () => {
+      const scrollIntoViewMock = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+      renderWorkflowContent(undefined, ["/?focus=self-improvement"]);
+
+      await waitFor(() => {
+        expect(scrollIntoViewMock).toHaveBeenCalledWith({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    });
+
+    it("does not scroll when focus param is absent", async () => {
+      const scrollIntoViewMock = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+      renderWorkflowContent();
+
+      expect(screen.getByTestId("workflow-continuous-improvement-card")).toBeInTheDocument();
+      expect(scrollIntoViewMock).not.toHaveBeenCalled();
     });
   });
 });

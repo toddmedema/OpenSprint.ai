@@ -77,6 +77,12 @@ export function NotificationBell({ projectId }: NotificationBellProps) {
         setOpen(false);
         return;
       }
+      // SELF-IMPROVEMENT APPROVAL: navigate to project settings workflow tab with focus
+      if (n.kind === "self_improvement_approval") {
+        navigate(`/projects/${projectId}/settings?tab=workflow&focus=self-improvement`);
+        setOpen(false);
+        return;
+      }
       const phase =
         n.source === "plan"
           ? "plan"

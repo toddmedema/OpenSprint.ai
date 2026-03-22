@@ -39,12 +39,14 @@ function renderNotificationBell(
   notifications: Array<{
     id: string;
     projectId: string;
-    source: "plan" | "prd" | "execute" | "eval";
+    source: "plan" | "prd" | "execute" | "eval" | "self-improvement";
     sourceId: string;
     questions: Array<{ id: string; text: string; createdAt: string }>;
     status: "open" | "resolved";
     createdAt: string;
     resolvedAt: string | null;
+    kind?: string;
+    errorCode?: string;
   }> = []
 ) {
   mockListByProject.mockResolvedValue(notifications);
@@ -210,6 +212,38 @@ describe("NotificationBell", () => {
       const loc = screen.getByTestId("current-location");
       expect(loc).toHaveTextContent("/projects/proj-1/settings");
       expect(loc).toHaveTextContent("level=global");
+    });
+  });
+
+  it("navigates to project settings workflow tab when clicking self_improvement_approval notification", async () => {
+    const notifications = [
+      {
+        id: "si-1",
+        projectId: "proj-1",
+        source: "self-improvement" as const,
+        sourceId: "cand-42",
+        questions: [
+          { id: "q1", text: "Agent improvement candidate awaiting approval", createdAt: "2025-01-01T00:00:00Z" },
+        ],
+        status: "open" as const,
+        createdAt: "2025-01-01T00:00:00Z",
+        resolvedAt: null,
+        kind: "self_improvement_approval" as const,
+      },
+    ];
+    renderNotificationBell(notifications);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /1 notification/ })).toBeInTheDocument();
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByTitle("Notifications (open questions & API issues)"));
+    await user.click(screen.getByText(/Agent improvement candidate/));
+
+    await waitFor(() => {
+      const loc = screen.getByTestId("current-location");
+      expect(loc).toHaveTextContent("/projects/proj-1/settings");
+      expect(loc).toHaveTextContent("tab=workflow");
+      expect(loc).toHaveTextContent("focus=self-improvement");
     });
   });
 
