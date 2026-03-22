@@ -8,6 +8,7 @@ import {
   isSelfImprovementRunInProgress,
   getSelfImprovementStatus,
   getSelfImprovementRunMode,
+  getSelfImprovementRunState,
   setSelfImprovementRunInProgressForTest,
 } from "../services/self-improvement-runner.service.js";
 
@@ -1454,5 +1455,269 @@ describe("runSelfImprovement", () => {
         extra: expect.objectContaining({ source: "self-improvement", runId: "r1" }),
       })
     );
+  });
+});
+
+describe("experiment pipeline wiring", () => {
+  const projectId = "proj-exp";
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    setSelfImprovementRunInProgressForTest(projectId, false);
+    const { taskStore } = await import("../services/task-store.service.js");
+    const { agentService } = await import("../services/agent.service.js");
+    const { updateSettingsInStore } = await import("../services/settings-store.service.js");
+    vi.mocked(taskStore.create).mockResolvedValue({ id: "os-1", title: "Task" } as never);
+    vi.mocked(agentService.invokePlanningAgent).mockResolvedValue({
+      content: '[{"title":"Task A","priority":1,"complexity":3}]',
+    } as never);
+    vi.mocked(updateSettingsInStore).mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    setSelfImprovementRunInProgressForTest(projectId, false);
+  });
+
+  it("initial status is running_audit even when experiments are enabled", async () => {
+    const { ProjectService } = await import("../services/project.service.js");
+    vi.mocked(ProjectService).mockImplementation(
+      () =>
+        ({
+          getProject: vi.fn().mockResolvedValue({ id: projectId, repoPath: "/tmp/repo" }),
+          getSettings: vi.fn().mockResolvedValue({
+            simpleComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+            complexComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+            reviewAngles: undefined,
+            runAgentEnhancementExperiments: true,
+          }),
+        }) as never
+    );
+
+    const { agentService } = await import("../services/agent.service.js");
+    let capturedStatus: string | undefined;
+    vi.mocked(agentService.invokePlanningAgent).mockImplementation(async () => {
+      const state = getSelfImprovementRunState(projectId);
+      capturedStatus = state?.status;
+      return {
+        content: '[{"title":"Task A","priority":1,"complexity":3}]',
+      } as never;
+    });
+
+    const service = new SelfImprovementRunnerService();
+    await service.runSelfImprovement(projectId, { runId: "run-status-check" });
+
+    expect(capturedStatus).toBe("running_audit");
+  });
+
+  it("runs audit only when runAgentEnhancementExperiments is false", async () => {
+    const { ProjectService } = await import("../services/project.service.js");
+    const { taskStore } = await import("../services/task-store.service.js");
+    vi.mocked(ProjectService).mockImplementation(
+      () =>
+        ({
+          getProject: vi.fn().mockResolvedValue({ id: projectId, repoPath: "/tmp/repo" }),
+          getSettings: vi.fn().mockResolvedValue({
+            simpleComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+            complexComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+            reviewAngles: undefined,
+            runAgentEnhancementExperiments: false,
+          }),
+        }) as never
+    );
+
+    const service = new SelfImprovementRunnerService();
+    const result = await service.runSelfImprovement(projectId, { runId: "audit-only-run" });
+
+    expect(result).toMatchObject({ tasksCreated: 1, runId: "audit-only-run" });
+    expect(taskStore.insertSelfImprovementRunHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: "audit_only",
+        outcome: "tasks_created",
+        status: "success",
+      })
+    );
+  });
+
+  it("runs audit only when runAgentEnhancementExperiments is undefined (default)", async () => {
+    const { ProjectService } = await import("../services/project.service.js");
+    vi.mocked(ProjectService).mockImplementation(
+      () =>
+        ({
+          getProject: vi.fn().mockResolvedValue({ id: projectId, repoPath: "/tmp/repo" }),
+          getSettings: vi.fn().mockResolvedValue({
+            simpleComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+            complexComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+            reviewAngles: undefined,
+          }),
+        }) as never
+    );
+    const { taskStore } = await import("../services/task-store.service.js");
+
+    const service = new SelfImprovementRunnerService();
+    await service.runSelfImprovement(projectId, { runId: "default-run" });
+
+    expect(taskStore.insertSelfImprovementRunHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: "audit_only",
+      })
+    );
+  });
+
+  it("skips experiment step when no replay-grade sessions and records audit outcome", async () => {
+    const { ProjectService } = await import("../services/project.service.js");
+    const { taskStore } = await import("../services/task-store.service.js");
+    vi.mocked(ProjectService).mockImplementation(
+      () =>
+        ({
+          getProject: vi.fn().mockResolvedValue({ id: projectId, repoPath: "/tmp/repo" }),
+          getSettings: vi.fn().mockResolvedValue({
+            simpleComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+            complexComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+            reviewAngles: undefined,
+            runAgentEnhancementExperiments: true,
+          }),
+        }) as never
+    );
+    vi.mocked(taskStore.getDb).mockResolvedValue({
+      query: vi.fn().mockResolvedValue([]),
+    } as never);
+
+    const service = new SelfImprovementRunnerService();
+    const result = await service.runSelfImprovement(projectId, { runId: "no-replay-run" });
+
+    expect(result).toMatchObject({ tasksCreated: 1, runId: "no-replay-run" });
+    expect(taskStore.insertSelfImprovementRunHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: "audit_and_experiments",
+        outcome: "tasks_created",
+        summary: expect.stringContaining("Experiment step skipped"),
+      })
+    );
+  });
+
+  it("records history status as failed when experiment pipeline throws", async () => {
+    const { ProjectService } = await import("../services/project.service.js");
+    const { taskStore } = await import("../services/task-store.service.js");
+    vi.mocked(ProjectService).mockImplementation(
+      () =>
+        ({
+          getProject: vi.fn().mockResolvedValue({ id: projectId, repoPath: "/tmp/repo" }),
+          getSettings: vi.fn().mockResolvedValue({
+            simpleComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+            complexComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+            reviewAngles: undefined,
+            runAgentEnhancementExperiments: true,
+          }),
+        }) as never
+    );
+    vi.mocked(taskStore.getDb).mockResolvedValue({
+      query: vi.fn().mockRejectedValue(new Error("DB connection lost")),
+    } as never);
+
+    const service = new SelfImprovementRunnerService();
+    const result = await service.runSelfImprovement(projectId, { runId: "fail-run" });
+
+    expect(result).toMatchObject({ tasksCreated: 1, runId: "fail-run" });
+    expect(taskStore.insertSelfImprovementRunHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: "audit_and_experiments",
+        outcome: "failed",
+        status: "failed",
+        summary: expect.stringContaining("Experiment pipeline failed"),
+      })
+    );
+  });
+
+  it("does not run experiments when all audit reviews fail", async () => {
+    const { ProjectService } = await import("../services/project.service.js");
+    const { agentService } = await import("../services/agent.service.js");
+    const { taskStore } = await import("../services/task-store.service.js");
+    const { notificationService } = await import("../services/notification.service.js");
+    vi.mocked(ProjectService).mockImplementation(
+      () =>
+        ({
+          getProject: vi.fn().mockResolvedValue({ id: projectId, repoPath: "/tmp/repo" }),
+          getSettings: vi.fn().mockResolvedValue({
+            simpleComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+            complexComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+            reviewAngles: undefined,
+            runAgentEnhancementExperiments: true,
+          }),
+        }) as never
+    );
+    vi.mocked(agentService.invokePlanningAgent).mockRejectedValue(new Error("agent timeout"));
+
+    const service = new SelfImprovementRunnerService();
+    await service.runSelfImprovement(projectId, { runId: "all-fail-run" });
+
+    expect(taskStore.insertSelfImprovementRunHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: "audit_and_experiments",
+        outcome: "no_changes",
+        status: "success",
+      })
+    );
+    expect(notificationService.createAgentFailed).toHaveBeenCalled();
+  });
+
+  it("records audit_and_experiments mode and no_changes outcome when experiments enabled but no tasks created and no sessions", async () => {
+    const { ProjectService } = await import("../services/project.service.js");
+    const { agentService } = await import("../services/agent.service.js");
+    const { taskStore } = await import("../services/task-store.service.js");
+    vi.mocked(ProjectService).mockImplementation(
+      () =>
+        ({
+          getProject: vi.fn().mockResolvedValue({ id: projectId, repoPath: "/tmp/repo" }),
+          getSettings: vi.fn().mockResolvedValue({
+            simpleComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+            complexComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+            reviewAngles: undefined,
+            runAgentEnhancementExperiments: true,
+          }),
+        }) as never
+    );
+    vi.mocked(agentService.invokePlanningAgent).mockResolvedValue({
+      content: "[]",
+    } as never);
+    vi.mocked(taskStore.getDb).mockResolvedValue({
+      query: vi.fn().mockResolvedValue([]),
+    } as never);
+
+    const service = new SelfImprovementRunnerService();
+    const result = await service.runSelfImprovement(projectId, { runId: "empty-run" });
+
+    expect(result).toMatchObject({ tasksCreated: 0, runId: "empty-run" });
+    expect(taskStore.insertSelfImprovementRunHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: "audit_and_experiments",
+        outcome: "no_changes",
+        summary: expect.stringContaining("Experiment step skipped"),
+      })
+    );
+  });
+
+  it("clears in-progress state after experiment pipeline failure", async () => {
+    const { ProjectService } = await import("../services/project.service.js");
+    const { taskStore } = await import("../services/task-store.service.js");
+    vi.mocked(ProjectService).mockImplementation(
+      () =>
+        ({
+          getProject: vi.fn().mockResolvedValue({ id: projectId, repoPath: "/tmp/repo" }),
+          getSettings: vi.fn().mockResolvedValue({
+            simpleComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+            complexComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+            reviewAngles: undefined,
+            runAgentEnhancementExperiments: true,
+          }),
+        }) as never
+    );
+    vi.mocked(taskStore.getDb).mockResolvedValue({
+      query: vi.fn().mockRejectedValue(new Error("DB error")),
+    } as never);
+
+    const service = new SelfImprovementRunnerService();
+    await service.runSelfImprovement(projectId, { runId: "cleanup-check" });
+
+    expect(isSelfImprovementRunInProgress(projectId)).toBe(false);
   });
 });

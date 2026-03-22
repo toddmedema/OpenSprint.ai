@@ -658,12 +658,7 @@ export class SelfImprovementRunnerService {
     if (inProgressProjects.has(projectId)) {
       return { tasksCreated: 0, skipped: "run_in_progress" };
     }
-    const settings = await this.projectService.getSettings(projectId);
-    const experimentsEnabled = settings.runAgentEnhancementExperiments === true;
-    const initialStatus: SelfImprovementStatusValue = experimentsEnabled
-      ? "running_experiments"
-      : "running_audit";
-    inProgressProjects.set(projectId, { status: initialStatus });
+    inProgressProjects.set(projectId, { status: "running_audit" });
     try {
       return await this.runSelfImprovementInner(projectId, options);
     } finally {
@@ -893,17 +888,29 @@ Review the codebase and output a structured list of improvement tasks (JSON arra
       try {
         inProgressProjects.set(projectId, {
           status: "running_experiments",
-          stage: "generating_candidate",
+          stage: "collecting_replay_cases",
         });
 
-        const experimentService = new SelfImprovementExperimentService(agentInstructionsService);
-        const { versionId, bundle } = await experimentService.generateAndPersistCandidate(
-          projectId,
-          runId
-        );
-
         const sessionIds = await mineReplayGradeExecuteSessionIds(projectId);
-        if (sessionIds.length > 0) {
+
+        if (sessionIds.length === 0) {
+          log.info("Experiment step skipped: no replay-grade sessions available", {
+            projectId,
+            runId,
+          });
+          summary = `${summary} Experiment step skipped (no replay-grade sessions available).`;
+        } else {
+          inProgressProjects.set(projectId, {
+            status: "running_experiments",
+            stage: "generating_candidate",
+          });
+
+          const experimentService = new SelfImprovementExperimentService(agentInstructionsService);
+          const { versionId, bundle } = await experimentService.generateAndPersistCandidate(
+            projectId,
+            runId
+          );
+
           const replayService = new ExperimentReplayService();
           const defaultRunner: ReplayAgentRunner = {
             async run({ variant }): Promise<ReplayOutcome> {
@@ -1026,38 +1033,6 @@ Review the codebase and output a structured list of improvement tasks (JSON arra
               },
             });
           }
-        } else {
-          pendingCandidateId = versionId;
-          outcome = "promotion_pending";
-          summary = `${summary} Experiment candidate ${versionId} saved (no replay-grade sessions available).`;
-
-          await updateSettingsInStore(projectId, settings as ProjectSettings, (current) => ({
-            ...current,
-            selfImprovementPendingCandidateId: versionId,
-          }));
-
-          const noReplayNotification = await notificationService.createSelfImprovementApproval({
-            projectId,
-            candidateId: versionId,
-            deepLinkPath: `/projects/${projectId}/settings#self-improvement`,
-          });
-          broadcastToProject(projectId, {
-            type: "notification.added",
-            notification: {
-              id: noReplayNotification.id,
-              projectId: noReplayNotification.projectId,
-              source: noReplayNotification.source,
-              sourceId: noReplayNotification.sourceId,
-              questions: noReplayNotification.questions.map((q) => ({
-                id: q.id,
-                text: q.text,
-              })),
-              status: noReplayNotification.status,
-              createdAt: noReplayNotification.createdAt,
-              resolvedAt: noReplayNotification.resolvedAt,
-              kind: noReplayNotification.kind,
-            },
-          });
         }
       } catch (err) {
         log.warn("Self-improvement experiment pipeline failed", {
@@ -1074,7 +1049,7 @@ Review the codebase and output a structured list of improvement tasks (JSON arra
       projectId,
       runId,
       completedAt: new Date().toISOString(),
-      status: "success",
+      status: outcome === "failed" ? "failed" : "success",
       tasksCreatedCount: createdCount,
       mode: experimentsEnabled ? "audit_and_experiments" : "audit_only",
       outcome,
