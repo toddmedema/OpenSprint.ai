@@ -476,12 +476,79 @@ export function parseImprovementList(content: string): ImprovementItem[] {
   ];
 }
 
-/** Per-project in-progress guard: projectIds currently running self-improvement. */
-const inProgressProjects = new Set<string>();
+/** High-level status of the self-improvement pipeline for a project. */
+export type SelfImprovementStatusValue =
+  | "idle"
+  | "running_audit"
+  | "running_experiments"
+  | "awaiting_approval";
+
+/** Stage within an active experiment run. */
+export type SelfImprovementStage =
+  | "collecting_replay_cases"
+  | "generating_candidate"
+  | "replaying"
+  | "scoring"
+  | "promoting";
+
+/** In-memory run state tracked per project while a self-improvement run is active. */
+export interface SelfImprovementRunState {
+  status: SelfImprovementStatusValue;
+  stage?: SelfImprovementStage;
+  pendingCandidateId?: string;
+  summary?: string;
+}
+
+/** Snapshot returned by the status endpoint. */
+export interface SelfImprovementStatusSnapshot {
+  status: SelfImprovementStatusValue;
+  stage?: SelfImprovementStage;
+  pendingCandidateId?: string;
+  summary?: string;
+}
+
+/** Per-project in-progress state: projectIds → run state while self-improvement is active. */
+const inProgressProjects = new Map<string, SelfImprovementRunState>();
 
 /** Returns true when a self-improvement run is in progress for the given project. */
 export function isSelfImprovementRunInProgress(projectId: string): boolean {
   return inProgressProjects.has(projectId);
+}
+
+/** Get the current in-memory run state for a project (undefined when idle). */
+export function getSelfImprovementRunState(
+  projectId: string
+): SelfImprovementRunState | undefined {
+  return inProgressProjects.get(projectId);
+}
+
+/**
+ * Build a status snapshot for the status endpoint.
+ * Checks in-memory run state first; falls back to settings for awaiting_approval.
+ */
+export function getSelfImprovementStatus(
+  projectId: string,
+  settings?: { selfImprovementPendingCandidateId?: string }
+): SelfImprovementStatusSnapshot {
+  const runState = inProgressProjects.get(projectId);
+  if (runState) {
+    return {
+      status: runState.status,
+      ...(runState.stage && { stage: runState.stage }),
+      ...(runState.pendingCandidateId && {
+        pendingCandidateId: runState.pendingCandidateId,
+      }),
+      ...(runState.summary && { summary: runState.summary }),
+    };
+  }
+  if (settings?.selfImprovementPendingCandidateId) {
+    return {
+      status: "awaiting_approval",
+      pendingCandidateId: settings.selfImprovementPendingCandidateId,
+      summary: "A candidate behavior version is awaiting approval.",
+    };
+  }
+  return { status: "idle" };
 }
 
 /**
@@ -490,12 +557,14 @@ export function isSelfImprovementRunInProgress(projectId: string): boolean {
  */
 export function setSelfImprovementRunInProgressForTest(
   projectId: string,
-  inProgress: boolean
+  inProgress: boolean | SelfImprovementRunState
 ): void {
-  if (inProgress) {
-    inProgressProjects.add(projectId);
-  } else {
+  if (inProgress === false) {
     inProgressProjects.delete(projectId);
+  } else if (inProgress === true) {
+    inProgressProjects.set(projectId, { status: "running_audit" });
+  } else {
+    inProgressProjects.set(projectId, inProgress);
   }
 }
 
@@ -535,7 +604,12 @@ export class SelfImprovementRunnerService {
     if (inProgressProjects.has(projectId)) {
       return { tasksCreated: 0, skipped: "run_in_progress" };
     }
-    inProgressProjects.add(projectId);
+    const settings = await this.projectService.getSettings(projectId);
+    const experimentsEnabled = settings.runAgentEnhancementExperiments === true;
+    const initialStatus: SelfImprovementStatusValue = experimentsEnabled
+      ? "running_experiments"
+      : "running_audit";
+    inProgressProjects.set(projectId, { status: initialStatus });
     try {
       return await this.runSelfImprovementInner(projectId, options);
     } finally {

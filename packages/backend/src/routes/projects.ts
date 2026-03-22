@@ -15,6 +15,7 @@ import type { ProjectService } from "../services/project.service.js";
 import type { PlanService } from "../services/plan.service.js";
 import { orchestratorService } from "../services/orchestrator.service.js";
 import { selfImprovementService } from "../services/self-improvement.service.js";
+import { getSelfImprovementStatus } from "../services/self-improvement-runner.service.js";
 import { taskStore } from "../services/task-store.service.js";
 import type { ApiResponse, Project, ScaffoldProjectResponse } from "@opensprint/shared";
 import { createLogger } from "../utils/logger.js";
@@ -120,6 +121,18 @@ export function createProjectsRouter(
         ...(r.pendingCandidateId != null && { pendingCandidateId: r.pendingCandidateId }),
       }));
       res.json({ data });
+    })
+  );
+
+  // GET /projects/:id/self-improvement/status — Current self-improvement pipeline status for this project
+  router.get(
+    "/:id/self-improvement/status",
+    validateParams(projectIdParamSchema),
+    wrapAsync(async (req: Request<ProjectParams>, res) => {
+      const projectId = req.params.id;
+      const settings = await projectService.getSettings(projectId);
+      const snapshot = getSelfImprovementStatus(projectId, settings);
+      res.json({ data: snapshot });
     })
   );
 

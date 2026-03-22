@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   SelfImprovementRunnerService,
   parseImprovementList,
@@ -6,6 +6,8 @@ import {
   enrichPriorityAndComplexity,
   runSelfImprovement,
   isSelfImprovementRunInProgress,
+  getSelfImprovementStatus,
+  setSelfImprovementRunInProgressForTest,
 } from "../services/self-improvement-runner.service.js";
 
 vi.mock("../services/task-store.service.js", () => ({
@@ -98,6 +100,70 @@ vi.mock("../services/notification.service.js", () => ({
 vi.mock("../websocket/index.js", () => ({
   broadcastToProject: vi.fn(),
 }));
+
+describe("getSelfImprovementStatus", () => {
+  afterEach(() => {
+    setSelfImprovementRunInProgressForTest("test-proj", false);
+  });
+
+  it("returns idle when no run in progress and no pending candidate", () => {
+    const snapshot = getSelfImprovementStatus("test-proj", {});
+    expect(snapshot).toEqual({ status: "idle" });
+  });
+
+  it("returns awaiting_approval when settings have a pending candidate", () => {
+    const snapshot = getSelfImprovementStatus("test-proj", {
+      selfImprovementPendingCandidateId: "bv-cand-1",
+    });
+    expect(snapshot.status).toBe("awaiting_approval");
+    expect(snapshot.pendingCandidateId).toBe("bv-cand-1");
+    expect(snapshot.summary).toBeDefined();
+  });
+
+  it("returns running_audit when audit run is in progress", () => {
+    setSelfImprovementRunInProgressForTest("test-proj", {
+      status: "running_audit",
+    });
+    const snapshot = getSelfImprovementStatus("test-proj");
+    expect(snapshot.status).toBe("running_audit");
+    expect(snapshot.stage).toBeUndefined();
+  });
+
+  it("returns running_experiments with stage when experiment run is active", () => {
+    setSelfImprovementRunInProgressForTest("test-proj", {
+      status: "running_experiments",
+      stage: "generating_candidate",
+    });
+    const snapshot = getSelfImprovementStatus("test-proj");
+    expect(snapshot.status).toBe("running_experiments");
+    expect(snapshot.stage).toBe("generating_candidate");
+  });
+
+  it("in-progress state takes precedence over settings pending candidate", () => {
+    setSelfImprovementRunInProgressForTest("test-proj", {
+      status: "running_audit",
+    });
+    const snapshot = getSelfImprovementStatus("test-proj", {
+      selfImprovementPendingCandidateId: "bv-cand-1",
+    });
+    expect(snapshot.status).toBe("running_audit");
+  });
+
+  it("setSelfImprovementRunInProgressForTest with true sets running_audit default", () => {
+    setSelfImprovementRunInProgressForTest("test-proj", true);
+    expect(isSelfImprovementRunInProgress("test-proj")).toBe(true);
+    const snapshot = getSelfImprovementStatus("test-proj");
+    expect(snapshot.status).toBe("running_audit");
+  });
+
+  it("setSelfImprovementRunInProgressForTest with false clears state", () => {
+    setSelfImprovementRunInProgressForTest("test-proj", true);
+    setSelfImprovementRunInProgressForTest("test-proj", false);
+    expect(isSelfImprovementRunInProgress("test-proj")).toBe(false);
+    const snapshot = getSelfImprovementStatus("test-proj");
+    expect(snapshot.status).toBe("idle");
+  });
+});
 
 describe("parseImprovementList", () => {
   it("parses JSON array into improvement items", () => {

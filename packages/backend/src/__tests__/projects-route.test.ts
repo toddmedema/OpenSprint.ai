@@ -10,6 +10,7 @@ import { API_PREFIX, DEFAULT_HIL_CONFIG, OPENSPRINT_DIR } from "@opensprint/shar
 import { setBackendRuntimeInfoForTesting } from "../utils/runtime-info.js";
 import { cleanupTestProject } from "./test-project-cleanup.js";
 import { notificationService } from "../services/notification.service.js";
+import { setSelfImprovementRunInProgressForTest } from "../services/self-improvement-runner.service.js";
 
 vi.mock("drizzle-orm", () => ({
   and: (...args: unknown[]) => args,
@@ -298,6 +299,65 @@ describe.skipIf(!projectsPostgresOk)("Projects REST API — spec/sketch phase ro
       .send({ behaviorVersionId: "bv-missing" });
 
     expect(res.status).toBe(400);
+  });
+
+  it("GET /projects/:id/self-improvement/status returns idle when no run in progress", async () => {
+    const res = await request(app).get(
+      `${API_PREFIX}/projects/${projectId}/self-improvement/status`
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toBeDefined();
+    expect(res.body.data.status).toBe("idle");
+    expect(res.body.data.stage).toBeUndefined();
+    expect(res.body.data.pendingCandidateId).toBeUndefined();
+  });
+
+  it("GET /projects/:id/self-improvement/status returns running_audit when run in progress", async () => {
+    setSelfImprovementRunInProgressForTest(projectId, { status: "running_audit" });
+    try {
+      const res = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/self-improvement/status`
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.status).toBe("running_audit");
+    } finally {
+      setSelfImprovementRunInProgressForTest(projectId, false);
+    }
+  });
+
+  it("GET /projects/:id/self-improvement/status returns running_experiments with stage", async () => {
+    setSelfImprovementRunInProgressForTest(projectId, {
+      status: "running_experiments",
+      stage: "scoring",
+    });
+    try {
+      const res = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/self-improvement/status`
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.status).toBe("running_experiments");
+      expect(res.body.data.stage).toBe("scoring");
+    } finally {
+      setSelfImprovementRunInProgressForTest(projectId, false);
+    }
+  });
+
+  it("GET /projects/:id/self-improvement/status returns awaiting_approval when candidate pending", async () => {
+    await projectService.updateSettings(projectId, {
+      selfImprovementPendingCandidateId: "bv-candidate-status",
+    });
+
+    const res = await request(app).get(
+      `${API_PREFIX}/projects/${projectId}/self-improvement/status`
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe("awaiting_approval");
+    expect(res.body.data.pendingCandidateId).toBe("bv-candidate-status");
+    expect(res.body.data.summary).toBeDefined();
   });
 
   it("POST /projects/:id/archive removes project from list, keeps .opensprint", async () => {
