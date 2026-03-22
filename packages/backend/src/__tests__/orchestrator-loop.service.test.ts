@@ -252,4 +252,58 @@ describe("OrchestratorLoopService", () => {
     expect(state.loopActive).toBe(false);
     expect(state.globalTimers.has("loop")).toBe(false);
   });
+
+  it("dispatches only remediation tasks when baseline is failing and remediation tasks are ready", async () => {
+    const remediationTask = {
+      ...buildTask("os-fix"),
+      source: "self-improvement",
+      selfImprovementKind: "baseline-quality-gate",
+    } as StoredTask;
+    const normalTask = buildTask("os-normal");
+    const allTasks = [normalTask, remediationTask];
+
+    host.getTaskStore = vi.fn().mockReturnValue({
+      readyWithStatusMap: vi.fn().mockResolvedValue({ tasks: allTasks, allIssues: allTasks }),
+      update: vi.fn().mockResolvedValue(undefined),
+    });
+    host.getTaskScheduler = vi.fn().mockReturnValue({
+      selectTasks: vi.fn().mockResolvedValue([{ task: remediationTask }]),
+    });
+    state.status.baselineStatus = "failing";
+
+    await service.runLoop(projectId);
+
+    expect(dispatchTask).toHaveBeenCalledTimes(1);
+    expect(dispatchTask).toHaveBeenCalledWith(
+      projectId,
+      repoPath,
+      expect.objectContaining({ id: "os-fix" }),
+      0
+    );
+  });
+
+  it("falls back to normal dispatch when baseline is failing but all remediation tasks are blocked", async () => {
+    const normalTasks = [buildTask("os-1"), buildTask("os-2")];
+
+    host.getTaskStore = vi.fn().mockReturnValue({
+      readyWithStatusMap: vi.fn().mockResolvedValue({ tasks: normalTasks, allIssues: normalTasks }),
+      update: vi.fn().mockResolvedValue(undefined),
+    });
+    host.getTaskScheduler = vi.fn().mockReturnValue({
+      selectTasks: vi
+        .fn()
+        .mockResolvedValue(normalTasks.map((task) => ({ task }))),
+    });
+    state.status.baselineStatus = "failing";
+
+    await service.runLoop(projectId);
+
+    expect(dispatchTask).toHaveBeenCalledTimes(2);
+    expect(dispatchTask).toHaveBeenCalledWith(
+      projectId,
+      repoPath,
+      expect.objectContaining({ id: "os-1" }),
+      expect.any(Number)
+    );
+  });
 });

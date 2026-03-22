@@ -1345,6 +1345,7 @@ export class MergeCoordinatorService {
       command: failure.command,
       reason: failedGateReason,
       outputSnippet: failedGateOutputSnippet,
+      firstErrorLine: failure.firstErrorLine ?? null,
       worktreePath:
         failure.validationWorkspace === "baseline" ? null : (failure.worktreePath ?? null),
     });

@@ -227,12 +227,27 @@ export class OrchestratorLoopService {
       state.status.queueDepth = readyTasks.length;
 
       if (state.status.baselineStatus === "failing") {
-        readyTasks = readyTasks.filter((task) => this.isBaselineQualityGateRemediationTask(task));
-        log.info("Baseline quality gates are failing; pausing non-remediation dispatch", {
-          projectId,
-          dispatchPausedReason: state.status.dispatchPausedReason ?? null,
-          remediationReadyTasks: readyTasks.length,
-        });
+        const remediationTasks = readyTasks.filter((task) =>
+          this.isBaselineQualityGateRemediationTask(task)
+        );
+        if (remediationTasks.length > 0) {
+          readyTasks = remediationTasks;
+          log.info("Baseline quality gates are failing; pausing non-remediation dispatch", {
+            projectId,
+            dispatchPausedReason: state.status.dispatchPausedReason ?? null,
+            remediationReadyTasks: readyTasks.length,
+          });
+        } else {
+          log.warn(
+            "Baseline quality gates are failing but no remediation tasks are ready (all blocked/completed); " +
+              "resuming normal dispatch to avoid deadlock",
+            {
+              projectId,
+              dispatchPausedReason: state.status.dispatchPausedReason ?? null,
+              readyTasks: readyTasks.length,
+            }
+          );
+        }
       }
 
       const hasPendingPrdSpecHil = await notificationService.hasOpenPrdSpecHilApproval(projectId);

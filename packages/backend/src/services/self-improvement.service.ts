@@ -57,6 +57,7 @@ export interface BaselineQualityGateTaskInput {
   reason: string;
   outputSnippet?: string | null;
   worktreePath?: string | null;
+  firstErrorLine?: string | null;
 }
 
 function truncateText(value: string | null | undefined, maxLen: number): string {
@@ -247,7 +248,9 @@ export class SelfImprovementService {
       `Failed command: \`${input.command}\``,
       `Base branch: \`${input.baseBranch}\``,
       `Expected passing commands: ${commands.map((command) => `\`${command}\``).join(", ")}`,
-      ...(input.worktreePath ? [`Worktree path: \`${input.worktreePath}\``] : []),
+      ...(input.firstErrorLine
+        ? ["", `First actionable error: \`${truncateText(input.firstErrorLine, 500)}\``]
+        : []),
       "",
       "Failure reason:",
       "```",
@@ -274,6 +277,7 @@ export class SelfImprovementService {
       failedGateCommand: input.command,
       failedGateReason: reason,
       failedGateOutputSnippet: outputSnippet,
+      firstErrorLine: input.firstErrorLine?.trim() || null,
       worktreePath: input.worktreePath ?? null,
       baselineQualityGateCommands: getMergeQualityGateCommands(),
     };

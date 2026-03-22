@@ -222,6 +222,32 @@ describe("OrchestratorDispatchService", () => {
     );
   });
 
+  it("extracts quality gate detail from task extra on first dispatch (no retry context)", async () => {
+    const task = {
+      ...baseTask("os-qg-first"),
+      failedGateCommand: "npm run test",
+      failedGateReason: "Tests failed: 1 failed, 100 passed",
+      firstErrorLine: "AssertionError: expected spy to be called at test.ts:42",
+    } as StoredTask;
+
+    await service.dispatchTask(projectId, repoPath, task, 1);
+
+    expect(executeCodingPhase).toHaveBeenCalledWith(
+      projectId,
+      repoPath,
+      task,
+      expect.objectContaining({ taskId: task.id }),
+      expect.objectContaining({
+        qualityGateDetail: expect.objectContaining({
+          command: "npm run test",
+          reason: "Tests failed: 1 failed, 100 passed",
+          firstErrorLine: "AssertionError: expected spy to be called at test.ts:42",
+        }),
+        useExistingBranch: false,
+      })
+    );
+  });
+
   it("resumes baseline-paused tasks at merge instead of relaunching a coder", async () => {
     const task = {
       ...baseTask("os-3456"),

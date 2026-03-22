@@ -807,6 +807,7 @@ describe("MergeCoordinatorService", () => {
       command: "npm run test",
       reason: "Command failed: npm run test",
       outputSnippet: "stderr | baseline failure",
+      firstErrorLine: "stderr | baseline failure",
       worktreePath: null,
     });
     expect(mockGitQueueEnqueueAndWait).not.toHaveBeenCalled();
@@ -1372,6 +1373,7 @@ describe("MergeCoordinatorService", () => {
       command: "npm run test",
       reason: "Command failed: npm run test",
       outputSnippet: "stderr | rebased main failure",
+      firstErrorLine: "stderr | rebased main failure",
       worktreePath: null,
     });
     expect(pushMainToOrigin).not.toHaveBeenCalled();

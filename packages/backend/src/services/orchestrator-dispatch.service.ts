@@ -185,43 +185,54 @@ function extractQualityGateDetailFromTask(task: StoredTask): RetryQualityGateDet
 }
 
 function extractRetryContext(task: StoredTask): RetryContext | undefined {
-  const raw = (task as Record<string, unknown>)[NEXT_RETRY_CONTEXT_KEY];
-  if (!raw || typeof raw !== "object") return undefined;
-  const record = raw as Record<string, unknown>;
   const retryContext: RetryContext = {};
-  if (typeof record.previousFailure === "string" && record.previousFailure.trim() !== "") {
-    retryContext.previousFailure = record.previousFailure;
+  const raw = (task as Record<string, unknown>)[NEXT_RETRY_CONTEXT_KEY];
+  if (raw && typeof raw === "object") {
+    const record = raw as Record<string, unknown>;
+    if (typeof record.previousFailure === "string" && record.previousFailure.trim() !== "") {
+      retryContext.previousFailure = record.previousFailure;
+    }
+    if (typeof record.reviewFeedback === "string" && record.reviewFeedback.trim() !== "") {
+      retryContext.reviewFeedback = record.reviewFeedback;
+    }
+    if (typeof record.previousTestOutput === "string" && record.previousTestOutput.trim() !== "") {
+      retryContext.previousTestOutput = record.previousTestOutput;
+    }
+    if (
+      typeof record.previousTestFailures === "string" &&
+      record.previousTestFailures.trim() !== ""
+    ) {
+      retryContext.previousTestFailures = record.previousTestFailures;
+    }
+    if (typeof record.previousDiff === "string" && record.previousDiff.trim() !== "") {
+      retryContext.previousDiff = record.previousDiff;
+    }
+    const qualityGateDetail =
+      extractQualityGateDetail(record.qualityGateDetail) ?? extractQualityGateDetailFromTask(task);
+    if (qualityGateDetail) {
+      retryContext.qualityGateDetail = qualityGateDetail;
+    }
+    if (
+      typeof record.failureType === "string" &&
+      FAILURE_TYPES.includes(record.failureType as FailureType)
+    ) {
+      retryContext.failureType = record.failureType as FailureType;
+    }
+    const failureHistory = extractFailureHistory(record.failureHistory);
+    if (failureHistory) {
+      retryContext.failureHistory = failureHistory;
+    }
   }
-  if (typeof record.reviewFeedback === "string" && record.reviewFeedback.trim() !== "") {
-    retryContext.reviewFeedback = record.reviewFeedback;
+
+  // Even without next_retry_context, extract quality gate detail from task extra
+  // so the first coding attempt for baseline remediation tasks gets the failure info.
+  if (!retryContext.qualityGateDetail) {
+    const taskQualityGateDetail = extractQualityGateDetailFromTask(task);
+    if (taskQualityGateDetail) {
+      retryContext.qualityGateDetail = taskQualityGateDetail;
+    }
   }
-  if (typeof record.previousTestOutput === "string" && record.previousTestOutput.trim() !== "") {
-    retryContext.previousTestOutput = record.previousTestOutput;
-  }
-  if (
-    typeof record.previousTestFailures === "string" &&
-    record.previousTestFailures.trim() !== ""
-  ) {
-    retryContext.previousTestFailures = record.previousTestFailures;
-  }
-  if (typeof record.previousDiff === "string" && record.previousDiff.trim() !== "") {
-    retryContext.previousDiff = record.previousDiff;
-  }
-  const qualityGateDetail =
-    extractQualityGateDetail(record.qualityGateDetail) ?? extractQualityGateDetailFromTask(task);
-  if (qualityGateDetail) {
-    retryContext.qualityGateDetail = qualityGateDetail;
-  }
-  if (
-    typeof record.failureType === "string" &&
-    FAILURE_TYPES.includes(record.failureType as FailureType)
-  ) {
-    retryContext.failureType = record.failureType as FailureType;
-  }
-  const failureHistory = extractFailureHistory(record.failureHistory);
-  if (failureHistory) {
-    retryContext.failureHistory = failureHistory;
-  }
+
   if (Object.keys(retryContext).length === 0) return undefined;
   // Re-dispatched tasks should start from a fresh branch/worktree.
   retryContext.useExistingBranch = false;
