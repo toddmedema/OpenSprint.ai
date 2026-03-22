@@ -3,10 +3,11 @@ import { ModelSelect } from "../ModelSelect";
 import type { AgentType } from "@opensprint/shared";
 import type { AgentConfig, EnvKeys } from "./AgentsStep";
 import { AgentProviderCliBanner } from "../AgentProviderCliBanner";
-
-const DEFAULT_LMSTUDIO_BASE_URL = "http://localhost:1234";
-const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434";
 import { hasNoApiKeys } from "../../utils/agentConfigDefaults";
+import {
+  DEFAULT_LMSTUDIO_BASE_URL,
+  DEFAULT_OLLAMA_BASE_URL,
+} from "../../lib/localModelProviders";
 
 export interface SimplifiedAgentsStepProps {
   simpleComplexityAgent: AgentConfig;
@@ -51,9 +52,6 @@ export function SimplifiedAgentsStep({
   const usesCursor =
     simpleComplexityAgent.type === "cursor" || complexComplexityAgent.type === "cursor";
   const cursorCliMissing = envKeys && !envKeys.cursorCli && usesCursor;
-  const usesOllama =
-    simpleComplexityAgent.type === "ollama" || complexComplexityAgent.type === "ollama";
-  const ollamaCliMissing = envKeys && !envKeys.ollamaCli && usesOllama;
 
   return (
     <div className="space-y-6" data-testid="simplified-agents-step">
@@ -259,7 +257,6 @@ export function SimplifiedAgentsStep({
       )}
       {cursorCliMissing && <AgentProviderCliBanner kind="cursor" />}
       {claudeCliMissing && <AgentProviderCliBanner kind="claude" />}
-      {ollamaCliMissing && <AgentProviderCliBanner kind="ollama" />}
       {usesClaudeCli && !claudeCliMissing && (
         <div className="p-3 rounded-lg bg-theme-info-bg border border-theme-info-border">
           <p className="text-sm text-theme-info-text">
@@ -293,6 +290,7 @@ export function SimplifiedAgentsStep({
                   onSimpleComplexityAgentChange({
                     ...simpleComplexityAgent,
                     type,
+                    model: "",
                     baseUrl:
                       type === "lmstudio"
                         ? DEFAULT_LMSTUDIO_BASE_URL
@@ -410,6 +408,7 @@ export function SimplifiedAgentsStep({
                   onComplexComplexityAgentChange({
                     ...complexComplexityAgent,
                     type,
+                    model: "",
                     baseUrl:
                       type === "lmstudio"
                         ? DEFAULT_LMSTUDIO_BASE_URL

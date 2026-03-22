@@ -9,15 +9,6 @@ import { clearInFlightFetches, validateApiKey } from "../routes/models.js";
 
 const mockModelsList = vi.fn();
 const mockGetNextKey = vi.fn();
-const mockExecFile = vi.fn();
-
-vi.mock("node:child_process", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("node:child_process")>();
-  return {
-    ...mod,
-    execFile: (...args: unknown[]) => mockExecFile(...args),
-  };
-});
 
 vi.mock("../services/api-key-resolver.service.js", () => ({
   getNextKey: (...args: unknown[]) => mockGetNextKey(...args),
@@ -32,17 +23,6 @@ vi.mock("@anthropic-ai/sdk", () => ({
 }));
 
 const originalFetch = globalThis.fetch;
-
-function resolvePromisifiedExecFile(
-  cb: (err: Error | null, stdout?: string, stderr?: string) => void,
-  stdout: string,
-  stderr = ""
-) {
-  // The mocked execFile is wrapped with util.promisify in the route module. Returning the
-  // `{ stdout, stderr }` object here mirrors the shape that promisified execFile resolves with.
-  setImmediate(() => cb(null, { stdout, stderr } as unknown as string, ""));
-  return {} as never;
-}
 
 function createMinimalModelsApp() {
   const app = express();
@@ -68,7 +48,6 @@ describe("Models API", () => {
     originalOpenAIKey = process.env.OPENAI_API_KEY;
     originalGoogleKey = process.env.GOOGLE_API_KEY;
     vi.clearAllMocks();
-    mockExecFile.mockReset();
     mockGetNextKey.mockImplementation(async (_projectId: string, provider: string) => {
       const key = process.env[provider];
       return key?.trim() ? { key, keyId: "__env__" } : null;
@@ -260,25 +239,17 @@ describe("Models API", () => {
       expect(res.body.error?.message).toContain("LM Studio is not reachable");
     });
 
-    it("fetches and parses Ollama models from `ollama ls`", async () => {
-      mockExecFile.mockImplementation(
-        (
-          _file: string,
-          _args: string[],
-          _opts: unknown,
-          cb: (err: Error | null, stdout?: string, stderr?: string) => void
-        ) => {
-          return resolvePromisifiedExecFile(
-            cb,
-            [
-              "NAME            ID              SIZE      MODIFIED",
-              "llama3.2:latest abc123          2.0 GB    2 hours ago",
-              "mistral:7b      def456          4.1 GB    1 day ago",
-              "",
-            ].join("\n")
-          );
-        }
-      );
+    it("fetches Ollama models from the OpenAI-compatible API", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: [
+              { id: "llama3.2:latest", object: "model" },
+              { id: "mistral:7b", object: "model" },
+            ],
+          }),
+      });
 
       const res = await request(app).get(`${API_PREFIX}/models?provider=ollama`);
 
@@ -287,56 +258,74 @@ describe("Models API", () => {
         { id: "llama3.2:latest", displayName: "llama3.2:latest" },
         { id: "mistral:7b", displayName: "mistral:7b" },
       ]);
-      expect(mockExecFile).toHaveBeenCalledWith(
-        "ollama",
-        ["ls"],
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        "http://localhost:11434/v1/models",
         expect.objectContaining({
-          timeout: 15_000,
-          env: expect.objectContaining({ OLLAMA_HOST: "http://localhost:11434" }),
-        }),
-        expect.any(Function)
+          signal: expect.any(AbortSignal),
+        })
       );
     });
 
-    it("passes normalized custom baseUrl to Ollama via OLLAMA_HOST", async () => {
-      mockExecFile.mockImplementation(
-        (
-          _file: string,
-          _args: string[],
-          _opts: unknown,
-          cb: (err: Error | null, stdout?: string, stderr?: string) => void
-        ) => {
-          return resolvePromisifiedExecFile(cb, "NAME\nllama3.2\n");
-        }
-      );
+    it("preserves custom Ollama baseUrl path segments and appends /v1 idempotently", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: [{ id: "llama3.2" }] }),
+      });
 
       const res = await request(app).get(
-        `${API_PREFIX}/models?provider=ollama&baseUrl=%20http://192.168.1.10:11434/%20`
+        `${API_PREFIX}/models?provider=ollama&baseUrl=${encodeURIComponent(" http://192.168.1.10:11434/proxy/v1/ ")}`
       );
 
       expect(res.status).toBe(200);
       expect(res.body.data).toEqual([{ id: "llama3.2", displayName: "llama3.2" }]);
-      expect(mockExecFile).toHaveBeenCalledWith(
-        "ollama",
-        ["ls"],
-        expect.objectContaining({
-          env: expect.objectContaining({ OLLAMA_HOST: "http://192.168.1.10:11434" }),
-        }),
-        expect.any(Function)
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        "http://192.168.1.10:11434/proxy/v1/models",
+        expect.any(Object)
+      );
+    });
+
+    it("falls back to the native Ollama tags endpoint when /v1/models is unavailable", async () => {
+      globalThis.fetch = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          text: () => Promise.resolve("Not Found"),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              models: [{ name: "llama3.2:latest" }, { model: "mistral:7b" }],
+            }),
+        });
+
+      const res = await request(app).get(
+        `${API_PREFIX}/models?provider=ollama&baseUrl=${encodeURIComponent("http://127.0.0.1:11434/proxy/v1")}`
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual([
+        { id: "llama3.2:latest", displayName: "llama3.2:latest" },
+        { id: "mistral:7b", displayName: "mistral:7b" },
+      ]);
+      expect(globalThis.fetch).toHaveBeenNthCalledWith(
+        1,
+        "http://127.0.0.1:11434/proxy/v1/models",
+        expect.any(Object)
+      );
+      expect(globalThis.fetch).toHaveBeenNthCalledWith(
+        2,
+        "http://127.0.0.1:11434/proxy/api/tags",
+        expect.any(Object)
       );
     });
 
     it("returns empty array when Ollama has no local models", async () => {
-      mockExecFile.mockImplementation(
-        (
-          _file: string,
-          _args: string[],
-          _opts: unknown,
-          cb: (err: Error | null, stdout?: string, stderr?: string) => void
-        ) => {
-          return resolvePromisifiedExecFile(cb, "NAME ID SIZE MODIFIED\n");
-        }
-      );
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: [] }),
+      });
 
       const res = await request(app).get(`${API_PREFIX}/models?provider=ollama`);
 
@@ -344,48 +333,31 @@ describe("Models API", () => {
       expect(res.body.data).toEqual([]);
     });
 
-    it("returns 502 with install guidance when Ollama CLI is missing", async () => {
-      mockExecFile.mockImplementation(
-        (
-          _file: string,
-          _args: string[],
-          _opts: unknown,
-          cb: (err: Error | null, stdout?: string, stderr?: string) => void
-        ) => {
-          const err = Object.assign(new Error("spawn ollama ENOENT"), { code: "ENOENT" });
-          setImmediate(() => cb(err));
-          return {} as never;
-        }
-      );
+    it("returns 502 when the Ollama API is unreachable", async () => {
+      globalThis.fetch = vi.fn().mockRejectedValue(new Error("fetch failed: ECONNREFUSED"));
 
       const res = await request(app).get(`${API_PREFIX}/models?provider=ollama`);
 
       expect(res.status).toBe(502);
       expect(res.body.error?.code).toBe("OLLAMA_UNREACHABLE");
-      expect(res.body.error?.message).toContain("Ollama CLI was not found");
+      expect(res.body.error?.message).toContain("Ollama is not reachable");
     });
 
     it("uses cache on second Ollama request (same baseUrl)", async () => {
-      mockExecFile.mockImplementation(
-        (
-          _file: string,
-          _args: string[],
-          _opts: unknown,
-          cb: (err: Error | null, stdout?: string, stderr?: string) => void
-        ) => {
-          return resolvePromisifiedExecFile(cb, "NAME\nllama3.2\n");
-        }
-      );
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: [{ id: "llama3.2" }] }),
+      });
 
       const res1 = await request(app).get(`${API_PREFIX}/models?provider=ollama`);
       expect(res1.status).toBe(200);
       expect(res1.body.data).toEqual([{ id: "llama3.2", displayName: "llama3.2" }]);
-      expect(mockExecFile).toHaveBeenCalledTimes(1);
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
 
       const res2 = await request(app).get(`${API_PREFIX}/models?provider=ollama`);
       expect(res2.status).toBe(200);
       expect(res2.body.data).toEqual([{ id: "llama3.2", displayName: "llama3.2" }]);
-      expect(mockExecFile).toHaveBeenCalledTimes(1);
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
     });
 
     it("uses cache on second LM Studio request (same baseUrl)", async () => {

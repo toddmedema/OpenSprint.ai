@@ -32,6 +32,14 @@ const defaultHighComplexityAgent = {
   model: "",
   cliCommand: "",
 };
+const defaultEnvKeys = {
+  anthropic: true,
+  cursor: true,
+  openai: true,
+  claudeCli: true,
+  cursorCli: true,
+  ollamaCli: true,
+};
 
 function renderAgentsStep(overrides: Partial<Parameters<typeof AgentsStep>[0]> = {}) {
   return render(
@@ -72,7 +80,7 @@ describe("AgentsStep", () => {
 
   it("hides API key banner when all keys for selected providers are configured", () => {
     renderAgentsStep({
-      envKeys: { anthropic: true, cursor: true, openai: true, claudeCli: true, cursorCli: true },
+      envKeys: defaultEnvKeys,
     });
 
     expect(screen.queryByText(/API key required/)).not.toBeInTheDocument();
@@ -80,7 +88,7 @@ describe("AgentsStep", () => {
 
   it("shows configure-in-settings message when cursor is selected and key is missing", () => {
     renderAgentsStep({
-      envKeys: { anthropic: true, cursor: false, openai: true, claudeCli: true, cursorCli: true },
+      envKeys: { ...defaultEnvKeys, cursor: false },
     });
 
     expect(screen.getByText(/API key required/)).toBeInTheDocument();
@@ -90,7 +98,7 @@ describe("AgentsStep", () => {
 
   it("does not show API key banner when no agent uses claude provider", () => {
     renderAgentsStep({
-      envKeys: { anthropic: false, cursor: true, openai: true, claudeCli: true, cursorCli: true },
+      envKeys: { ...defaultEnvKeys, anthropic: false },
     });
 
     expect(screen.queryByText(/API key required/)).not.toBeInTheDocument();
@@ -99,7 +107,7 @@ describe("AgentsStep", () => {
   it("shows configure-in-settings message when claude is selected and key is missing", () => {
     renderAgentsStep({
       simpleComplexityAgent: { type: "claude", model: "", cliCommand: "" },
-      envKeys: { anthropic: false, cursor: true, openai: true, claudeCli: true, cursorCli: true },
+      envKeys: { ...defaultEnvKeys, anthropic: false },
     });
 
     expect(screen.getByText(/API key required/)).toBeInTheDocument();
@@ -109,7 +117,7 @@ describe("AgentsStep", () => {
   it("shows configure-in-settings message when both providers selected and both keys missing", () => {
     renderAgentsStep({
       simpleComplexityAgent: { type: "claude", model: "", cliCommand: "" },
-      envKeys: { anthropic: false, cursor: false, openai: true, claudeCli: true, cursorCli: true },
+      envKeys: { ...defaultEnvKeys, anthropic: false, cursor: false },
     });
 
     expect(screen.getByText(/API key required/)).toBeInTheDocument();
@@ -118,7 +126,7 @@ describe("AgentsStep", () => {
 
   it("shows configure-in-settings message when both agents use cursor and both keys missing", () => {
     renderAgentsStep({
-      envKeys: { anthropic: false, cursor: false, openai: true, claudeCli: true, cursorCli: true },
+      envKeys: { ...defaultEnvKeys, anthropic: false, cursor: false },
     });
 
     expect(screen.getByText(/API key required/)).toBeInTheDocument();
@@ -128,7 +136,7 @@ describe("AgentsStep", () => {
   it("shows configure-in-settings message when openai is selected and key is missing", () => {
     renderAgentsStep({
       simpleComplexityAgent: { type: "openai", model: "", cliCommand: "" },
-      envKeys: { anthropic: true, cursor: true, openai: false, claudeCli: true, cursorCli: true },
+      envKeys: { ...defaultEnvKeys, openai: false },
     });
 
     expect(screen.getByText(/API key required/)).toBeInTheDocument();
@@ -174,7 +182,7 @@ describe("AgentsStep", () => {
         baseUrl: "http://localhost:1234",
       },
       complexComplexityAgent: { type: "cursor", model: "", cliCommand: "" },
-      envKeys: { anthropic: true, cursor: true, openai: true, claudeCli: true, cursorCli: true },
+      envKeys: defaultEnvKeys,
     });
 
     expect(screen.getByPlaceholderText("http://localhost:1234")).toBeInTheDocument();
@@ -200,7 +208,7 @@ describe("AgentsStep", () => {
     renderAgentsStep({
       simpleComplexityAgent: { type: "openai", model: "", cliCommand: "" },
       complexComplexityAgent: { type: "cursor", model: "", cliCommand: "" },
-      envKeys: { anthropic: true, cursor: true, openai: true, claudeCli: true, cursorCli: true },
+      envKeys: defaultEnvKeys,
     });
 
     await waitFor(() => {
@@ -214,7 +222,7 @@ describe("AgentsStep", () => {
 
   it("shows error banner with 'You must add at least one' when no API keys configured", () => {
     renderAgentsStep({
-      envKeys: { anthropic: false, cursor: false, openai: false, claudeCli: true, cursorCli: true },
+      envKeys: { ...defaultEnvKeys, anthropic: false, cursor: false, openai: false },
     });
 
     expect(screen.getByTestId("no-api-keys-warning")).toBeInTheDocument();
@@ -231,7 +239,7 @@ describe("AgentsStep", () => {
   it("does not require API key when claude-cli is selected", () => {
     renderAgentsStep({
       simpleComplexityAgent: { type: "claude-cli", model: "", cliCommand: "" },
-      envKeys: { anthropic: false, cursor: true, openai: true, claudeCli: true, cursorCli: true },
+      envKeys: { ...defaultEnvKeys, anthropic: false },
     });
 
     expect(screen.queryByText(/API key required/)).not.toBeInTheDocument();
@@ -252,7 +260,7 @@ describe("AgentsStep", () => {
         cliCommand: "",
         baseUrl: "http://localhost:1234",
       },
-      envKeys: { anthropic: false, cursor: false, openai: false, claudeCli: true, cursorCli: true },
+      envKeys: { ...defaultEnvKeys, anthropic: false, cursor: false, openai: false },
     });
 
     expect(screen.queryByText(/API key required/)).not.toBeInTheDocument();
@@ -261,7 +269,7 @@ describe("AgentsStep", () => {
   it("shows CLI warning when claude-cli is selected and CLI is not available", () => {
     renderAgentsStep({
       simpleComplexityAgent: { type: "claude-cli", model: "", cliCommand: "" },
-      envKeys: { anthropic: false, cursor: true, openai: true, claudeCli: false, cursorCli: true },
+      envKeys: { ...defaultEnvKeys, anthropic: false, claudeCli: false },
     });
 
     expect(screen.getByText(/Claude CLI not found/)).toBeInTheDocument();
@@ -271,11 +279,49 @@ describe("AgentsStep", () => {
   it("shows CLI info when claude-cli is selected and CLI is available", () => {
     renderAgentsStep({
       simpleComplexityAgent: { type: "claude-cli", model: "", cliCommand: "" },
-      envKeys: { anthropic: true, cursor: true, openai: true, claudeCli: true, cursorCli: true },
+      envKeys: defaultEnvKeys,
     });
 
     expect(screen.getByText(/locally-installed Claude CLI/)).toBeInTheDocument();
     expect(screen.queryByText(/Claude CLI not found/)).not.toBeInTheDocument();
+  });
+
+  it("clears a stale model when switching the Simple provider to Ollama", () => {
+    const onChange = vi.fn();
+    renderAgentsStep({
+      simpleComplexityAgent: {
+        type: "openai",
+        model: "gpt-4o",
+        cliCommand: "",
+      },
+      onSimpleComplexityAgentChange: onChange,
+      envKeys: defaultEnvKeys,
+    });
+
+    fireEvent.change(screen.getByLabelText("Provider", { selector: "#simple-provider-select" }), {
+      target: { value: "ollama" },
+    });
+
+    expect(onChange).toHaveBeenCalledWith({
+      type: "ollama",
+      model: "",
+      cliCommand: "",
+      baseUrl: "http://localhost:11434",
+    });
+  });
+
+  it("does not show an Ollama CLI warning when Ollama is selected", () => {
+    renderAgentsStep({
+      simpleComplexityAgent: {
+        type: "ollama",
+        model: "",
+        cliCommand: "",
+        baseUrl: "http://localhost:11434",
+      },
+      envKeys: { ...defaultEnvKeys, anthropic: false, cursor: false, openai: false, ollamaCli: false },
+    });
+
+    expect(screen.queryByText(/Ollama CLI not found/)).not.toBeInTheDocument();
   });
 
   it("renders parallelism section with slider defaulting to 1", () => {

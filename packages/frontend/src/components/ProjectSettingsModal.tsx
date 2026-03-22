@@ -43,9 +43,11 @@ import {
 } from "@opensprint/shared";
 import { MIN_SAVE_SPINNER_MS, SETTINGS_HELP_CONTAINER_CLASS } from "../lib/constants";
 import { queryKeys } from "../api/queryKeys";
-
-const DEFAULT_LMSTUDIO_BASE_URL = "http://localhost:1234";
-const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434";
+import {
+  DEFAULT_LMSTUDIO_BASE_URL,
+  DEFAULT_OLLAMA_BASE_URL,
+  hasConfiguredLocalModel,
+} from "../lib/localModelProviders";
 
 interface ProjectSettingsModalProps {
   project: Project;
@@ -77,6 +79,8 @@ export interface ProjectSettingsModalRef {
 }
 
 const TAB_PARAM = "tab";
+const LOCAL_PROVIDER_MODEL_REQUIRED_MESSAGE =
+  "Select a model before saving LM Studio or Ollama settings.";
 
 function parseTabFromSearch(search: string): SettingsSubTab | null {
   const params = new URLSearchParams(search);
@@ -324,6 +328,10 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
         const effSettings = overrides ? { ...settings } : settings;
         if (effSimple.type === "custom" && !(effSimple.cliCommand ?? "").trim()) return;
         if (effComplex.type === "custom" && !(effComplex.cliCommand ?? "").trim()) return;
+        if (!hasConfiguredLocalModel(effSimple) || !hasConfiguredLocalModel(effComplex)) {
+          setError(LOCAL_PROVIDER_MODEL_REQUIRED_MESSAGE);
+          return;
+        }
         setSaving(true);
         setError(null);
         saveGenerationRef.current += 1;
@@ -722,29 +730,6 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
         );
       }
 
-      if (provider === "ollama" && !envKeys.ollamaCli) {
-        return (
-          <div
-            className="p-3 rounded-lg bg-theme-warning-bg border border-theme-warning-border"
-            data-testid={`${rowKey}-provider-prerequisite`}
-          >
-            <p className="text-sm text-theme-warning-text">
-              <strong>Ollama CLI not found.</strong> Install it from{" "}
-              <a
-                href="https://ollama.com/download"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline hover:opacity-80"
-              >
-                ollama.com/download
-              </a>{" "}
-              and ensure <code className="font-mono text-xs">ollama</code> is available in your
-              terminal.
-            </p>
-          </div>
-        );
-      }
-
       return null;
     };
 
@@ -898,17 +883,20 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                               value={simpleComplexityAgent.type}
                               onChange={(e) => {
                                 const type = e.target.value as AgentType;
-                                updateSimpleComplexityAgent({
-                                  type,
-                                  baseUrl:
-                                    type === "lmstudio"
-                                      ? DEFAULT_LMSTUDIO_BASE_URL
-                                      : type === "ollama"
-                                        ? DEFAULT_OLLAMA_BASE_URL
-                                        : simpleComplexityAgent.baseUrl,
-                                });
+                                updateSimpleComplexityAgent(
+                                  {
+                                    type,
+                                    model: null,
+                                    baseUrl:
+                                      type === "lmstudio"
+                                        ? DEFAULT_LMSTUDIO_BASE_URL
+                                        : type === "ollama"
+                                          ? DEFAULT_OLLAMA_BASE_URL
+                                          : simpleComplexityAgent.baseUrl,
+                                  },
+                                  { immediate: false }
+                                );
                               }}
-                              onBlur={scheduleSaveOnBlur}
                             >
                               <option value="claude">Claude (API)</option>
                               <option value="claude-cli">Claude (CLI)</option>
@@ -1019,17 +1007,20 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                               value={complexComplexityAgent.type}
                               onChange={(e) => {
                                 const type = e.target.value as AgentType;
-                                updateComplexComplexityAgent({
-                                  type,
-                                  baseUrl:
-                                    type === "lmstudio"
-                                      ? DEFAULT_LMSTUDIO_BASE_URL
-                                      : type === "ollama"
-                                        ? DEFAULT_OLLAMA_BASE_URL
-                                        : complexComplexityAgent.baseUrl,
-                                });
+                                updateComplexComplexityAgent(
+                                  {
+                                    type,
+                                    model: null,
+                                    baseUrl:
+                                      type === "lmstudio"
+                                        ? DEFAULT_LMSTUDIO_BASE_URL
+                                        : type === "ollama"
+                                          ? DEFAULT_OLLAMA_BASE_URL
+                                          : complexComplexityAgent.baseUrl,
+                                  },
+                                  { immediate: false }
+                                );
                               }}
-                              onBlur={scheduleSaveOnBlur}
                             >
                               <option value="claude">Claude (API)</option>
                               <option value="claude-cli">Claude (CLI)</option>

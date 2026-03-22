@@ -113,11 +113,9 @@ export function ModelSelect({
           ? "LM Studio is not reachable. Check the server URL in Settings."
           : "No models — start LM Studio and load a model"
         : provider === "ollama"
-          ? /not found/i.test(error)
-            ? "Ollama CLI not found — install Ollama and restart Open Sprint"
-            : /not reachable|running/i.test(error)
+          ? isConnectionError(error) || /not reachable|running|connection/i.test(error)
               ? "Ollama is not reachable. Start Ollama and check the server URL in Settings."
-              : "No models — run `ollama pull <model>` in your terminal"
+              : "No models — verify the server URL or run `ollama pull <model>`"
         : provider === "claude"
           ? "Anthropic API key required — configure in Global Settings → API keys"
           : provider === "claude-cli"

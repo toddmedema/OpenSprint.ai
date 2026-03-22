@@ -24,10 +24,23 @@ import {
   type AgentCacheUsageMetrics,
   type PromptCacheContext,
 } from "../utils/prompt-cache.js";
+import { isReasoningOnlyCompletion } from "../utils/local-openai-provider.js";
 
 const DEFAULT_MAX_TURNS = 100;
 const SYSTEM_PROMPT =
   "You are a coding agent. Execute the task described in the user message. Use the provided tools to read and edit files, run commands, and list or search files. When done, write a result.json file (or report success/failure in your final message).";
+
+function isReasoningOnlyAgentTurn(
+  choice: OpenAI.Chat.Completions.ChatCompletion.Choice | undefined
+): boolean {
+  const message = choice?.message;
+  if ((message?.tool_calls ?? []).length > 0) return false;
+  return isReasoningOnlyCompletion({
+    content: message?.content ?? "",
+    finishReason: choice?.finish_reason,
+    reasoningSource: message,
+  });
+}
 
 export interface AgenticLoopOptions {
   cwd: string;
@@ -163,6 +176,35 @@ export class OpenAIAgenticAdapter implements AgenticLoopAdapter {
     this.promptCacheContext = promptCacheContext ?? {};
   }
 
+  private async createCompletion(
+    promptCacheKey: string
+  ): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+    const request = {
+      model: this.model,
+      messages: this.messageHistory,
+      max_tokens: 16384,
+      tools: toOpenAITools() as OpenAI.Chat.Completions.ChatCompletionTool[],
+      prompt_cache_key: promptCacheKey,
+      prompt_cache_retention: "in-memory" as const,
+    };
+    const response = await this.client.chat.completions.create(request);
+    if (!isReasoningOnlyAgentTurn(response.choices?.[0])) {
+      return response;
+    }
+
+    const fallback = await this.client.chat.completions.create({
+      ...request,
+      max_tokens: request.max_tokens * 2,
+    });
+    if (isReasoningOnlyAgentTurn(fallback.choices?.[0])) {
+      throw new Error(
+        "Provider returned reasoning without final content before hitting the response token limit."
+      );
+    }
+
+    return fallback;
+  }
+
   async send(
     userMessage: string,
     toolResults?: Array<{ id: string; content: string }>,
@@ -194,14 +236,7 @@ export class OpenAIAgenticAdapter implements AgenticLoopAdapter {
         this.promptCacheContext.toolSchemaVersion ?? fingerprintJson(toOpenAITools()),
       instructionsFingerprint: this.promptCacheContext.instructionsFingerprint ?? promptFingerprint,
     });
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      messages: this.messageHistory,
-      max_tokens: 16384,
-      tools: toOpenAITools() as OpenAI.Chat.Completions.ChatCompletionTool[],
-      prompt_cache_key: promptCacheKey,
-      prompt_cache_retention: "in-memory",
-    });
+    const response = await this.createCompletion(promptCacheKey);
 
     const choice = response.choices?.[0];
     const msg = choice?.message;

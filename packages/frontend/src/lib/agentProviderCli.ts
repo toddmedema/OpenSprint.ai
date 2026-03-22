@@ -1,18 +1,16 @@
 import type { AgentProviderValue } from "./agentProviders";
 
-/** Local CLI tooling checked via GET /env/keys (Cursor, Claude, Ollama). */
-export type AgentCliCheckKind = "cursor" | "claude" | "ollama";
+/** Local CLI tooling checked via GET /env/keys (Cursor, Claude). */
+export type AgentCliCheckKind = "cursor" | "claude";
 
-const KEYS_FIELD: Record<AgentCliCheckKind, "cursorCli" | "claudeCli" | "ollamaCli"> = {
+const KEYS_FIELD: Record<AgentCliCheckKind, "cursorCli" | "claudeCli"> = {
   cursor: "cursorCli",
   claude: "claudeCli",
-  ollama: "ollamaCli",
 };
 
 export type EnvKeysCliSlice = {
   cursorCli: boolean;
   claudeCli: boolean;
-  ollamaCli: boolean;
 };
 
 export type OnboardingCliRequirement = {
@@ -33,7 +31,6 @@ export function getOnboardingAgentCliRequirement(
 ): OnboardingCliRequirement | null {
   if (provider === "cursor") return { kind: "cursor", blockContinueWhenMissing: true };
   if (provider === "claude") return { kind: "claude", blockContinueWhenMissing: false };
-  if (provider === "ollama") return { kind: "ollama", blockContinueWhenMissing: true };
   return null;
 }
 

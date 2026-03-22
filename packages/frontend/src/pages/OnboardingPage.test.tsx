@@ -166,6 +166,18 @@ describe("OnboardingPage", () => {
     expect(screen.getByTestId("onboarding-continue-button")).toBeInTheDocument();
   });
 
+  it("does not fetch CLI status when Ollama is selected", async () => {
+    const user = userEvent.setup();
+    renderOnboarding();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("onboarding-provider-select")).toBeInTheDocument();
+    });
+    await user.selectOptions(screen.getByTestId("onboarding-provider-select"), "Ollama (local)");
+
+    expect(mockGetKeys).not.toHaveBeenCalled();
+  });
+
   it("completion with no intended param navigates to /", async () => {
     const user = userEvent.setup();
     renderOnboarding(["/onboarding"]);

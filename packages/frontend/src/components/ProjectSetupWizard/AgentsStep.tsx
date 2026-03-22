@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ModelSelect } from "../ModelSelect";
 import { AgentReferenceModal } from "../AgentReferenceModal";
-import { AgentProviderCliBanner } from "../AgentProviderCliBanner";
 import type { AgentType, GitWorkingMode, UnknownScopeStrategy } from "@opensprint/shared";
 import {
   AGENT_ROLE_CANONICAL_ORDER,
@@ -14,9 +13,10 @@ import type { AgentRole } from "@opensprint/shared";
 import { ASSET_BASE } from "../../lib/constants";
 import { hasNoApiKeys } from "../../utils/agentConfigDefaults";
 import { api } from "../../api/client";
-
-const DEFAULT_LMSTUDIO_BASE_URL = "http://localhost:1234";
-const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434";
+import {
+  DEFAULT_LMSTUDIO_BASE_URL,
+  DEFAULT_OLLAMA_BASE_URL,
+} from "../../lib/localModelProviders";
 
 export interface AgentConfig {
   type: AgentType;
@@ -87,9 +87,6 @@ export function AgentsStep({
   const usesCursor =
     simpleComplexityAgent.type === "cursor" || complexComplexityAgent.type === "cursor";
   const cursorCliMissing = envKeys && !envKeys.cursorCli && usesCursor;
-  const usesOllama =
-    simpleComplexityAgent.type === "ollama" || complexComplexityAgent.type === "ollama";
-  const ollamaCliMissing = envKeys && !envKeys.ollamaCli && usesOllama;
 
   const [cursorCliInstalling, setCursorCliInstalling] = useState(false);
   const [cursorCliInstallResult, setCursorCliInstallResult] = useState<{
@@ -213,7 +210,6 @@ export function AgentsStep({
           </p>
         </div>
       )}
-      {ollamaCliMissing && <AgentProviderCliBanner kind="ollama" />}
       {usesClaudeCli && !claudeCliMissing && (
         <div className="p-3 rounded-lg bg-theme-info-bg border border-theme-info-border">
           <p className="text-sm text-theme-info-text">
@@ -247,6 +243,7 @@ export function AgentsStep({
                   onSimpleComplexityAgentChange({
                     ...simpleComplexityAgent,
                     type,
+                    model: "",
                     baseUrl:
                       type === "lmstudio"
                         ? DEFAULT_LMSTUDIO_BASE_URL
@@ -364,6 +361,7 @@ export function AgentsStep({
                   onComplexComplexityAgentChange({
                     ...complexComplexityAgent,
                     type,
+                    model: "",
                     baseUrl:
                       type === "lmstudio"
                         ? DEFAULT_LMSTUDIO_BASE_URL

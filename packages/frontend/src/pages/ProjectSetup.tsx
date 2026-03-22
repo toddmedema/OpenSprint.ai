@@ -22,6 +22,11 @@ import type {
 import { DEFAULT_AI_AUTONOMY_LEVEL, DEFAULT_DEPLOYMENT_CONFIG } from "@opensprint/shared";
 import { api, isApiError } from "../api/client";
 import { getDefaultProviderFromEnvKeys } from "../utils/agentConfigDefaults";
+import {
+  DEFAULT_LMSTUDIO_BASE_URL,
+  DEFAULT_OLLAMA_BASE_URL,
+  hasConfiguredLocalModel,
+} from "../lib/localModelProviders";
 
 type Step = "basics" | "agents" | "testing" | "hil" | "confirm";
 type ActionableError = { message: string; commands?: string[] };
@@ -34,9 +39,6 @@ const ADD_EXISTING_STEPS: { key: Step; label: string }[] = [
   { key: "hil", label: "Autonomy" },
   { key: "confirm", label: "Confirm" },
 ];
-const DEFAULT_LMSTUDIO_BASE_URL = "http://localhost:1234";
-const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434";
-
 export function ProjectSetup() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -96,9 +98,6 @@ export function ProjectSetup() {
   const usesClaudeCli =
     simpleComplexityAgent.type === "claude-cli" || complexComplexityAgent.type === "claude-cli";
   const claudeCliMissing = envKeys && !envKeys.claudeCli && usesClaudeCli;
-  const usesOllama =
-    simpleComplexityAgent.type === "ollama" || complexComplexityAgent.type === "ollama";
-  const ollamaCliMissing = envKeys && !envKeys.ollamaCli && usesOllama;
 
   const canProceedFromAgents =
     envKeys !== null &&
@@ -106,7 +105,8 @@ export function ProjectSetup() {
     !needsCursor &&
     !needsOpenai &&
     !claudeCliMissing &&
-    !ollamaCliMissing &&
+    hasConfiguredLocalModel(simpleComplexityAgent) &&
+    hasConfiguredLocalModel(complexComplexityAgent) &&
     (simpleComplexityAgent.type !== "custom" || simpleComplexityAgent.cliCommand.trim()) &&
     (complexComplexityAgent.type !== "custom" || complexComplexityAgent.cliCommand.trim());
   const [modelRefreshTrigger] = useState(0);

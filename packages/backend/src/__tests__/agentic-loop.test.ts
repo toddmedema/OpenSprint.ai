@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { runAgenticLoop, type AgenticLoopAdapter } from "../services/agentic-loop.js";
+import { OpenAIAgenticAdapter, runAgenticLoop, type AgenticLoopAdapter } from "../services/agentic-loop.js";
 
 describe("agentic-loop", () => {
   it("runAgenticLoop returns text and exits when adapter returns no tool calls", async () => {
@@ -72,5 +72,35 @@ describe("agentic-loop", () => {
     expect(result.turnCount).toBe(2);
     expect(result.content).toContain("final");
     expect(adapter.send).toHaveBeenCalledTimes(2);
+  });
+
+  it("OpenAIAgenticAdapter retries reasoning-only final turns before returning text", async () => {
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce({
+        choices: [
+          {
+            message: { content: "", reasoning: "thinking", tool_calls: [] },
+            finish_reason: "length",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        choices: [{ message: { content: "final", tool_calls: [] }, finish_reason: "stop" }],
+      });
+    const client = {
+      chat: {
+        completions: {
+          create,
+        },
+      },
+    };
+
+    const adapter = new OpenAIAgenticAdapter(client as never, "local-model");
+    const response = await adapter.send("Task");
+
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(response.text).toBe("final");
+    expect(response.toolCalls).toEqual([]);
   });
 });

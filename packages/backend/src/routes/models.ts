@@ -1,6 +1,4 @@
 import { Router, Request } from "express";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { wrapAsync } from "../middleware/wrap-async.js";
 import { validateQuery } from "../middleware/validate.js";
 import { modelsListQuerySchema } from "../schemas/request-models.js";
@@ -11,8 +9,11 @@ import { ErrorCodes } from "../middleware/error-codes.js";
 import * as modelListCache from "../services/model-list-cache.js";
 import { getNextKey } from "../services/api-key-resolver.service.js";
 import { isOpenAITextModel } from "../utils/openai-models.js";
-
-const execFileAsync = promisify(execFile);
+import {
+  ensureOpenAICompatibleV1BaseUrl,
+  ensureOllamaNativeApiBaseUrl,
+  normalizeLocalOpenAIProviderBaseUrl,
+} from "../utils/local-openai-provider.js";
 
 export interface ModelOption {
   id: string;
@@ -27,43 +28,18 @@ const GOOGLE_MODELS_URL = "https://generativelanguage.googleapis.com/v1beta/mode
 const LM_STUDIO_DEFAULT_BASE_URL = "http://localhost:1234";
 const OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434";
 
-/** Validate and normalize a local provider baseUrl: http/https only, trim, no trailing slash. */
-function normalizeLocalProviderBaseUrl(
-  raw: string | undefined,
-  defaultBaseUrl: string
-): { ok: true; normalized: string } | { ok: false; error: string } {
-  const trimmed = (raw ?? "").trim();
-  if (!trimmed) {
-    return { ok: true, normalized: defaultBaseUrl };
-  }
-  const lower = trimmed.toLowerCase();
-  if (!lower.startsWith("http://") && !lower.startsWith("https://")) {
-    return { ok: false, error: "baseUrl must use http or https" };
-  }
-  try {
-    const u = new URL(trimmed);
-    if (u.protocol !== "http:" && u.protocol !== "https:") {
-      return { ok: false, error: "baseUrl must use http or https" };
-    }
-    const normalized = u.origin.replace(/\/$/, "");
-    return { ok: true, normalized };
-  } catch {
-    return { ok: false, error: "baseUrl is not a valid URL" };
-  }
-}
-
 /** Validate and normalize LM Studio baseUrl: http/https only, trim, no trailing slash. */
 function normalizeLmStudioBaseUrl(
   raw: string | undefined
 ): { ok: true; normalized: string } | { ok: false; error: string } {
-  return normalizeLocalProviderBaseUrl(raw, LM_STUDIO_DEFAULT_BASE_URL);
+  return normalizeLocalOpenAIProviderBaseUrl(raw, LM_STUDIO_DEFAULT_BASE_URL);
 }
 
 /** Validate and normalize Ollama baseUrl: http/https only, trim, no trailing slash. */
 function normalizeOllamaBaseUrl(
   raw: string | undefined
 ): { ok: true; normalized: string } | { ok: false; error: string } {
-  return normalizeLocalProviderBaseUrl(raw, OLLAMA_DEFAULT_BASE_URL);
+  return normalizeLocalOpenAIProviderBaseUrl(raw, OLLAMA_DEFAULT_BASE_URL);
 }
 
 /** Validate an API key via minimal API call. Reused by POST /env/keys/validate. */
@@ -299,8 +275,13 @@ async function fetchGoogleModels(apiKey: string): Promise<ModelOption[]> {
     });
 }
 
-async function fetchLmStudioModels(baseUrl: string): Promise<ModelOption[]> {
-  const url = `${baseUrl.replace(/\/$/, "")}/v1/models`;
+async function fetchLocalOpenAICompatibleModels(options: {
+  baseUrl: string;
+  providerLabel: "LM Studio" | "Ollama";
+  errorCode: typeof ErrorCodes.LM_STUDIO_UNREACHABLE | typeof ErrorCodes.OLLAMA_UNREACHABLE;
+  unreachableMessage: string;
+}): Promise<ModelOption[]> {
+  const url = `${ensureOpenAICompatibleV1BaseUrl(options.baseUrl)}/models`;
   let response: Response;
   try {
     response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
@@ -313,11 +294,9 @@ async function fetchLmStudioModels(baseUrl: string): Promise<ModelOption[]> {
       msg.includes("Failed to fetch");
     throw new AppError(
       502,
-      ErrorCodes.LM_STUDIO_UNREACHABLE,
-      isConnectionError
-        ? "LM Studio is not reachable. Ensure it is running and the server URL is correct."
-        : `LM Studio request failed: ${msg}`,
-      { baseUrl: baseUrl.replace(/\/$/, ""), cause: msg }
+      options.errorCode,
+      isConnectionError ? options.unreachableMessage : `${options.providerLabel} request failed: ${msg}`,
+      { baseUrl: options.baseUrl, cause: msg }
     );
   }
 
@@ -325,8 +304,8 @@ async function fetchLmStudioModels(baseUrl: string): Promise<ModelOption[]> {
     const text = await response.text();
     throw new AppError(
       502,
-      ErrorCodes.LM_STUDIO_UNREACHABLE,
-      "LM Studio is not reachable. Ensure it is running and the server URL is correct.",
+      options.errorCode,
+      options.unreachableMessage,
       { status: response.status, responsePreview: text.slice(0, 200) }
     );
   }
@@ -335,50 +314,80 @@ async function fetchLmStudioModels(baseUrl: string): Promise<ModelOption[]> {
   return (body.data ?? []).filter((m) => m.id).map((m) => ({ id: m.id, displayName: m.id }));
 }
 
-function parseOllamaListOutput(stdout: string): ModelOption[] {
-  const models: ModelOption[] = [];
-  for (const rawLine of stdout.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || /^name(?:\s|$)/i.test(line)) continue;
-    const id = line.split(/\s+/)[0]?.trim();
-    if (!id || /^name$/i.test(id)) continue;
-    models.push({ id, displayName: id });
-  }
-  return models;
-}
-
-async function fetchOllamaModels(baseUrl: string): Promise<ModelOption[]> {
+async function fetchOllamaNativeModels(baseUrl: string): Promise<ModelOption[]> {
+  const url = `${ensureOllamaNativeApiBaseUrl(baseUrl)}/api/tags`;
+  let response: Response;
   try {
-    const { stdout } = await execFileAsync("ollama", ["ls"], {
-      timeout: 15_000,
-      env: { ...process.env, OLLAMA_HOST: baseUrl },
-    });
-    return parseOllamaListOutput(stdout);
+    response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    const code =
-      err && typeof err === "object" && "code" in err ? (err as { code?: string }).code : undefined;
-    const stderr =
-      err && typeof err === "object" && "stderr" in err
-        ? String((err as { stderr?: unknown }).stderr ?? "")
-        : "";
-    if (code === "ENOENT") {
-      throw new AppError(
-        502,
-        ErrorCodes.OLLAMA_UNREACHABLE,
-        "Ollama CLI was not found. Install Ollama and ensure the `ollama` command is available on PATH.",
-        { cause: msg }
-      );
-    }
+    const isConnectionError =
+      msg.includes("ECONNREFUSED") ||
+      msg.includes("ETIMEDOUT") ||
+      msg.includes("fetch failed") ||
+      msg.includes("Failed to fetch");
+    throw new AppError(
+      502,
+      ErrorCodes.OLLAMA_UNREACHABLE,
+      isConnectionError
+        ? "Ollama is not reachable. Ensure Ollama is running and the endpoint is correct."
+        : `Ollama request failed: ${msg}`,
+      { baseUrl, cause: msg }
+    );
+  }
+
+  if (!response.ok) {
+    const text = await response.text();
     throw new AppError(
       502,
       ErrorCodes.OLLAMA_UNREACHABLE,
       "Ollama is not reachable. Ensure Ollama is running and the endpoint is correct.",
-      {
-        baseUrl,
-        cause: [msg, stderr].filter(Boolean).join("\n"),
-      }
+      { status: response.status, responsePreview: text.slice(0, 200) }
     );
+  }
+
+  const body = (await response.json()) as { models?: Array<{ name?: string; model?: string }> };
+  return (body.models ?? [])
+    .map((m) => m.name ?? m.model ?? "")
+    .filter((id) => id.length > 0)
+    .map((id) => ({ id, displayName: id }));
+}
+
+function shouldFallbackToOllamaNativeModels(error: unknown): boolean {
+  if (!(error instanceof AppError) || error.code !== ErrorCodes.OLLAMA_UNREACHABLE) {
+    return false;
+  }
+  const details =
+    error.details && typeof error.details === "object"
+      ? (error.details as { status?: unknown })
+      : undefined;
+  const status = typeof details?.status === "number" ? details.status : null;
+  return status === 404 || status === 405 || status === 501;
+}
+
+async function fetchLmStudioModels(baseUrl: string): Promise<ModelOption[]> {
+  return fetchLocalOpenAICompatibleModels({
+    baseUrl,
+    providerLabel: "LM Studio",
+    errorCode: ErrorCodes.LM_STUDIO_UNREACHABLE,
+    unreachableMessage: "LM Studio is not reachable. Ensure it is running and the server URL is correct.",
+  });
+}
+
+async function fetchOllamaModels(baseUrl: string): Promise<ModelOption[]> {
+  try {
+    return await fetchLocalOpenAICompatibleModels({
+      baseUrl,
+      providerLabel: "Ollama",
+      errorCode: ErrorCodes.OLLAMA_UNREACHABLE,
+      unreachableMessage:
+        "Ollama is not reachable. Ensure Ollama is running and the endpoint is correct.",
+    });
+  } catch (error) {
+    if (!shouldFallbackToOllamaNativeModels(error)) {
+      throw error;
+    }
+    return fetchOllamaNativeModels(baseUrl);
   }
 }
 

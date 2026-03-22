@@ -906,6 +906,126 @@ describe("AgentClient", () => {
       expect(result.content).toBe("Ollama response");
     });
 
+    it("should preserve Ollama baseUrl path segments and avoid duplicating /v1", async () => {
+      mockOpenAICreate.mockResolvedValue({
+        choices: [{ message: { content: "Ollama response" } }],
+      });
+
+      await client.invoke({
+        config: {
+          type: "ollama",
+          model: "llama3.2",
+          cliCommand: null,
+          baseUrl: "http://127.0.0.1:11434/proxy/v1/",
+        },
+        prompt: "Hello",
+        cwd: "/tmp",
+      });
+
+      expect(OpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseURL: "http://127.0.0.1:11434/proxy/v1",
+          apiKey: "ollama",
+        })
+      );
+    });
+
+    it("should retry Ollama streaming when the stream only emits reasoning", async () => {
+      mockOpenAICreate.mockImplementation(async (opts: { stream?: boolean; max_tokens?: number }) => {
+        if (opts?.stream) {
+          async function* stream() {
+            yield { choices: [{ delta: { reasoning: "thinking" } }] };
+            yield { choices: [{ finish_reason: "length" }] };
+          }
+          return stream();
+        }
+        return {
+          choices: [{ message: { content: "Recovered Ollama response" } }],
+        };
+      });
+
+      const onChunk = vi.fn();
+      const result = await client.invoke({
+        config: { type: "ollama", model: "llama3.2", cliCommand: null },
+        prompt: "Hello",
+        onChunk,
+      });
+
+      expect(mockOpenAICreate).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          model: "llama3.2",
+          stream: true,
+          max_tokens: 8192,
+        })
+      );
+      expect(mockOpenAICreate).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          model: "llama3.2",
+          max_tokens: 16384,
+        })
+      );
+      expect(onChunk).toHaveBeenCalledWith("Recovered Ollama response");
+      expect(result.content).toBe("Recovered Ollama response");
+    });
+
+    it("should retry Ollama non-stream responses when they only emit reasoning", async () => {
+      mockOpenAICreate
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: { content: "", reasoning: "thinking" },
+              finish_reason: "length",
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          choices: [{ message: { content: "Recovered Ollama response" }, finish_reason: "stop" }],
+        });
+
+      const result = await client.invoke({
+        config: { type: "ollama", model: "llama3.2", cliCommand: null },
+        prompt: "Hello",
+      });
+
+      expect(mockOpenAICreate).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          model: "llama3.2",
+          max_tokens: 8192,
+        })
+      );
+      expect(mockOpenAICreate).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          model: "llama3.2",
+          max_tokens: 16384,
+        })
+      );
+      expect(result.content).toBe("Recovered Ollama response");
+    });
+
+    it("should fail Ollama non-stream invoke when retry still has no final content", async () => {
+      mockOpenAICreate.mockResolvedValue({
+        choices: [
+          {
+            message: { content: "", reasoning: "thinking" },
+            finish_reason: "length",
+          },
+        ],
+      });
+
+      await expect(
+        client.invoke({
+          config: { type: "ollama", model: "llama3.2", cliCommand: null },
+          prompt: "Hello",
+        })
+      ).rejects.toThrow("reasoning without final content");
+
+      expect(mockOpenAICreate).toHaveBeenCalledTimes(2);
+    });
+
     it("should require an explicit Ollama model before invoking", async () => {
       await expect(
         client.invoke({
@@ -1663,6 +1783,113 @@ describe("AgentClient", () => {
         })
       );
       expect(onOutput).toHaveBeenCalledWith("Ollama stream.");
+
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it("should retry Ollama task-file fallback when streaming only yields reasoning", async () => {
+      const fs = await import("fs/promises");
+      const path = await import("path");
+      const os = await import("os");
+      const tmpDir = path.join(os.tmpdir(), `agent-client-ollama-retry-${Date.now()}`);
+      const taskDir = path.join(tmpDir, ".opensprint/active/os-ollama.3");
+      await fs.mkdir(taskDir, { recursive: true });
+      const taskFilePath = path.join(taskDir, "prompt.md");
+      await fs.writeFile(taskFilePath, "# Task\n\nUse Ollama", "utf-8");
+
+      mockOpenAICreate.mockImplementation(async (opts: { stream?: boolean; max_tokens?: number }) => {
+        if (mockOpenAICreate.mock.calls.length === 1) {
+          throw new Error("400 tool calling unsupported");
+        }
+        if (opts?.stream) {
+          async function* stream() {
+            yield { choices: [{ delta: { reasoning: "thinking" } }] };
+            yield { choices: [{ finish_reason: "length" }] };
+          }
+          return stream();
+        }
+        return {
+          choices: [{ message: { content: "Recovered Ollama task output" } }],
+        };
+      });
+
+      const onOutput = vi.fn();
+      const onExit = vi.fn();
+      const config: AgentConfig = {
+        type: "ollama",
+        model: "llama3.2",
+        cliCommand: null,
+        baseUrl: "http://localhost:11434",
+      };
+
+      client.spawnWithTaskFile(config, taskFilePath, tmpDir, onOutput, onExit, "coder");
+
+      await vi.waitFor(
+        () => {
+          expect(onExit).toHaveBeenCalledWith(0);
+        },
+        { timeout: 2000 }
+      );
+      expect(mockOpenAICreate).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          model: "llama3.2",
+          stream: true,
+          max_tokens: 16384,
+        })
+      );
+      expect(mockOpenAICreate).toHaveBeenNthCalledWith(
+        3,
+        expect.objectContaining({
+          model: "llama3.2",
+          max_tokens: 32768,
+        })
+      );
+      expect(onOutput).toHaveBeenCalledWith("Recovered Ollama task output");
+
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it("should fail Ollama task-file runs when the tool loop never produces final content", async () => {
+      const fs = await import("fs/promises");
+      const path = await import("path");
+      const os = await import("os");
+      const tmpDir = path.join(os.tmpdir(), `agent-client-ollama-empty-${Date.now()}`);
+      const taskDir = path.join(tmpDir, ".opensprint/active/os-ollama.4");
+      await fs.mkdir(taskDir, { recursive: true });
+      const taskFilePath = path.join(taskDir, "prompt.md");
+      await fs.writeFile(taskFilePath, "# Task\n\nUse Ollama", "utf-8");
+
+      mockOpenAICreate.mockResolvedValue({
+        choices: [
+          {
+            message: { content: "", reasoning: "thinking", tool_calls: [] },
+            finish_reason: "length",
+          },
+        ],
+      });
+
+      const onOutput = vi.fn();
+      const onExit = vi.fn();
+      const config: AgentConfig = {
+        type: "ollama",
+        model: "llama3.2",
+        cliCommand: null,
+        baseUrl: "http://localhost:11434",
+      };
+
+      client.spawnWithTaskFile(config, taskFilePath, tmpDir, onOutput, onExit, "coder");
+
+      await vi.waitFor(
+        () => {
+          expect(onExit).toHaveBeenCalledWith(1);
+        },
+        { timeout: 2000 }
+      );
+      expect(mockOpenAICreate).toHaveBeenCalledTimes(2);
+      expect(onOutput).toHaveBeenCalledWith(
+        expect.stringContaining("reasoning without final content")
+      );
 
       await fs.rm(tmpDir, { recursive: true, force: true });
     });

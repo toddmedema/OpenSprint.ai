@@ -56,6 +56,12 @@ import {
   type AgentCacheUsageMetrics,
   type PromptCacheContext,
 } from "../utils/prompt-cache.js";
+import {
+  ensureOpenAICompatibleV1BaseUrl,
+  getCompletionReasoning,
+  isReasoningOnlyCompletion,
+  normalizeLocalOpenAIProviderBaseUrl,
+} from "../utils/local-openai-provider.js";
 
 const execAsync = promisify(exec);
 const log = createLogger("agent-client");
@@ -247,14 +253,13 @@ const LM_STUDIO_NOT_RUNNING_MESSAGE =
 const OLLAMA_NOT_RUNNING_MESSAGE =
   "Ollama is not running. Start Ollama and ensure the local API is available (e.g. port 11434).";
 
-/** Normalize a local OpenAI-compatible provider base URL to include /v1. */
 function getLocalOpenAIProviderBaseUrl(
   configBaseUrl: string | null | undefined,
   defaultBaseUrl: string
 ): string {
-  const base = (configBaseUrl && configBaseUrl.trim()) || defaultBaseUrl;
-  const trimmed = base.replace(/\/+$/, "");
-  return trimmed.endsWith("/v1") ? trimmed : `${trimmed}/v1`;
+  const parsed = normalizeLocalOpenAIProviderBaseUrl(configBaseUrl, defaultBaseUrl);
+  const baseUrl = parsed.ok ? parsed.normalized : defaultBaseUrl;
+  return ensureOpenAICompatibleV1BaseUrl(baseUrl);
 }
 
 /** Normalize LM Studio base URL to include /v1 for OpenAI-compatible client. */
@@ -291,6 +296,116 @@ function isLMStudioConnectionError(error: unknown, msg: string): boolean {
 /** True when the error indicates Ollama server is unreachable (refused, network, etc.). */
 function isOllamaConnectionError(error: unknown, msg: string): boolean {
   return isLocalOpenAIProviderConnectionError(error, msg);
+}
+
+function createReasoningOnlyCompletionError(providerLabel: "LM Studio" | "Ollama"): Error {
+  return new Error(
+    `${providerLabel} returned reasoning without final content before hitting the response token limit.`
+  );
+}
+
+function isReasoningOnlyChoice(
+  choice: OpenAI.Chat.Completions.ChatCompletion.Choice | undefined
+): boolean {
+  return isReasoningOnlyCompletion({
+    content: choice?.message?.content ?? "",
+    finishReason: choice?.finish_reason,
+    reasoningSource: choice?.message,
+  });
+}
+
+async function completeLocalOpenAIProviderContent(options: {
+  client: OpenAI;
+  providerLabel: "LM Studio" | "Ollama";
+  model: string;
+  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+  maxTokens: number;
+  onContent?: (chunk: string) => void;
+  shouldAbort?: () => boolean;
+}): Promise<string> {
+  const onContent = options.onContent;
+  if (!onContent) {
+    const response = await options.client.chat.completions.create({
+      model: options.model,
+      messages: options.messages,
+      max_tokens: options.maxTokens,
+    });
+    const choice = response.choices[0];
+    if (!isReasoningOnlyChoice(choice)) {
+      return choice?.message?.content ?? "";
+    }
+
+    const fallback = await options.client.chat.completions.create({
+      model: options.model,
+      messages: options.messages,
+      max_tokens: options.maxTokens * 2,
+    });
+    const fallbackChoice = fallback.choices[0];
+    const fallbackContent = fallbackChoice?.message?.content ?? "";
+    if (fallbackContent) {
+      return fallbackContent;
+    }
+    if (isReasoningOnlyChoice(fallbackChoice) || fallbackChoice) {
+      throw createReasoningOnlyCompletionError(options.providerLabel);
+    }
+    return fallbackContent;
+  }
+
+  const stream = await options.client.chat.completions.create({
+    model: options.model,
+    messages: options.messages,
+    max_tokens: options.maxTokens,
+    stream: true,
+  });
+
+  let fullContent = "";
+  let sawReasoning = false;
+  let endedByLength = false;
+
+  for await (const chunk of stream) {
+    if (options.shouldAbort?.()) {
+      return fullContent;
+    }
+    const choice = chunk.choices[0];
+    const delta = choice?.delta;
+    const content = delta?.content;
+    if (content) {
+      fullContent += content;
+      onContent(content);
+    }
+    if (getCompletionReasoning(delta)) {
+      sawReasoning = true;
+    }
+    if (choice?.finish_reason === "length") {
+      endedByLength = true;
+    }
+  }
+
+  if (fullContent || (!sawReasoning && !endedByLength)) {
+    return fullContent;
+  }
+
+  if (options.shouldAbort?.()) {
+    return fullContent;
+  }
+
+  const fallback = await options.client.chat.completions.create({
+    model: options.model,
+    messages: options.messages,
+    max_tokens: options.maxTokens * 2,
+  });
+  const fallbackMessage = fallback.choices[0]?.message;
+  const fallbackContent = fallbackMessage?.content ?? "";
+  if (fallbackContent) {
+    onContent(fallbackContent);
+    return fallbackContent;
+  }
+
+  if (sawReasoning || endedByLength || getCompletionReasoning(fallbackMessage)) {
+    throw createReasoningOnlyCompletionError(options.providerLabel);
+  }
+
+  return fallbackContent;
 }
 
 function getStructuredAgentErrorMessage(obj: unknown): string | null {
@@ -1618,24 +1733,20 @@ export class AgentClient {
           (msg.includes("tool") || msg.includes("function") || msg.includes("400"))
         ) {
           try {
-            const stream = await client.chat.completions.create({
+            const fullContent = await completeLocalOpenAIProviderContent({
+              client,
+              providerLabel: provider.providerLabel,
               model: provider.model,
               messages: [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: taskContent },
               ],
-              max_tokens: 16384,
-              stream: true,
+              maxTokens: 16384,
+              onContent: (chunk) => {
+                if (!aborted) emit(chunk);
+              },
+              shouldAbort: () => aborted,
             });
-            let fullContent = "";
-            for await (const chunk of stream) {
-              if (aborted) return;
-              const delta = chunk.choices[0]?.delta?.content;
-              if (delta) {
-                fullContent += delta;
-                emit(delta);
-              }
-            }
             if (aborted) return;
             log.info(`${provider.providerLabel} coding agent completed (text-only fallback)`, {
               provider: provider.providerKey,
@@ -2859,29 +2970,14 @@ export class AgentClient {
     });
 
     try {
-      if (options.onChunk) {
-        const stream = await client.chat.completions.create({
-          model,
-          messages,
-          max_tokens: 8192,
-          stream: true,
-        });
-        let fullContent = "";
-        for await (const chunk of stream) {
-          const delta = chunk.choices[0]?.delta?.content;
-          if (delta) {
-            fullContent += delta;
-            options.onChunk(delta);
-          }
-        }
-        return { content: fullContent };
-      }
-      const response = await client.chat.completions.create({
+      const content = await completeLocalOpenAIProviderContent({
+        client,
+        providerLabel: "LM Studio",
         model,
         messages,
-        max_tokens: 8192,
+        maxTokens: 8192,
+        ...(options.onChunk ? { onContent: options.onChunk, shouldAbort: () => false } : {}),
       });
-      const content = response.choices[0]?.message?.content ?? "";
       return { content };
     } catch (error: unknown) {
       const msg = getErrorMessage(error);
@@ -2925,29 +3021,14 @@ export class AgentClient {
     });
 
     try {
-      if (options.onChunk) {
-        const stream = await client.chat.completions.create({
-          model,
-          messages,
-          max_tokens: 8192,
-          stream: true,
-        });
-        let fullContent = "";
-        for await (const chunk of stream) {
-          const delta = chunk.choices[0]?.delta?.content;
-          if (delta) {
-            fullContent += delta;
-            options.onChunk(delta);
-          }
-        }
-        return { content: fullContent };
-      }
-      const response = await client.chat.completions.create({
+      const content = await completeLocalOpenAIProviderContent({
+        client,
+        providerLabel: "Ollama",
         model,
         messages,
-        max_tokens: 8192,
+        maxTokens: 8192,
+        ...(options.onChunk ? { onContent: options.onChunk, shouldAbort: () => false } : {}),
       });
-      const content = response.choices[0]?.message?.content ?? "";
       return { content };
     } catch (error: unknown) {
       const msg = getErrorMessage(error);

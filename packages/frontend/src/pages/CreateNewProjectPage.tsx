@@ -22,6 +22,11 @@ import { isWindowsMountedWslPath, UNSUPPORTED_WSL_REPO_PATH_MESSAGE } from "@ope
 import { api, ApiError } from "../api/client";
 import { getDefaultProviderFromEnvKeys } from "../utils/agentConfigDefaults";
 import { getRunInstructions } from "../utils/runInstructions";
+import {
+  DEFAULT_LMSTUDIO_BASE_URL,
+  DEFAULT_OLLAMA_BASE_URL,
+  hasConfiguredLocalModel,
+} from "../lib/localModelProviders";
 
 type Step = "basics" | "agents" | "scaffold";
 type ActionableError = {
@@ -38,9 +43,6 @@ const STEPS: { key: Step; label: string }[] = [
 ];
 
 const TEMPLATE_OPTIONS = [{ value: "web-app-expo-react", label: "Web App (Expo/React)" }] as const;
-const DEFAULT_LMSTUDIO_BASE_URL = "http://localhost:1234";
-const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434";
-
 export function CreateNewProjectPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>("basics");
@@ -413,9 +415,6 @@ export function CreateNewProjectPage() {
   const usesClaudeCli =
     simpleComplexityAgent.type === "claude-cli" || complexComplexityAgent.type === "claude-cli";
   const claudeCliMissing = envKeys && !envKeys.claudeCli && usesClaudeCli;
-  const usesOllama =
-    simpleComplexityAgent.type === "ollama" || complexComplexityAgent.type === "ollama";
-  const ollamaCliMissing = envKeys && !envKeys.ollamaCli && usesOllama;
 
   const canProceedFromAgents =
     envKeys !== null &&
@@ -424,7 +423,8 @@ export function CreateNewProjectPage() {
     !needsCursor &&
     !needsOpenai &&
     !claudeCliMissing &&
-    !ollamaCliMissing &&
+    hasConfiguredLocalModel(simpleComplexityAgent) &&
+    hasConfiguredLocalModel(complexComplexityAgent) &&
     (simpleComplexityAgent.type !== "custom" || simpleComplexityAgent.cliCommand.trim()) &&
     (complexComplexityAgent.type !== "custom" || complexComplexityAgent.cliCommand.trim());
 

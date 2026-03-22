@@ -96,8 +96,7 @@ export function OnboardingPage() {
   const isConnectionErr = error !== null && error === CONNECTION_ERROR_MESSAGE;
   const onboardingCli = getOnboardingAgentCliRequirement(provider);
   const hasKeyContent = keyValue.trim().length > 0;
-  const shouldFetchCliKeys =
-    onboardingCli !== null && (needsKeyInput ? hasKeyContent : provider === "ollama");
+  const shouldFetchCliKeys = onboardingCli !== null && hasKeyContent;
   const noKeyMessage =
     provider === "ollama"
       ? "No API key needed — install/start Ollama and you’re good to go."
