@@ -241,7 +241,7 @@ export function Navbar({
 
           <div
             data-testid="navbar-project-select"
-            className="relative hidden min-[800px]:flex items-center min-w-0"
+            className="relative hidden min-[800px]:flex flex-1 items-center min-w-0 max-w-full"
             ref={dropdownRef}
             style={
               isElectronWin || isElectronMac
@@ -253,13 +253,13 @@ export function Navbar({
               ref={projectTriggerRef}
               type="button"
               onClick={() => setDropdownOpen((o) => !o)}
-              className="dropdown-trigger inline-flex items-center gap-1 min-h-[44px] min-w-[44px] text-sm font-medium text-theme-muted hover:text-theme-text transition-colors rounded py-1 px-2 hover:bg-theme-border-subtle max-w-[64px] md:max-w-[96px] lg:max-w-[120px]"
+              className="dropdown-trigger inline-flex max-w-full items-center gap-1 min-h-[44px] min-w-[44px] text-sm font-medium text-theme-muted hover:text-theme-text transition-colors rounded py-1 px-2 hover:bg-theme-border-subtle"
               aria-expanded={dropdownOpen}
               aria-haspopup="listbox"
               aria-label={`Select project: ${project ? project.name : "All Projects"}`}
             >
-              <span className="truncate">{project ? project.name : "All Projects"}</span>
-              <span className="pr-2">
+              <span className="min-w-0 truncate">{project ? project.name : "All Projects"}</span>
+              <span className="shrink-0 pr-2">
                 <svg
                   className={`w-4 h-4 transition-transform ${dropdownOpen ? "rotate-180" : ""}`}
                   fill="none"

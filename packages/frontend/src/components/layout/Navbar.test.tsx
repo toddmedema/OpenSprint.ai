@@ -514,17 +514,18 @@ describe("Navbar", () => {
     expect(nonSelectedOption).toHaveClass("hover:bg-theme-info-bg");
   });
 
-  it("project selector trigger uses reduced width while keeping truncation and tap target", () => {
+  it("project selector trigger grows with the project name while keeping truncation and tap target", () => {
     const project = makeProject("proj-1", "Long Project Name For Navbar Truncation");
     renderNavbar(<Navbar project={project} currentPhase="sketch" onPhaseChange={vi.fn()} />);
 
     const trigger = screen.getByRole("button", { name: /Select project:/i });
     expect(trigger).toHaveClass("min-h-[44px]");
     expect(trigger).toHaveClass("min-w-[44px]");
-    expect(trigger).toHaveClass("max-w-[64px]");
-    expect(trigger).toHaveClass("md:max-w-[96px]");
-    expect(trigger).toHaveClass("lg:max-w-[120px]");
-    expect(trigger.querySelector("span.truncate")).toBeInTheDocument();
+    expect(trigger).toHaveClass("max-w-full");
+    expect(trigger).not.toHaveClass("max-w-[64px]");
+    expect(trigger).not.toHaveClass("md:max-w-[96px]");
+    expect(trigger).not.toHaveClass("lg:max-w-[120px]");
+    expect(trigger.querySelector("span.min-w-0.truncate")).toBeInTheDocument();
   });
 
   it("keeps project rows emphasized and add/create rows de-emphasized for short and long names", async () => {
@@ -553,7 +554,7 @@ describe("Navbar", () => {
     expect(createNewButton).toHaveClass("text-theme-muted");
   });
 
-  it("preserves navbar layout and project trigger sizing at common breakpoints", () => {
+  it("preserves navbar layout and lets the project trigger use available left-column space at common breakpoints", () => {
     const project = makeProject("proj-1", "Extremely Long Project Name To Validate Truncation");
     const breakpoints = [
       { width: 800, height: 700 },
@@ -570,9 +571,11 @@ describe("Navbar", () => {
         const trigger = screen.getByRole("button", { name: /Select project:/i });
         const nav = screen.getByRole("navigation");
         const rightControls = screen.getByTestId("navbar-right-controls");
+        const projectSelect = screen.getByTestId("navbar-project-select");
 
-        expect(trigger).toHaveClass("min-h-[44px]", "min-w-[44px]", "max-w-[64px]");
-        expect(trigger.querySelector("span.truncate")).toBeInTheDocument();
+        expect(projectSelect).toHaveClass("flex-1", "min-w-0", "max-w-full");
+        expect(trigger).toHaveClass("min-h-[44px]", "min-w-[44px]", "max-w-full");
+        expect(trigger.querySelector("span.min-w-0.truncate")).toBeInTheDocument();
         expect(nav).toHaveClass("overflow-hidden");
         expect(rightControls).toBeInTheDocument();
         unmount();
