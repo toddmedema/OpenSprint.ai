@@ -4,11 +4,13 @@ import type { ProjectSettings } from "@opensprint/shared";
 import { WorkflowSettingsContent } from "./WorkflowSettingsContent";
 import { renderApp } from "../../test/test-utils";
 import { api } from "../../api/client";
+import type { SelfImprovementStatusSnapshot } from "../../api/client";
 
 vi.mock("../../api/client", () => ({
   api: {
     projects: {
       runSelfImprovement: vi.fn(),
+      getSelfImprovementStatus: vi.fn(),
     },
   },
 }));
@@ -60,6 +62,10 @@ function renderWorkflowContent(overrides?: Partial<ProjectSettings>) {
 describe("WorkflowSettingsContent", () => {
   beforeEach(() => {
     vi.mocked(api.projects.runSelfImprovement).mockReset();
+    vi.mocked(api.projects.getSelfImprovementStatus).mockReset();
+    vi.mocked(api.projects.getSelfImprovementStatus).mockResolvedValue({
+      status: "idle",
+    } satisfies SelfImprovementStatusSnapshot);
   });
 
   it("renders all three workflow cards and core controls", () => {
@@ -186,5 +192,94 @@ describe("WorkflowSettingsContent", () => {
         "2 tasks created"
       );
     });
+  });
+
+  it("renders the run-agent-enhancement-experiments checkbox unchecked by default", () => {
+    renderWorkflowContent();
+    const checkbox = screen.getByTestId(
+      "run-agent-enhancement-experiments-checkbox"
+    ) as HTMLInputElement;
+    expect(checkbox).toBeInTheDocument();
+    expect(checkbox.checked).toBe(false);
+  });
+
+  it("renders the checkbox checked when setting is true", () => {
+    renderWorkflowContent({ runAgentEnhancementExperiments: true });
+    const checkbox = screen.getByTestId(
+      "run-agent-enhancement-experiments-checkbox"
+    ) as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+  });
+
+  it("persists runAgentEnhancementExperiments when checkbox is toggled", () => {
+    const { persistSettings } = renderWorkflowContent();
+    const checkbox = screen.getByTestId("run-agent-enhancement-experiments-checkbox");
+
+    fireEvent.click(checkbox);
+    expect(persistSettings).toHaveBeenCalledWith(undefined, {
+      runAgentEnhancementExperiments: true,
+    });
+  });
+
+  it("shows Idle status row by default", async () => {
+    renderWorkflowContent();
+    await waitFor(() => {
+      expect(screen.getByTestId("self-improvement-status-label")).toHaveTextContent("Idle");
+    });
+  });
+
+  it("shows running audit status with spinner", async () => {
+    vi.mocked(api.projects.getSelfImprovementStatus).mockResolvedValue({
+      status: "running_audit",
+    });
+    renderWorkflowContent();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("self-improvement-status-label")).toHaveTextContent(
+        "Running self-improvement audit\u2026"
+      );
+    });
+    expect(screen.getByTestId("self-improvement-status-spinner")).toBeInTheDocument();
+  });
+
+  it("shows running experiments status with spinner and stage label", async () => {
+    vi.mocked(api.projects.getSelfImprovementStatus).mockResolvedValue({
+      status: "running_experiments",
+      stage: "generating_candidate",
+    });
+    renderWorkflowContent();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("self-improvement-status-label")).toHaveTextContent(
+        "Running agent enhancement experiments\u2026"
+      );
+    });
+    expect(screen.getByTestId("self-improvement-status-spinner")).toBeInTheDocument();
+    expect(screen.getByTestId("self-improvement-stage-label")).toHaveTextContent(
+      "Generating candidate"
+    );
+  });
+
+  it("shows awaiting approval status without spinner", async () => {
+    vi.mocked(api.projects.getSelfImprovementStatus).mockResolvedValue({
+      status: "awaiting_approval",
+      pendingCandidateId: "cand-1",
+    });
+    renderWorkflowContent();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("self-improvement-status-label")).toHaveTextContent(
+        "Awaiting approval to promote agent improvements"
+      );
+    });
+    expect(screen.queryByTestId("self-improvement-status-spinner")).not.toBeInTheDocument();
+  });
+
+  it("does not show stage label when status is idle", async () => {
+    renderWorkflowContent();
+    await waitFor(() => {
+      expect(screen.getByTestId("self-improvement-status-label")).toHaveTextContent("Idle");
+    });
+    expect(screen.queryByTestId("self-improvement-stage-label")).not.toBeInTheDocument();
   });
 });

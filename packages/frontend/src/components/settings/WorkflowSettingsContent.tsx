@@ -1,5 +1,5 @@
 import { useEffect, useState, type MutableRefObject } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   ProjectSettings,
   ReviewAngle,
@@ -17,6 +17,7 @@ import {
   normalizeWorktreeBaseBranch,
 } from "@opensprint/shared";
 import { api } from "../../api/client";
+import type { SelfImprovementStatusSnapshot, SelfImprovementStage } from "../../api/client";
 import { queryKeys } from "../../api/queryKeys";
 
 type WorkflowPersistOverrides = Partial<{
@@ -25,12 +26,34 @@ type WorkflowPersistOverrides = Partial<{
   reviewAngles: ReviewAngle[];
   includeGeneralReview?: boolean;
   selfImprovementFrequency?: SelfImprovementFrequency;
+  runAgentEnhancementExperiments?: boolean;
   gitWorkingMode: GitWorkingMode;
   mergeStrategy: MergeStrategy;
   worktreeBaseBranch: string;
   maxConcurrentCoders: number;
   unknownScopeStrategy: UnknownScopeStrategy;
 }>;
+
+const STAGE_LABELS: Record<SelfImprovementStage, string> = {
+  collecting_replay_cases: "Collecting replay cases",
+  generating_candidate: "Generating candidate",
+  replaying: "Replaying",
+  scoring: "Scoring",
+  promoting: "Promoting",
+};
+
+function statusLabel(snapshot: SelfImprovementStatusSnapshot): string {
+  switch (snapshot.status) {
+    case "running_audit":
+      return "Running self-improvement audit\u2026";
+    case "running_experiments":
+      return "Running agent enhancement experiments\u2026";
+    case "awaiting_approval":
+      return "Awaiting approval to promote agent improvements";
+    default:
+      return "Idle";
+  }
+}
 
 interface WorkflowSettingsContentProps {
   settings: ProjectSettings;
@@ -55,6 +78,15 @@ export function WorkflowSettingsContent({
   const [draftSettings, setDraftSettings] = useState<ProjectSettings>(settings);
   const queryClient = useQueryClient();
   const [runNowMessage, setRunNowMessage] = useState<string | null>(null);
+
+  const selfImprovementStatusQuery = useQuery({
+    queryKey: queryKeys.projects.selfImprovementStatus(projectId),
+    queryFn: () => api.projects.getSelfImprovementStatus(projectId),
+    refetchInterval: 10_000,
+  });
+  const siStatus: SelfImprovementStatusSnapshot = selfImprovementStatusQuery.data ?? {
+    status: "idle",
+  };
 
   const runNowMutation = useMutation({
     mutationFn: () => api.projects.runSelfImprovement(projectId),
@@ -472,6 +504,75 @@ export function WorkflowSettingsContent({
                 {runNowMessage}
               </p>
             )}
+
+            <label
+              htmlFor="run-agent-enhancement-experiments-checkbox"
+              className="flex items-center gap-2 cursor-pointer"
+            >
+              <input
+                id="run-agent-enhancement-experiments-checkbox"
+                type="checkbox"
+                data-testid="run-agent-enhancement-experiments-checkbox"
+                checked={draftSettings.runAgentEnhancementExperiments ?? false}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  applySettingsUpdate((s) => ({
+                    ...s,
+                    runAgentEnhancementExperiments: checked,
+                  }));
+                  void persistSettings(undefined, {
+                    runAgentEnhancementExperiments: checked,
+                  });
+                }}
+                className="rounded border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-0"
+              />
+              <span className="text-sm text-theme-text">
+                Run experiments to enhance agents
+              </span>
+            </label>
+
+            <div
+              className="flex items-center gap-2 text-xs text-theme-muted"
+              data-testid="self-improvement-status-row"
+              role="status"
+            >
+              {(siStatus.status === "running_audit" ||
+                siStatus.status === "running_experiments") && (
+                <svg
+                  className="animate-spin h-3.5 w-3.5 text-brand-600"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  data-testid="self-improvement-status-spinner"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                  />
+                </svg>
+              )}
+              <span data-testid="self-improvement-status-label">
+                {statusLabel(siStatus)}
+              </span>
+              {siStatus.stage && (
+                <span
+                  className="ml-1 italic"
+                  data-testid="self-improvement-stage-label"
+                >
+                  — {STAGE_LABELS[siStatus.stage]}
+                </span>
+              )}
+            </div>
+
             {(draftSettings.selfImprovementLastRunAt || draftSettings.nextRunAt) && (
               <p
                 className="text-xs text-theme-muted flex flex-nowrap items-center gap-x-3"

@@ -48,6 +48,26 @@ import type {
 import type { TaskListResponse } from "./taskList";
 import type { PrdProposedDiffResponse, PrdVersionDiffResponse } from "./prdDiffTypes";
 
+export type SelfImprovementStatusValue =
+  | "idle"
+  | "running_audit"
+  | "running_experiments"
+  | "awaiting_approval";
+
+export type SelfImprovementStage =
+  | "collecting_replay_cases"
+  | "generating_candidate"
+  | "replaying"
+  | "scoring"
+  | "promoting";
+
+export interface SelfImprovementStatusSnapshot {
+  status: SelfImprovementStatusValue;
+  stage?: SelfImprovementStage;
+  pendingCandidateId?: string;
+  summary?: string;
+}
+
 /** API base; set VITE_API_BASE for production/staging (e.g. empty for same-origin, or full origin). */
 const BASE_URL = `${(import.meta.env.VITE_API_BASE as string | undefined) ?? ""}/api/v1`;
 
@@ -256,6 +276,8 @@ export const api = {
         `/projects/${id}/self-improvement/run`,
         { method: "POST" }
       ),
+    getSelfImprovementStatus: (id: string) =>
+      request<SelfImprovementStatusSnapshot>(`/projects/${id}/self-improvement/status`),
     archive: (id: string) => request<void>(`/projects/${id}/archive`, { method: "POST" }),
     delete: (id: string) =>
       request<void>(`/projects/${id}`, {
