@@ -226,6 +226,16 @@ export async function detectRemoteMode(repoPath: string): Promise<{
   };
 }
 
+/** Resolved commit SHA for the tip of a local branch, or null if the ref does not exist. */
+export async function getCommitShaAtBranchTip(
+  repoPath: string,
+  branchName: string
+): Promise<string | null> {
+  const name = branchName?.trim();
+  if (!name) return null;
+  return runGit(repoPath, `git rev-parse ${shellQuote(name)}`, GIT_COMMIT_TIMEOUT_MS);
+}
+
 export async function resolveBaseBranch(
   repoPath: string,
   preferredBaseBranch?: string | null

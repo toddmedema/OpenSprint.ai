@@ -162,4 +162,10 @@ export interface TaskAssignmentLike {
   retryContext?: RetryContext;
   angle?: string;
   createdAt: string;
+  /** Present when agent enhancement / behavior versioning supplies replay context (assignment.json). */
+  replayMetadata?: {
+    baseCommitSha: string;
+    behaviorVersionId?: string;
+    templateVersionId?: string;
+  };
 }

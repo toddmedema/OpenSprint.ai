@@ -11,6 +11,14 @@ import type { AgentSlotLike } from "../services/orchestrator-phase-context.js";
 import { RepoPreflightError } from "../utils/git-repo-state.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
 
+const { mockResolveExecuteReplayMetadata } = vi.hoisted(() => ({
+  mockResolveExecuteReplayMetadata: vi.fn().mockResolvedValue(null),
+}));
+
+vi.mock("../services/execute-replay-metadata.service.js", () => ({
+  resolveExecuteReplayMetadata: mockResolveExecuteReplayMetadata,
+}));
+
 const mockCreateTaskWorktree = vi.fn();
 const mockCreateOrCheckoutBranch = vi.fn();
 const mockEnsureRepoNodeModules = vi.fn();
@@ -126,6 +134,7 @@ describe("PhaseExecutorService", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    mockResolveExecuteReplayMetadata.mockResolvedValue(null);
     await fs.mkdir(repoPath, { recursive: true });
     await fs.mkdir(path.join(repoPath, ".opensprint"), { recursive: true });
 
@@ -211,6 +220,47 @@ describe("PhaseExecutorService", () => {
   });
 
   describe("executeCodingPhase", () => {
+    it("attaches replayMetadata to assignment when resolver returns metadata", async () => {
+      mockResolveExecuteReplayMetadata.mockResolvedValue({
+        baseCommitSha: "abc123deadbeef",
+        behaviorVersionId: "bv-execute-1",
+        templateVersionId: "tpl-v2",
+      });
+      mockGetSettings.mockResolvedValue({
+        testFramework: "vitest",
+        simpleComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+        complexComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+        reviewMode: "never",
+        deployment: {
+          mode: "custom",
+          autoResolveFeedbackOnTaskCompletion: false,
+        },
+        maxConcurrentCoders: 1,
+        gitWorkingMode: "worktree",
+        runAgentEnhancementExperiments: true,
+      });
+      const task = makeTask();
+      const slot = makeSlot();
+      const slots = new Map([[task.id, slot]]);
+      mockGetState.mockReturnValue({ slots, status: { queueDepth: 0 } });
+
+      await phaseExecutor.executeCodingPhase(projectId, repoPath, task, slot);
+
+      const assignmentWrites = mockWriteJsonAtomic.mock.calls.filter((c) =>
+        String(c[0]).endsWith("assignment.json")
+      );
+      expect(assignmentWrites.length).toBeGreaterThan(0);
+      for (const call of assignmentWrites) {
+        expect(call[1]).toMatchObject({
+          replayMetadata: {
+            baseCommitSha: "abc123deadbeef",
+            behaviorVersionId: "bv-execute-1",
+            templateVersionId: "tpl-v2",
+          },
+        });
+      }
+    });
+
     it("uses createTaskWorktree when gitWorkingMode is worktree (default)", async () => {
       mockGetSettings.mockResolvedValue({
         testFramework: "vitest",

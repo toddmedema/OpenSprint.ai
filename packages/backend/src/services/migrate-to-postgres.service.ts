@@ -22,6 +22,8 @@ const TABLES = [
   "plans",
   "auditor_runs",
   "self_improvement_runs",
+  "behavior_versions",
+  "project_behavior_state",
   "open_questions",
   "prd_metadata",
   "project_conversations",

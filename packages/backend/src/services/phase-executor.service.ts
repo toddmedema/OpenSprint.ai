@@ -39,6 +39,7 @@ import type { AgentRunState } from "./agent-lifecycle.js";
 import { TimerRegistry } from "./timer-registry.js";
 import { createLogger } from "../utils/logger.js";
 import { RepoPreflightError, resolveBaseBranch } from "../utils/git-repo-state.js";
+import { resolveExecuteReplayMetadata } from "./execute-replay-metadata.service.js";
 
 const log = createLogger("phase-executor");
 
@@ -326,6 +327,13 @@ export class PhaseExecutorService {
         );
       }
 
+      const replayMetadata = await resolveExecuteReplayMetadata(
+        projectId,
+        settings,
+        repoPath,
+        baseBranch
+      );
+
       const assignment: TaskAssignmentLike = {
         taskId: task.id,
         projectId,
@@ -338,6 +346,7 @@ export class PhaseExecutorService {
         attempt: slot.attempt,
         retryContext,
         createdAt: new Date().toISOString(),
+        ...(replayMetadata && { replayMetadata }),
       };
       // Set startedAt before agent spawn so getActiveAgents returns correct elapsed time from first frame (no 0s flash)
       slot.agent.startedAt = assignment.createdAt;
@@ -526,6 +535,13 @@ export class PhaseExecutorService {
         }
       }
 
+      const replayMetadata = await resolveExecuteReplayMetadata(
+        projectId,
+        settings,
+        repoPath,
+        baseBranch
+      );
+
       const assignment: TaskAssignmentLike = {
         taskId: task.id,
         projectId,
@@ -540,6 +556,7 @@ export class PhaseExecutorService {
         agentConfig,
         attempt: slot.attempt,
         createdAt: new Date().toISOString(),
+        ...(replayMetadata && { replayMetadata }),
       };
       // Set startedAt before agent spawn so getActiveAgents returns correct elapsed time from first frame (no 0s flash)
       slot.agent.startedAt = assignment.createdAt;

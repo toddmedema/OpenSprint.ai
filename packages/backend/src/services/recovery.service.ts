@@ -84,6 +84,11 @@ export interface GuppAssignment {
   attempt: number;
   retryContext?: RetryContext;
   createdAt: string;
+  replayMetadata?: {
+    baseCommitSha: string;
+    behaviorVersionId?: string;
+    templateVersionId?: string;
+  };
 }
 
 export class RecoveryService {

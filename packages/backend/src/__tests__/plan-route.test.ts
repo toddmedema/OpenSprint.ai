@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from "vitest";
 import request from "supertest";
 import fs from "fs/promises";
 import path from "path";
@@ -95,7 +95,7 @@ const planRoutePostgresOk =
 describe.skipIf(!planRoutePostgresOk)("Plan REST endpoints - task decomposition", () => {
   let app: ReturnType<typeof createApp>;
   let suiteTempDir: string;
-  let currentRepoPath: string;
+  let currentRepoPath: string | undefined;
   let originalHome: string | undefined;
   let caseCounter = 0;
   let projectId: string;
@@ -136,6 +136,7 @@ describe.skipIf(!planRoutePostgresOk)("Plan REST endpoints - task decomposition"
 
   afterEach(async () => {
     await cleanupTestProject({ projectService, projectId });
+    if (!currentRepoPath) return;
     // maxRetries/retryDelay help when git-commit-queue or task store hold files during cleanup
     await fs.rm(currentRepoPath, {
       recursive: true,

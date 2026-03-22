@@ -339,6 +339,23 @@ CREATE TABLE IF NOT EXISTS repo_file_migrations (
     applied_at     TEXT NOT NULL,
     PRIMARY KEY (project_id, migration_key)
 );
+
+-- Promoted / candidate agent behavior bundles (version ids are store-generated or experiment-assigned strings)
+CREATE TABLE IF NOT EXISTS behavior_versions (
+    id                   TEXT NOT NULL,
+    project_id           TEXT NOT NULL,
+    template_version_id  TEXT,
+    promoted_at          TEXT,
+    created_at           TEXT NOT NULL,
+    bundle               TEXT,
+    PRIMARY KEY (project_id, id)
+);
+CREATE INDEX IF NOT EXISTS idx_behavior_versions_project ON behavior_versions(project_id);
+
+CREATE TABLE IF NOT EXISTS project_behavior_state (
+    project_id                    TEXT PRIMARY KEY,
+    active_promoted_version_id    TEXT
+);
 `;
 
 /** SQLite schema: SERIAL -> INTEGER PRIMARY KEY AUTOINCREMENT; ALTER ADD COLUMN IF NOT EXISTS supported in 3.35+. */
@@ -561,6 +578,23 @@ ALTER TABLE self_improvement_runs ADD COLUMN IF NOT EXISTS outcome TEXT NOT NULL
 ALTER TABLE self_improvement_runs ADD COLUMN IF NOT EXISTS summary TEXT NOT NULL DEFAULT '';
 ALTER TABLE self_improvement_runs ADD COLUMN IF NOT EXISTS promoted_version_id TEXT;
 ALTER TABLE self_improvement_runs ADD COLUMN IF NOT EXISTS pending_candidate_id TEXT;
+
+-- Promoted / candidate agent behavior bundles (version ids are store-generated or experiment-assigned strings)
+CREATE TABLE IF NOT EXISTS behavior_versions (
+    id                   TEXT NOT NULL,
+    project_id           TEXT NOT NULL,
+    template_version_id  TEXT,
+    promoted_at          TEXT,
+    created_at           TEXT NOT NULL,
+    bundle               TEXT,
+    PRIMARY KEY (project_id, id)
+);
+CREATE INDEX IF NOT EXISTS idx_behavior_versions_project ON behavior_versions(project_id);
+
+CREATE TABLE IF NOT EXISTS project_behavior_state (
+    project_id                    TEXT PRIMARY KEY,
+    active_promoted_version_id    TEXT
+);
 
 CREATE TABLE IF NOT EXISTS open_questions (
     id           TEXT PRIMARY KEY,

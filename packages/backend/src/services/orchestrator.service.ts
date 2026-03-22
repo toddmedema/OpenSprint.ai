@@ -158,6 +158,11 @@ export interface TaskAssignment {
   attempt: number;
   retryContext?: RetryContext;
   createdAt: string;
+  replayMetadata?: {
+    baseCommitSha: string;
+    behaviorVersionId?: string;
+    templateVersionId?: string;
+  };
 }
 
 /** Format review rejection result into actionable feedback for the coding agent retry prompt. Exported for testing. */

@@ -50,6 +50,7 @@ const {
   mockPersistCounters,
   mockGetState,
   mockGetNextKey,
+  mockResolveExecuteReplayMetadata,
 } = vi.hoisted(() => ({
   mockCreateTaskWorktree: vi.fn(),
   mockCreateOrCheckoutBranch: vi.fn(),
@@ -63,6 +64,7 @@ const {
   mockPersistCounters: vi.fn(),
   mockGetState: vi.fn(),
   mockGetNextKey: vi.fn(),
+  mockResolveExecuteReplayMetadata: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock("../services/project.service.js", () => ({
@@ -113,6 +115,10 @@ vi.mock("../services/agent-identity.service.js", () => ({
 
 vi.mock("../services/api-key-resolver.service.js", () => ({
   getNextKey: (...args: unknown[]) => mockGetNextKey(...args),
+}));
+
+vi.mock("../services/execute-replay-metadata.service.js", () => ({
+  resolveExecuteReplayMetadata: mockResolveExecuteReplayMetadata,
 }));
 
 describe("Multi-angle review flow — integration", () => {

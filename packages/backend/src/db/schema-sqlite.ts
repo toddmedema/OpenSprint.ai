@@ -183,6 +183,22 @@ CREATE TABLE IF NOT EXISTS auditor_runs (
 );
 CREATE INDEX IF NOT EXISTS idx_auditor_runs_project_plan ON auditor_runs(project_id, plan_id);
 
+CREATE TABLE IF NOT EXISTS behavior_versions (
+    id                   TEXT NOT NULL,
+    project_id           TEXT NOT NULL,
+    template_version_id  TEXT,
+    promoted_at          TEXT,
+    created_at           TEXT NOT NULL,
+    bundle               TEXT,
+    PRIMARY KEY (project_id, id)
+);
+CREATE INDEX IF NOT EXISTS idx_behavior_versions_project ON behavior_versions(project_id);
+
+CREATE TABLE IF NOT EXISTS project_behavior_state (
+    project_id                    TEXT PRIMARY KEY,
+    active_promoted_version_id    TEXT
+);
+
 CREATE TABLE IF NOT EXISTS open_questions (
     id           TEXT PRIMARY KEY,
     project_id   TEXT NOT NULL,

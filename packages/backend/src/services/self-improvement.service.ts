@@ -18,6 +18,7 @@ import { updateSettingsInStore } from "./settings-store.service.js";
 import { notificationService } from "./notification.service.js";
 import { AppError } from "../middleware/error-handler.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
+import { runBehaviorVersionStoreWrite } from "./behavior-version-store.service.js";
 
 const log = createLogger("self-improvement");
 const BASELINE_QUALITY_GATE_TASK_SOURCE = "merge-quality-gate-baseline";
@@ -144,6 +145,9 @@ export class SelfImprovementService {
       projectId,
       pendingCandidateId
     );
+    await runBehaviorVersionStoreWrite((store) =>
+      store.promoteToActive(projectId, pendingCandidateId, now, null)
+    );
     const updated = await this.projectService.getSettings(projectId);
     return this.toBehaviorStatus(updated);
   }
@@ -221,6 +225,10 @@ export class SelfImprovementService {
         ],
       };
     });
+
+    await runBehaviorVersionStoreWrite((store) =>
+      store.setActivePromoted(projectId, behaviorVersionId)
+    );
 
     const updated = await this.projectService.getSettings(projectId);
     return this.toBehaviorStatus(updated);
