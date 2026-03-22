@@ -8,7 +8,6 @@ import {
   TIMELINE_SECTION,
 } from "../../lib/executeTaskSort";
 import { isTaskInPlanningPlan, isSelfImprovementTask } from "../../lib/executeTaskFilter";
-import { getEpicTitleFromPlan } from "../../lib/planContentUtils";
 import { formatUptime, formatTimestamp } from "../../lib/formatting";
 import { PriorityIcon } from "../PriorityIcon";
 import { ComplexityIcon } from "../ComplexityIcon";
@@ -50,7 +49,6 @@ const SECTION_LABELS: Record<string, string> = {
 
 function TimelineRow({
   task,
-  epicName,
   relativeTime,
   onTaskSelect,
   onUnblock,
@@ -60,7 +58,6 @@ function TimelineRow({
   enableHumanTeammates,
 }: {
   task: Task;
-  epicName: string;
   relativeTime: string;
   onTaskSelect: (taskId: string) => void;
   onUnblock?: (taskId: string) => void;
@@ -100,9 +97,6 @@ function TimelineRow({
               Self-improvement
             </span>
           )}
-          <span className="hidden md:inline text-xs text-theme-muted shrink-0 truncate max-w-[120px]">
-            {epicName}
-          </span>
           <span className="text-xs text-theme-muted shrink-0 tabular-nums">{relativeTime}</span>
         </button>
         <span
@@ -172,12 +166,6 @@ export function TimelineList({
   teamMembers,
   enableHumanTeammates = false,
 }: TimelineListProps) {
-  const epicIdToTitle = useMemo(() => {
-    const m = new Map<string, string>();
-    plans.forEach((p) => m.set(p.metadata.epicId, getEpicTitleFromPlan(p)));
-    return m;
-  }, [plans]);
-
   const sorted = useMemo(() => sortTasksForTimeline(tasks), [tasks]);
   const blockedTasks = useMemo(
     () =>
@@ -286,7 +274,6 @@ export function TimelineList({
                   <TimelineRow
                     key={task.id}
                     task={task}
-                    epicName={task.epicId ? (epicIdToTitle.get(task.epicId) ?? task.epicId) : ""}
                     relativeTime={getRelativeTime(task)}
                     onTaskSelect={onTaskSelect}
                     onUnblock={task.kanbanColumn === "blocked" ? onUnblock : undefined}

@@ -250,7 +250,7 @@ describe("TimelineList", () => {
     expect(planningIdx).toBeLessThan(completedIdx);
   });
 
-  it("rows display priority icon, title, epic name (no row status icon; section header shows status)", () => {
+  it("rows display priority icon and title (no row status icon; section header shows status)", () => {
     const tasks = [
       createMockTask({
         id: "task-1",
@@ -269,10 +269,9 @@ describe("TimelineList", () => {
     expect(screen.getByText("Implement login")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "In Progress" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /critical/i })).toBeInTheDocument();
-    expect(screen.getByText("Authentication")).toBeInTheDocument();
   });
 
-  it("tasks with epic show epic name in epic column", () => {
+  it("does not display epic name in timeline rows", () => {
     const tasks = [
       createMockTask({
         id: "task-1",
@@ -287,27 +286,8 @@ describe("TimelineList", () => {
       <TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} {...defaultListProps} />
     );
 
-    expect(screen.getByText("Auth Epic")).toBeInTheDocument();
-  });
-
-  it("tasks without epic show no placeholder in epic column (blank)", () => {
-    const tasks = [
-      createMockTask({
-        id: "task-1",
-        title: "Task without epic",
-        kanbanColumn: "ready",
-        epicId: null,
-        assignee: "dev",
-      }),
-    ];
-    const plans: Plan[] = [];
-
-    renderWithProviders(
-      <TimelineList tasks={tasks} plans={plans} onTaskSelect={vi.fn()} {...defaultListProps} />
-    );
-
-    expect(screen.getByText("Task without epic")).toBeInTheDocument();
-    expect(screen.queryByText("—")).not.toBeInTheDocument();
+    expect(screen.getByText("Task with epic")).toBeInTheDocument();
+    expect(screen.queryByText("Auth Epic")).not.toBeInTheDocument();
   });
 
   it("displays complexity icon when task has complexity", () => {
@@ -351,7 +331,7 @@ describe("TimelineList", () => {
     expect(screen.getByText("Improve tests")).toBeInTheDocument();
   });
 
-  it("hides Self-improvement badge on small screens (same breakpoint as Epic/Plan name)", () => {
+  it("hides Self-improvement badge on small screens", () => {
     const tasks = [
       createMockTask({
         id: "task-1",
