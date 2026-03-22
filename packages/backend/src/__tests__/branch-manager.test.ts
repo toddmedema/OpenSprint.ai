@@ -132,6 +132,28 @@ describe("BranchManager", () => {
       expect(branchOut.trim()).toBe("opensprint/task-xyz");
     });
 
+    it("should return false when only excluded runtime paths exist (e.g. .opensprint/active)", async () => {
+      await execAsync("git init", { cwd: repoPath });
+      await execAsync("git branch -M main", { cwd: repoPath });
+      await execAsync('git config user.email "test@test.com"', { cwd: repoPath });
+      await execAsync('git config user.name "Test"', { cwd: repoPath });
+      await fs.writeFile(path.join(repoPath, "README"), "initial");
+      await execAsync('git add README && git commit -m "initial"', { cwd: repoPath });
+      await execAsync("git checkout -b opensprint/task-runtime-only", { cwd: repoPath });
+      const hbDir = path.join(repoPath, ".opensprint", "active", "task-runtime-only");
+      await fs.mkdir(hbDir, { recursive: true });
+      await fs.writeFile(
+        path.join(hbDir, "heartbeat.json"),
+        JSON.stringify({ processGroupLeaderPid: 1, lastOutputTimestamp: 0, heartbeatTimestamp: 0 })
+      );
+
+      const result = await branchManager.commitWip(repoPath, "task-runtime-only");
+      expect(result).toBe(false);
+
+      const { stdout: count } = await execAsync("git rev-list --count HEAD", { cwd: repoPath });
+      expect(count.trim()).toBe("1");
+    });
+
     it("should ignore node_modules symlink-only changes", async () => {
       await execAsync("git init", { cwd: repoPath });
       await execAsync("git branch -M main", { cwd: repoPath });

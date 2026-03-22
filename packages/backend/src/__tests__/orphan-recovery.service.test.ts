@@ -251,7 +251,7 @@ describe("OrphanRecoveryService", () => {
 
   describe("recoverFromStaleHeartbeats", () => {
     it("recovers tasks with stale heartbeat files", async () => {
-      const taskId = "task-stale-hb";
+      const taskId = `task-stale-hb-${Date.now()}`;
       const worktreeBase = path.join(os.tmpdir(), "opensprint-worktrees");
       const wtPath = path.join(worktreeBase, taskId);
 
@@ -280,7 +280,7 @@ describe("OrphanRecoveryService", () => {
     });
 
     it("excludes task when excludeTaskId is provided", async () => {
-      const taskId = "task-exclude";
+      const taskId = `task-exclude-${Date.now()}`;
       const worktreeBase = path.join(os.tmpdir(), "opensprint-worktrees");
       const wtPath = path.join(worktreeBase, taskId);
 

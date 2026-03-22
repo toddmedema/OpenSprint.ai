@@ -887,11 +887,18 @@ export class BranchManager {
 
       await this.git(repoPath, "add -A");
       await this.resetExcludedWipPaths(repoPath);
-      const { stdout: statusAfter } = await shellExec("git status --porcelain", {
-        cwd: repoPath,
-        timeout: 5000,
-      });
-      if (!statusAfter.trim()) return false;
+      // After excluding runtime paths, the working tree may still show untracked files
+      // (e.g. `.opensprint/active/`) while nothing remains staged — do not run `git commit`
+      // in that case or git exits with "nothing added to commit but untracked files present".
+      try {
+        await shellExec("git diff --cached --quiet", {
+          cwd: repoPath,
+          timeout: 5000,
+        });
+        return false;
+      } catch {
+        // diff --cached exits 1 when there is something staged — proceed to commit.
+      }
 
       const noHooksWip = getGitNoHooksPath();
       await shellExec(`git -c core.hooksPath="${noHooksWip}" commit -m "WIP: ${taskId}"`, {
