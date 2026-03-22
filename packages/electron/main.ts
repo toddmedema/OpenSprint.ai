@@ -1358,6 +1358,8 @@ function setupAutoUpdater(): void {
   ipcMain.handle("updater:checkForUpdates", async () => {
     if (app.isPackaged) {
       performUpdateCheck();
+    } else {
+      persistLastUpdateCheck();
     }
     return { lastCheckTimestamp: lastUpdateCheckTimestamp };
   });
