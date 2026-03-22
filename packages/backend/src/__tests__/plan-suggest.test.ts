@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
 import { execSync } from "child_process";
 import fs from "fs/promises";
 import path from "path";
@@ -121,7 +121,7 @@ describe.skipIf(!planSuggestPostgresOk)("Plan suggestPlans (POST /plans/suggest)
 
     repoPath = path.join(tempDir, "test-project");
     await fs.mkdir(repoPath, { recursive: true });
-    execSync("git init", { cwd: repoPath });
+    execSync("git init", { cwd: repoPath, stdio: "pipe" });
 
     const project = await projectService.createProject({
       name: "Suggest Test",

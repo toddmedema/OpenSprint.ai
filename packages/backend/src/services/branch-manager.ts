@@ -1250,56 +1250,77 @@ export class BranchManager {
 
   /**
    * Ensures the worktree path is absent so `git worktree add` cannot fail with "already exists".
-   * Removes the path if present (via git worktree remove when registered, then fs.rm if needed).
+   * Escalates through: git worktree remove → fs.rm → shell rm -rf → rename-aside.
    */
   private async ensureWorktreePathClear(
     repoPath: string,
     worktreeKey: string,
     wtPath: string
   ): Promise<void> {
-    try {
-      await fs.access(wtPath);
-    } catch {
-      return;
-    }
+    const pathGone = async () => {
+      try { await fs.access(wtPath); return false; } catch { return true; }
+    };
+
+    if (await pathGone()) return;
+
+    // 1. git worktree remove --force (handles both git metadata and directory)
     try {
       await this.git(repoPath, `worktree remove ${shellQuote(wtPath)} --force`);
-    } catch {
-      // Path may not be a registered worktree; remove directory directly.
-    }
-    try {
-      await fs.access(wtPath);
-    } catch {
-      return;
-    }
+    } catch { /* may not be a registered worktree */ }
+    if (await pathGone()) return;
+
+    // 2. Validated fs.rm via removeWorktreeDirectorySafely
     await this.removeWorktreeDirectorySafely(
       repoPath,
       worktreeKey,
       wtPath,
       "Pre-worktree-add cleanup"
     );
-    // Final verification: if the path still exists after all cleanup attempts,
-    // try a direct fs.rm (we already validated the path above) and throw if
-    // the directory persists — otherwise git worktree add will fail with
-    // "fatal: '...' already exists".
-    try {
-      await fs.access(wtPath);
-    } catch {
-      return;
-    }
-    log.warn("Worktree path survived removeWorktreeDirectorySafely, attempting direct removal", {
+    if (await pathGone()) return;
+
+    // 3. Shell rm -rf (handles edge cases that Node.js fs.rm cannot, e.g. busy sub-processes)
+    log.warn("Worktree path survived fs.rm, escalating to shell rm -rf", {
       worktreeKey,
       wtPath,
     });
-    await fs.rm(wtPath, { recursive: true, force: true }).catch(() => {});
-    await this.git(repoPath, "worktree prune").catch(() => {});
     try {
-      await fs.access(wtPath);
-    } catch {
-      return;
+      await shellExec(`rm -rf ${shellQuote(wtPath)}`, { cwd: repoPath, timeout: 15000 });
+    } catch (rmErr) {
+      log.warn("Shell rm -rf failed", {
+        worktreeKey,
+        wtPath,
+        err: rmErr instanceof Error ? rmErr.message : String(rmErr),
+      });
     }
+    await this.git(repoPath, "worktree prune").catch(() => {});
+    if (await pathGone()) return;
+
+    // 4. Last resort: rename the directory out of the way so the target path is clear.
+    //    The stale directory is cleaned up asynchronously.
+    const stalePath = `${wtPath}-stale-${Date.now()}`;
+    log.warn("Worktree path cannot be deleted, renaming aside", {
+      worktreeKey,
+      wtPath,
+      stalePath,
+    });
+    try {
+      await fs.rename(wtPath, stalePath);
+      await this.git(repoPath, "worktree prune").catch(() => {});
+      // Fire-and-forget cleanup of the renamed directory
+      shellExec(`rm -rf ${shellQuote(stalePath)}`, { cwd: repoPath, timeout: 30000 })
+        .catch(() => fs.rm(stalePath, { recursive: true, force: true }).catch(() => {}));
+    } catch (renameErr) {
+      log.error("Failed to rename stale worktree path aside", {
+        worktreeKey,
+        wtPath,
+        stalePath,
+        err: renameErr instanceof Error ? renameErr.message : String(renameErr),
+      });
+    }
+    if (await pathGone()) return;
+
     throw new Error(
-      `Cannot clear worktree path for ${worktreeKey}: ${wtPath} still exists after all cleanup attempts`
+      `Cannot clear worktree path for ${worktreeKey}: ${wtPath} still exists after all cleanup attempts (git worktree remove, fs.rm, shell rm -rf, and rename all failed)`
     );
   }
 

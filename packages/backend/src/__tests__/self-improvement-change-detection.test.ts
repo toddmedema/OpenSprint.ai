@@ -18,9 +18,9 @@ describe("hasCodeChangesSince", () => {
 
   async function initRepo() {
     repoPath = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-change-detection-"));
-    execSync("git init", { cwd: repoPath });
-    execSync("git config user.email test@test.com", { cwd: repoPath });
-    execSync("git config user.name Test", { cwd: repoPath });
+    execSync("git init", { cwd: repoPath, stdio: "pipe" });
+    execSync("git config user.email test@test.com", { cwd: repoPath, stdio: "pipe" });
+    execSync("git config user.name Test", { cwd: repoPath, stdio: "pipe" });
   }
 
   function commitAt(isoDate: string, message: string = "commit") {
@@ -29,8 +29,8 @@ describe("hasCodeChangesSince", () => {
       GIT_AUTHOR_DATE: isoDate,
       GIT_COMMITTER_DATE: isoDate,
     };
-    execSync("git add -A", { cwd: repoPath });
-    execSync(`git commit --allow-empty -m "${message}"`, { cwd: repoPath, env });
+    execSync("git add -A", { cwd: repoPath, stdio: "pipe" });
+    execSync(`git commit --allow-empty -m "${message}"`, { cwd: repoPath, env, stdio: "pipe" });
   }
 
   afterEach(async () => {
@@ -99,7 +99,7 @@ describe("hasCodeChangesSince", () => {
   it("respects baseBranch when provided", async () => {
     await initRepo();
     commitAt("2024-06-01T10:00:00Z", "on main");
-    execSync("git checkout -b other", { cwd: repoPath });
+    execSync("git checkout -b other", { cwd: repoPath, stdio: "pipe" });
     commitAt("2024-06-01T14:00:00Z", "on other");
     const result = await hasCodeChangesSince(repoPath, {
       sinceTimestamp: "2024-06-01T12:00:00Z",

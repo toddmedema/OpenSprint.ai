@@ -74,9 +74,9 @@ describe.skipIf(!planComplexityPostgresOk)("getPlanComplexityForTask", () => {
 
     // Initialize git and task store
     const { execSync } = await import("child_process");
-    execSync("git init", { cwd: tempDir });
-    execSync("git config user.email test@test.com", { cwd: tempDir });
-    execSync("git config user.name Test", { cwd: tempDir });
+    execSync("git init", { cwd: tempDir, stdio: "pipe" });
+    execSync("git config user.email test@test.com", { cwd: tempDir, stdio: "pipe" });
+    execSync("git config user.name Test", { cwd: tempDir, stdio: "pipe" });
     await taskStore.init();
   });
 
@@ -223,9 +223,9 @@ describe.skipIf(!planComplexityPostgresOk)("getComplexityForAgent", () => {
     taskStore = taskStoreSingleton;
 
     const { execSync } = await import("child_process");
-    execSync("git init", { cwd: tempDir });
-    execSync("git config user.email test@test.com", { cwd: tempDir });
-    execSync("git config user.name Test", { cwd: tempDir });
+    execSync("git init", { cwd: tempDir, stdio: "pipe" });
+    execSync("git config user.email test@test.com", { cwd: tempDir, stdio: "pipe" });
+    execSync("git config user.name Test", { cwd: tempDir, stdio: "pipe" });
     await taskStore.init();
   });
 
