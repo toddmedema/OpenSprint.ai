@@ -19,10 +19,12 @@ import {
   extractJsonArrayFromAgentResponse,
 } from "../utils/json-extract.js";
 import { agentInstructionsService, getCombinedInstructions } from "./agent-instructions.service.js";
+import { runBehaviorVersionStoreWrite } from "./behavior-version-store.service.js";
 import { SelfImprovementExperimentService } from "./self-improvement-experiment.service.js";
 import { mineReplayGradeExecuteSessionIds } from "./self-improvement-experiment.service.js";
 import { ExperimentReplayService } from "./experiment-replay.service.js";
 import type { ReplayAgentRunner, ReplayOutcome } from "./experiment-replay.service.js";
+import { decideExperimentOutcome } from "./experiment-scoring.service.js";
 import type { SelfImprovementRunOutcome } from "./self-improvement-run-history.service.js";
 import { createLogger } from "../utils/logger.js";
 import { shellExec } from "../utils/shell-exec.js";
@@ -930,13 +932,132 @@ Review the codebase and output a structured list of improvement tasks (JSON arra
             },
           });
 
-          pendingCandidateId = versionId;
-          outcome = "promotion_pending";
-          summary = `${summary} Experiment candidate ${versionId} replayed ${replayResult.sampleSize} session(s): baseline success ${(replayResult.baselineMetrics.taskSuccessRate * 100).toFixed(0)}%, candidate success ${(replayResult.candidateMetrics.taskSuccessRate * 100).toFixed(0)}%.`;
+          inProgressProjects.set(projectId, {
+            status: "running_experiments",
+            stage: "scoring",
+          });
+
+          const autonomyLevel = settings.aiAutonomyLevel ?? "full";
+          const scoringResult = decideExperimentOutcome(
+            replayResult.baselineMetrics,
+            replayResult.candidateMetrics,
+            autonomyLevel
+          );
+
+          const replaySummary = `Replayed ${replayResult.sampleSize} session(s): baseline success ${(replayResult.baselineMetrics.taskSuccessRate * 100).toFixed(0)}%, candidate success ${(replayResult.candidateMetrics.taskSuccessRate * 100).toFixed(0)}%.`;
+
+          if (scoringResult.decision === "promote") {
+            inProgressProjects.set(projectId, {
+              status: "running_experiments",
+              stage: "promoting",
+            });
+
+            const now = new Date().toISOString();
+            await updateSettingsInStore(projectId, settings as ProjectSettings, (current) => {
+              const versions = current.selfImprovementBehaviorVersions ?? [];
+              const hasVersion = versions.some((v) => v.id === versionId);
+              return {
+                ...current,
+                selfImprovementPendingCandidateId: undefined,
+                selfImprovementActiveBehaviorVersionId: versionId,
+                selfImprovementBehaviorVersions: hasVersion
+                  ? versions
+                  : [...versions, { id: versionId, promotedAt: now }],
+                selfImprovementBehaviorHistory: [
+                  ...(current.selfImprovementBehaviorHistory ?? []),
+                  {
+                    timestamp: now,
+                    action: "approved" as const,
+                    behaviorVersionId: versionId,
+                    candidateId: versionId,
+                  },
+                ],
+              };
+            });
+
+            await runBehaviorVersionStoreWrite((store) =>
+              store.promoteToActive(projectId, versionId, now, null)
+            );
+
+            outcome = "promoted";
+            summary = `${summary} Experiment candidate ${versionId} auto-promoted. ${replaySummary} ${scoringResult.reason}`;
+          } else if (scoringResult.decision === "reject") {
+            outcome = "candidate_rejected";
+            summary = `${summary} Experiment candidate ${versionId} rejected. ${replaySummary} ${scoringResult.reason}`;
+          } else {
+            pendingCandidateId = versionId;
+            outcome = "promotion_pending";
+            summary = `${summary} Experiment candidate ${versionId} awaiting approval. ${replaySummary} ${scoringResult.reason}`;
+
+            await updateSettingsInStore(projectId, settings as ProjectSettings, (current) => ({
+              ...current,
+              selfImprovementPendingCandidateId: versionId,
+              selfImprovementPendingReplaySampleSize: replayResult.sampleSize,
+              selfImprovementPendingBaselineMetrics: replayResult.baselineMetrics,
+              selfImprovementPendingCandidateMetrics: replayResult.candidateMetrics,
+            }));
+
+            const approvalNotification = await notificationService.createSelfImprovementApproval({
+              projectId,
+              candidateId: versionId,
+              deepLinkPath: `/projects/${projectId}/settings#self-improvement`,
+              payload: {
+                replaySampleSize: replayResult.sampleSize,
+                baselineMetrics: replayResult.baselineMetrics,
+                candidateMetrics: replayResult.candidateMetrics,
+                scoringReason: scoringResult.reason,
+              },
+            });
+            broadcastToProject(projectId, {
+              type: "notification.added",
+              notification: {
+                id: approvalNotification.id,
+                projectId: approvalNotification.projectId,
+                source: approvalNotification.source,
+                sourceId: approvalNotification.sourceId,
+                questions: approvalNotification.questions.map((q) => ({
+                  id: q.id,
+                  text: q.text,
+                })),
+                status: approvalNotification.status,
+                createdAt: approvalNotification.createdAt,
+                resolvedAt: approvalNotification.resolvedAt,
+                kind: approvalNotification.kind,
+              },
+            });
+          }
         } else {
           pendingCandidateId = versionId;
           outcome = "promotion_pending";
           summary = `${summary} Experiment candidate ${versionId} saved (no replay-grade sessions available).`;
+
+          await updateSettingsInStore(projectId, settings as ProjectSettings, (current) => ({
+            ...current,
+            selfImprovementPendingCandidateId: versionId,
+          }));
+
+          const noReplayNotification = await notificationService.createSelfImprovementApproval({
+            projectId,
+            candidateId: versionId,
+            deepLinkPath: `/projects/${projectId}/settings#self-improvement`,
+          });
+          broadcastToProject(projectId, {
+            type: "notification.added",
+            notification: {
+              id: noReplayNotification.id,
+              projectId: noReplayNotification.projectId,
+              source: noReplayNotification.source,
+              sourceId: noReplayNotification.sourceId,
+              questions: noReplayNotification.questions.map((q) => ({
+                id: q.id,
+                text: q.text,
+              })),
+              status: noReplayNotification.status,
+              createdAt: noReplayNotification.createdAt,
+              resolvedAt: noReplayNotification.resolvedAt,
+              kind: noReplayNotification.kind,
+            },
+          });
         }
       } catch (err) {
         log.warn("Self-improvement experiment pipeline failed", {
@@ -944,6 +1065,8 @@ Review the codebase and output a structured list of improvement tasks (JSON arra
           runId,
           err: err instanceof Error ? err.message : String(err),
         });
+        outcome = "failed";
+        summary = `${summary} Experiment pipeline failed: ${err instanceof Error ? err.message : String(err)}`;
       }
     }
 
