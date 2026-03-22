@@ -111,7 +111,8 @@ vi.mock("../services/git-commit-queue.service.js", () => ({
   },
 }));
 
-describe("PrdService", () => {
+// Shared module-level prdMetadataStore / prdSnapshotsStore must not be touched concurrently.
+describe.sequential("PrdService", () => {
   let prdService: PrdService;
   const repoPath = "/tmp/opensprint-test-prd";
   const specPath = path.join(repoPath, SPEC_MD);

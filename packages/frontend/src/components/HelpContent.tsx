@@ -15,12 +15,8 @@ import { HelpAnalyticsChart } from "./HelpAnalyticsChart";
 import { api } from "../api/client";
 import { ASSET_BASE, NAVBAR_HEIGHT } from "../lib/constants";
 import { getKeyboardShortcuts } from "../lib/keybindings";
-import {
-  clearTextDraft,
-  helpAskDraftStorageKey,
-  loadTextDraft,
-  saveTextDraft,
-} from "../lib/agentInputDraftStorage";
+import { helpAskDraftStorageKey, loadTextDraft } from "../lib/agentInputDraftStorage";
+import { useOptimisticTextDraft } from "../hooks/useOptimisticTextDraft";
 
 export interface HelpContentProps {
   /** Optional project context (per-project view vs homepage) */
@@ -250,6 +246,7 @@ function AskQuestionContent({
   const draftKey = useMemo(() => helpAskDraftStorageKey(project?.id ?? null), [project?.id]);
   const [messages, setMessages] = useState<HelpChatMessage[]>([]);
   const [input, setInput] = useState(() => loadTextDraft(draftKey));
+  const { beginSend, onSuccess, onFailure } = useOptimisticTextDraft(draftKey, input, setInput);
   const [sending, setSending] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -260,10 +257,6 @@ function AskQuestionContent({
   useLayoutEffect(() => {
     setInput(loadTextDraft(draftKey));
   }, [draftKey]);
-
-  useEffect(() => {
-    saveTextDraft(draftKey, input);
-  }, [draftKey, input]);
 
   useEffect(() => {
     let cancelled = false;
@@ -309,6 +302,7 @@ function AskQuestionContent({
     const userMsg: HelpChatMessage = { role: "user", content: text };
     setMessages((prev) => [...prev, userMsg]);
     setSending(true);
+    beginSend(text);
     try {
       const priorMessages = messages.map((m) => ({ role: m.role, content: m.content }));
       const res = await api.help.chat({
@@ -317,16 +311,16 @@ function AskQuestionContent({
         messages: priorMessages,
       });
       setMessages((prev) => [...prev, { role: "assistant", content: res.message }]);
-      setInput("");
-      clearTextDraft(draftKey);
+      onSuccess();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       setError(msg);
       setMessages((prev) => [...prev, { role: "assistant", content: `Error: ${msg}` }]);
+      onFailure();
     } finally {
       setSending(false);
     }
-  }, [input, sending, messages, project?.id, draftKey]);
+  }, [input, sending, messages, project?.id, beginSend, onSuccess, onFailure]);
 
   return (
     <div className="flex flex-col gap-2 min-h-0 flex-1 overflow-hidden">

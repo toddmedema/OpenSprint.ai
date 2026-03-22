@@ -1671,6 +1671,7 @@ export function EvalPhase({
   const imageAttachment = useImageAttachment(initialDraft.images);
   const { isDraggingImage, clearDragState } = useImageDragOverPage();
   const [priority, setPriority] = useState<number | null>(initialDraft.priority);
+  const optimisticFeedbackSubmitRef = useRef(false);
 
   /* Sync state when projectId changes (e.g. navigate to different project) */
   useEffect(() => {
@@ -1678,10 +1679,19 @@ export function EvalPhase({
     setInput(draft.text);
     setPriority(draft.priority);
     imageAttachment.resetTo(draft.images);
+    optimisticFeedbackSubmitRef.current = false;
   }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps -- resetTo is stable
 
   /* Persist form state to localStorage on change */
   useEffect(() => {
+    if (
+      optimisticFeedbackSubmitRef.current &&
+      !input.trim() &&
+      imageAttachment.images.length === 0 &&
+      priority == null
+    ) {
+      return;
+    }
     saveFeedbackFormDraft(projectId, {
       text: input,
       images: imageAttachment.images,
@@ -1774,8 +1784,21 @@ export function EvalPhase({
   const handleSubmit = async () => {
     if (!input.trim() || submitting) return;
     const text = input.trim();
-    const imagePayload = imageAttachment.images.length > 0 ? imageAttachment.images : undefined;
-    const priorityPayload = priority != null ? priority : undefined;
+    const imgs = imageAttachment.images;
+    const prio = priority;
+    const imagePayload = imgs.length > 0 ? imgs : undefined;
+    const priorityPayload = prio != null ? prio : undefined;
+
+    saveFeedbackFormDraft(projectId, {
+      text: input,
+      images: imgs,
+      priority: prio,
+    });
+    optimisticFeedbackSubmitRef.current = true;
+    setInput("");
+    imageAttachment.resetTo([]);
+    setPriority(null);
+
     const result = await dispatch(
       submitFeedback({
         projectId,
@@ -1785,12 +1808,16 @@ export function EvalPhase({
       })
     );
     if (submitFeedback.fulfilled.match(result)) {
-      setInput("");
-      imageAttachment.reset();
-      setPriority(null);
-      setReconcilingFeedbackIds((prev) => new Set(prev).add(result.payload.id));
+      optimisticFeedbackSubmitRef.current = false;
       clearFeedbackFormDraft(projectId);
+      setReconcilingFeedbackIds((prev) => new Set(prev).add(result.payload.id));
       feedbackInputRef.current?.focus();
+    } else {
+      const d = loadFeedbackFormDraft(projectId);
+      setInput(d.text);
+      imageAttachment.resetTo(d.images);
+      setPriority(d.priority);
+      optimisticFeedbackSubmitRef.current = false;
     }
   };
 

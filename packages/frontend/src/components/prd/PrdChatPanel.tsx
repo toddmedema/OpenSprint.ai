@@ -1,4 +1,4 @@
-import { useState, useRef, useLayoutEffect, useCallback, useEffect } from "react";
+import { useState, useRef, useLayoutEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AGENT_ROLE_LABELS, type AgentRole } from "@opensprint/shared";
@@ -6,7 +6,8 @@ import { ChatInput } from "../ChatInput";
 import { ChatIcon, ChevronLeftIcon, ChevronRightIcon, SparklesIcon } from "../icons/PrdIcons";
 import { CloseButton } from "../CloseButton";
 import { formatSectionKey } from "../../lib/formatting";
-import { clearTextDraft, loadTextDraft, saveTextDraft } from "../../lib/agentInputDraftStorage";
+import { loadTextDraft } from "../../lib/agentInputDraftStorage";
+import { useOptimisticTextDraft } from "../../hooks/useOptimisticTextDraft";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -88,6 +89,11 @@ export function PrdChatPanel({
   const [chatInput, setChatInput] = useState(() =>
     draftStorageKey ? loadTextDraft(draftStorageKey) : ""
   );
+  const { beginSend, onSuccess, onFailure } = useOptimisticTextDraft(
+    draftStorageKey,
+    chatInput,
+    setChatInput
+  );
   const [localSendBusy, setLocalSendBusy] = useState(false);
   const chatMessagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -101,11 +107,6 @@ export function PrdChatPanel({
   useLayoutEffect(() => {
     setChatInput(draftStorageKey ? loadTextDraft(draftStorageKey) : "");
   }, [draftStorageKey]);
-
-  useEffect(() => {
-    if (!draftStorageKey) return;
-    saveTextDraft(draftStorageKey, chatInput);
-  }, [draftStorageKey, chatInput]);
 
   const scrollToBottom = useCallback(() => {
     const scrollEl = scrollContainerRef.current ?? chatMessagesEndRef.current?.parentElement;
@@ -143,16 +144,31 @@ export function PrdChatPanel({
     const text = chatInput.trim();
     if (!text || sending || localSendBusy) return;
     setLocalSendBusy(true);
+    if (draftStorageKey) {
+      beginSend(text);
+    }
     try {
       const outcome = await Promise.resolve(onSend(text));
       if (outcome !== false) {
-        setChatInput("");
-        if (draftStorageKey) clearTextDraft(draftStorageKey);
+        onSuccess();
+      } else {
+        onFailure();
       }
+    } catch {
+      if (draftStorageKey) onFailure();
     } finally {
       setLocalSendBusy(false);
     }
-  }, [chatInput, sending, localSendBusy, onSend, draftStorageKey]);
+  }, [
+    chatInput,
+    sending,
+    localSendBusy,
+    onSend,
+    draftStorageKey,
+    beginSend,
+    onSuccess,
+    onFailure,
+  ]);
 
   const handleSend = useCallback(() => {
     void runSend();

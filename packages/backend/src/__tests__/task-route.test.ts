@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import request from "supertest";
 import fs from "fs/promises";
 import path from "path";
@@ -524,7 +524,7 @@ Test review prompt generation.
   );
 
   it(
-    "GET /tasks returns waiting_to_merge and mergePausedUntil/mergeWaitingOnMain for task in merge pipeline",
+    "GET /tasks and GET /tasks/:taskId return waiting_to_merge and mergePausedUntil/mergeWaitingOnMain for merge pipeline task (integration)",
     { timeout: 20000 },
     async () => {
       const wtmTask = await taskStore.create(projectId, "Waiting to merge task", {
@@ -543,6 +543,14 @@ Test review prompt generation.
       expect(found.mergePausedUntil).toBeUndefined();
       expect(found.mergeWaitingOnMain).toBeUndefined();
 
+      let detailRes = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/tasks/${wtmTask.id}`
+      );
+      expect(detailRes.status).toBe(200);
+      expect(detailRes.body.data.kanbanColumn).toBe("waiting_to_merge");
+      expect(detailRes.body.data.mergePausedUntil).toBeUndefined();
+      expect(detailRes.body.data.mergeWaitingOnMain).toBeUndefined();
+
       const futureIso = new Date(Date.now() + 86400000).toISOString();
       await taskStore.update(projectId, wtmTask.id, {
         extra: { merge_quality_gate_paused_until: futureIso },
@@ -557,6 +565,14 @@ Test review prompt generation.
       expect(found2.kanbanColumn).toBe("waiting_to_merge");
       expect(found2.mergePausedUntil).toBe(futureIso);
       expect(found2.mergeWaitingOnMain).toBe(true);
+
+      detailRes = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/tasks/${wtmTask.id}`
+      );
+      expect(detailRes.status).toBe(200);
+      expect(detailRes.body.data.kanbanColumn).toBe("waiting_to_merge");
+      expect(detailRes.body.data.mergePausedUntil).toBe(futureIso);
+      expect(detailRes.body.data.mergeWaitingOnMain).toBe(true);
     }
   );
 

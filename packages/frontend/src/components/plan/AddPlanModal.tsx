@@ -1,13 +1,9 @@
-import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { useState, useRef, useLayoutEffect } from "react";
 import { CloseButton } from "../CloseButton";
 import { useSubmitShortcut } from "../../hooks/useSubmitShortcut";
 import { useModalA11y } from "../../hooks/useModalA11y";
-import {
-  clearTextDraft,
-  loadTextDraft,
-  planIdeaDraftStorageKey,
-  saveTextDraft,
-} from "../../lib/agentInputDraftStorage";
+import { loadTextDraft, planIdeaDraftStorageKey } from "../../lib/agentInputDraftStorage";
+import { useOptimisticTextDraft } from "../../hooks/useOptimisticTextDraft";
 
 export interface AddPlanModalProps {
   projectId: string;
@@ -18,6 +14,11 @@ export interface AddPlanModalProps {
 export function AddPlanModal({ projectId, onGenerate, onClose }: AddPlanModalProps) {
   const draftKey = planIdeaDraftStorageKey(projectId);
   const [featureDescription, setFeatureDescription] = useState(() => loadTextDraft(draftKey));
+  const { beginSend, onSuccess, onFailure } = useOptimisticTextDraft(
+    draftKey,
+    featureDescription,
+    setFeatureDescription
+  );
   const [busy, setBusy] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const featureInputRef = useRef<HTMLTextAreaElement>(null);
@@ -27,20 +28,18 @@ export function AddPlanModal({ projectId, onGenerate, onClose }: AddPlanModalPro
     setFeatureDescription(loadTextDraft(draftKey));
   }, [draftKey]);
 
-  useEffect(() => {
-    saveTextDraft(draftKey, featureDescription);
-  }, [draftKey, featureDescription]);
-
   const handleGenerate = async () => {
     const description = featureDescription.trim();
     if (!description || busy) return;
     setBusy(true);
+    beginSend(description);
     try {
       const ok = await onGenerate(description);
       if (ok) {
-        setFeatureDescription("");
-        clearTextDraft(draftKey);
+        onSuccess();
         onClose();
+      } else {
+        onFailure();
       }
     } finally {
       setBusy(false);

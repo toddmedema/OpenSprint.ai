@@ -53,12 +53,8 @@ import { OpenQuestionsBlock } from "../../components/OpenQuestionsBlock";
 import { selectTasksForEpic } from "../../store/slices/executeSlice";
 import { wsSend, wsConnect } from "../../store/middleware/websocketMiddleware";
 import { usePlanFilter } from "../../hooks/usePlanFilter";
-import {
-  chatDraftStorageKey,
-  clearTextDraft,
-  loadTextDraft,
-  saveTextDraft,
-} from "../../lib/agentInputDraftStorage";
+import { chatDraftStorageKey, loadTextDraft } from "../../lib/agentInputDraftStorage";
+import { useOptimisticTextDraft } from "../../hooks/useOptimisticTextDraft";
 import { useAutoScroll } from "../../hooks/useAutoScroll";
 import { VirtualizedAgentOutput } from "../../components/execute/VirtualizedAgentOutput";
 import { CollapsibleSection } from "../../components/execute/CollapsibleSection";
@@ -591,6 +587,15 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
 
   // Use selectedPlanId when available so chat can display even before plans load (e.g. deep link)
   const planContext = selectedPlanId ? `plan:${selectedPlanId}` : null;
+  const planChatDraftKey = useMemo(
+    () => (planContext ? chatDraftStorageKey(projectId, planContext) : undefined),
+    [projectId, planContext]
+  );
+  const { beginSend, onSuccess, onFailure } = useOptimisticTextDraft(
+    planChatDraftKey,
+    chatInput,
+    setChatInput
+  );
   const currentChatMessages = useMemo(
     () => (planContext ? (chatMessages[planContext] ?? []) : []),
     [planContext, chatMessages]
@@ -616,11 +621,6 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
     }
     setChatInput(loadTextDraft(chatDraftStorageKey(projectId, planContext)));
   }, [projectId, planContext]);
-
-  useEffect(() => {
-    if (!planContext) return;
-    saveTextDraft(chatDraftStorageKey(projectId, planContext), chatInput);
-  }, [projectId, planContext, chatInput]);
 
   // Auto-scroll chat to bottom only when new messages arrive (not on initial open)
   useEffect(() => {
@@ -946,14 +946,14 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
 
     const text = chatInput.trim();
     setChatSending(true);
+    beginSend(text);
 
     const result = await dispatch(
       sendPlanMessage({ projectId, message: text, context: planContext })
     );
 
     if (sendPlanMessage.fulfilled.match(result)) {
-      setChatInput("");
-      clearTextDraft(chatDraftStorageKey(projectId, planContext));
+      onSuccess();
       const response = result.payload?.response;
       if (response?.planUpdate && selectedPlanId) {
         await dispatch(
@@ -971,6 +971,8 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
       }
       // Refetch chat history so persisted messages are authoritative in Redux (survives reload)
       void planChatQuery.refetch();
+    } else {
+      onFailure();
     }
 
     setChatSending(false);

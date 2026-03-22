@@ -193,6 +193,8 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
   const [tocCollapsed, setTocCollapsedState] = useState(loadSketchTocSidebarCollapsed);
   const [sketchContext, setSketchContext] = useState<{ hasExistingCode: boolean } | null>(null);
   const [generatingFromCodebase, setGeneratingFromCodebase] = useState(false);
+  /** While true, empty composer + persist effect must not clear the recovery draft in localStorage. */
+  const optimisticInitialSubmitRef = useRef(false);
 
   const setDiscussCollapsed = useCallback((collapsed: boolean) => {
     setDiscussCollapsedState(collapsed);
@@ -208,9 +210,17 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
     const d = loadSketchInitialPromptDraft(projectId);
     setInitialInput(d.text);
     imageAttachment.resetTo(d.images);
+    optimisticInitialSubmitRef.current = false;
   }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps -- resetTo is stable
 
   useEffect(() => {
+    if (
+      optimisticInitialSubmitRef.current &&
+      !initialInput.trim() &&
+      imageAttachment.images.length === 0
+    ) {
+      return;
+    }
     saveSketchInitialPromptDraft(projectId, {
       text: initialInput,
       images: imageAttachment.images,
@@ -445,6 +455,17 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
     const text = initialInput.trim();
     if (text.length < 10 || sending) return;
 
+    const attachedImages = imageAttachment.images;
+    const images = attachedImages.length > 0 ? attachedImages : undefined;
+
+    saveSketchInitialPromptDraft(projectId, {
+      text: initialInput,
+      images: attachedImages,
+    });
+    optimisticInitialSubmitRef.current = true;
+    setInitialInput("");
+    imageAttachment.resetTo([]);
+
     dispatch(
       addUserMessage({
         role: "user",
@@ -453,13 +474,16 @@ export function SketchPhase({ projectId, onNavigateToPlan }: SketchPhaseProps) {
       })
     );
 
-    const images = imageAttachment.images.length > 0 ? imageAttachment.images : undefined;
     const result = await dispatch(sendSketchMessage({ projectId, message: text, images }));
     if (sendSketchMessage.fulfilled.match(result)) {
-      setInitialInput("");
-      imageAttachment.reset();
+      optimisticInitialSubmitRef.current = false;
       clearSketchInitialPromptDraft(projectId);
       triggerRefreshCascade();
+    } else {
+      const d = loadSketchInitialPromptDraft(projectId);
+      setInitialInput(d.text);
+      imageAttachment.resetTo(d.images);
+      optimisticInitialSubmitRef.current = false;
     }
   }, [initialInput, sending, projectId, dispatch, imageAttachment, triggerRefreshCascade]);
 
