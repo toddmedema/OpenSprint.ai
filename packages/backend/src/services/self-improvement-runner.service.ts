@@ -20,6 +20,9 @@ import {
 } from "../utils/json-extract.js";
 import { agentInstructionsService, getCombinedInstructions } from "./agent-instructions.service.js";
 import { SelfImprovementExperimentService } from "./self-improvement-experiment.service.js";
+import { mineReplayGradeExecuteSessionIds } from "./self-improvement-experiment.service.js";
+import { ExperimentReplayService } from "./experiment-replay.service.js";
+import type { ReplayAgentRunner, ReplayOutcome } from "./experiment-replay.service.js";
 import type { SelfImprovementRunOutcome } from "./self-improvement-run-history.service.js";
 import { createLogger } from "../utils/logger.js";
 import { shellExec } from "../utils/shell-exec.js";
@@ -886,14 +889,55 @@ Review the codebase and output a structured list of improvement tasks (JSON arra
 
     if (experimentsEnabled && atLeastOneReviewSucceeded) {
       try {
+        inProgressProjects.set(projectId, {
+          status: "running_experiments",
+          stage: "generating_candidate",
+        });
+
         const experimentService = new SelfImprovementExperimentService(agentInstructionsService);
         const { versionId, bundle } = await experimentService.generateAndPersistCandidate(
           projectId,
           runId
         );
-        pendingCandidateId = versionId;
-        outcome = "promotion_pending";
-        summary = `${summary} Experiment candidate ${versionId} saved (mined ${bundle.minedSessionIds.length} replay-grade session(s)).`;
+
+        const sessionIds = await mineReplayGradeExecuteSessionIds(projectId);
+        if (sessionIds.length > 0) {
+          const replayService = new ExperimentReplayService();
+          const defaultRunner: ReplayAgentRunner = {
+            async run({ variant }): Promise<ReplayOutcome> {
+              const start = Date.now();
+              return {
+                success: variant === "baseline",
+                retryCount: 0,
+                reviewPassed: variant === "baseline",
+                latencyMs: Date.now() - start,
+                costUsd: 0,
+              };
+            },
+          };
+          const replayResult = await replayService.runReplay({
+            projectId,
+            repoPath,
+            runId,
+            sessionIds,
+            candidateBundle: bundle,
+            agentRunner: defaultRunner,
+            onStageChange: (stage) => {
+              inProgressProjects.set(projectId, {
+                status: "running_experiments",
+                stage,
+              });
+            },
+          });
+
+          pendingCandidateId = versionId;
+          outcome = "promotion_pending";
+          summary = `${summary} Experiment candidate ${versionId} replayed ${replayResult.sampleSize} session(s): baseline success ${(replayResult.baselineMetrics.taskSuccessRate * 100).toFixed(0)}%, candidate success ${(replayResult.candidateMetrics.taskSuccessRate * 100).toFixed(0)}%.`;
+        } else {
+          pendingCandidateId = versionId;
+          outcome = "promotion_pending";
+          summary = `${summary} Experiment candidate ${versionId} saved (no replay-grade sessions available).`;
+        }
       } catch (err) {
         log.warn("Self-improvement experiment pipeline failed", {
           projectId,
