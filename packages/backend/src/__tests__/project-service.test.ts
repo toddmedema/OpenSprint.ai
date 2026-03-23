@@ -1270,6 +1270,80 @@ describe("ProjectService", () => {
     expect(after.projects.some((p) => p.id === project.id)).toBe(false);
   });
 
+  it("createProject prunes stale index entries when reusing a deleted repo path", async () => {
+    const repoPath = path.join(tempDir, "reused-project-path");
+    await fs.mkdir(path.join(tempDir, ".opensprint"), { recursive: true });
+    const indexPath = path.join(tempDir, ".opensprint", "projects.json");
+    await fs.writeFile(
+      indexPath,
+      JSON.stringify({
+        projects: [
+          {
+            id: "stale-project",
+            name: "test",
+            repoPath,
+            createdAt: "2024-01-01T00:00:00.000Z",
+          },
+        ],
+      })
+    );
+
+    const project = await projectService.createProject({
+      name: "Something Awesome",
+      repoPath,
+      simpleComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      complexComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    const projects = await projectService.listProjects();
+    expect(projects).toHaveLength(1);
+    expect(projects[0]?.id).toBe(project.id);
+    expect(projects[0]?.name).toBe("Something Awesome");
+
+    const indexRaw = await fs.readFile(indexPath, "utf-8");
+    const index = JSON.parse(indexRaw) as {
+      projects: Array<{ id: string; name: string; repoPath: string }>;
+    };
+    expect(index.projects).toHaveLength(1);
+    expect(index.projects[0]?.id).toBe(project.id);
+    expect(index.projects[0]?.name).toBe("Something Awesome");
+    expect(index.projects[0]?.repoPath).toBe(repoPath);
+  });
+
+  it("listProjects deduplicates matching repo paths and keeps the active project entry", async () => {
+    const repoPath = path.join(tempDir, "duplicate-project-path");
+    const project = await projectService.createProject({
+      name: "Something Awesome",
+      repoPath,
+      simpleComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      complexComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    const indexPath = path.join(tempDir, ".opensprint", "projects.json");
+    const indexRaw = await fs.readFile(indexPath, "utf-8");
+    const index = JSON.parse(indexRaw) as {
+      projects: Array<{ id: string; name: string; repoPath: string; createdAt: string }>;
+    };
+    index.projects.unshift({
+      id: "stale-project",
+      name: "test",
+      repoPath,
+      createdAt: "2024-01-01T00:00:00.000Z",
+    });
+    await fs.writeFile(indexPath, JSON.stringify(index));
+    projectService.clearListCacheForTesting();
+
+    const projects = await projectService.listProjects();
+    expect(projects).toHaveLength(1);
+    expect(projects[0]?.id).toBe(project.id);
+    expect(projects[0]?.name).toBe("Something Awesome");
+    expect(projects[0]?.repoPath).toBe(repoPath);
+  });
+
   it.skip("deleteProject cascades delete of open_questions for the project (requires real task-store DB)", async () => {
     const repoPath = path.join(tempDir, "delete-oq-test");
     const project = await projectService.createProject({

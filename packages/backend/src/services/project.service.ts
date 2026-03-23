@@ -11,6 +11,7 @@ import type {
   ScaffoldProjectResponse,
   ScaffoldRecoveryInfo,
 } from "@opensprint/shared";
+import type { ProjectIndexEntry } from "@opensprint/shared";
 import {
   OPENSPRINT_DIR,
   SPEC_MD,
@@ -198,6 +199,26 @@ function normalizeValidationSample(raw: number): number | null {
   const rounded = Math.round(raw);
   if (rounded <= 0) return null;
   return Math.min(rounded, MAX_VALIDATION_TIMEOUT_MS);
+}
+
+function isPreferredRepoPathEntry(
+  candidate: { updatedAt: string | null; createdAt: string },
+  current: { updatedAt: string | null; createdAt: string }
+): boolean {
+  if (candidate.updatedAt !== null && current.updatedAt === null) {
+    return true;
+  }
+  if (candidate.updatedAt === null && current.updatedAt !== null) {
+    return false;
+  }
+
+  const candidateSortKey = candidate.updatedAt ?? candidate.createdAt;
+  const currentSortKey = current.updatedAt ?? current.createdAt;
+  if (candidateSortKey !== currentSortKey) {
+    return candidateSortKey > currentSortKey;
+  }
+
+  return candidate.createdAt > current.createdAt;
 }
 
 /** Default agent config used when creating or repairing settings (e.g. adopt path). */
@@ -403,31 +424,71 @@ export class ProjectService {
     return { hadHead: repoState.hasHead, baseBranch };
   }
 
+  private async getPreferredProjectEntry(entries: ProjectIndexEntry[]): Promise<ProjectIndexEntry> {
+    let preferred = entries[0];
+    let preferredMeta = await getSettingsWithMetaFromStore(preferred.id, buildDefaultSettings());
+
+    for (const entry of entries.slice(1)) {
+      const entryMeta = await getSettingsWithMetaFromStore(entry.id, buildDefaultSettings());
+      if (
+        isPreferredRepoPathEntry(
+          { updatedAt: entryMeta.updatedAt, createdAt: entry.createdAt },
+          { updatedAt: preferredMeta.updatedAt, createdAt: preferred.createdAt }
+        )
+      ) {
+        preferred = entry;
+        preferredMeta = entryMeta;
+      }
+    }
+
+    return preferred;
+  }
+
   /** List all projects (cached; invalidated on create/update/delete). Settings are in global DB. */
   async listProjects(): Promise<Project[]> {
     if (this.listCache !== null) {
       return this.listCache;
     }
     const entries = await projectIndex.getProjects();
-    const projects: Project[] = [];
+    const projectsByRepoPath = new Map<
+      string,
+      { project: Project; settingsUpdatedAt: string | null; createdAt: string }
+    >();
 
     for (const entry of entries) {
       try {
         await fs.access(path.join(entry.repoPath, OPENSPRINT_DIR));
         const { updatedAt } = await getSettingsWithMetaFromStore(entry.id, buildDefaultSettings());
-        projects.push({
+        const project: Project = {
           id: entry.id,
           name: entry.name,
           repoPath: entry.repoPath,
           currentPhase: "sketch",
           createdAt: entry.createdAt,
           updatedAt: updatedAt ?? entry.createdAt,
-        });
+        };
+        const normalizedRepoPath = normalizeRepoPath(entry.repoPath);
+        const existing = projectsByRepoPath.get(normalizedRepoPath);
+
+        if (
+          !existing ||
+          isPreferredRepoPathEntry(
+            { updatedAt, createdAt: entry.createdAt },
+            { updatedAt: existing.settingsUpdatedAt, createdAt: existing.createdAt }
+          )
+        ) {
+          projectsByRepoPath.set(normalizedRepoPath, {
+            project,
+            settingsUpdatedAt: updatedAt,
+            createdAt: entry.createdAt,
+          });
+        }
       } catch {
         // Project directory may no longer exist — skip it
       }
     }
 
+    const projects = Array.from(projectsByRepoPath.values(), (value) => value.project);
     this.listCache = projects;
     return projects;
   }
@@ -444,6 +505,7 @@ export class ProjectService {
       throw new AppError(400, ErrorCodes.INVALID_INPUT, "Project folder is required");
     }
     assertSupportedRepoPath(repoPath);
+    const normalizedRepoPath = normalizeRepoPath(repoPath);
 
     // Validate agent config schema (accept new or legacy keys)
     const simpleInput = input.simpleComplexityAgent ?? input.lowComplexityAgent;
@@ -460,15 +522,16 @@ export class ProjectService {
 
     const id = randomUUID();
     const now = new Date().toISOString();
+    const existingEntries = (await projectIndex.getProjects()).filter(
+      (entry) => normalizeRepoPath(entry.repoPath) === normalizedRepoPath
+    );
 
     // If path already has Open Sprint, return the existing project instead of creating
     const opensprintDir = path.join(repoPath, OPENSPRINT_DIR);
     try {
       await fs.access(opensprintDir);
-      const normalized = normalizeRepoPath(repoPath);
-      const entries = await projectIndex.getProjects();
-      const existing = entries.find((e) => normalizeRepoPath(e.repoPath) === normalized);
-      if (existing) {
+      if (existingEntries.length > 0) {
+        const existing = await this.getPreferredProjectEntry(existingEntries);
         return this.getProject(existing.id);
       }
       // Repo has .opensprint but no index entry (e.g. index from another machine or cleared). Adopt it.
@@ -477,7 +540,7 @@ export class ProjectService {
       await projectIndex.addProject({
         id: adoptId,
         name: adoptName,
-        repoPath: normalized,
+        repoPath: normalizedRepoPath,
         createdAt: now,
       });
       // Ensure settings exist in global store so getSettings() and Sketch/Plan flows work (PRD §6.3).
@@ -488,6 +551,10 @@ export class ProjectService {
     } catch (err) {
       if (err instanceof AppError) throw err;
       // Directory doesn't exist — proceed
+    }
+
+    for (const entry of existingEntries) {
+      await projectIndex.removeProject(entry.id);
     }
 
     // Ensure repo directory exists
