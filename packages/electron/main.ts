@@ -52,6 +52,31 @@ let quitAfterBackendStop = false;
 let backendStartupInProgress = false;
 let backendPort = DEFAULT_BACKEND_PORT;
 
+process.on("unhandledRejection", (reason) => {
+  const msg = reason instanceof Error ? reason.stack ?? reason.message : String(reason);
+  console.error("[Electron] Unhandled promise rejection (caught by safety net):", msg);
+  try {
+    const logDir = path.join(os.homedir(), ".opensprint", "logs");
+    fs.mkdirSync(logDir, { recursive: true });
+    fs.appendFileSync(
+      path.join(logDir, "unhandled-errors.log"),
+      `[${new Date().toISOString()}] unhandledRejection: ${msg}\n`
+    );
+  } catch { /* best effort */ }
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("[Electron] Uncaught exception (caught by safety net):", error.stack ?? error.message);
+  try {
+    const logDir = path.join(os.homedir(), ".opensprint", "logs");
+    fs.mkdirSync(logDir, { recursive: true });
+    fs.appendFileSync(
+      path.join(logDir, "unhandled-errors.log"),
+      `[${new Date().toISOString()}] uncaughtException: ${error.stack ?? error.message}\n`
+    );
+  } catch { /* best effort */ }
+});
+
 app.setName(APP_NAME);
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {

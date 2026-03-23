@@ -642,8 +642,28 @@ async function repairQualityGateEnvironment(
     outputParts.push(`[symlinkNodeModules] ${getErrorMessage(err)}`);
   }
 
+  let succeeded = recreateSucceeded && npmCiSucceeded && symlinkSucceeded;
+
+  if (succeeded) {
+    const criticalFiles = ["package.json"];
+    const missing: string[] = [];
+    for (const file of criticalFiles) {
+      try {
+        await fs.access(path.join(worktreePath, file));
+      } catch {
+        missing.push(file);
+      }
+    }
+    if (missing.length > 0) {
+      succeeded = false;
+      outputParts.push(
+        `[post-repair verification] Critical files still missing after repair: ${missing.join(", ")}`
+      );
+    }
+  }
+
   return {
-    succeeded: recreateSucceeded && npmCiSucceeded && symlinkSucceeded,
+    succeeded,
     commands,
     output: outputParts.join("\n").slice(0, QUALITY_GATE_FAILURE_OUTPUT_LIMIT),
     worktreePath,

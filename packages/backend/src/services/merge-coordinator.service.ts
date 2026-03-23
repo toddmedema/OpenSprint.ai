@@ -1590,8 +1590,8 @@ export class MergeCoordinatorService {
           baseBranch,
         });
         await this.markMergeValidationHealthy(projectId, repoPath);
-        this.invalidateBaselineCacheAfterMerge(projectId, baseBranch);
         await this.reconcileDependenciesAfterMerge(repoPath, task.id);
+        this.invalidateBaselineCacheAfterMerge(projectId, baseBranch);
       } catch (mergeErr) {
         log.warn("Merge epic to main failed", { taskId: task.id, branchName, mergeErr });
         await this.requeueTaskAfterMergeFailure(projectId, repoPath, task, mergeErr as Error);
@@ -1669,8 +1669,8 @@ export class MergeCoordinatorService {
         baseBranch,
       });
       await this.markMergeValidationHealthy(projectId, repoPath);
-      this.invalidateBaselineCacheAfterMerge(projectId, baseBranch);
       await this.reconcileDependenciesAfterMerge(repoPath, task.id);
+      this.invalidateBaselineCacheAfterMerge(projectId, baseBranch);
     } catch (mergeErr) {
       log.warn("Merge to main failed", { taskId: task.id, branchName, mergeErr });
       await this.requeueTaskAfterMergeFailure(projectId, repoPath, task, mergeErr as Error);

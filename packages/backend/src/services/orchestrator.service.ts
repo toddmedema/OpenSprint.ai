@@ -141,6 +141,9 @@ import type {
 const LOOP_KICKER_INTERVAL_MS = 60 * 1000;
 const CODING_RESULT_EXPECTED_SHAPE =
   'a JSON object like {"status":"success","summary":"..."} or {"status":"failed","summary":"...","open_questions":[{"id":"q1","text":"..."}]}';
+
+/** Auto-block a task after this many consecutive "success" results with an empty diff. */
+const MAX_CONSECUTIVE_EMPTY_DIFFS = 2;
 const REVIEW_RESULT_EXPECTED_SHAPE =
   'a JSON object like {"status":"approved","summary":"..."} or {"status":"rejected","summary":"...","issues":["..."],"notes":"..."}';
 
@@ -2070,6 +2073,39 @@ export class OrchestratorService {
         baseBranch
       );
       slot.phaseResult.codingSummary = result.summary ?? "";
+
+      const diffIsEmpty = !slot.phaseResult.codingDiff.trim();
+      if (diffIsEmpty) {
+        const prev = ((task as Record<string, unknown>).consecutiveEmptyDiffs as number) || 0;
+        const consecutiveEmptyDiffs = prev + 1;
+        if (consecutiveEmptyDiffs >= MAX_CONSECUTIVE_EMPTY_DIFFS) {
+          log.warn("Empty-diff circuit breaker: blocking task after consecutive empty diffs", {
+            taskId: task.id,
+            consecutiveEmptyDiffs,
+          });
+          await this.failureHandler.handleTaskFailure(
+            projectId,
+            repoPath,
+            task,
+            branchName,
+            `Agent reported success but produced no code changes on ${consecutiveEmptyDiffs} consecutive attempts. ` +
+              "The task likely lacks sufficient context for the agent to act on. Blocking for investigation.",
+            null,
+            "coding_failure"
+          );
+          return;
+        }
+        await this.taskStore.update(projectId, task.id, {
+          extra: { consecutiveEmptyDiffs },
+        });
+      } else {
+        const prev = ((task as Record<string, unknown>).consecutiveEmptyDiffs as number) || 0;
+        if (prev > 0) {
+          await this.taskStore.update(projectId, task.id, {
+            extra: { consecutiveEmptyDiffs: 0 },
+          });
+        }
+      }
 
       const testCommand = resolveTestCommand(settings) || undefined;
       let changedFiles: string[] = [];

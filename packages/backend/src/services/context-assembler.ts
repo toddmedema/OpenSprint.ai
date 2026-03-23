@@ -565,9 +565,10 @@ export class ContextAssembler {
       prompt += `## AI Autonomy Level\n\n${autonomyDesc}\n\n`;
     }
 
-    if (config.qualityGateDetail && !config.previousFailure) {
+    if (config.qualityGateDetail) {
       const detail = config.qualityGateDetail;
-      prompt += `## Quality Gate Failure\n\n`;
+      const heading = config.previousFailure ? `### Quality Gate Failure` : `## Quality Gate Failure`;
+      prompt += `${heading}\n\n`;
       prompt += `The baseline quality gates are failing on the base branch. You must fix the failure before reporting success.\n\n`;
       if (detail.command) {
         prompt += `Failed command: \`${detail.command}\`\n\n`;
@@ -580,7 +581,12 @@ export class ContextAssembler {
       if (detail.outputSnippet) {
         prompt += `Condensed gate output:\n\n\`\`\`\n${detail.outputSnippet.slice(0, 2000)}\n\`\`\`\n\n`;
       }
-      prompt += `Reproduce the failure locally in your worktree, identify the root cause, apply a fix, verify the fix passes, and commit your changes.\n\n`;
+      if (detail.worktreePath && config.previousFailure) {
+        prompt += `Gate worktree: \`${detail.worktreePath}\`\n\n`;
+      }
+      prompt += config.previousFailure
+        ? `Fix the merge-gate failure directly before reporting success.\n\n`
+        : `Reproduce the failure locally in your worktree, identify the root cause, apply a fix, verify the fix passes, and commit your changes.\n\n`;
     }
 
     if (config.previousFailure) {
@@ -593,26 +599,6 @@ export class ContextAssembler {
         prompt += `\nAddress themes from earlier attempts so you do not regress fixes you already made.\n\n`;
       }
       prompt += `This is attempt ${config.attempt}. The previous attempt failed:\n${config.previousFailure}\n\n`;
-
-      if (config.qualityGateDetail) {
-        const detail = config.qualityGateDetail;
-        prompt += `### Quality Gate Failure\n\n`;
-        if (detail.command) {
-          prompt += `Failed command: \`${detail.command}\`\n\n`;
-        }
-        if (detail.firstErrorLine) {
-          prompt += `First actionable error:\n\`${detail.firstErrorLine}\`\n\n`;
-        } else if (detail.reason) {
-          prompt += `Failure reason:\n\`${detail.reason}\`\n\n`;
-        }
-        if (detail.outputSnippet) {
-          prompt += `Condensed gate output:\n\n\`\`\`\n${detail.outputSnippet.slice(0, 2000)}\n\`\`\`\n\n`;
-        }
-        if (detail.worktreePath) {
-          prompt += `Gate worktree: \`${detail.worktreePath}\`\n\n`;
-        }
-        prompt += `Fix the merge-gate failure directly before reporting success.\n\n`;
-      }
 
       if (config.previousTestOutput) {
         if (config.previousTestFailures?.trim()) {

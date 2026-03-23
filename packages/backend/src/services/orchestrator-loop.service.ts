@@ -30,6 +30,9 @@ const WORKTREE_DEFER_NUDGE_MS = 8_000;
 /** If runLoop is blocked in an await longer than this, force recovery so nudge can start a fresh loop. */
 const LOOP_STUCK_GUARD_MS = 5 * 60 * 1000;
 
+/** Baseline remediation tasks are auto-blocked after this many cumulative attempts. */
+const MAX_BASELINE_REMEDIATION_ATTEMPTS = 3;
+
 function resolveMaxNewTasksPerLoop(slotsAvailable: number): number {
   const raw = Number(process.env.OPENSPRINT_MAX_NEW_TASKS_PER_LOOP ?? "");
   if (Number.isFinite(raw) && raw > 0) {
@@ -86,6 +89,7 @@ export interface OrchestratorLoopHost {
       projectId: string
     ): Promise<{ tasks: StoredTask[]; allIssues: StoredTask[] }>;
     update(projectId: string, taskId: string, fields: Record<string, unknown>): Promise<void>;
+    getCumulativeAttemptsFromIssue(task: StoredTask): number;
   };
   getTaskScheduler(): {
     selectTasks(
@@ -227,15 +231,42 @@ export class OrchestratorLoopService {
       state.status.queueDepth = readyTasks.length;
 
       if (state.status.baselineStatus === "failing") {
+        const taskStore = this.host.getTaskStore();
         const remediationTasks = readyTasks.filter((task) =>
           this.isBaselineQualityGateRemediationTask(task)
         );
-        if (remediationTasks.length > 0) {
-          readyTasks = remediationTasks;
-          log.info("Baseline quality gates are failing; pausing non-remediation dispatch", {
+
+        const dispatchableRemediation: StoredTask[] = [];
+        for (const task of remediationTasks) {
+          const attempts = taskStore.getCumulativeAttemptsFromIssue(task);
+          if (attempts >= MAX_BASELINE_REMEDIATION_ATTEMPTS) {
+            log.warn("Baseline remediation task exceeded attempt budget; auto-blocking", {
+              projectId,
+              taskId: task.id,
+              attempts,
+              maxAttempts: MAX_BASELINE_REMEDIATION_ATTEMPTS,
+            });
+            taskStore
+              .update(projectId, task.id, {
+                status: "blocked",
+                assignee: "",
+                block_reason: `Baseline remediation failed after ${attempts} attempts`,
+              })
+              .catch((err) => log.warn("Failed to block exhausted remediation task", { err }));
+            continue;
+          }
+          dispatchableRemediation.push(task);
+        }
+
+        if (dispatchableRemediation.length > 0) {
+          const normalTasks = readyTasks.filter(
+            (task) => !this.isBaselineQualityGateRemediationTask(task)
+          );
+          readyTasks = [...dispatchableRemediation, ...normalTasks];
+          log.info("Baseline failing; prioritizing remediation but allowing normal tasks", {
             projectId,
-            dispatchPausedReason: state.status.dispatchPausedReason ?? null,
-            remediationReadyTasks: readyTasks.length,
+            remediationTasks: dispatchableRemediation.length,
+            normalTasks: normalTasks.length,
           });
         } else {
           log.warn(

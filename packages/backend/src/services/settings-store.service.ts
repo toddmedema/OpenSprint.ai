@@ -110,26 +110,49 @@ export async function getSettingsWithMetaFromStore(
 }
 
 /**
+ * File-level lock: serializes ALL read-modify-write operations on settings.json.
+ * Without this, concurrent setSettingsInStore / updateSettingsInStore / deleteSettingsFromStore
+ * calls (even for different projects) race on the shared file and can clobber each other.
+ */
+let storeLock: Promise<void> = Promise.resolve();
+
+function withStoreLock<T>(fn: () => Promise<T>): Promise<T> {
+  let release: () => void;
+  const next = new Promise<void>((r) => {
+    release = r;
+  });
+  const prev = storeLock;
+  storeLock = prev.then(() => next);
+  return prev.then(async () => {
+    try {
+      return await fn();
+    } finally {
+      release!();
+    }
+  });
+}
+
+/**
  * Set settings for a project. Strips apiKeys before persisting (project-level keys deprecated).
  */
 export async function setSettingsInStore(
   projectId: string,
   settings: ProjectSettings
 ): Promise<void> {
-  const store = await loadStore();
-  const now = new Date().toISOString();
-  const toStore = stripApiKeys(
-    settings as unknown as Record<string, unknown>
-  ) as unknown as ProjectSettings;
-  store[projectId] = { settings: toStore, updatedAt: now };
-  await saveStore(store);
+  return withStoreLock(async () => {
+    const store = await loadStore();
+    const now = new Date().toISOString();
+    const toStore = stripApiKeys(
+      settings as unknown as Record<string, unknown>
+    ) as unknown as ProjectSettings;
+    store[projectId] = { settings: toStore, updatedAt: now };
+    await saveStore(store);
+  });
 }
 
-/** Per-project lock for atomic updates (avoids race conditions on concurrent limitHitAt updates) */
-const updateLocks = new Map<string, Promise<void>>();
-
 /**
- * Atomically update project settings. Serializes concurrent updates per projectId.
+ * Atomically update project settings via read-modify-write.
+ * Serialized by the file-level lock so concurrent writes cannot clobber each other.
  * Uses defaults when project has no stored settings.
  */
 export async function updateSettingsInStore(
@@ -137,17 +160,7 @@ export async function updateSettingsInStore(
   defaults: ProjectSettings,
   updater: (settings: ProjectSettings) => ProjectSettings
 ): Promise<void> {
-  const prev = updateLocks.get(projectId) ?? Promise.resolve();
-  let resolve: () => void;
-  const next = new Promise<void>((r) => {
-    resolve = r;
-  });
-  updateLocks.set(
-    projectId,
-    prev.then(() => next)
-  );
-  await prev;
-  try {
+  return withStoreLock(async () => {
     const store = await loadStore();
     const entry = store[projectId];
     const current = entry?.settings ?? defaults;
@@ -158,18 +171,18 @@ export async function updateSettingsInStore(
     ) as unknown as ProjectSettings;
     store[projectId] = { settings: toStore, updatedAt: now };
     await saveStore(store);
-  } finally {
-    resolve!();
-  }
+  });
 }
 
 /**
  * Remove settings for a project (e.g. on project delete).
  */
 export async function deleteSettingsFromStore(projectId: string): Promise<void> {
-  const store = await loadStore();
-  if (projectId in store) {
-    delete store[projectId];
-    await saveStore(store);
-  }
+  return withStoreLock(async () => {
+    const store = await loadStore();
+    if (projectId in store) {
+      delete store[projectId];
+      await saveStore(store);
+    }
+  });
 }

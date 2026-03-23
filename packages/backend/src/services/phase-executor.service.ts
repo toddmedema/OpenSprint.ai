@@ -117,6 +117,26 @@ export class PhaseExecutorService {
     return this.host.hasActiveTask(projectId, taskId);
   }
 
+  private isBaselineQualityGateTask(task: StoredTask): boolean {
+    const record = task as Record<string, unknown>;
+    return (
+      record.source === "self-improvement" &&
+      (record.selfImprovementKind === "baseline-quality-gate" ||
+        record.baselineQualityGateSource === "merge-quality-gate-baseline")
+    );
+  }
+
+  private promptHasActionableQualityGateContext(promptContent: string): boolean {
+    const markers = [
+      "Failed command:",
+      "First actionable error:",
+      "Failure reason:",
+      "Condensed gate output:",
+      "Quality Gate Failure",
+    ];
+    return markers.some((marker) => promptContent.includes(marker));
+  }
+
   async executeCodingPhase(
     projectId: string,
     repoPath: string,
@@ -306,6 +326,27 @@ export class PhaseExecutorService {
 
       const taskDir = this.host.sessionManager.getActiveDir(wtPath, task.id);
       const promptPath = path.join(taskDir, "prompt.md");
+
+      if (this.isBaselineQualityGateTask(task)) {
+        const promptContent = await fs.readFile(promptPath, "utf-8").catch(() => "");
+        if (!this.promptHasActionableQualityGateContext(promptContent)) {
+          log.warn("Baseline quality gate task has no actionable error context in prompt; blocking", {
+            taskId: task.id,
+            attempt: slot.attempt,
+          });
+          this.callbacks.handleTaskFailure(
+            projectId,
+            repoPath,
+            task,
+            branchName,
+            "Baseline quality gate remediation task has no actionable error information (no failed command, error line, or test file). " +
+              "Blocking to prevent empty-diff retries.",
+            null,
+            "coding_failure"
+          );
+          return;
+        }
+      }
 
       const complexity = await getComplexityForAgent(
         projectId,

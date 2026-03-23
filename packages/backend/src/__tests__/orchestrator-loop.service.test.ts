@@ -130,6 +130,7 @@ describe("OrchestratorLoopService", () => {
       getTaskStore: vi.fn().mockReturnValue({
         readyWithStatusMap: vi.fn().mockResolvedValue({ tasks: readyTasks, allIssues: readyTasks }),
         update: vi.fn().mockResolvedValue(undefined),
+        getCumulativeAttemptsFromIssue: vi.fn().mockReturnValue(0),
       }),
       getTaskScheduler: vi.fn().mockReturnValue({
         selectTasks: vi.fn().mockResolvedValue(
@@ -253,7 +254,7 @@ describe("OrchestratorLoopService", () => {
     expect(state.globalTimers.has("loop")).toBe(false);
   });
 
-  it("dispatches only remediation tasks when baseline is failing and remediation tasks are ready", async () => {
+  it("prioritizes remediation tasks but allows normal tasks when baseline is failing", async () => {
     const remediationTask = {
       ...buildTask("os-fix"),
       source: "self-improvement",
@@ -265,20 +266,29 @@ describe("OrchestratorLoopService", () => {
     host.getTaskStore = vi.fn().mockReturnValue({
       readyWithStatusMap: vi.fn().mockResolvedValue({ tasks: allTasks, allIssues: allTasks }),
       update: vi.fn().mockResolvedValue(undefined),
+      getCumulativeAttemptsFromIssue: vi.fn().mockReturnValue(0),
     });
     host.getTaskScheduler = vi.fn().mockReturnValue({
-      selectTasks: vi.fn().mockResolvedValue([{ task: remediationTask }]),
+      selectTasks: vi.fn().mockResolvedValue([{ task: remediationTask }, { task: normalTask }]),
     });
     state.status.baselineStatus = "failing";
 
     await service.runLoop(projectId);
 
-    expect(dispatchTask).toHaveBeenCalledTimes(1);
-    expect(dispatchTask).toHaveBeenCalledWith(
+    expect(dispatchTask).toHaveBeenCalledTimes(2);
+    expect(dispatchTask).toHaveBeenNthCalledWith(
+      1,
       projectId,
       repoPath,
       expect.objectContaining({ id: "os-fix" }),
-      0
+      expect.any(Number)
+    );
+    expect(dispatchTask).toHaveBeenNthCalledWith(
+      2,
+      projectId,
+      repoPath,
+      expect.objectContaining({ id: "os-normal" }),
+      expect.any(Number)
     );
   });
 
@@ -288,6 +298,7 @@ describe("OrchestratorLoopService", () => {
     host.getTaskStore = vi.fn().mockReturnValue({
       readyWithStatusMap: vi.fn().mockResolvedValue({ tasks: normalTasks, allIssues: normalTasks }),
       update: vi.fn().mockResolvedValue(undefined),
+      getCumulativeAttemptsFromIssue: vi.fn().mockReturnValue(0),
     });
     host.getTaskScheduler = vi.fn().mockReturnValue({
       selectTasks: vi

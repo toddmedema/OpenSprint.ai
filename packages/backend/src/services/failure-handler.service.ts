@@ -82,6 +82,14 @@ const CURSOR_PROVIDER_OUTAGE_PATTERNS: RegExp[] = [
   /\bcursor api error\b.*\b(fetch failed|socket hang up|econnreset|econnrefused|enotfound|eai_again|unable to connect|connection error)\b/i,
 ];
 
+const GENERIC_PROVIDER_OUTAGE_PATTERNS: RegExp[] = [
+  /\brate limit\b/i,
+  /\b429\b.*\b(too many requests|rate)\b/i,
+  /\btoo many requests\b/i,
+  /\bquota exceeded\b/i,
+  /\binsufficient.credits\b/i,
+];
+
 type FailureDiagnosticDetail = {
   command: string | null;
   reason: string | null;
@@ -614,6 +622,15 @@ export class FailureHandlerService {
     if (cursorProviderOutageFailure && agentProvider === "CURSOR_API_KEY") {
       providerOutageBackoff = markProviderOutageBackoff(projectId, agentProvider, effectiveReason);
       nextAction = `Pause new Cursor launches until ${providerOutageBackoff.until}`;
+    } else if (
+      !providerOutageBackoff &&
+      agentProvider &&
+      failureType === "no_result" &&
+      !offlineConnectivityFailure &&
+      GENERIC_PROVIDER_OUTAGE_PATTERNS.some((p) => p.test(effectiveReason))
+    ) {
+      providerOutageBackoff = markProviderOutageBackoff(projectId, agentProvider, effectiveReason);
+      nextAction = `Pause dispatching (rate limit / quota) until ${providerOutageBackoff.until}`;
     }
     // Surface failures in the notification system only when not a review-phase failure, or when
     // we will block (review notifications are created in blockTask when retries exceed limit).
