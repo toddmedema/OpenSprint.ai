@@ -73,6 +73,7 @@ jobs:
           xcodebuild -version
           actool --version
       - run: npm ci
+      - run: npm run verify:electron-builder-publish
       - run: npm run build
       - run: npm run build:mac -w packages/electron
       - name: Verify signed and notarized app
@@ -128,6 +129,7 @@ jobs:
           TAG_VERSION: ${{ github.ref_name }}
         run: node scripts/set-version-from-tag.js
       - run: npm ci
+      - run: npm run verify:electron-builder-publish
       - run: npm run build
       - run: npm run build:win:x64 -w packages/electron
       - run: npm run build:win:arm64 -w packages/electron
@@ -156,6 +158,7 @@ jobs:
           TAG_VERSION: ${{ github.ref_name }}
         run: node scripts/set-version-from-tag.js
       - run: npm ci
+      - run: npm run verify:electron-builder-publish
       - run: npm run build
       - run: npm run build:linux -w packages/electron
       - uses: softprops/action-gh-release@v2
@@ -185,6 +188,7 @@ jobs:
     needs: create-release
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Postgres sidecar: align health options with merge-gate (scripts/ci/run-perf-stack.sh).
     services:
       postgres:
         image: postgres:16-alpine
@@ -216,17 +220,4 @@ jobs:
       - name: Run perf check (start backend + frontend, then perf:ci)
         env:
           DATABASE_URL: postgres://opensprint:opensprint@localhost:5432/opensprint
-        run: |
-          npm run start -w packages/backend &
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:3100/health >/dev/null 2>&1; then break; fi
-            if [ $i -eq 30 ]; then echo "Backend health check timeout"; exit 1; fi
-            sleep 1
-          done
-          npm run dev -w packages/frontend &
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:5173/ >/dev/null 2>&1; then break; fi
-            if [ $i -eq 30 ]; then echo "Frontend health check timeout"; exit 1; fi
-            sleep 1
-          done
-          npm run perf:ci
+        run: bash scripts/ci/run-perf-stack.sh

@@ -183,7 +183,7 @@ describe("PrdSectionEditor", () => {
     expect(editor?.className).toMatch(/prose-code:text-theme-text/);
   });
 
-  it("uses light mode styles only when lightMode prop is true", async () => {
+  it("uses lightMode prose (no dark:prose-invert) but dark selection highlight for plan embed", async () => {
     const { container } = render(
       <PrdSectionEditor sectionKey="overview" markdown="Content" onSave={vi.fn()} lightMode />
     );
@@ -195,7 +195,8 @@ describe("PrdSectionEditor", () => {
     const editor = container.querySelector("[contenteditable]");
     expect(editor).toBeTruthy();
     expect(editor?.className).toMatch(/text-theme-text/);
-    expect(editor?.className).not.toMatch(/dark:/);
+    expect(editor?.className).not.toMatch(/dark:prose-invert/);
+    expect(editor?.className).toMatch(/dark:selection:bg-brand-900\/40/);
   });
 
   it("flushes pending save on unmount so edits persist when navigating away", async () => {

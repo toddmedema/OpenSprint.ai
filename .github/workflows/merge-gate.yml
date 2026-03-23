@@ -23,6 +23,8 @@ jobs:
       fail-fast: false
       matrix:
         gate: [build, lint, test]
+    # Postgres sidecar: keep image/env/health options aligned with merge-gate perf and
+    # release-desktop perf-check (see scripts/ci/wait-for-tcp.mjs + run-perf-stack.sh).
     services:
       postgres:
         image: postgres:16-alpine
@@ -60,9 +62,15 @@ jobs:
           node scripts/affected-workspaces.mjs --coverage-only --json > artifacts/test-results/affected-workspaces.json
           WORKSPACES="$(node -e 'const fs = require("fs"); const data = JSON.parse(fs.readFileSync("artifacts/test-results/affected-workspaces.json", "utf8")); process.stdout.write((data.workspaces || []).join(","));')"
           echo "workspaces=$WORKSPACES" >> "$GITHUB_OUTPUT"
+      - name: Wait for Postgres TCP (belt-and-suspenders with service health)
+        if: matrix.gate == 'test'
+        run: node scripts/ci/wait-for-tcp.mjs 127.0.0.1 5432 60
       - name: Verify desktop artifact names (fixed for permalinks)
         if: matrix.gate == 'build'
         run: npm run verify:desktop-artifacts
+      - name: Verify electron-builder always disables publish in CI scripts
+        if: matrix.gate == 'build'
+        run: npm run verify:electron-builder-publish
       - name: Run gate
         if: matrix.gate != 'test'
         run: npm run ${{ matrix.gate }}
@@ -109,6 +117,7 @@ jobs:
     name: perf
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Postgres: POSTGRES_DB must match DATABASE_URL database name below (opensprint_test).
     services:
       postgres:
         image: postgres:16-alpine
@@ -135,18 +144,5 @@ jobs:
         run: npm run build
       - name: Run perf check (start backend + frontend, then perf:ci)
         env:
-          DATABASE_URL: postgres://opensprint:opensprint@localhost:5432/opensprint
-        run: |
-          npm run start -w packages/backend &
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:3100/health >/dev/null 2>&1; then break; fi
-            if [ $i -eq 30 ]; then echo "Backend health check timeout"; exit 1; fi
-            sleep 1
-          done
-          npm run dev -w packages/frontend &
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:5173/ >/dev/null 2>&1; then break; fi
-            if [ $i -eq 30 ]; then echo "Frontend health check timeout"; exit 1; fi
-            sleep 1
-          done
-          npm run perf:ci
+          DATABASE_URL: postgres://opensprint:opensprint@localhost:5432/opensprint_test
+        run: bash scripts/ci/run-perf-stack.sh

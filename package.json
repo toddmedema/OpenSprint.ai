@@ -24,6 +24,7 @@
     "test:coverage:affected": "node scripts/run-affected-tests.mjs test:coverage",
     "test:timings": "node scripts/test-timings.mjs",
     "verify:source": "bash scripts/verify-source-imports.sh",
+    "verify:electron-builder-publish": "npm test -w packages/electron",
     "verify:desktop-artifacts": "node scripts/verify-desktop-artifact-names.js",
     "branch-protection:apply": "bash scripts/apply-branch-protection.sh",
     "lint": "npm run lint --workspaces --if-present -- --max-warnings=0",
