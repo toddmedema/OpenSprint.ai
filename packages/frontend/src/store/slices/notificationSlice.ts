@@ -1,7 +1,5 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import { CONNECTION_TOAST_MESSAGE_PATTERN } from "../../lib/connectionNotificationConstants";
-import type { ToastPosition } from "../../components/notifications/ToastStack";
-import type { NotificationVariant } from "../../components/notifications/notificationStyles";
 
 export type NotificationSeverity = "error" | "warning" | "info" | "success";
 export type NotificationPresentation = "toast" | "inline";
@@ -11,8 +9,6 @@ export interface Notification {
   message: string;
   severity: NotificationSeverity;
   presentation?: NotificationPresentation;
-  position?: ToastPosition;
-  variant?: NotificationVariant;
   /** Auto-dismiss timeout in ms. 0 = persistent. Default: 8000 for info/success, 0 for error/warning. */
   timeout?: number;
   createdAt: number;
@@ -23,10 +19,6 @@ export interface AddNotificationPayload {
   severity?: NotificationSeverity;
   /** "toast" appears in floating stack; "inline" is reserved for context-specific rendering. */
   presentation?: NotificationPresentation;
-  /** Where the toast appears. Default: "top-right". */
-  position?: ToastPosition;
-  /** Visual variant. Default: "bold". */
-  variant?: NotificationVariant;
   /** Override auto-dismiss. 0 = persistent. */
   timeout?: number;
 }
@@ -54,14 +46,7 @@ export const notificationSlice = createSlice({
   initialState,
   reducers: {
     addNotification(state, action: PayloadAction<AddNotificationPayload>) {
-      const {
-        message,
-        severity = "info",
-        presentation = "toast",
-        position = "top-right",
-        variant = "bold",
-        timeout,
-      } = action.payload;
+      const { message, severity = "info", presentation = "toast", timeout } = action.payload;
       if (CONNECTION_TOAST_MESSAGE_PATTERN.test(message)) {
         const hasConnectionToast = state.items.some((n) =>
           CONNECTION_TOAST_MESSAGE_PATTERN.test(n.message)
@@ -74,8 +59,6 @@ export const notificationSlice = createSlice({
         message,
         severity,
         presentation,
-        position,
-        variant,
         timeout: effectiveTimeout,
         createdAt: Date.now(),
       });

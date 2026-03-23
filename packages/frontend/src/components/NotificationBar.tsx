@@ -1,8 +1,8 @@
 import { useCallback, useMemo } from "react";
 import { useAppDispatch, useAppSelector } from "../store";
-import { dismissNotification, type Notification } from "../store/slices/notificationSlice";
+import { dismissNotification } from "../store/slices/notificationSlice";
 import { Toast, ToastStack } from "./notifications";
-import type { NotificationSeverity, NotificationVariant } from "./notifications";
+import type { NotificationSeverity } from "./notifications";
 
 export function NotificationBar() {
   const dispatch = useAppDispatch();
@@ -13,49 +13,25 @@ export function NotificationBar() {
     [notifications]
   );
 
-  const topRight = useMemo(
-    () => toasts.filter((t) => (t.position ?? "top-right") === "top-right"),
-    [toasts]
+  const handleDismiss = useCallback(
+    (id: string) => dispatch(dismissNotification(id)),
+    [dispatch]
   );
-  const bottomRight = useMemo(() => toasts.filter((t) => t.position === "bottom-right"), [toasts]);
 
-  const handleDismiss = useCallback((id: string) => dispatch(dismissNotification(id)), [dispatch]);
+  if (toasts.length === 0) return null;
 
   return (
-    <>
-      {topRight.length > 0 && (
-        <ToastStack position="top-right" testId="notification-toast-stack">
-          {topRight.map((n) => (
-            <ToastItem key={n.id} notification={n} onDismiss={() => handleDismiss(n.id)} />
-          ))}
-        </ToastStack>
-      )}
-      {bottomRight.length > 0 && (
-        <ToastStack position="bottom-right" testId="toast-stack-bottom-right">
-          {bottomRight.map((n) => (
-            <ToastItem key={n.id} notification={n} onDismiss={() => handleDismiss(n.id)} />
-          ))}
-        </ToastStack>
-      )}
-    </>
-  );
-}
-
-function ToastItem({
-  notification,
-  onDismiss,
-}: {
-  notification: Notification;
-  onDismiss: () => void;
-}) {
-  return (
-    <Toast
-      severity={notification.severity as NotificationSeverity}
-      variant={(notification.variant ?? "bold") as NotificationVariant}
-      message={notification.message}
-      onDismiss={onDismiss}
-      timeout={notification.timeout}
-      testId={`notification-${notification.severity}`}
-    />
+    <ToastStack>
+      {toasts.map((n) => (
+        <Toast
+          key={n.id}
+          severity={n.severity as NotificationSeverity}
+          message={n.message}
+          onDismiss={() => handleDismiss(n.id)}
+          timeout={n.timeout}
+          testId={`notification-${n.severity}`}
+        />
+      ))}
+    </ToastStack>
   );
 }

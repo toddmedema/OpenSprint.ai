@@ -581,14 +581,7 @@ export const websocketMiddleware: Middleware = (storeApi) => {
 
       case "deliver.started":
         d(deliverStarted({ deployId: event.deployId }));
-        d(
-          addToast({
-            message: "Delivery started",
-            severity: "info",
-            position: "bottom-right",
-            variant: "muted",
-          })
-        );
+        d(addToast({ message: "Delivery started", severity: "info" }));
         break;
 
       case "deliver.output":
@@ -607,8 +600,6 @@ export const websocketMiddleware: Middleware = (storeApi) => {
           addToast({
             message: event.success ? "Delivery succeeded" : "Delivery failed",
             severity: event.success ? "success" : "error",
-            position: "bottom-right",
-            variant: "muted",
           })
         );
         void qc.invalidateQueries({ queryKey: queryKeys.deliver.status(projectId) });

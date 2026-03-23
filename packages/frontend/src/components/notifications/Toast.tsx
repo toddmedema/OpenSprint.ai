@@ -1,11 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { NotificationIcon } from "./NotificationIcon";
 import { DismissButton } from "./DismissButton";
-import {
-  getNotificationClasses,
-  type NotificationSeverity,
-  type NotificationVariant,
-} from "./notificationStyles";
+import { getNotificationClasses, type NotificationSeverity } from "./notificationStyles";
 
 export interface ToastAction {
   label: string;
@@ -14,7 +10,6 @@ export interface ToastAction {
 
 export interface ToastProps {
   severity: NotificationSeverity;
-  variant?: NotificationVariant;
   message: string;
   onDismiss: () => void;
   actions?: ToastAction[];
@@ -26,7 +21,6 @@ export interface ToastProps {
 
 export function Toast({
   severity,
-  variant = "bold",
   message,
   onDismiss,
   actions,
@@ -48,7 +42,7 @@ export function Toast({
     };
   }, [timeout, onDismiss]);
 
-  const colorClasses = getNotificationClasses(severity, variant);
+  const colorClasses = getNotificationClasses(severity, "muted");
 
   return (
     <div
@@ -69,7 +63,7 @@ export function Toast({
           {a.label}
         </button>
       ))}
-      <DismissButton onDismiss={onDismiss} variant={variant} />
+      <DismissButton onDismiss={onDismiss} variant="muted" />
     </div>
   );
 }

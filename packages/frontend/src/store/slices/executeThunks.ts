@@ -142,14 +142,7 @@ export const updateTaskPriority = createAsyncThunk(
       return { task, taskId };
     } catch (err) {
       if (!isConnectionError(err)) {
-        dispatch(
-          addNotification({
-            message: "Failed to update priority",
-            severity: "error",
-            position: "bottom-right",
-            variant: "muted",
-          })
-        );
+        dispatch(addNotification({ message: "Failed to update priority", severity: "error" }));
       }
       return rejectWithValue({ previousPriority });
     }
@@ -170,14 +163,7 @@ export const updateTaskAssignee = createAsyncThunk(
         return rejectWithValue({ message: err.message, code: err.code });
       }
       if (!isConnectionError(err)) {
-        dispatch(
-          addNotification({
-            message: "Failed to update assignee",
-            severity: "error",
-            position: "bottom-right",
-            variant: "muted",
-          })
-        );
+        dispatch(addNotification({ message: "Failed to update assignee", severity: "error" }));
       }
       return rejectWithValue(err instanceof Error ? err.message : "Failed to update assignee");
     }
