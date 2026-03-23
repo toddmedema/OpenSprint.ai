@@ -73,10 +73,10 @@ export function formatTaskDuration(
 /**
  * Formats a timestamp as relative time ("5m ago", "2h ago") or locale date string.
  * @param ts ISO 8601 timestamp string
+ * @param now Optional reference time (defaults to now). Used for live updates.
  */
-export function formatTimestamp(ts: string): string {
+export function formatTimestamp(ts: string, now: Date = new Date()): string {
   const d = new Date(ts);
-  const now = new Date();
   const diffMs = now.getTime() - d.getTime();
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);

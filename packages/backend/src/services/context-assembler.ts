@@ -567,7 +567,9 @@ export class ContextAssembler {
 
     if (config.qualityGateDetail) {
       const detail = config.qualityGateDetail;
-      const heading = config.previousFailure ? `### Quality Gate Failure` : `## Quality Gate Failure`;
+      const heading = config.previousFailure
+        ? `### Quality Gate Failure`
+        : `## Quality Gate Failure`;
       prompt += `${heading}\n\n`;
       prompt += `The baseline quality gates are failing on the base branch. You must fix the failure before reporting success.\n\n`;
       if (detail.command) {

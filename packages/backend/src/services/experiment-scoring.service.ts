@@ -34,7 +34,7 @@ const GUARDRAIL = {
   /** Max acceptable increase in retry rate (absolute). */
   retryRateIncrease: 0.15,
   /** Max acceptable decrease in review pass rate (absolute). */
-  reviewPassRateDecrease: 0.10,
+  reviewPassRateDecrease: 0.1,
   /** Max acceptable latency multiplier over baseline. */
   latencyMultiplier: 2.0,
   /** Max acceptable cost multiplier over baseline. */

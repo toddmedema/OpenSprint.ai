@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Provider } from "react-redux";
@@ -48,6 +48,10 @@ function renderWithStore(ui: React.ReactElement) {
 }
 
 describe("BuildEpicCard", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("renders epic title and progress bar", () => {
     const onTaskSelect = vi.fn();
     const tasks = [
@@ -228,6 +232,7 @@ describe("BuildEpicCard", () => {
   });
 
   it("shows elapsed time when taskIdToStartedAt is provided for active task", () => {
+    vi.useFakeTimers();
     const mockNow = new Date("2026-02-17T12:02:35.000Z");
     vi.setSystemTime(mockNow);
     const tasks = [

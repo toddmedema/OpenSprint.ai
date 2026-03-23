@@ -136,8 +136,12 @@ const { mockAnthropicStream, mockAnthropicCreate } = vi.hoisted(() => ({
 vi.mock("@anthropic-ai/sdk", () => ({
   default: vi.fn().mockImplementation(() => ({
     messages: {
-      stream: (opts: { model: string; max_tokens: number; system?: unknown; messages: unknown[] }) =>
-        mockAnthropicStream(opts),
+      stream: (opts: {
+        model: string;
+        max_tokens: number;
+        system?: unknown;
+        messages: unknown[];
+      }) => mockAnthropicStream(opts),
       create: (opts: { model: string; max_tokens: number; system?: string; messages: unknown[] }) =>
         mockAnthropicCreate(opts),
     },
@@ -145,7 +149,9 @@ vi.mock("@anthropic-ai/sdk", () => ({
 }));
 
 /** Anthropic SDK: messages.stream() + finalMessage() (non-streaming create is disallowed for long runs). */
-function createMockAnthropicMessageStream(message: { content: Array<{ type: string; text?: string }> }) {
+function createMockAnthropicMessageStream(message: {
+  content: Array<{ type: string; text?: string }>;
+}) {
   const stream = {
     on(_ev: string, _fn: (text: string) => void) {
       return stream;
@@ -931,18 +937,20 @@ describe("AgentClient", () => {
     });
 
     it("should retry Ollama streaming when the stream only emits reasoning", async () => {
-      mockOpenAICreate.mockImplementation(async (opts: { stream?: boolean; max_tokens?: number }) => {
-        if (opts?.stream) {
-          async function* stream() {
-            yield { choices: [{ delta: { reasoning: "thinking" } }] };
-            yield { choices: [{ finish_reason: "length" }] };
+      mockOpenAICreate.mockImplementation(
+        async (opts: { stream?: boolean; max_tokens?: number }) => {
+          if (opts?.stream) {
+            async function* stream() {
+              yield { choices: [{ delta: { reasoning: "thinking" } }] };
+              yield { choices: [{ finish_reason: "length" }] };
+            }
+            return stream();
           }
-          return stream();
+          return {
+            choices: [{ message: { content: "Recovered Ollama response" } }],
+          };
         }
-        return {
-          choices: [{ message: { content: "Recovered Ollama response" } }],
-        };
-      });
+      );
 
       const onChunk = vi.fn();
       const result = await client.invoke({
@@ -1623,7 +1631,9 @@ describe("AgentClient", () => {
         source: "global",
       });
       mockAnthropicStream.mockImplementation(() =>
-        createMockAnthropicMessageStream({ content: [{ type: "text", text: "Claude API output." }] })
+        createMockAnthropicMessageStream({
+          content: [{ type: "text", text: "Claude API output." }],
+        })
       );
 
       const onOutput = vi.fn();
@@ -1797,21 +1807,23 @@ describe("AgentClient", () => {
       const taskFilePath = path.join(taskDir, "prompt.md");
       await fs.writeFile(taskFilePath, "# Task\n\nUse Ollama", "utf-8");
 
-      mockOpenAICreate.mockImplementation(async (opts: { stream?: boolean; max_tokens?: number }) => {
-        if (mockOpenAICreate.mock.calls.length === 1) {
-          throw new Error("400 tool calling unsupported");
-        }
-        if (opts?.stream) {
-          async function* stream() {
-            yield { choices: [{ delta: { reasoning: "thinking" } }] };
-            yield { choices: [{ finish_reason: "length" }] };
+      mockOpenAICreate.mockImplementation(
+        async (opts: { stream?: boolean; max_tokens?: number }) => {
+          if (mockOpenAICreate.mock.calls.length === 1) {
+            throw new Error("400 tool calling unsupported");
           }
-          return stream();
+          if (opts?.stream) {
+            async function* stream() {
+              yield { choices: [{ delta: { reasoning: "thinking" } }] };
+              yield { choices: [{ finish_reason: "length" }] };
+            }
+            return stream();
+          }
+          return {
+            choices: [{ message: { content: "Recovered Ollama task output" } }],
+          };
         }
-        return {
-          choices: [{ message: { content: "Recovered Ollama task output" } }],
-        };
-      });
+      );
 
       const onOutput = vi.fn();
       const onExit = vi.fn();

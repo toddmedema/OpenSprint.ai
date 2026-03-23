@@ -7,26 +7,27 @@ import { selectTaskById } from "../../store/slices/executeSlice";
 import { PriorityIcon } from "../PriorityIcon";
 import { ComplexityIcon } from "../ComplexityIcon";
 import { TaskStatusBadge, COLUMN_LABELS } from "./TaskStatusBadge";
-import { formatUptime } from "../../lib/formatting";
+import { UptimeDisplay } from "../UptimeDisplay";
 
 const VISIBLE_SUBTASKS = 3;
 /** Virtualize when expanded and task count exceeds this (avoids virtualization for small lists; improves testability in jsdom). */
 const VIRTUALIZE_THRESHOLD = 10;
 const TASK_ROW_HEIGHT = 44;
 const EPIC_TASK_LIST_MAX_HEIGHT = 320;
+const ACTIVE_TASK_TICK_MS = 10_000;
 
 /** Task row: subscribes to single task for granular re-renders when task.updated fires. When task prop is provided (e.g. tests), use it instead of Redux. */
 const EpicTaskRow = memo(function EpicTaskRow({
   taskId,
   task: taskProp,
-  elapsed,
+  startedAt,
   onTaskSelect,
   onUnblock,
   unblockingTaskId,
 }: {
   taskId: string;
   task?: Task;
-  elapsed: string | null;
+  startedAt?: string;
   onTaskSelect: (taskId: string) => void;
   onUnblock?: (taskId: string) => void;
   unblockingTaskId?: string | null;
@@ -36,7 +37,8 @@ const EpicTaskRow = memo(function EpicTaskRow({
   if (!task) return null;
 
   const isUnblocking = Boolean(unblockingTaskId && unblockingTaskId === task.id);
-  const rightContent = [task.assignee, elapsed].filter(Boolean).join(" · ");
+  const assignee = task.assignee?.trim() || null;
+  const showRightContent = Boolean(assignee || startedAt);
   return (
     <li data-testid={task.kanbanColumn === "blocked" ? "task-blocked" : undefined}>
       <div className="flex items-center gap-2 px-4 py-2.5 group">
@@ -65,12 +67,20 @@ const EpicTaskRow = memo(function EpicTaskRow({
               Self-improvement
             </span>
           )}
-          {rightContent ? (
+          {showRightContent ? (
             <span
               className="text-xs text-theme-muted shrink-0 tabular-nums"
               data-testid="task-row-right"
             >
-              {rightContent}
+              {assignee ? <span>{assignee}</span> : null}
+              {assignee && startedAt ? <span aria-hidden> · </span> : null}
+              {startedAt ? (
+                <UptimeDisplay
+                  startedAt={startedAt}
+                  tickMs={ACTIVE_TASK_TICK_MS}
+                  className="text-inherit tabular-nums"
+                />
+              ) : null}
             </span>
           ) : null}
         </button>
@@ -289,9 +299,7 @@ export function BuildEpicCard({
                         <EpicTaskRow
                           taskId={t.id}
                           task={useTaskProp ? t : undefined}
-                          elapsed={
-                            taskIdToStartedAt[t.id] ? formatUptime(taskIdToStartedAt[t.id]) : null
-                          }
+                          startedAt={taskIdToStartedAt[t.id]}
                           onTaskSelect={onTaskSelect}
                           onUnblock={onUnblock}
                           unblockingTaskId={unblockingTaskId}
@@ -309,7 +317,7 @@ export function BuildEpicCard({
                   key={t.id}
                   taskId={t.id}
                   task={useTaskProp ? t : undefined}
-                  elapsed={taskIdToStartedAt[t.id] ? formatUptime(taskIdToStartedAt[t.id]) : null}
+                  startedAt={taskIdToStartedAt[t.id]}
                   onTaskSelect={onTaskSelect}
                   onUnblock={onUnblock}
                   unblockingTaskId={unblockingTaskId}

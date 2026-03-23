@@ -69,20 +69,26 @@ describe("BehaviorVersionStore", () => {
     });
   });
 
-  it.skipIf(!client)("readActivePromotedReplayBinding reads pointer and template from store", async () => {
-    const store = new BehaviorVersionStore(() => client!);
-    await store.promoteToActive("proj-x", "bv-read", "2026-03-21T09:00:00.000Z", "tpl-read");
+  it.skipIf(!client)(
+    "readActivePromotedReplayBinding reads pointer and template from store",
+    async () => {
+      const store = new BehaviorVersionStore(() => client!);
+      await store.promoteToActive("proj-x", "bv-read", "2026-03-21T09:00:00.000Z", "tpl-read");
 
-    const binding = await store.readActivePromotedReplayBinding("proj-x");
-    expect(binding).toEqual({
-      behaviorVersionId: "bv-read",
-      templateVersionId: "tpl-read",
-    });
-  });
+      const binding = await store.readActivePromotedReplayBinding("proj-x");
+      expect(binding).toEqual({
+        behaviorVersionId: "bv-read",
+        templateVersionId: "tpl-read",
+      });
+    }
+  );
 
-  it.skipIf(!client)("readActivePromotedReplayBinding returns null when no project_behavior_state row", async () => {
-    const store = new BehaviorVersionStore(() => client!);
-    const binding = await store.readActivePromotedReplayBinding("proj-empty");
-    expect(binding).toBeNull();
-  });
+  it.skipIf(!client)(
+    "readActivePromotedReplayBinding returns null when no project_behavior_state row",
+    async () => {
+      const store = new BehaviorVersionStore(() => client!);
+      const binding = await store.readActivePromotedReplayBinding("proj-empty");
+      expect(binding).toBeNull();
+    }
+  );
 });

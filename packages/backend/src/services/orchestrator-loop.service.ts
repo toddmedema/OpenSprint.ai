@@ -414,12 +414,15 @@ export class OrchestratorLoopService {
         } catch (error) {
           if (error instanceof WorktreeBranchInUseError) {
             const deferredTask = selectedTask.task;
-            log.warn("Worktree branch in use by active agent; deferring dispatch (not a task failure)", {
-              projectId,
-              taskId: deferredTask.id,
-              otherPath: error.otherPath,
-              otherTaskId: error.otherTaskId,
-            });
+            log.warn(
+              "Worktree branch in use by active agent; deferring dispatch (not a task failure)",
+              {
+                projectId,
+                taskId: deferredTask.id,
+                otherPath: error.otherPath,
+                otherTaskId: error.otherTaskId,
+              }
+            );
             this.host.removeSlot(state, deferredTask.id);
             try {
               await taskStore.update(projectId, deferredTask.id, {
@@ -456,9 +459,13 @@ export class OrchestratorLoopService {
               otherWorktreePath: error.otherPath ?? null,
             });
             state.globalTimers.clear("worktreeBranchDeferNudge");
-            state.globalTimers.setTimeout("worktreeBranchDeferNudge", () => {
-              this.host.nudge(projectId);
-            }, WORKTREE_DEFER_NUDGE_MS);
+            state.globalTimers.setTimeout(
+              "worktreeBranchDeferNudge",
+              () => {
+                this.host.nudge(projectId);
+              },
+              WORKTREE_DEFER_NUDGE_MS
+            );
             await this.broadcastExecuteStatus(projectId);
             continue;
           }
@@ -483,14 +490,18 @@ export class OrchestratorLoopService {
       log.error(`Orchestrator loop error for project ${projectId}`, { error });
       if (state.loopRunId === myRunId) {
         state.loopActive = false;
-        state.globalTimers.setTimeout("loop", () => {
-          void this.host.runLoop(projectId).catch((err) => {
-            log.error("Deferred orchestrator loop run failed after error recovery", {
-              projectId,
-              err,
+        state.globalTimers.setTimeout(
+          "loop",
+          () => {
+            void this.host.runLoop(projectId).catch((err) => {
+              log.error("Deferred orchestrator loop run failed after error recovery", {
+                projectId,
+                err,
+              });
             });
-          });
-        }, 10000);
+          },
+          10000
+        );
       }
     } finally {
       state.globalTimers.clear("loopStuckGuard");

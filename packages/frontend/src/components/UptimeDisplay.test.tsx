@@ -36,4 +36,23 @@ describe("UptimeDisplay", () => {
 
     vi.useRealTimers();
   });
+
+  it("supports slower shared tick cadences", () => {
+    vi.setSystemTime(new Date("2026-02-16T12:00:00.000Z"));
+
+    render(
+      <UptimeDisplay startedAt="2026-02-16T11:59:55.000Z" tickMs={10_000} className="text-test" />
+    );
+    expect(screen.getByText("5s")).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(9_000);
+    });
+    expect(screen.getByText("5s")).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(screen.getByText("15s")).toBeInTheDocument();
+  });
 });

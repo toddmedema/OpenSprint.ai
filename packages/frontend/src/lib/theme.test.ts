@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { getStoredTheme, setStoredTheme, getResolvedTheme, applyTheme } from "./theme";
+import {
+  getStoredTheme,
+  setStoredTheme,
+  getResolvedTheme,
+  applyTheme,
+  applyResolvedTheme,
+} from "./theme";
 
 describe("theme", () => {
   const storage: Record<string, string> = {};
@@ -97,10 +103,12 @@ describe("theme", () => {
       const doc = document.documentElement;
       applyTheme("light");
       expect(doc.getAttribute("data-theme")).toBe("light");
+      expect(doc.style.colorScheme).toBe("light");
       expect(storage["opensprint.theme"]).toBe("light");
 
       applyTheme("dark");
       expect(doc.getAttribute("data-theme")).toBe("dark");
+      expect(doc.style.colorScheme).toBe("dark");
       expect(storage["opensprint.theme"]).toBe("dark");
     });
 
@@ -108,9 +116,24 @@ describe("theme", () => {
       matchMediaMatches = true;
       applyTheme("system");
       expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+      expect(document.documentElement.style.colorScheme).toBe("dark");
       matchMediaMatches = false;
       applyTheme("system");
       expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+      expect(document.documentElement.style.colorScheme).toBe("light");
+    });
+  });
+
+  describe("applyResolvedTheme", () => {
+    it("keeps browser chrome in sync with the resolved theme", () => {
+      const doc = document.documentElement;
+      applyResolvedTheme("dark");
+      expect(doc.getAttribute("data-theme")).toBe("dark");
+      expect(doc.style.colorScheme).toBe("dark");
+
+      applyResolvedTheme("light");
+      expect(doc.getAttribute("data-theme")).toBe("light");
+      expect(doc.style.colorScheme).toBe("light");
     });
   });
 });

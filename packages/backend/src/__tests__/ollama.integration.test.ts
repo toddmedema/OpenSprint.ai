@@ -24,7 +24,9 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL;
 const UNREACHABLE_BASE_URL = "http://127.0.0.1:19998";
 
 function ollamaAvailable(): boolean {
-  return Boolean(OLLAMA_URL && OLLAMA_URL.trim().length > 0 && OLLAMA_MODEL && OLLAMA_MODEL.trim().length > 0);
+  return Boolean(
+    OLLAMA_URL && OLLAMA_URL.trim().length > 0 && OLLAMA_MODEL && OLLAMA_MODEL.trim().length > 0
+  );
 }
 
 describe("Ollama integration", () => {
@@ -109,11 +111,11 @@ describe("Ollama integration", () => {
           }
           raw += decoder.decode();
 
-          expect(raw).toContain("\"chat.completion.chunk\"");
-          expect(raw).toContain("\"reasoning\"");
+          expect(raw).toContain('"chat.completion.chunk"');
+          expect(raw).toContain('"reasoning"');
           const firstContentIndex = raw.search(/"content":"[^"]+"/);
           expect(firstContentIndex).toBeGreaterThanOrEqual(0);
-          expect(raw.indexOf("\"reasoning\"")).toBeLessThan(firstContentIndex);
+          expect(raw.indexOf('"reasoning"')).toBeLessThan(firstContentIndex);
         }, 60_000);
       }
     );

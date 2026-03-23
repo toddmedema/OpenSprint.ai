@@ -26,7 +26,7 @@ function CollapsibleSectionInner({
   headerId: string;
   /** Optional. Defaults to "p-4 pt-0". Use for compact sections (e.g. Description). */
   contentClassName?: string;
-  /** Optional wrapper around the whole section (e.g. callout styling for Assumptions). */
+  /** Optional wrapper around the whole section. */
   containerClassName?: string;
   children: React.ReactNode;
 }) {

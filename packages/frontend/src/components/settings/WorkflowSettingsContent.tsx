@@ -127,11 +127,14 @@ export function WorkflowSettingsContent({
   useEffect(() => {
     if (focusParam === "self-improvement" && selfImprovementCardRef.current) {
       selfImprovementCardRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        next.delete("focus");
-        return next;
-      }, { replace: true });
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete("focus");
+          return next;
+        },
+        { replace: true }
+      );
     }
   }, [focusParam, setSearchParams]);
 
@@ -181,8 +184,7 @@ export function WorkflowSettingsContent({
   } | null>(null);
 
   const approveMutation = useMutation({
-    mutationFn: () =>
-      api.projects.approveSelfImprovement(projectId, siStatus.pendingCandidateId),
+    mutationFn: () => api.projects.approveSelfImprovement(projectId, siStatus.pendingCandidateId),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.projects.selfImprovementStatus(projectId),
@@ -203,8 +205,7 @@ export function WorkflowSettingsContent({
   });
 
   const rejectMutation = useMutation({
-    mutationFn: () =>
-      api.projects.rejectSelfImprovement(projectId, siStatus.pendingCandidateId),
+    mutationFn: () => api.projects.rejectSelfImprovement(projectId, siStatus.pendingCandidateId),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.projects.selfImprovementStatus(projectId),
@@ -233,14 +234,21 @@ export function WorkflowSettingsContent({
     setDraftSettings((current) => updater(current));
   };
 
-  const renderMetricRow = (label: string, baseline: number, candidate: number, higherIsBetter: boolean) => {
+  const renderMetricRow = (
+    label: string,
+    baseline: number,
+    candidate: number,
+    higherIsBetter: boolean
+  ) => {
     const improved = higherIsBetter ? candidate > baseline : candidate < baseline;
     const changed = candidate !== baseline;
     return (
       <tr key={label} className="border-b border-theme-border last:border-b-0">
         <td className="py-1 text-theme-text">{label}</td>
         <td className="py-1 text-right text-theme-muted">{formatPercent(baseline)}</td>
-        <td className={`py-1 text-right font-medium ${changed ? (improved ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400") : "text-theme-text"}`}>
+        <td
+          className={`py-1 text-right font-medium ${changed ? (improved ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400") : "text-theme-text"}`}
+        >
           {formatPercent(candidate)}
         </td>
       </tr>
@@ -656,9 +664,7 @@ export function WorkflowSettingsContent({
                 }}
                 className="rounded border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-0"
               />
-              <span className="text-sm text-theme-text">
-                Run experiments to enhance agents
-              </span>
+              <span className="text-sm text-theme-text">Run experiments to enhance agents</span>
             </label>
 
             <div
@@ -690,14 +696,9 @@ export function WorkflowSettingsContent({
                   />
                 </svg>
               )}
-              <span data-testid="self-improvement-status-label">
-                {statusLabel(siStatus)}
-              </span>
+              <span data-testid="self-improvement-status-label">{statusLabel(siStatus)}</span>
               {siStatus.stage && (
-                <span
-                  className="ml-1 italic"
-                  data-testid="self-improvement-stage-label"
-                >
+                <span className="ml-1 italic" data-testid="self-improvement-stage-label">
                   — {STAGE_LABELS[siStatus.stage]}
                 </span>
               )}
@@ -719,9 +720,7 @@ export function WorkflowSettingsContent({
 
                 {siStatus.candidateDiff && siStatus.candidateDiff.length > 0 && (
                   <div data-testid="approval-candidate-diff">
-                    <h5 className="text-xs font-semibold text-theme-text mb-1">
-                      Proposed changes
-                    </h5>
+                    <h5 className="text-xs font-semibold text-theme-text mb-1">Proposed changes</h5>
                     <div className="space-y-2">
                       {siStatus.candidateDiff.map((entry: CandidateDiffEntry) => (
                         <div
@@ -752,7 +751,8 @@ export function WorkflowSettingsContent({
 
                 {siStatus.replaySampleSize != null && (
                   <p className="text-xs text-theme-muted" data-testid="approval-replay-sample-size">
-                    Replay sample size: <span className="font-medium text-theme-text">{siStatus.replaySampleSize}</span>
+                    Replay sample size:{" "}
+                    <span className="font-medium text-theme-text">{siStatus.replaySampleSize}</span>
                   </p>
                 )}
 
@@ -766,15 +766,34 @@ export function WorkflowSettingsContent({
                         <tr className="border-b border-theme-border">
                           <th className="text-left py-1 text-theme-muted font-medium">Metric</th>
                           <th className="text-right py-1 text-theme-muted font-medium">Baseline</th>
-                          <th className="text-right py-1 text-theme-muted font-medium">Candidate</th>
+                          <th className="text-right py-1 text-theme-muted font-medium">
+                            Candidate
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
-                        {renderMetricRow("Task success rate", siStatus.baselineMetrics.taskSuccessRate, siStatus.candidateMetrics.taskSuccessRate, true)}
-                        {siStatus.baselineMetrics.retryRate != null && siStatus.candidateMetrics.retryRate != null &&
-                          renderMetricRow("Retry rate", siStatus.baselineMetrics.retryRate, siStatus.candidateMetrics.retryRate, false)}
-                        {siStatus.baselineMetrics.reviewPassRate != null && siStatus.candidateMetrics.reviewPassRate != null &&
-                          renderMetricRow("Review pass rate", siStatus.baselineMetrics.reviewPassRate, siStatus.candidateMetrics.reviewPassRate, true)}
+                        {renderMetricRow(
+                          "Task success rate",
+                          siStatus.baselineMetrics.taskSuccessRate,
+                          siStatus.candidateMetrics.taskSuccessRate,
+                          true
+                        )}
+                        {siStatus.baselineMetrics.retryRate != null &&
+                          siStatus.candidateMetrics.retryRate != null &&
+                          renderMetricRow(
+                            "Retry rate",
+                            siStatus.baselineMetrics.retryRate,
+                            siStatus.candidateMetrics.retryRate,
+                            false
+                          )}
+                        {siStatus.baselineMetrics.reviewPassRate != null &&
+                          siStatus.candidateMetrics.reviewPassRate != null &&
+                          renderMetricRow(
+                            "Review pass rate",
+                            siStatus.baselineMetrics.reviewPassRate,
+                            siStatus.candidateMetrics.reviewPassRate,
+                            true
+                          )}
                       </tbody>
                     </table>
                   </div>

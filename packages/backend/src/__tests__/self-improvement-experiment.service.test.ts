@@ -59,7 +59,8 @@ describe("self-improvement-experiment.service", () => {
     } as never);
 
     const saveCandidate = vi.fn().mockResolvedValue(undefined);
-    const { runBehaviorVersionStoreWrite } = await import("../services/behavior-version-store.service.js");
+    const { runBehaviorVersionStoreWrite } =
+      await import("../services/behavior-version-store.service.js");
     vi.mocked(runBehaviorVersionStoreWrite).mockImplementation(async (fn) => {
       await fn({ saveCandidate } as never);
     });

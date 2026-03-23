@@ -1,5 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import { OpenAIAgenticAdapter, runAgenticLoop, type AgenticLoopAdapter } from "../services/agentic-loop.js";
+import {
+  OpenAIAgenticAdapter,
+  runAgenticLoop,
+  type AgenticLoopAdapter,
+} from "../services/agentic-loop.js";
 
 describe("agentic-loop", () => {
   it("runAgenticLoop returns text and exits when adapter returns no tool calls", async () => {

@@ -181,10 +181,13 @@ export function GlobalSettingsContent({ onSaveStateChange }: GlobalSettingsConte
 
   useEffect(() => {
     if (!isElectron || !window.electron?.getUpdateStatus) return;
-    window.electron.getUpdateStatus().then((status) => {
-      setAppVersion(status.version);
-      setLastUpdateCheck(status.lastCheckTimestamp);
-    }).catch(() => {});
+    window.electron
+      .getUpdateStatus()
+      .then((status) => {
+        setAppVersion(status.version);
+        setLastUpdateCheck(status.lastCheckTimestamp);
+      })
+      .catch(() => {});
   }, []);
 
   // Debounced save for database URL when value changes (immediate save on change)

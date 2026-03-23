@@ -59,10 +59,8 @@ const TEMPLATE_SNIPPETS = {
     'a JSON object like {"status":"success","summary":"..."} or {"status":"failed","summary":"..."}',
   reviewer:
     'a JSON object like {"status":"approved","summary":"..."} or {"status":"rejected","summary":"..."}',
-  finalReview:
-    '"status": "pass" | "issues"',
-  selfImprovement:
-    "Output MUST be one of:",
+  finalReview: '"status": "pass" | "issues"',
+  selfImprovement: "Output MUST be one of:",
 } as const;
 
 function overlayAfterBase(base: string, overlay: string): string {
@@ -171,7 +169,11 @@ export function buildBehaviorExperimentCandidateBundle(params: {
     promptTemplateDiffs: {
       coder: diffText("templates/coder.md", baseline.templates.coder, coderTplAfter),
       reviewer: diffText("templates/reviewer.md", baseline.templates.reviewer, reviewerTplAfter),
-      finalReview: diffText("templates/final-review.md", baseline.templates.finalReview, finalTplAfter),
+      finalReview: diffText(
+        "templates/final-review.md",
+        baseline.templates.finalReview,
+        finalTplAfter
+      ),
       selfImprovement: diffText(
         "templates/self-improvement.md",
         baseline.templates.selfImprovement,

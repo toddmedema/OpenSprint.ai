@@ -42,7 +42,10 @@ export function loadSketchInitialPromptDraft(projectId: string): SketchInitialPr
   }
 }
 
-export function saveSketchInitialPromptDraft(projectId: string, draft: SketchInitialPromptDraft): void {
+export function saveSketchInitialPromptDraft(
+  projectId: string,
+  draft: SketchInitialPromptDraft
+): void {
   if (typeof window === "undefined") return;
   try {
     const images = draft.images ?? [];

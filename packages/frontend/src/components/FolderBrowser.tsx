@@ -79,8 +79,7 @@ export function FolderBrowser({ initialPath, onSelect, onCancel }: FolderBrowser
   const containerRef = useRef<HTMLDivElement>(null);
   useModalA11y({ containerRef, onClose: onCancel, isOpen: true });
 
-  const pathEdited =
-    manualPath.trim() !== currentPath.trim();
+  const pathEdited = manualPath.trim() !== currentPath.trim();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">

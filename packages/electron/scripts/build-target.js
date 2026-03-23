@@ -62,12 +62,7 @@ function buildElectronBuilderArgs({ targetPlatform, targetArch, dir = false }) {
   if (dir) {
     args.push("--dir");
   }
-  args.push(
-    resolveBuilderPlatformFlag(targetPlatform),
-    `--${targetArch}`,
-    "--publish",
-    "never"
-  );
+  args.push(resolveBuilderPlatformFlag(targetPlatform), `--${targetArch}`, "--publish", "never");
   return args;
 }
 

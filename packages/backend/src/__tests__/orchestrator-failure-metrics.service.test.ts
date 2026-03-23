@@ -37,7 +37,12 @@ describe("orchestrator-failure-metrics.service", () => {
         event: "merge.failed",
         data: { failureType: "merge_quality_gate", stage: "quality_gate", phase: "merge" },
       },
-      { timestamp: "2025-01-08T00:00:00.000Z", projectId: "p1", taskId: "d", event: "transition.x" },
+      {
+        timestamp: "2025-01-08T00:00:00.000Z",
+        projectId: "p1",
+        taskId: "d",
+        event: "transition.x",
+      },
     ];
     const summary = rollupOrchestratorEvents("p1", since, until, events);
     expect(summary.totalEventsMatched).toBe(3);

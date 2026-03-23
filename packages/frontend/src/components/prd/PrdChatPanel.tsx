@@ -159,16 +159,7 @@ export function PrdChatPanel({
     } finally {
       setLocalSendBusy(false);
     }
-  }, [
-    chatInput,
-    sending,
-    localSendBusy,
-    onSend,
-    draftStorageKey,
-    beginSend,
-    onSuccess,
-    onFailure,
-  ]);
+  }, [chatInput, sending, localSendBusy, onSend, draftStorageKey, beginSend, onSuccess, onFailure]);
 
   const handleSend = useCallback(() => {
     void runSend();

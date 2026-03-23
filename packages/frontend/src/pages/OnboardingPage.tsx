@@ -4,10 +4,7 @@ import { Layout } from "../components/layout/Layout";
 import { api, isConnectionError } from "../api/client";
 import { PREREQ_ITEMS, getPrereqInstallUrl } from "../lib/prerequisites";
 import { AGENT_PROVIDER_OPTIONS, type AgentProviderValue } from "../lib/agentProviders";
-import {
-  getOnboardingAgentCliRequirement,
-  isCliInstalledForKind,
-} from "../lib/agentProviderCli";
+import { getOnboardingAgentCliRequirement, isCliInstalledForKind } from "../lib/agentProviderCli";
 import { AgentProviderCliBanner } from "../components/AgentProviderCliBanner";
 
 type PrerequisitesState = { missing: string[]; platform: string } | null;
@@ -220,10 +217,7 @@ export function OnboardingPage() {
     provider === "custom" ||
     provider === "lmstudio" ||
     provider === "ollama" ||
-    (needsKeyInput &&
-      keyValue.trim().length > 0 &&
-      !cliMissingForContinue &&
-      !cliCheckPending);
+    (needsKeyInput && keyValue.trim().length > 0 && !cliMissingForContinue && !cliCheckPending);
 
   const handleCancel = () => {
     navigate("/");
@@ -409,7 +403,10 @@ export function OnboardingPage() {
                   </>
                 )}
                 {onboardingCli !== null && shouldFetchCliKeys && cliCheckLoading && (
-                  <p className="mt-2 text-sm text-theme-muted" data-testid="onboarding-cli-checking">
+                  <p
+                    className="mt-2 text-sm text-theme-muted"
+                    data-testid="onboarding-cli-checking"
+                  >
                     Checking CLI…
                   </p>
                 )}

@@ -169,8 +169,7 @@ function summarizeAttemptEvent(event: string, data: JsonRecord): AttemptVerdict 
       phase: phaseFromUnknown(data.phase, "orchestrator"),
       outcome: "requeued",
       summary:
-        asString(data.reason) ??
-        "Dispatch deferred: branch or worktree in use by another agent",
+        asString(data.reason) ?? "Dispatch deferred: branch or worktree in use by another agent",
       failureType: asString(data.failureType),
     };
   }

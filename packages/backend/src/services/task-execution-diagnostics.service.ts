@@ -223,7 +223,7 @@ function buildActionableFailureSummary(
         ? (options?.autoRepairCommands ?? []).join(" -> ")
         : "auto-repair";
     const repairSucceeded = (options?.autoRepairSucceeded ?? detail?.repairSucceeded) === true;
-    const status = repairSucceeded ? "succeeded" : "failed";
+    const status = repairSucceeded ? "succeeded; retry still failed" : "failed";
     summaryParts.push(`repair: ${commands} (${status})`);
   }
   if ((options?.category ?? detail?.category) === "environment_setup") {

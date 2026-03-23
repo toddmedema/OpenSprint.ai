@@ -10,7 +10,9 @@ import { BehaviorVersionStore } from "./behavior-version-store.core.js";
 export { BehaviorVersionStore } from "./behavior-version-store.core.js";
 
 /** Run store mutations under the task store write lock (same transaction as other task DB writes). */
-export async function runBehaviorVersionStoreWrite<T>(fn: (store: BehaviorVersionStore) => Promise<T>): Promise<T> {
+export async function runBehaviorVersionStoreWrite<T>(
+  fn: (store: BehaviorVersionStore) => Promise<T>
+): Promise<T> {
   return taskStore.runWrite(async (client) => {
     const scoped = new BehaviorVersionStore(() => client);
     return fn(scoped);

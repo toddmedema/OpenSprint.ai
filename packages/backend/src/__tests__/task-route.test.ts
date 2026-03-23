@@ -566,9 +566,7 @@ Test review prompt generation.
       expect(found2.mergePausedUntil).toBe(futureIso);
       expect(found2.mergeWaitingOnMain).toBe(true);
 
-      detailRes = await request(app).get(
-        `${API_PREFIX}/projects/${projectId}/tasks/${wtmTask.id}`
-      );
+      detailRes = await request(app).get(`${API_PREFIX}/projects/${projectId}/tasks/${wtmTask.id}`);
       expect(detailRes.status).toBe(200);
       expect(detailRes.body.data.kanbanColumn).toBe("waiting_to_merge");
       expect(detailRes.body.data.mergePausedUntil).toBe(futureIso);

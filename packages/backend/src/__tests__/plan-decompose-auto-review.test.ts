@@ -251,45 +251,49 @@ describe.skipIf(!planDecomposePostgresOk)("Plan decompose with auto-review", () 
     expect(mockInvoke).toHaveBeenCalledTimes(1);
   });
 
-  it("broadcasts decompose progress with totals before and during creation", { timeout: 15000 }, async () => {
-    mockInvoke.mockResolvedValueOnce({
-      content: JSON.stringify({
-        plans: [
-          {
-            title: "First Plan",
-            content: "# First\n\nOverview.",
-            complexity: "low",
-            mockups: [{ title: "UI", content: "One" }],
-          },
-          {
-            title: "Second Plan",
-            content: "# Second\n\nOverview.",
-            complexity: "medium",
-            mockups: [{ title: "UI", content: "Two" }],
-          },
-        ],
-      }),
-    });
+  it(
+    "broadcasts decompose progress with totals before and during creation",
+    { timeout: 15000 },
+    async () => {
+      mockInvoke.mockResolvedValueOnce({
+        content: JSON.stringify({
+          plans: [
+            {
+              title: "First Plan",
+              content: "# First\n\nOverview.",
+              complexity: "low",
+              mockups: [{ title: "UI", content: "One" }],
+            },
+            {
+              title: "Second Plan",
+              content: "# Second\n\nOverview.",
+              complexity: "medium",
+              mockups: [{ title: "UI", content: "Two" }],
+            },
+          ],
+        }),
+      });
 
-    const result = await planService.decomposeFromPrd(projectId);
+      const result = await planService.decomposeFromPrd(projectId);
 
-    expect(result.created).toBe(2);
-    expect(vi.mocked(broadcastToProject)).toHaveBeenCalledWith(projectId, {
-      type: "plan.decompose.progress",
-      createdCount: 0,
-      totalCount: 2,
-    });
-    expect(vi.mocked(broadcastToProject)).toHaveBeenCalledWith(projectId, {
-      type: "plan.decompose.progress",
-      createdCount: 1,
-      totalCount: 2,
-    });
-    expect(vi.mocked(broadcastToProject)).toHaveBeenCalledWith(projectId, {
-      type: "plan.decompose.progress",
-      createdCount: 2,
-      totalCount: 2,
-    });
-  });
+      expect(result.created).toBe(2);
+      expect(vi.mocked(broadcastToProject)).toHaveBeenCalledWith(projectId, {
+        type: "plan.decompose.progress",
+        createdCount: 0,
+        totalCount: 2,
+      });
+      expect(vi.mocked(broadcastToProject)).toHaveBeenCalledWith(projectId, {
+        type: "plan.decompose.progress",
+        createdCount: 1,
+        totalCount: 2,
+      });
+      expect(vi.mocked(broadcastToProject)).toHaveBeenCalledWith(projectId, {
+        type: "plan.decompose.progress",
+        createdCount: 2,
+        totalCount: 2,
+      });
+    }
+  );
 
   it("skips auto-review when no implementation tasks exist", { timeout: 15000 }, async () => {
     mockInvoke.mockResolvedValueOnce({

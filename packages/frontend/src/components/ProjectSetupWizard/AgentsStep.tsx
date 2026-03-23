@@ -13,10 +13,7 @@ import type { AgentRole } from "@opensprint/shared";
 import { ASSET_BASE } from "../../lib/constants";
 import { hasNoApiKeys } from "../../utils/agentConfigDefaults";
 import { api } from "../../api/client";
-import {
-  DEFAULT_LMSTUDIO_BASE_URL,
-  DEFAULT_OLLAMA_BASE_URL,
-} from "../../lib/localModelProviders";
+import { DEFAULT_LMSTUDIO_BASE_URL, DEFAULT_OLLAMA_BASE_URL } from "../../lib/localModelProviders";
 
 export interface AgentConfig {
   type: AgentType;

@@ -318,7 +318,13 @@ describe("AgentsStep", () => {
         cliCommand: "",
         baseUrl: "http://localhost:11434",
       },
-      envKeys: { ...defaultEnvKeys, anthropic: false, cursor: false, openai: false, ollamaCli: false },
+      envKeys: {
+        ...defaultEnvKeys,
+        anthropic: false,
+        cursor: false,
+        openai: false,
+        ollamaCli: false,
+      },
     });
 
     expect(screen.queryByText(/Ollama CLI not found/)).not.toBeInTheDocument();

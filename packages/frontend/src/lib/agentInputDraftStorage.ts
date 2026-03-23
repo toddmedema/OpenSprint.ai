@@ -27,7 +27,11 @@ export function loadTextDraft(key: string): string {
     if (stored == null) return "";
     const parsed = JSON.parse(stored) as unknown;
     if (typeof parsed === "string") return parsed;
-    if (parsed !== null && typeof parsed === "object" && typeof (parsed as { text?: unknown }).text === "string") {
+    if (
+      parsed !== null &&
+      typeof parsed === "object" &&
+      typeof (parsed as { text?: unknown }).text === "string"
+    ) {
       return (parsed as { text: string }).text;
     }
     return "";

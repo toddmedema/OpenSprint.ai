@@ -2967,9 +2967,9 @@ describe("ExecutePhase Redux integration", () => {
 
     await vi.waitFor(() => {
       expect(screen.getByTestId("execute-baseline-paused-banner")).toBeInTheDocument();
-      expect(
-        screen.getByTestId("execute-baseline-remediation-status")
-      ).toHaveTextContent("Repair in progress (attempt 2 of 3).");
+      expect(screen.getByTestId("execute-baseline-remediation-status")).toHaveTextContent(
+        "Repair in progress (attempt 2 of 3)."
+      );
     });
   });
 
@@ -3011,9 +3011,9 @@ describe("ExecutePhase Redux integration", () => {
 
     await vi.waitFor(() => {
       expect(screen.getByTestId("execute-baseline-paused-banner")).toBeInTheDocument();
-      expect(
-        screen.getByTestId("execute-baseline-remediation-status")
-      ).toHaveTextContent("Repair blocked after 3 attempts.");
+      expect(screen.getByTestId("execute-baseline-remediation-status")).toHaveTextContent(
+        "Repair blocked after 3 attempts."
+      );
     });
   });
 

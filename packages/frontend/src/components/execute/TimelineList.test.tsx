@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TimelineList } from "./TimelineList";
 import { renderWithProviders } from "../../test/test-utils";
 import type { Task } from "@opensprint/shared";
 import type { Plan } from "@opensprint/shared";
+import { formatTimestamp, formatUptime } from "../../lib/formatting";
 
 vi.mock("../../lib/formatting", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../lib/formatting")>();
@@ -87,6 +88,8 @@ describe("TimelineList", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(formatUptime).mockImplementation((startedAt: string) => `uptime:${startedAt}`);
+    vi.mocked(formatTimestamp).mockImplementation((ts: string) => `relative:${ts}`);
     mockUpdateTask.mockImplementation(
       (_projectId: string, taskId: string, updates: { assignee?: string | null }) =>
         Promise.resolve(createMockTask({ id: taskId, assignee: updates.assignee ?? null }) as never)
@@ -685,5 +688,60 @@ describe("TimelineList", () => {
     expect(screen.getByTestId("task-row-assignee")).toBeInTheDocument();
     expect(screen.getByText("Frodo")).toBeInTheDocument();
     expect(screen.queryByTestId("assignee-dropdown-trigger")).not.toBeInTheDocument();
+  });
+
+  it("updates active rows every 10s and inactive rows every 30s without selection changes", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-02-16T12:00:00.000Z"));
+
+    const actualFormatting =
+      await vi.importActual<typeof import("../../lib/formatting")>("../../lib/formatting");
+    vi.mocked(formatUptime).mockImplementation((startedAt: string, now?: Date) =>
+      actualFormatting.formatUptime(startedAt, now)
+    );
+    vi.mocked(formatTimestamp).mockImplementation((ts: string, now?: Date) =>
+      actualFormatting.formatTimestamp(ts, now)
+    );
+
+    const tasks = [
+      createMockTask({
+        id: "active-task",
+        title: "Active task",
+        kanbanColumn: "in_progress",
+        updatedAt: "2026-02-16T11:59:55.000Z",
+      }),
+      createMockTask({
+        id: "ready-task",
+        title: "Ready task",
+        kanbanColumn: "ready",
+        updatedAt: "2026-02-16T11:58:30.000Z",
+      }),
+    ];
+
+    renderWithProviders(
+      <TimelineList
+        tasks={tasks}
+        plans={[]}
+        onTaskSelect={vi.fn()}
+        taskIdToStartedAt={{ "active-task": "2026-02-16T11:59:55.000Z" }}
+        selectedTaskId="active-task"
+        scrollRef={{ current: document.createElement("div") }}
+        {...defaultListProps}
+      />
+    );
+
+    expect(screen.getByText("5s")).toBeInTheDocument();
+    expect(screen.getByText("1m ago")).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(screen.getByText("15s")).toBeInTheDocument();
+    expect(screen.getByText("1m ago")).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+    expect(screen.getByText("2m ago")).toBeInTheDocument();
   });
 });

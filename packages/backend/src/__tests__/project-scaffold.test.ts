@@ -132,11 +132,7 @@ vi.mock("child_process", async (importOriginal) => {
       callback(null, "", "");
       return undefined;
     }
-    if (
-      cmd.includes("expo install") &&
-      cmd.includes("react-dom") &&
-      cmd.includes("react-native-web")
-    ) {
+    if (cmd.includes("expo install")) {
       if (expoInstallShouldFail) {
         callback(new Error("expo: command not found"), "", "expo: command not found");
       } else {
@@ -214,9 +210,11 @@ describe("ProjectService.scaffoldProject", () => {
     const pkg = JSON.parse(await fs.readFile(pkgPath, "utf-8"));
     expect(pkg.scripts.web).toBe("expo start --web");
     expect(observedCommands).toContain("npm install --include=dev");
-    expect(observedCommands.some((c) => c.includes("npm install") && c.includes("typescript"))).toBe(
-      true
-    );
+    expect(
+      observedCommands.some(
+        (c) => c.includes("expo install") && c.includes("typescript") && c.includes("@types/react")
+      )
+    ).toBe(true);
   });
 
   it("rejects missing name", async () => {

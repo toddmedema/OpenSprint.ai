@@ -53,7 +53,7 @@ function renderWorkflowContent(overrides?: Partial<ProjectSettings>, routeEntrie
       scheduleSaveOnBlur={scheduleSaveOnBlur}
       lastReviewAnglesRef={lastReviewAnglesRef}
     />,
-    { routeEntries },
+    { routeEntries }
   );
 
   return {
@@ -427,10 +427,42 @@ describe("WorkflowSettingsContent", () => {
 
     it("renders all outcome badge types", async () => {
       const allOutcomes: SelfImprovementHistoryEntry[] = [
-        { timestamp: "2026-03-20T14:00:00Z", status: "success", tasksCreatedCount: 0, mode: "audit_only", outcome: "promoted", summary: "Promoted", runId: "r1" },
-        { timestamp: "2026-03-19T14:00:00Z", status: "success", tasksCreatedCount: 0, mode: "audit_and_experiments", outcome: "promotion_pending", summary: "Pending", runId: "r2" },
-        { timestamp: "2026-03-18T14:00:00Z", status: "success", tasksCreatedCount: 0, mode: "audit_only", outcome: "candidate_rejected", summary: "Rejected", runId: "r3" },
-        { timestamp: "2026-03-17T14:00:00Z", status: "failed", tasksCreatedCount: 0, mode: "audit_only", outcome: "failed", summary: "Failed", runId: "r4" },
+        {
+          timestamp: "2026-03-20T14:00:00Z",
+          status: "success",
+          tasksCreatedCount: 0,
+          mode: "audit_only",
+          outcome: "promoted",
+          summary: "Promoted",
+          runId: "r1",
+        },
+        {
+          timestamp: "2026-03-19T14:00:00Z",
+          status: "success",
+          tasksCreatedCount: 0,
+          mode: "audit_and_experiments",
+          outcome: "promotion_pending",
+          summary: "Pending",
+          runId: "r2",
+        },
+        {
+          timestamp: "2026-03-18T14:00:00Z",
+          status: "success",
+          tasksCreatedCount: 0,
+          mode: "audit_only",
+          outcome: "candidate_rejected",
+          summary: "Rejected",
+          runId: "r3",
+        },
+        {
+          timestamp: "2026-03-17T14:00:00Z",
+          status: "failed",
+          tasksCreatedCount: 0,
+          mode: "audit_only",
+          outcome: "failed",
+          summary: "Failed",
+          runId: "r4",
+        },
       ];
       vi.mocked(api.projects.getSelfImprovementHistory).mockResolvedValue(allOutcomes);
       renderWorkflowContent();
@@ -565,7 +597,14 @@ describe("WorkflowSettingsContent", () => {
       vi.mocked(api.projects.approveSelfImprovement).mockResolvedValue({
         activeBehaviorVersionId: "cand-42",
         behaviorVersions: [{ id: "cand-42", promotedAt: "2026-03-21T00:00:00Z" }],
-        history: [{ timestamp: "2026-03-21T00:00:00Z", action: "approved", behaviorVersionId: "cand-42", candidateId: "cand-42" }],
+        history: [
+          {
+            timestamp: "2026-03-21T00:00:00Z",
+            action: "approved",
+            behaviorVersionId: "cand-42",
+            candidateId: "cand-42",
+          },
+        ],
       });
       renderWorkflowContent();
 
@@ -590,7 +629,9 @@ describe("WorkflowSettingsContent", () => {
       vi.mocked(api.projects.getSelfImprovementStatus).mockResolvedValue(awaitingApprovalStatus);
       vi.mocked(api.projects.rejectSelfImprovement).mockResolvedValue({
         behaviorVersions: [],
-        history: [{ timestamp: "2026-03-21T00:00:00Z", action: "rejected", candidateId: "cand-42" }],
+        history: [
+          { timestamp: "2026-03-21T00:00:00Z", action: "rejected", candidateId: "cand-42" },
+        ],
       });
       renderWorkflowContent();
 
@@ -614,8 +655,12 @@ describe("WorkflowSettingsContent", () => {
     it("Promote button shows loading state while pending", async () => {
       vi.mocked(api.projects.getSelfImprovementStatus).mockResolvedValue(awaitingApprovalStatus);
       let resolveApprove: (v: unknown) => void;
-      const approvePromise = new Promise((r) => { resolveApprove = r; });
-      vi.mocked(api.projects.approveSelfImprovement).mockReturnValue(approvePromise as ReturnType<typeof api.projects.approveSelfImprovement>);
+      const approvePromise = new Promise((r) => {
+        resolveApprove = r;
+      });
+      vi.mocked(api.projects.approveSelfImprovement).mockReturnValue(
+        approvePromise as ReturnType<typeof api.projects.approveSelfImprovement>
+      );
       renderWorkflowContent();
 
       await waitFor(() => {
@@ -638,8 +683,12 @@ describe("WorkflowSettingsContent", () => {
     it("Reject button shows loading state while pending", async () => {
       vi.mocked(api.projects.getSelfImprovementStatus).mockResolvedValue(awaitingApprovalStatus);
       let resolveReject: (v: unknown) => void;
-      const rejectPromise = new Promise((r) => { resolveReject = r; });
-      vi.mocked(api.projects.rejectSelfImprovement).mockReturnValue(rejectPromise as ReturnType<typeof api.projects.rejectSelfImprovement>);
+      const rejectPromise = new Promise((r) => {
+        resolveReject = r;
+      });
+      vi.mocked(api.projects.rejectSelfImprovement).mockReturnValue(
+        rejectPromise as ReturnType<typeof api.projects.rejectSelfImprovement>
+      );
       renderWorkflowContent();
 
       await waitFor(() => {

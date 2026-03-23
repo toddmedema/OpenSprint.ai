@@ -114,19 +114,19 @@ export function ModelSelect({
           : "No models — start LM Studio and load a model"
         : provider === "ollama"
           ? isConnectionError(error) || /not reachable|running|connection/i.test(error)
-              ? "Ollama is not reachable. Start Ollama and check the server URL in Settings."
-              : "No models — verify the server URL or run `ollama pull <model>`"
-        : provider === "claude"
-          ? "Anthropic API key required — configure in Global Settings → API keys"
-          : provider === "claude-cli"
-            ? "Ensure claude CLI is installed"
-            : provider === "cursor"
-              ? "Cursor API key required — configure in Global Settings → API keys"
-              : provider === "openai"
-                ? "OpenAI API key required — configure in Global Settings → API keys"
-                : provider === "google"
-                  ? "Google API key required — configure in Global Settings → API keys"
-                  : "";
+            ? "Ollama is not reachable. Start Ollama and check the server URL in Settings."
+            : "No models — verify the server URL or run `ollama pull <model>`"
+          : provider === "claude"
+            ? "Anthropic API key required — configure in Global Settings → API keys"
+            : provider === "claude-cli"
+              ? "Ensure claude CLI is installed"
+              : provider === "cursor"
+                ? "Cursor API key required — configure in Global Settings → API keys"
+                : provider === "openai"
+                  ? "OpenAI API key required — configure in Global Settings → API keys"
+                  : provider === "google"
+                    ? "Google API key required — configure in Global Settings → API keys"
+                    : "";
     const displayMessage = provider === "lmstudio" || provider === "ollama" ? hint : error;
     const optionLabel =
       provider === "lmstudio" || provider === "ollama"
@@ -162,7 +162,9 @@ export function ModelSelect({
         aria-label="Model selection"
       >
         <option value="">
-          {provider === "ollama" ? "No local models — run `ollama pull <model>`" : "No models available"}
+          {provider === "ollama"
+            ? "No local models — run `ollama pull <model>`"
+            : "No models available"}
         </option>
       </select>
     );

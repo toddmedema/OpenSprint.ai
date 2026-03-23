@@ -27,9 +27,15 @@ export function getResolvedTheme(): ResolvedTheme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
+/** Apply a resolved theme to the document before or after React mounts. */
+export function applyResolvedTheme(resolved: ResolvedTheme): void {
+  const root = document.documentElement;
+  root.setAttribute("data-theme", resolved);
+  root.style.colorScheme = resolved;
+}
+
 /** Apply theme to document and persist. Call when user changes theme. */
 export function applyTheme(preference: ThemePreference): void {
   setStoredTheme(preference);
-  const resolved = getResolvedTheme();
-  document.documentElement.setAttribute("data-theme", resolved);
+  applyResolvedTheme(getResolvedTheme());
 }

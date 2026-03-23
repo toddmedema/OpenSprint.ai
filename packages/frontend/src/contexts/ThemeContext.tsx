@@ -5,6 +5,7 @@ import {
   getStoredTheme,
   getResolvedTheme,
   applyTheme,
+  applyResolvedTheme,
 } from "../lib/theme";
 
 interface ThemeContextValue {
@@ -60,7 +61,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
   useEffect(() => {
     const effective = forceLightMode ? "light" : resolved;
-    document.documentElement.setAttribute("data-theme", effective);
+    applyResolvedTheme(effective);
   }, [forceLightMode, resolved]);
 
   const value: ThemeContextValue = {

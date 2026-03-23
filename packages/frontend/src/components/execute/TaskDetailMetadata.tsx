@@ -10,7 +10,10 @@ import { ComplexityIcon } from "../ComplexityIcon";
 import { TaskPriorityDropdown } from "./TaskPriorityDropdown";
 import { AssigneeSelector } from "./AssigneeSelector";
 import { TaskStatusBadge, COLUMN_LABELS } from "../kanban";
-import { formatUptime, formatTaskDuration, formatUntilTimestamp } from "../../lib/formatting";
+import { formatTaskDuration, formatUntilTimestamp } from "../../lib/formatting";
+import { UptimeDisplay } from "../UptimeDisplay";
+
+const ACTIVE_TASK_TICK_MS = 10_000;
 
 export interface TaskDetailMetadataProps {
   projectId: string;
@@ -173,7 +176,14 @@ export function TaskDetailMetadata({
                 Active: {roleLabel}
                 {task.assignee && ` · ${task.assignee}`}
                 {selectedTask && taskIdToStartedAt[selectedTask] && (
-                  <> · {formatUptime(taskIdToStartedAt[selectedTask])}</>
+                  <>
+                    {" · "}
+                    <UptimeDisplay
+                      startedAt={taskIdToStartedAt[selectedTask]}
+                      tickMs={ACTIVE_TASK_TICK_MS}
+                      className="text-inherit tabular-nums"
+                    />
+                  </>
                 )}
               </span>
             </div>

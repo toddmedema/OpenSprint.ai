@@ -330,10 +330,13 @@ export class PhaseExecutorService {
       if (this.isBaselineQualityGateTask(task)) {
         const promptContent = await fs.readFile(promptPath, "utf-8").catch(() => "");
         if (!this.promptHasActionableQualityGateContext(promptContent)) {
-          log.warn("Baseline quality gate task has no actionable error context in prompt; blocking", {
-            taskId: task.id,
-            attempt: slot.attempt,
-          });
+          log.warn(
+            "Baseline quality gate task has no actionable error context in prompt; blocking",
+            {
+              taskId: task.id,
+              attempt: slot.attempt,
+            }
+          );
           this.callbacks.handleTaskFailure(
             projectId,
             repoPath,

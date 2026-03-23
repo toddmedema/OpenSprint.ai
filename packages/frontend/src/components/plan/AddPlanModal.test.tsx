@@ -19,9 +19,7 @@ describe("AddPlanModal", () => {
   it("focuses the feature description field when opened", async () => {
     const onClose = vi.fn();
     const onGenerate = vi.fn().mockResolvedValue(false);
-    render(
-      <AddPlanModal projectId={defaultProjectId} onGenerate={onGenerate} onClose={onClose} />
-    );
+    render(<AddPlanModal projectId={defaultProjectId} onGenerate={onGenerate} onClose={onClose} />);
 
     await expectFeatureInputFocused();
   });
@@ -29,9 +27,7 @@ describe("AddPlanModal", () => {
   it("calls onClose when Escape key is pressed", () => {
     const onClose = vi.fn();
     const onGenerate = vi.fn().mockResolvedValue(false);
-    render(
-      <AddPlanModal projectId={defaultProjectId} onGenerate={onGenerate} onClose={onClose} />
-    );
+    render(<AddPlanModal projectId={defaultProjectId} onGenerate={onGenerate} onClose={onClose} />);
 
     const dialog = screen.getByRole("dialog", { name: /add plan/i });
     fireEvent.keyDown(dialog, { key: "Escape" });
@@ -42,9 +38,7 @@ describe("AddPlanModal", () => {
   it("calls onClose when overlay (backdrop) is clicked", () => {
     const onClose = vi.fn();
     const onGenerate = vi.fn().mockResolvedValue(false);
-    render(
-      <AddPlanModal projectId={defaultProjectId} onGenerate={onGenerate} onClose={onClose} />
-    );
+    render(<AddPlanModal projectId={defaultProjectId} onGenerate={onGenerate} onClose={onClose} />);
 
     const overlay = document.querySelector(".bg-theme-overlay");
     expect(overlay).toBeTruthy();
@@ -56,9 +50,7 @@ describe("AddPlanModal", () => {
   it("calls onClose when close button is clicked", () => {
     const onClose = vi.fn();
     const onGenerate = vi.fn().mockResolvedValue(false);
-    render(
-      <AddPlanModal projectId={defaultProjectId} onGenerate={onGenerate} onClose={onClose} />
-    );
+    render(<AddPlanModal projectId={defaultProjectId} onGenerate={onGenerate} onClose={onClose} />);
 
     const closeButton = screen.getByRole("button", { name: /close add plan modal/i });
     fireEvent.click(closeButton);
@@ -69,9 +61,7 @@ describe("AddPlanModal", () => {
   it("calls onGenerate with trimmed description when Generate Plan succeeds, then closes", async () => {
     const onClose = vi.fn();
     const onGenerate = vi.fn().mockResolvedValue(true);
-    render(
-      <AddPlanModal projectId={defaultProjectId} onGenerate={onGenerate} onClose={onClose} />
-    );
+    render(<AddPlanModal projectId={defaultProjectId} onGenerate={onGenerate} onClose={onClose} />);
 
     const input = screen.getByTestId("feature-description-input");
     fireEvent.change(input, { target: { value: "  Add dark mode  " } });
@@ -89,9 +79,7 @@ describe("AddPlanModal", () => {
   it("does not close when onGenerate resolves false", async () => {
     const onClose = vi.fn();
     const onGenerate = vi.fn().mockResolvedValue(false);
-    render(
-      <AddPlanModal projectId={defaultProjectId} onGenerate={onGenerate} onClose={onClose} />
-    );
+    render(<AddPlanModal projectId={defaultProjectId} onGenerate={onGenerate} onClose={onClose} />);
 
     const input = screen.getByTestId("feature-description-input");
     fireEvent.change(input, { target: { value: "Feature text" } });
@@ -107,9 +95,7 @@ describe("AddPlanModal", () => {
   it("does not call onGenerate when Generate Plan is clicked with empty input", () => {
     const onClose = vi.fn();
     const onGenerate = vi.fn().mockResolvedValue(true);
-    render(
-      <AddPlanModal projectId={defaultProjectId} onGenerate={onGenerate} onClose={onClose} />
-    );
+    render(<AddPlanModal projectId={defaultProjectId} onGenerate={onGenerate} onClose={onClose} />);
 
     const generateButton = screen.getByTestId("generate-plan-button");
     expect(generateButton).toBeDisabled();

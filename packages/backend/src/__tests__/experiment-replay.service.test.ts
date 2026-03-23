@@ -400,12 +400,8 @@ describe("ExperimentReplayService", () => {
       expect(result.candidateMetrics.avgCostUsd).toBeCloseTo(0.05);
 
       // Candidate is better in this scenario (lower retry, higher review pass, lower cost)
-      expect(result.candidateMetrics.retryRate).toBeLessThan(
-        result.baselineMetrics.retryRate!
-      );
-      expect(result.candidateMetrics.avgCostUsd).toBeLessThan(
-        result.baselineMetrics.avgCostUsd!
-      );
+      expect(result.candidateMetrics.retryRate).toBeLessThan(result.baselineMetrics.retryRate!);
+      expect(result.candidateMetrics.avgCostUsd).toBeLessThan(result.baselineMetrics.avgCostUsd!);
     });
   });
 });

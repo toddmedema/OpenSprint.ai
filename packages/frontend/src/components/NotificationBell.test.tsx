@@ -223,7 +223,11 @@ describe("NotificationBell", () => {
         source: "self-improvement" as const,
         sourceId: "cand-42",
         questions: [
-          { id: "q1", text: "Agent improvement candidate awaiting approval", createdAt: "2025-01-01T00:00:00Z" },
+          {
+            id: "q1",
+            text: "Agent improvement candidate awaiting approval",
+            createdAt: "2025-01-01T00:00:00Z",
+          },
         ],
         status: "open" as const,
         createdAt: "2025-01-01T00:00:00Z",

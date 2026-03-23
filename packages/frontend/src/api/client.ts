@@ -349,21 +349,15 @@ export const api = {
         `/projects/${id}/self-improvement/history${limit != null ? `?limit=${limit}` : ""}`
       ),
     approveSelfImprovement: (id: string, candidateId?: string) =>
-      request<SelfImprovementBehaviorStatus>(
-        `/projects/${id}/self-improvement/approve`,
-        {
-          method: "POST",
-          ...(candidateId ? { body: JSON.stringify({ candidateId }) } : {}),
-        }
-      ),
+      request<SelfImprovementBehaviorStatus>(`/projects/${id}/self-improvement/approve`, {
+        method: "POST",
+        ...(candidateId ? { body: JSON.stringify({ candidateId }) } : {}),
+      }),
     rejectSelfImprovement: (id: string, candidateId?: string) =>
-      request<SelfImprovementBehaviorStatus>(
-        `/projects/${id}/self-improvement/reject`,
-        {
-          method: "POST",
-          ...(candidateId ? { body: JSON.stringify({ candidateId }) } : {}),
-        }
-      ),
+      request<SelfImprovementBehaviorStatus>(`/projects/${id}/self-improvement/reject`, {
+        method: "POST",
+        ...(candidateId ? { body: JSON.stringify({ candidateId }) } : {}),
+      }),
     archive: (id: string) => request<void>(`/projects/${id}/archive`, { method: "POST" }),
     delete: (id: string) =>
       request<void>(`/projects/${id}`, {

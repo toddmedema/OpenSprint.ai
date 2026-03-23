@@ -484,9 +484,7 @@ describe("Models API", () => {
       );
     });
 
-    it(
-      "keeps current OpenAI chat and reasoning models while excluding specialized ones",
-      async () => {
+    it("keeps current OpenAI chat and reasoning models while excluding specialized ones", async () => {
       process.env.OPENAI_API_KEY = "sk-openai-test";
       globalThis.fetch = vi.fn().mockResolvedValue({
         ok: true,
@@ -518,9 +516,7 @@ describe("Models API", () => {
         { id: "o3", displayName: "o3" },
         { id: "o4-mini", displayName: "o4-mini" },
       ]);
-      },
-      60_000
-    );
+    }, 60_000);
 
     it("uses cache on second OpenAI request", async () => {
       process.env.OPENAI_API_KEY = "sk-openai-test";

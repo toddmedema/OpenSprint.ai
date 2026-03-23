@@ -4,10 +4,7 @@ import type { AgentType } from "@opensprint/shared";
 import type { AgentConfig, EnvKeys } from "./AgentsStep";
 import { AgentProviderCliBanner } from "../AgentProviderCliBanner";
 import { hasNoApiKeys } from "../../utils/agentConfigDefaults";
-import {
-  DEFAULT_LMSTUDIO_BASE_URL,
-  DEFAULT_OLLAMA_BASE_URL,
-} from "../../lib/localModelProviders";
+import { DEFAULT_LMSTUDIO_BASE_URL, DEFAULT_OLLAMA_BASE_URL } from "../../lib/localModelProviders";
 
 export interface SimplifiedAgentsStepProps {
   simpleComplexityAgent: AgentConfig;

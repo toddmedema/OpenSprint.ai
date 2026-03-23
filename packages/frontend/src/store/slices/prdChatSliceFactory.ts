@@ -70,12 +70,7 @@ export interface PrdChatSliceResult {
     fetchChat: ReturnType<typeof createAsyncThunk<PrdChatMessage[], string>>;
     fetchPrd: ReturnType<typeof createAsyncThunk<Record<string, string>, string>>;
     fetchPrdHistory: ReturnType<typeof createAsyncThunk<PrdChangeLogEntry[], string>>;
-    sendMessage: ReturnType<
-      typeof createAsyncThunk<
-        ChatResponse,
-        SendPrdChatMessageArgs
-      >
-    >;
+    sendMessage: ReturnType<typeof createAsyncThunk<ChatResponse, SendPrdChatMessageArgs>>;
     savePrdSection: ReturnType<
       typeof createAsyncThunk<
         { section: string; content: string },

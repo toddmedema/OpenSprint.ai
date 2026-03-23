@@ -1258,7 +1258,12 @@ export class BranchManager {
     wtPath: string
   ): Promise<void> {
     const pathGone = async () => {
-      try { await fs.access(wtPath); return false; } catch { return true; }
+      try {
+        await fs.access(wtPath);
+        return false;
+      } catch {
+        return true;
+      }
     };
 
     if (await pathGone()) return;
@@ -1266,7 +1271,9 @@ export class BranchManager {
     // 1. git worktree remove --force (handles both git metadata and directory)
     try {
       await this.git(repoPath, `worktree remove ${shellQuote(wtPath)} --force`);
-    } catch { /* may not be a registered worktree */ }
+    } catch {
+      /* may not be a registered worktree */
+    }
     if (await pathGone()) return;
 
     // 2. Validated fs.rm via removeWorktreeDirectorySafely
@@ -1307,8 +1314,9 @@ export class BranchManager {
       await fs.rename(wtPath, stalePath);
       await this.git(repoPath, "worktree prune").catch(() => {});
       // Fire-and-forget cleanup of the renamed directory
-      shellExec(`rm -rf ${shellQuote(stalePath)}`, { cwd: repoPath, timeout: 30000 })
-        .catch(() => fs.rm(stalePath, { recursive: true, force: true }).catch(() => {}));
+      shellExec(`rm -rf ${shellQuote(stalePath)}`, { cwd: repoPath, timeout: 30000 }).catch(() =>
+        fs.rm(stalePath, { recursive: true, force: true }).catch(() => {})
+      );
     } catch (renameErr) {
       log.error("Failed to rename stale worktree path aside", {
         worktreeKey,
@@ -1591,18 +1599,14 @@ export class BranchManager {
         log.info("Dependency files changed in merge, running npm ci", { repoPath, changed });
       }
     } catch {
-      log.info(
-        "Could not determine changed files after merge, running npm ci as precaution",
-        { repoPath }
-      );
+      log.info("Could not determine changed files after merge, running npm ci as precaution", {
+        repoPath,
+      });
     }
 
     if (!needsReconcile) return;
 
-    const repair = await this.repairDependencies(
-      repoPath,
-      "post-merge dependency reconciliation"
-    );
+    const repair = await this.repairDependencies(repoPath, "post-merge dependency reconciliation");
     if (!repair.success) {
       log.warn("Post-merge npm ci failed — subsequent baseline checks may fail", {
         repoPath,

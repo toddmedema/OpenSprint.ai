@@ -64,6 +64,7 @@ import {
   hasWorkingTreeChanges,
 } from "../utils/git-repo-state.js";
 import { classifyInitError, attemptRecovery } from "./scaffold-recovery.service.js";
+import { ensureExpoReactTypeDevDependencies } from "../utils/scaffold-expo-deps.js";
 
 const execAsync = promisify(exec);
 const log = createLogger("project");
@@ -853,12 +854,12 @@ export class ProjectService {
         );
       }
 
-      // Step 4: ensure TypeScript is installed locally (blank Expo template may omit it; agents/builds expect `tsc` / npx tsc)
+      // Step 4: TypeScript + React typings (Expo pins compatible versions; blank template often omits these)
       const tsResult = await this.runWithRecovery(
-        "npm install -D typescript",
+        "npx expo install typescript @types/react @types/react-dom",
         repoPath,
         agentConfig,
-        "Failed to install TypeScript"
+        "Failed to install TypeScript and React type definitions"
       );
       if (!recovery && tsResult.recovery) {
         recovery = tsResult.recovery;
@@ -868,6 +869,44 @@ export class ProjectService {
           repoPath,
           recovery: tsResult.recovery ?? recovery,
         });
+      }
+
+      try {
+        await ensureExpoReactTypeDevDependencies(repoPath);
+      } catch (ensureErr) {
+        const msg = getErrorMessage(
+          ensureErr,
+          "Could not ensure @types/react and @types/react-dom are installed"
+        );
+        throw new AppError(500, ErrorCodes.SCAFFOLD_INIT_FAILED, msg, {
+          repoPath,
+          recovery,
+        });
+      }
+
+      const tsconfigPath = path.join(repoPath, "tsconfig.json");
+      try {
+        await fs.access(tsconfigPath);
+        const typecheckResult = await this.runWithRecovery(
+          "npx tsc --noEmit",
+          repoPath,
+          agentConfig,
+          "TypeScript check failed after scaffold (fix missing typings or tsconfig)"
+        );
+        if (!recovery && typecheckResult.recovery) {
+          recovery = typecheckResult.recovery;
+        }
+        if (!typecheckResult.success) {
+          throw new AppError(500, ErrorCodes.SCAFFOLD_INIT_FAILED, typecheckResult.errorMessage!, {
+            repoPath,
+            recovery: typecheckResult.recovery ?? recovery,
+          });
+        }
+      } catch (accessErr) {
+        if (accessErr instanceof AppError) {
+          throw accessErr;
+        }
+        // No tsconfig yet — skip tsc; typings are still in package.json for when TS is enabled.
       }
     }
 

@@ -56,11 +56,7 @@ export interface ReplayAgentRunner {
   }): Promise<ReplayOutcome>;
 }
 
-function worktreeKey(
-  runId: string,
-  sessionId: number,
-  variant: "baseline" | "candidate"
-): string {
+function worktreeKey(runId: string, sessionId: number, variant: "baseline" | "candidate"): string {
   return `replay-${variant}-${sessionId}-${runId}`;
 }
 
@@ -225,7 +221,16 @@ export class ExperimentReplayService {
     candidateBundle?: BehaviorExperimentCandidateBundle;
     agentRunner: ReplayAgentRunner;
   }): Promise<ReplayOutcome> {
-    const { repoPath, worktreeKey: wtKey, branchName, baseBranch, sessionId, variant, candidateBundle, agentRunner } = params;
+    const {
+      repoPath,
+      worktreeKey: wtKey,
+      branchName,
+      baseBranch,
+      sessionId,
+      variant,
+      candidateBundle,
+      agentRunner,
+    } = params;
     let wtPath: string | undefined;
 
     try {

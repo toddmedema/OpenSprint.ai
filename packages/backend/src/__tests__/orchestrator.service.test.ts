@@ -504,8 +504,7 @@ vi.mock("../services/feedback.service.js", () => ({
 vi.mock("../services/self-improvement-runner.service.js", () => ({
   isSelfImprovementRunInProgress: (...args: unknown[]) =>
     mockIsSelfImprovementRunInProgress(...args),
-  getSelfImprovementRunMode: (...args: unknown[]) =>
-    mockGetSelfImprovementRunMode(...args),
+  getSelfImprovementRunMode: (...args: unknown[]) => mockGetSelfImprovementRunMode(...args),
 }));
 
 // ─── Tests ───

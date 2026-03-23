@@ -111,9 +111,13 @@ vi.mock("../websocket/index.js", () => ({
 }));
 
 vi.mock("../services/behavior-version-store.service.js", () => ({
-  runBehaviorVersionStoreWrite: vi.fn().mockImplementation(async (fn: (store: { promoteToActive: () => Promise<void> }) => Promise<void>) => {
-    await fn({ promoteToActive: vi.fn().mockResolvedValue(undefined) });
-  }),
+  runBehaviorVersionStoreWrite: vi
+    .fn()
+    .mockImplementation(
+      async (fn: (store: { promoteToActive: () => Promise<void> }) => Promise<void>) => {
+        await fn({ promoteToActive: vi.fn().mockResolvedValue(undefined) });
+      }
+    ),
 }));
 
 describe("getSelfImprovementStatus", () => {

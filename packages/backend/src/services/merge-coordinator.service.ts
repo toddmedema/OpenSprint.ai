@@ -568,7 +568,9 @@ export class MergeCoordinatorService {
         qualityGateFailure.autoRepairCommands && qualityGateFailure.autoRepairCommands.length > 0
           ? qualityGateFailure.autoRepairCommands.join(" -> ")
           : "auto-repair";
-      const result = qualityGateFailure.autoRepairSucceeded ? "ok" : "failed";
+      const result = qualityGateFailure.autoRepairSucceeded
+        ? "succeeded; retry still failed"
+        : "failed";
       details.push(`repair: ${commands} (${result})`);
     }
     if (qualityGateFailure.category === "environment_setup") {
@@ -633,10 +635,7 @@ export class MergeCoordinatorService {
     log.info("Invalidated baseline quality-gate cache after merge", { projectId, baseBranch });
   }
 
-  private async reconcileDependenciesAfterMerge(
-    repoPath: string,
-    taskId: string
-  ): Promise<void> {
+  private async reconcileDependenciesAfterMerge(repoPath: string, taskId: string): Promise<void> {
     try {
       await this.host.branchManager.reconcileDependenciesAfterMerge(repoPath);
     } catch (err) {
@@ -910,10 +909,7 @@ export class MergeCoordinatorService {
    * Each "episode" of main being broken gets its own task; closing it on recovery
    * ensures the next failure episode starts with a fresh task and clean attempt history.
    */
-  private async closeBaselineRemediationTask(
-    projectId: string,
-    baseBranch: string
-  ): Promise<void> {
+  private async closeBaselineRemediationTask(projectId: string, baseBranch: string): Promise<void> {
     try {
       const allTasks = await this.host.taskStore.listAll(projectId);
       const remediationTask = allTasks.find(
@@ -922,11 +918,7 @@ export class MergeCoordinatorService {
           this.isBaselineQualityGateRemediationTask(task, baseBranch)
       );
       if (remediationTask) {
-        await this.host.taskStore.close(
-          projectId,
-          remediationTask.id,
-          "Baseline restored"
-        );
+        await this.host.taskStore.close(projectId, remediationTask.id, "Baseline restored");
         await broadcastAuthoritativeTaskUpdated(broadcastToProject, projectId, remediationTask.id);
         log.info("Closed baseline remediation task after baseline restored", {
           projectId,

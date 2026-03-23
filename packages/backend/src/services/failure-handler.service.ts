@@ -338,7 +338,8 @@ export class FailureHandlerService {
       const nextEntry: RetryFailureHistoryEntry = {
         attempt: params.failureHistoryAppend.attempt,
         failureType: params.failureHistoryAppend.failureType,
-        summary: summary || params.failureHistoryAppend.summary.slice(0, FAILURE_HISTORY_SUMMARY_LIMIT),
+        summary:
+          summary || params.failureHistoryAppend.summary.slice(0, FAILURE_HISTORY_SUMMARY_LIMIT),
       };
       context.failureHistory = [...prev, nextEntry].slice(-FAILURE_HISTORY_MAX_ENTRIES);
     }
@@ -786,8 +787,7 @@ export class FailureHandlerService {
       existingFailureHistory: slot.retryContext?.failureHistory,
     });
 
-    const preserveBranch =
-      failureType === "test_failure" || failureType === "review_rejection";
+    const preserveBranch = failureType === "test_failure" || failureType === "review_rejection";
 
     if (failureType !== "review_rejection") {
       const session = await this.host.sessionManager.createSession(repoPath, {
@@ -1058,9 +1058,12 @@ export class FailureHandlerService {
       if (!preserveBranch) {
         log.info(`Retrying ${task.id} (attempt ${slot.attempt}) with clean branch state`);
       } else {
-        log.info(`Retrying ${task.id} (attempt ${slot.attempt}) preserving branch for targeted fix`, {
-          failureType,
-        });
+        log.info(
+          `Retrying ${task.id} (attempt ${slot.attempt}) preserving branch for targeted fix`,
+          {
+            failureType,
+          }
+        );
       }
 
       await this.host.persistCounters(projectId, repoPath);

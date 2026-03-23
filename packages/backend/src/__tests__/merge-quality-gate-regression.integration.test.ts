@@ -421,7 +421,7 @@ describe("Cross-service quality-gate regression integration", () => {
       item.summary.includes("repair:")
     );
     expect(mergeFailedTimelineEntry?.summary).toContain(
-      "repair: npm ci -> symlinkNodeModules (succeeded)"
+      "repair: npm ci -> symlinkNodeModules (succeeded; retry still failed)"
     );
     expect(mergeFailedTimelineEntry?.summary).toContain("category: environment_setup");
     expect(diagnostics.latestQualityGateDetail).toEqual(

@@ -295,19 +295,19 @@ async function fetchLocalOpenAICompatibleModels(options: {
     throw new AppError(
       502,
       options.errorCode,
-      isConnectionError ? options.unreachableMessage : `${options.providerLabel} request failed: ${msg}`,
+      isConnectionError
+        ? options.unreachableMessage
+        : `${options.providerLabel} request failed: ${msg}`,
       { baseUrl: options.baseUrl, cause: msg }
     );
   }
 
   if (!response.ok) {
     const text = await response.text();
-    throw new AppError(
-      502,
-      options.errorCode,
-      options.unreachableMessage,
-      { status: response.status, responsePreview: text.slice(0, 200) }
-    );
+    throw new AppError(502, options.errorCode, options.unreachableMessage, {
+      status: response.status,
+      responsePreview: text.slice(0, 200),
+    });
   }
 
   const body = (await response.json()) as { data?: { id: string }[] };
@@ -370,7 +370,8 @@ async function fetchLmStudioModels(baseUrl: string): Promise<ModelOption[]> {
     baseUrl,
     providerLabel: "LM Studio",
     errorCode: ErrorCodes.LM_STUDIO_UNREACHABLE,
-    unreachableMessage: "LM Studio is not reachable. Ensure it is running and the server URL is correct.",
+    unreachableMessage:
+      "LM Studio is not reachable. Ensure it is running and the server URL is correct.",
   });
 }
 

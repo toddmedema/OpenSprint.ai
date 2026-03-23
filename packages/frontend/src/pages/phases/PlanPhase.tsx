@@ -1047,10 +1047,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
           handleSearchKeyDown={handleSearchKeyDown}
         />
 
-        <div
-          className={PHASE_MAIN_SCROLL_CLASSNAME}
-          data-testid="plan-main-scroll"
-        >
+        <div className={PHASE_MAIN_SCROLL_CLASSNAME} data-testid="plan-main-scroll">
           {/* Error banner — inline, dismissible */}
           {planError && (
             <div

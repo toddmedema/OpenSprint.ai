@@ -107,7 +107,7 @@ export function useDecomposePlans(projectId: string) {
       dispatch(setDecomposeProgress({ createdCount: 0, totalCount: null }));
     },
     onSuccess: (result) => {
-      const createdCount = Math.max(0, result.created ?? 0);
+      const createdCount = Math.max(0, result?.created ?? 0);
       dispatch(setDecomposeProgress({ createdCount, totalCount: createdCount }));
     },
     /** Always refresh list after decompose settles so Plan phase can leave "generating" even on error. */

@@ -159,7 +159,12 @@ export class TestRunner {
 
     const results = parsedVitestJson ?? this.parseTestOutput(rawOutput, preparedCommand);
 
-    if (!timedOut && parsedVitestJson && parsedVitestJson.total > 0 && parsedVitestJson.failed === 0) {
+    if (
+      !timedOut &&
+      parsedVitestJson &&
+      parsedVitestJson.total > 0 &&
+      parsedVitestJson.failed === 0
+    ) {
       return { ...parsedVitestJson, rawOutput, executedCommand: preparedCommand, scope: "full" };
     }
 

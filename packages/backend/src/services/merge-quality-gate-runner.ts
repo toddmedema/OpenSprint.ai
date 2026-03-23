@@ -597,9 +597,7 @@ async function repairQualityGateEnvironment(
         );
       } catch (err) {
         recreateSucceeded = false;
-        outputParts.push(
-          `[git checkout package.json] ${getErrorMessage(err)}`
-        );
+        outputParts.push(`[git checkout package.json] ${getErrorMessage(err)}`);
       }
     }
   }

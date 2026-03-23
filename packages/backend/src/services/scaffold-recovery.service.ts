@@ -23,6 +23,7 @@ export type InitErrorCategory =
   | "missing_npm"
   | "missing_npx"
   | "missing_expo_cli"
+  | "typescript_missing_typings"
   | "permission_denied"
   | "network_error"
   | "unknown";
@@ -94,6 +95,17 @@ const CATEGORY_PATTERNS: Array<{
     recoverable: true,
   },
   {
+    category: "typescript_missing_typings",
+    patterns: [
+      /TS7016:\s*Could not find a declaration file for module ['"]react['"]/i,
+      /Could not find a declaration file for module ['"]react['"]/i,
+      /Could not find a declaration file for module ['"]react-dom['"]/i,
+      /TS7016:\s*Could not find a declaration file for module ['"]react-dom['"]/i,
+    ],
+    tool: "",
+    recoverable: true,
+  },
+  {
     category: "permission_denied",
     patterns: [/EACCES/i, /permission denied/i, /EPERM/i],
     tool: "",
@@ -146,6 +158,8 @@ function buildSummary(category: InitErrorCategory, tool: string): string {
       return "npx is not installed or not in PATH";
     case "missing_expo_cli":
       return "Expo CLI / create-expo-app is not available";
+    case "typescript_missing_typings":
+      return "TypeScript cannot find React type definitions (@types/react / @types/react-dom)";
     case "permission_denied":
       return `Permission denied while running ${tool || "command"}`;
     case "network_error":
@@ -190,6 +204,13 @@ function buildRecoveryPrompt(classification: InitErrorClassification, projectPat
         "- Verify by running: `npx create-expo-app --version`"
       );
       break;
+    case "typescript_missing_typings":
+      lines.push(
+        "- Install typings compatible with this Expo SDK: `npx expo install @types/react @types/react-dom`",
+        "- If `typescript` is missing from devDependencies: `npx expo install typescript`",
+        "- Then verify: `npx tsc --noEmit`"
+      );
+      break;
     case "permission_denied":
       lines.push(
         "- Fix file permissions for the project directory.",
@@ -223,6 +244,8 @@ function verifyCommandForCategory(category: InitErrorCategory): string | null {
       return "npx --version";
     case "missing_expo_cli":
       return "npx create-expo-app --version";
+    case "typescript_missing_typings":
+      return "npx tsc --noEmit";
     default:
       return null;
   }
@@ -274,7 +297,7 @@ export async function attemptRecovery(
   const verifyCmd = verifyCommandForCategory(classification.category);
   if (verifyCmd) {
     try {
-      await execAsync(verifyCmd, { timeout: VERIFY_TIMEOUT_MS });
+      await execAsync(verifyCmd, { timeout: VERIFY_TIMEOUT_MS, cwd: projectPath });
       log.info("Recovery verification passed", { category: classification.category, verifyCmd });
       return {
         success: true,

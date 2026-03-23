@@ -3,7 +3,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useAutoScroll } from "./useAutoScroll";
 
-function makeMockEl(overrides?: Partial<{ scrollTop: number; scrollHeight: number; clientHeight: number }>) {
+function makeMockEl(
+  overrides?: Partial<{ scrollTop: number; scrollHeight: number; clientHeight: number }>
+) {
   return {
     scrollTop: 0,
     scrollHeight: 500,
@@ -91,17 +93,23 @@ describe("useAutoScroll", () => {
     setRef(result, mockEl);
 
     rerender({ contentLength: 10 });
-    act(() => { vi.advanceTimersToNextFrame(); });
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
     expect(mockEl.scrollTop).toBe(300);
 
     // User scrolls up
     mockEl.scrollTop = 0;
-    act(() => { result.current.handleScroll(); });
+    act(() => {
+      result.current.handleScroll();
+    });
     expect(result.current.autoScrollEnabled).toBe(false);
 
     // New content arrives but should NOT auto-scroll
     rerender({ contentLength: 50 });
-    act(() => { vi.advanceTimersToNextFrame(); });
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
 
     expect(mockEl.scrollTop).toBe(0);
   });
@@ -136,22 +144,30 @@ describe("useAutoScroll", () => {
     setRef(result, mockEl);
 
     rerender({ contentLength: 10 });
-    act(() => { vi.advanceTimersToNextFrame(); });
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
 
     // User scrolls up
     mockEl.scrollTop = 0;
-    act(() => { result.current.handleScroll(); });
+    act(() => {
+      result.current.handleScroll();
+    });
     expect(result.current.autoScrollEnabled).toBe(false);
 
     // User scrolls back to bottom (within threshold)
     mockEl.scrollTop = 280;
-    act(() => { result.current.handleScroll(); });
+    act(() => {
+      result.current.handleScroll();
+    });
     expect(result.current.autoScrollEnabled).toBe(true);
 
     // New content should auto-scroll
     mockEl.scrollTop = 0;
     rerender({ contentLength: 80 });
-    act(() => { vi.advanceTimersToNextFrame(); });
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
 
     expect(mockEl.scrollTop).toBe(300);
   });
@@ -209,13 +225,17 @@ describe("useAutoScroll", () => {
 
     // Task 1 gets content
     rerender({ contentLength: 200, resetKey: "task-1" });
-    act(() => { vi.advanceTimersToNextFrame(); });
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
     expect(mockEl.scrollTop).toBe(300);
 
     // Switch to task 2 with different (shorter) content
     mockEl.scrollTop = 0;
     rerender({ contentLength: 50, resetKey: "task-2" });
-    act(() => { vi.advanceTimersToNextFrame(); });
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
 
     expect(mockEl.scrollTop).toBe(300);
     expect(result.current.autoScrollEnabled).toBe(true);
@@ -232,12 +252,16 @@ describe("useAutoScroll", () => {
     setRef(result, mockEl);
 
     rerender({ contentLength: 5000, resetKey: "task-1" });
-    act(() => { vi.advanceTimersToNextFrame(); });
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
 
     // Switch to task with much shorter content
     mockEl.scrollTop = 0;
     rerender({ contentLength: 100, resetKey: "task-2" });
-    act(() => { vi.advanceTimersToNextFrame(); });
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
 
     expect(mockEl.scrollTop).toBe(300);
   });
@@ -254,13 +278,17 @@ describe("useAutoScroll", () => {
 
     // Switch to task-2 with some content
     rerender({ contentLength: 50, resetKey: "task-2" });
-    act(() => { vi.advanceTimersToNextFrame(); });
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
     expect(mockEl.scrollTop).toBe(300);
 
     // New content streams in on task-2
     mockEl.scrollTop = 0;
     rerender({ contentLength: 100, resetKey: "task-2" });
-    act(() => { vi.advanceTimersToNextFrame(); });
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
 
     expect(mockEl.scrollTop).toBe(300);
   });
@@ -276,17 +304,23 @@ describe("useAutoScroll", () => {
     setRef(result, mockEl);
 
     rerender({ contentLength: 100, resetKey: "task-1" });
-    act(() => { vi.advanceTimersToNextFrame(); });
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
 
     // User scrolls up, disabling auto-scroll
     mockEl.scrollTop = 0;
-    act(() => { result.current.handleScroll(); });
+    act(() => {
+      result.current.handleScroll();
+    });
     expect(result.current.autoScrollEnabled).toBe(false);
     expect(result.current.showJumpToBottom).toBe(true);
 
     // Switch to task-2: should reset and scroll to bottom
     rerender({ contentLength: 75, resetKey: "task-2" });
-    act(() => { vi.advanceTimersToNextFrame(); });
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
 
     expect(result.current.autoScrollEnabled).toBe(true);
     expect(result.current.showJumpToBottom).toBe(false);

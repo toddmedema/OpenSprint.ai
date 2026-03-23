@@ -47,7 +47,10 @@ export const FAILURE_PLAYBOOK: Record<string, FailurePlaybookResolution> = {
   "blocked:technical": "auto_unblock_8h_technical",
 };
 
-export function playbookLookup(phase: FailurePlaybookPhase, family: string): FailurePlaybookResolution {
+export function playbookLookup(
+  phase: FailurePlaybookPhase,
+  family: string
+): FailurePlaybookResolution {
   const key = `${phase}:${family}`;
   return FAILURE_PLAYBOOK[key] ?? "requeue_with_retry_context";
 }

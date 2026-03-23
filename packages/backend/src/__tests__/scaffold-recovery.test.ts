@@ -73,6 +73,15 @@ describe("classifyInitError", () => {
     expect(result.summary).toContain("Expo");
   });
 
+  it("classifies missing React typings (TS7016)", () => {
+    const result = classifyInitError(
+      "__tests__/App.test.tsx(1,19): error TS7016: Could not find a declaration file for module 'react'."
+    );
+    expect(result.category).toBe("typescript_missing_typings");
+    expect(result.recoverable).toBe(true);
+    expect(result.summary).toContain("React type definitions");
+  });
+
   it("classifies create-expo-app not found", () => {
     const result = classifyInitError("create-expo-app not found in path");
     expect(result.category).toBe("missing_expo_cli");

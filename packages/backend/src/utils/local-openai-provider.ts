@@ -55,5 +55,7 @@ export function isReasoningOnlyCompletion(options: {
 }): boolean {
   const content = options.content?.trim() ?? "";
   if (content.length > 0) return false;
-  return options.finishReason === "length" && getCompletionReasoning(options.reasoningSource).length > 0;
+  return (
+    options.finishReason === "length" && getCompletionReasoning(options.reasoningSource).length > 0
+  );
 }

@@ -229,6 +229,28 @@ describe("PlanDetailContent", () => {
     expect(contentWrapper?.className).toMatch(/p-4|px-4/);
   });
 
+  it("renders Assumptions with the same section structure as other plan sections (no callout wrapper)", () => {
+    const planWithAssumptions: Plan = {
+      ...mockPlan,
+      content:
+        "# Plan Phase - Feature Decomposition\n\n## Overview\n\nImplement the Plan phase.\n\n## Assumptions\n\n- API shape stays the same.",
+    };
+
+    const { container } = render(
+      <PlanDetailContent plan={planWithAssumptions} onContentSave={onContentSave} />
+    );
+
+    const assumptionsHeader = screen.getByRole("button", { name: /collapse assumptions/i });
+    const overviewHeader = screen.getByRole("button", { name: /collapse overview/i });
+    const assumptionsWrapper = assumptionsHeader.parentElement;
+    const overviewWrapper = overviewHeader.parentElement;
+
+    expect(assumptionsWrapper?.className).toBe(overviewWrapper?.className);
+    expect(assumptionsWrapper).not.toHaveClass("bg-theme-info-bg/25");
+    expect(assumptionsWrapper).not.toHaveClass("mx-4");
+    expect(container.querySelector(".border-theme-info-border\\/50")).not.toBeInTheDocument();
+  });
+
   it("renders header with title aligned to top and no HR (border-b)", () => {
     const { container } = render(
       <PlanDetailContent plan={mockPlan} onContentSave={onContentSave} />

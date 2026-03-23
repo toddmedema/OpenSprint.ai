@@ -1003,9 +1003,7 @@ describe("MergeCoordinatorService", () => {
       nowMs += 61_000;
       hostState.slots.set(taskId, makeSlot());
       mockHost.runMergeQualityGates = vi.fn().mockResolvedValue(null);
-      (mockHost.taskStore.listAll as ReturnType<typeof vi.fn>).mockResolvedValue([
-        remediationTask,
-      ]);
+      (mockHost.taskStore.listAll as ReturnType<typeof vi.fn>).mockResolvedValue([remediationTask]);
 
       await coordinator.performMergeAndDone(projectId, repoPath, makeTask(), branchName);
 

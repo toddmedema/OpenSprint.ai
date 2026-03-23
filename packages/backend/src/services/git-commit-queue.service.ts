@@ -693,10 +693,7 @@ class GitCommitQueueImpl implements GitCommitQueueService {
 
   getMergeQueueSnapshotForRepo(repoPath: string): GitMergeQueueSnapshotForRepo {
     let activeTaskId: string | null = null;
-    if (
-      this.currentJob?.type === "worktree_merge" &&
-      this.currentJob.repoPath === repoPath
-    ) {
+    if (this.currentJob?.type === "worktree_merge" && this.currentJob.repoPath === repoPath) {
       activeTaskId = this.currentJob.taskId;
     }
     const pendingTaskIds = this.queue

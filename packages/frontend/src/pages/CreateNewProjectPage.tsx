@@ -429,8 +429,7 @@ export function CreateNewProjectPage() {
     (complexComplexityAgent.type !== "custom" || complexComplexityAgent.cliCommand.trim());
 
   const showBackButton =
-    currentStepIndex > 0 &&
-    !(step === "scaffold" && (scaffolding || scaffoldedProject !== null));
+    currentStepIndex > 0 && !(step === "scaffold" && (scaffolding || scaffoldedProject !== null));
 
   return (
     <Layout>

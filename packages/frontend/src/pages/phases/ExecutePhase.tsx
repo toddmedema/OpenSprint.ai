@@ -120,9 +120,7 @@ export function ExecutePhase({
   const awaitingApproval = useAppSelector((s) => s.execute.awaitingApproval);
   const baselineStatus = useAppSelector((s) => s.execute.baselineStatus);
   const baselineFailureSummary = useAppSelector((s) => s.execute.baselineFailureSummary);
-  const baselineRemediationStatus = useAppSelector(
-    (s) => s.execute.baselineRemediationStatus
-  );
+  const baselineRemediationStatus = useAppSelector((s) => s.execute.baselineRemediationStatus);
   const mergeValidationStatus = useAppSelector((s) => s.execute.mergeValidationStatus);
   const mergeValidationFailureSummary = useAppSelector(
     (s) => s.execute.mergeValidationFailureSummary

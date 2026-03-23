@@ -1211,10 +1211,10 @@ describe("SketchPhase with sketchSlice", () => {
     });
 
     it("disables CTA button during decomposing", async () => {
-      let resolveDecompose: () => void;
+      let resolveDecompose: (value: { created: number; plans: unknown[] }) => void;
       mockPlansDecompose.mockImplementation(
         () =>
-          new Promise<void>((r) => {
+          new Promise<{ created: number; plans: unknown[] }>((r) => {
             resolveDecompose = r;
           })
       );
@@ -1234,7 +1234,7 @@ describe("SketchPhase with sketchSlice", () => {
         expect(screen.getByRole("button", { name: /Planning/i })).toBeInTheDocument();
         expect(screen.getByTestId("sketch-plan-cta")).toBeDisabled();
       });
-      resolveDecompose!();
+      resolveDecompose!({ created: 2, plans: [] });
       mockPlansDecompose.mockResolvedValue({ created: 2, plans: [] });
     });
 

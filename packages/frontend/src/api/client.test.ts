@@ -36,9 +36,7 @@ describe("api client", () => {
 
       await api.projects.list();
       const [, init] = vi.mocked(fetch).mock.calls[0]!;
-      expect(init).toEqual(
-        expect.objectContaining({ signal: expect.any(AbortSignal) })
-      );
+      expect(init).toEqual(expect.objectContaining({ signal: expect.any(AbortSignal) }));
     });
 
     it("returns undefined for 204 No Content", async () => {

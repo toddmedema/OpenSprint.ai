@@ -82,8 +82,12 @@ export class BehaviorVersionStore {
       [projectId]
     );
     const stateActive =
-      stateRow && typeof (stateRow as { active_promoted_version_id?: unknown }).active_promoted_version_id === "string"
-        ? String((stateRow as { active_promoted_version_id: string }).active_promoted_version_id).trim()
+      stateRow &&
+      typeof (stateRow as { active_promoted_version_id?: unknown }).active_promoted_version_id ===
+        "string"
+        ? String(
+            (stateRow as { active_promoted_version_id: string }).active_promoted_version_id
+          ).trim()
         : "";
 
     const versionRow = await client.queryOne(
@@ -117,11 +121,14 @@ export class BehaviorVersionStore {
     }
 
     const tplRow = await client.queryOne(
-      toPgParams(`SELECT template_version_id FROM behavior_versions WHERE id = ? AND project_id = ?`),
+      toPgParams(
+        `SELECT template_version_id FROM behavior_versions WHERE id = ? AND project_id = ?`
+      ),
       [activeId, projectId]
     );
     const templateRaw =
-      tplRow && typeof (tplRow as { template_version_id?: unknown }).template_version_id === "string"
+      tplRow &&
+      typeof (tplRow as { template_version_id?: unknown }).template_version_id === "string"
         ? String((tplRow as { template_version_id: string }).template_version_id).trim()
         : "";
     return {
@@ -145,17 +152,24 @@ export class BehaviorVersionStore {
       [projectId]
     );
     const activeRaw =
-      stateRow && typeof (stateRow as { active_promoted_version_id?: unknown }).active_promoted_version_id === "string"
-        ? String((stateRow as { active_promoted_version_id: string }).active_promoted_version_id).trim()
+      stateRow &&
+      typeof (stateRow as { active_promoted_version_id?: unknown }).active_promoted_version_id ===
+        "string"
+        ? String(
+            (stateRow as { active_promoted_version_id: string }).active_promoted_version_id
+          ).trim()
         : "";
     if (!activeRaw) return null;
 
     const tplRow = await client.queryOne(
-      toPgParams(`SELECT template_version_id FROM behavior_versions WHERE id = ? AND project_id = ?`),
+      toPgParams(
+        `SELECT template_version_id FROM behavior_versions WHERE id = ? AND project_id = ?`
+      ),
       [activeRaw, projectId]
     );
     const templateRaw =
-      tplRow && typeof (tplRow as { template_version_id?: unknown }).template_version_id === "string"
+      tplRow &&
+      typeof (tplRow as { template_version_id?: unknown }).template_version_id === "string"
         ? String((tplRow as { template_version_id: string }).template_version_id).trim()
         : "";
 

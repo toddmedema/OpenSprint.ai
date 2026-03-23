@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Task } from "@opensprint/shared";
 import type { Plan } from "@opensprint/shared";
 import { isAgentAssignee } from "@opensprint/shared";
@@ -8,11 +8,14 @@ import {
   TIMELINE_SECTION,
 } from "../../lib/executeTaskSort";
 import { isTaskInPlanningPlan, isSelfImprovementTask } from "../../lib/executeTaskFilter";
-import { formatUptime, formatTimestamp } from "../../lib/formatting";
 import { PriorityIcon } from "../PriorityIcon";
 import { ComplexityIcon } from "../ComplexityIcon";
 import { AssigneeSelector } from "./AssigneeSelector";
 import type { StatusFilter } from "../../lib/executeTaskFilter";
+import { RelativeTimestampDisplay } from "../RelativeTimestampDisplay";
+import { UptimeDisplay } from "../UptimeDisplay";
+
+const ACTIVE_TASK_TICK_MS = 10_000;
 
 export interface TimelineListProps {
   tasks: Task[];
@@ -58,7 +61,7 @@ function TimelineRow({
   enableHumanTeammates,
 }: {
   task: Task;
-  relativeTime: string;
+  relativeTime: ReactNode;
   onTaskSelect: (taskId: string) => void;
   onUnblock?: (taskId: string) => void;
   unblockingTaskId?: string | null;
@@ -224,17 +227,6 @@ export function TimelineList({
     [showBlockedSection, bySection]
   );
 
-  const getRelativeTime = useCallback(
-    (task: Task): string => {
-      const isActive = task.kanbanColumn === "in_progress" || task.kanbanColumn === "in_review";
-      if (isActive && taskIdToStartedAt[task.id]) {
-        return formatUptime(taskIdToStartedAt[task.id]);
-      }
-      return formatTimestamp(task.updatedAt || task.createdAt || "");
-    },
-    [taskIdToStartedAt]
-  );
-
   const lastScrolledTaskIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!selectedTaskId) {
@@ -274,7 +266,21 @@ export function TimelineList({
                   <TimelineRow
                     key={task.id}
                     task={task}
-                    relativeTime={getRelativeTime(task)}
+                    relativeTime={
+                      (task.kanbanColumn === "in_progress" || task.kanbanColumn === "in_review") &&
+                      taskIdToStartedAt[task.id] ? (
+                        <UptimeDisplay
+                          startedAt={taskIdToStartedAt[task.id]}
+                          tickMs={ACTIVE_TASK_TICK_MS}
+                          className="text-inherit tabular-nums"
+                        />
+                      ) : (
+                        <RelativeTimestampDisplay
+                          timestamp={task.updatedAt || task.createdAt || ""}
+                          className="text-inherit tabular-nums"
+                        />
+                      )
+                    }
                     onTaskSelect={onTaskSelect}
                     onUnblock={task.kanbanColumn === "blocked" ? onUnblock : undefined}
                     unblockingTaskId={unblockingTaskId}

@@ -73,9 +73,7 @@ export function rollupOrchestratorEvents(
     }
   }
 
-  const buckets = [...tallies.values()]
-    .sort((a, b) => b.count - a.count)
-    .slice(0, MAX_BUCKETS);
+  const buckets = [...tallies.values()].sort((a, b) => b.count - a.count).slice(0, MAX_BUCKETS);
 
   return {
     projectId,

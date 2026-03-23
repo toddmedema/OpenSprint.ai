@@ -35,7 +35,7 @@ describe("scoreExperiment", () => {
 
   it("triggers retry rate guardrail when regression exceeds threshold", () => {
     const baseline = makeMetrics({ retryRate: 0.1 });
-    const candidate = makeMetrics({ retryRate: 0.30 });
+    const candidate = makeMetrics({ retryRate: 0.3 });
     const result = scoreExperiment(baseline, candidate);
     expect(result.guardrailTriggered).toBe(true);
     expect(result.guardrailDetails).toHaveLength(1);

@@ -301,9 +301,7 @@ describe("OrchestratorLoopService", () => {
       getCumulativeAttemptsFromIssue: vi.fn().mockReturnValue(0),
     });
     host.getTaskScheduler = vi.fn().mockReturnValue({
-      selectTasks: vi
-        .fn()
-        .mockResolvedValue(normalTasks.map((task) => ({ task }))),
+      selectTasks: vi.fn().mockResolvedValue(normalTasks.map((task) => ({ task }))),
     });
     state.status.baselineStatus = "failing";
 

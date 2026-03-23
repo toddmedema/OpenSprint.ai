@@ -80,6 +80,7 @@ describe("ThemeProvider", () => {
     expect(screen.getByTestId("preference")).toHaveTextContent("light");
     expect(screen.getByTestId("resolved")).toHaveTextContent("light");
     expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+    expect(document.documentElement.style.colorScheme).toBe("light");
   });
 
   it("updates preference and resolved when setTheme(dark) is called", async () => {
@@ -93,6 +94,7 @@ describe("ThemeProvider", () => {
     expect(screen.getByTestId("preference")).toHaveTextContent("dark");
     expect(screen.getByTestId("resolved")).toHaveTextContent("dark");
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+    expect(document.documentElement.style.colorScheme).toBe("dark");
   });
 
   it("uses stored preference on mount", () => {
@@ -115,8 +117,10 @@ describe("ThemeProvider", () => {
       </ThemeProvider>
     );
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+    expect(document.documentElement.style.colorScheme).toBe("dark");
     await user.click(screen.getByRole("button", { name: "Force Light" }));
     expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+    expect(document.documentElement.style.colorScheme).toBe("light");
     expect(screen.getByTestId("preference")).toHaveTextContent("dark");
   });
 
@@ -130,8 +134,10 @@ describe("ThemeProvider", () => {
     );
     await user.click(screen.getByRole("button", { name: "Force Light" }));
     expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+    expect(document.documentElement.style.colorScheme).toBe("light");
     await user.click(screen.getByRole("button", { name: "Unforce Light" }));
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+    expect(document.documentElement.style.colorScheme).toBe("dark");
   });
 });
 
