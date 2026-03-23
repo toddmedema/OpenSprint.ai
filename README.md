@@ -93,7 +93,7 @@ Open Sprint is a monorepo with four main packages:
 - `packages/shared`: shared types and constants
 - `packages/electron`: Electron desktop shell (spawns backend, serves frontend in one window)
 
-The product spec for Open Sprint lives in `PRD.md`. Each project's Sketch output is written to `SPEC.md` at the project repo root.
+The product spec for Open Sprint lives in `SPEC.md`. Each project's Sketch output is also written to `SPEC.md` at that project repo root.
 
 ## Common Commands
 

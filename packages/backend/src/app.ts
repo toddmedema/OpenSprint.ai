@@ -4,17 +4,20 @@ import cors from "cors";
 import { errorHandler } from "./middleware/error-handler.js";
 import { apiErrorNotificationMiddleware } from "./middleware/api-error-notification.js";
 import { createProjectsRouter } from "./routes/projects.js";
-import { prdRouter } from "./routes/prd.js";
+import { createPrdRouter } from "./routes/prd.js";
 import { createPlansRouter } from "./routes/plans.js";
-import { chatRouter } from "./routes/chat.js";
+import { createChatRouter } from "./routes/chat.js";
 import { createExecuteRouter } from "./routes/execute.js";
 import { createDeliverRouter } from "./routes/deliver.js";
-import { agentsRouter } from "./routes/agents.js";
+import { createAgentsRouter } from "./routes/agents.js";
 import { createTasksRouter } from "./routes/tasks.js";
 import { createTasksAnalyticsRouter } from "./routes/tasks-analytics.js";
 import { createAppServices, type AppServices } from "./composition.js";
-import { feedbackRouter } from "./routes/feedback.js";
-import { projectNotificationsRouter, globalNotificationsRouter } from "./routes/notifications.js";
+import { createFeedbackRouter } from "./routes/feedback.js";
+import {
+  createProjectNotificationsRouter,
+  createGlobalNotificationsRouter,
+} from "./routes/notifications.js";
 import { fsRouter } from "./routes/fs.js";
 import { modelsRouter } from "./routes/models.js";
 import { envRouter } from "./routes/env.js";
@@ -30,7 +33,16 @@ import { orchestratorService } from "./services/orchestrator.service.js";
 export function createApp(services?: AppServices) {
   const app = express();
   const svc = services ?? createAppServices();
-  const { taskService, projectService, planService, sessionManager } = svc;
+  const {
+    taskService,
+    projectService,
+    planService,
+    prdService,
+    chatService,
+    feedbackService,
+    agentInstructionsService,
+    sessionManager,
+  } = svc;
 
   app.use(cors());
   app.use(express.json({ limit: "10mb" }));
@@ -68,13 +80,21 @@ export function createApp(services?: AppServices) {
   app.use(`${API_PREFIX}/help`, requireDatabase, helpRouter);
   app.use(`${API_PREFIX}/projects/:projectId/plan-status`, requireDatabase);
   app.use(`${API_PREFIX}/projects`, createProjectsRouter(projectService, planService));
-  app.use(`${API_PREFIX}/projects/:projectId/prd`, requireDatabase, prdRouter);
+  app.use(
+    `${API_PREFIX}/projects/:projectId/prd`,
+    requireDatabase,
+    createPrdRouter({ prdService, chatService })
+  );
   app.use(
     `${API_PREFIX}/projects/:projectId/plans`,
     requireDatabase,
     createPlansRouter(planService)
   );
-  app.use(`${API_PREFIX}/projects/:projectId/chat`, requireDatabase, chatRouter);
+  app.use(
+    `${API_PREFIX}/projects/:projectId/chat`,
+    requireDatabase,
+    createChatRouter({ chatService })
+  );
   app.use(
     `${API_PREFIX}/projects/:projectId/execute`,
     requireDatabase,
@@ -85,19 +105,27 @@ export function createApp(services?: AppServices) {
     requireDatabase,
     createDeliverRouter(projectService)
   );
-  app.use(`${API_PREFIX}/projects/:projectId/agents`, requireDatabase, agentsRouter);
+  app.use(
+    `${API_PREFIX}/projects/:projectId/agents`,
+    requireDatabase,
+    createAgentsRouter({ projectService, orchestratorService, agentInstructionsService })
+  );
   app.use(
     `${API_PREFIX}/projects/:projectId/tasks`,
     requireDatabase,
     createTasksRouter(taskService)
   );
-  app.use(`${API_PREFIX}/projects/:projectId/feedback`, requireDatabase, feedbackRouter);
+  app.use(
+    `${API_PREFIX}/projects/:projectId/feedback`,
+    requireDatabase,
+    createFeedbackRouter({ feedbackService, orchestratorService })
+  );
   app.use(
     `${API_PREFIX}/projects/:projectId/notifications`,
     requireDatabase,
-    projectNotificationsRouter
+    createProjectNotificationsRouter({ projectService, orchestratorService })
   );
-  app.use(`${API_PREFIX}/notifications`, requireDatabase, globalNotificationsRouter);
+  app.use(`${API_PREFIX}/notifications`, requireDatabase, createGlobalNotificationsRouter());
   app.use(`${API_PREFIX}/fs`, fsRouter);
 
   // Desktop mode: serve built frontend and SPA fallback (after all API routes so /api and /ws are untouched)

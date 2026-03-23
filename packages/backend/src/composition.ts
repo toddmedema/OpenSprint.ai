@@ -3,15 +3,22 @@ import { taskStore } from "./services/task-store.service.js";
 import { FeedbackService } from "./services/feedback.service.js";
 import { SessionManager } from "./services/session-manager.js";
 import { PlanService } from "./services/plan.service.js";
+import { PrdService } from "./services/prd.service.js";
+import { ChatService } from "./services/chat.service.js";
 import { ContextAssembler } from "./services/context-assembler.js";
 import { BranchManager } from "./services/branch-manager.js";
 import { TaskService } from "./services/task.service.js";
 import { orchestratorService } from "./services/orchestrator.service.js";
+import { agentInstructionsService } from "./services/agent-instructions.service.js";
 
 export interface AppServices {
   taskService: TaskService;
   projectService: ProjectService;
   planService: PlanService;
+  prdService: PrdService;
+  chatService: ChatService;
+  feedbackService: FeedbackService;
+  agentInstructionsService: typeof agentInstructionsService;
   sessionManager: SessionManager;
 }
 
@@ -22,6 +29,8 @@ export interface AppServices {
 export function createAppServices(): AppServices {
   const projectService = new ProjectService();
   const feedbackService = new FeedbackService();
+  const prdService = new PrdService();
+  const chatService = new ChatService();
   const contextAssembler = new ContextAssembler();
   const branchManager = new BranchManager();
   const planService = new PlanService(projectService, taskStore);
@@ -45,6 +54,10 @@ export function createAppServices(): AppServices {
     taskService,
     projectService,
     planService,
+    prdService,
+    chatService,
+    feedbackService,
+    agentInstructionsService,
     sessionManager,
   };
 }

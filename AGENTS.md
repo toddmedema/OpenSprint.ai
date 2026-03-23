@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Open Sprint is a web application that guides users through the full software development lifecycle using AI agents. It has five phases — SPEED: Sketch, Plan, Execute, Evaluate, and Deliver. The product spec is at `PRD.md`; the Sketch phase output is `SPEC.md` at the project repo root.
+Open Sprint is a web application that guides users through the full software development lifecycle using AI agents. It has five phases — SPEED: Sketch, Plan, Execute, Evaluate, and Deliver. The active product spec is `SPEC.md` at the repo root.
 
 **Tech stack:** Node.js + TypeScript (backend), React + TypeScript (frontend).
 
