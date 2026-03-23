@@ -17,7 +17,10 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@opensprint/shared": ["../shared/src/index.ts"]
+      "@opensprint/shared": ["../shared/src/index.ts"],
+      "@opensprint/shared/types": ["../shared/src/types/index.ts"],
+      "@opensprint/shared/constants": ["../shared/src/constants/index.ts"],
+      "@opensprint/shared/runtime": ["../shared/src/runtime/index.ts"]
     }
   },
   "exclude": ["src/**/*.test.tsx", "src/**/*.test.ts", "src/test"],

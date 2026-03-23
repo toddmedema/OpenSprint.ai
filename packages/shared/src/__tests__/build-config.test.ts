@@ -31,9 +31,14 @@ describe("build config (production dist output)", () => {
     const exports = pkg.exports?.["."];
     expect(exports).toBeDefined();
     const importPaths = exports.import ?? exports.default;
-    expect(Array.isArray(importPaths) ? importPaths[0] : importPaths).toMatch(
-      /\.\/dist\/index\.js/
-    );
+    expect(importPaths).toMatch(/\.\/dist\/index\.js/);
+  });
+
+  it("package.json exposes stable subpath exports from dist", () => {
+    const pkg = JSON.parse(readFileSync(resolve(pkgRoot, "package.json"), "utf-8"));
+    expect(pkg.exports?.["./types"]?.import).toBe("./dist/types/index.js");
+    expect(pkg.exports?.["./constants"]?.import).toBe("./dist/constants/index.js");
+    expect(pkg.exports?.["./runtime"]?.import).toBe("./dist/runtime/index.js");
   });
 
   it("build produces dist/index.js and dist/index.d.ts when run", async () => {

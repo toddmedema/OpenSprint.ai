@@ -27,6 +27,8 @@ describe("dev config (source-direct imports)", () => {
     const content = readFileSync(viteConfigPath, "utf-8");
     expect(content).toContain("@opensprint/shared");
     expect(content).toMatch(/shared\/src\/index\.ts/);
+    expect(content).toMatch(/shared\/src\/types\/index\.ts/);
+    expect(content).toMatch(/shared\/src\/runtime\/index\.ts/);
   });
 
   it("backend vitest shared config aliases @opensprint/shared to source", () => {
@@ -35,6 +37,7 @@ describe("dev config (source-direct imports)", () => {
     const content = readFileSync(vitestPath, "utf-8");
     expect(content).toContain("@opensprint/shared");
     expect(content).toMatch(/shared\/src\/index\.ts/);
+    expect(content).toMatch(/shared\/src\/constants\/index\.ts/);
   });
 
   it("frontend Vitest project configs alias @opensprint/shared to source", () => {
@@ -47,16 +50,28 @@ describe("dev config (source-direct imports)", () => {
       const content = readFileSync(vitestPath, "utf-8");
       expect(content).toContain("@opensprint/shared");
       expect(content).toMatch(/shared\/src\/index\.ts/);
+      expect(content).toMatch(/shared\/src\/types\/index\.ts/);
     }
   });
 
-  it("shared package exports have src fallback when dist absent", () => {
+  it("workspace tsconfig path aliases resolve shared source directly in development", () => {
+    const frontendTsconfig = JSON.parse(
+      readFileSync(resolve(repoRoot, "packages/frontend/tsconfig.json"), "utf-8")
+    );
+    expect(frontendTsconfig.compilerOptions?.paths?.["@opensprint/shared"]).toEqual([
+      "../shared/src/index.ts",
+    ]);
+    expect(frontendTsconfig.compilerOptions?.paths?.["@opensprint/shared/types"]).toEqual([
+      "../shared/src/types/index.ts",
+    ]);
+  });
+
+  it("shared package exports do not depend on generated src artifacts", () => {
     const pkg = JSON.parse(readFileSync(resolve(sharedRoot, "package.json"), "utf-8"));
     const exports = pkg.exports?.["."];
     expect(exports).toBeDefined();
-    const importPaths = exports.import ?? exports.default;
-    const paths = Array.isArray(importPaths) ? importPaths : [importPaths];
-    expect(paths.some((p: string) => p.includes("src/index.ts"))).toBe(true);
+    expect(exports.import).toBe("./dist/index.js");
+    expect(exports.types).toBe("./dist/index.d.ts");
   });
 
   it("dev script runs shared in watch mode alongside backend and frontend", () => {

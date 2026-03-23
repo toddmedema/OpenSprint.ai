@@ -5,7 +5,10 @@
     "rootDir": "./src",
     "baseUrl": ".",
     "paths": {
-      "@opensprint/shared": ["../shared/dist/index.d.ts"]
+      "@opensprint/shared": ["../shared/dist/index.d.ts"],
+      "@opensprint/shared/types": ["../shared/dist/types/index.d.ts"],
+      "@opensprint/shared/constants": ["../shared/dist/constants/index.d.ts"],
+      "@opensprint/shared/runtime": ["../shared/dist/runtime/index.d.ts"]
     }
   },
   "include": ["src/**/*"],
