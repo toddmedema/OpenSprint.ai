@@ -78,6 +78,30 @@ describe("prepare-desktop-resources", () => {
       { appearance: "dark", value: "dark.png" },
       { appearance: "tinted", value: "tinted.png" },
     ]);
-    expect(layer.position["translation-in-points"]).toEqual([3, 0]);
+    expect(layer.position["translation-in-points"]).toEqual([0, 0]);
+  });
+
+  it("keeps the rasterized artwork optically shifted toward center", async () => {
+    const sharp = require("sharp");
+    const lightIconPath = path.join(__dirname, "..", "build", "OpenSprint.icon", "Assets", "light.png");
+    const { data, info } = await sharp(lightIconPath)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    let minX = info.width;
+    let maxX = -1;
+    for (let y = 0; y < info.height; y += 1) {
+      for (let x = 0; x < info.width; x += 1) {
+        const alpha = data[(y * info.width + x) * 4 + 3];
+        if (alpha <= 10) continue;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+      }
+    }
+
+    const centerX = (minX + maxX) / 2;
+    expect(centerX).toBeGreaterThan(525);
+    expect(centerX).toBeLessThan(540);
   });
 });
