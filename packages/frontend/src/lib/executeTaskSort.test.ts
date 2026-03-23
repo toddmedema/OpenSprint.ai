@@ -55,14 +55,14 @@ describe("sortEpicTasksByStatus", () => {
     ]);
   });
 
-  it("places waiting_to_merge after ready and before backlog", () => {
+  it("places waiting_to_merge after in_review and before ready", () => {
     const tasks = [
-      createTask({ id: "a", kanbanColumn: "backlog", priority: 0 }),
-      createTask({ id: "b", kanbanColumn: "ready", priority: 0 }),
-      createTask({ id: "c", kanbanColumn: "waiting_to_merge", priority: 0 }),
+      createTask({ id: "a", kanbanColumn: "ready", priority: 0 }),
+      createTask({ id: "b", kanbanColumn: "waiting_to_merge", priority: 0 }),
+      createTask({ id: "c", kanbanColumn: "in_review", priority: 0 }),
     ];
     const sorted = sortEpicTasksByStatus(tasks);
-    expect(sorted.map((t) => t.kanbanColumn)).toEqual(["ready", "waiting_to_merge", "backlog"]);
+    expect(sorted.map((t) => t.kanbanColumn)).toEqual(["in_review", "waiting_to_merge", "ready"]);
   });
 
   it("places planning and blocked after backlog, before done", () => {

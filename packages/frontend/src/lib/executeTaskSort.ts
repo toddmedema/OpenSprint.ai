@@ -58,14 +58,14 @@ export function sortTasksForTimeline(tasks: Task[]): Task[] {
 
 /**
  * Display order for epic card task list in Execute tab.
- * In Progress → In Review → Ready → Waiting to Merge → Backlog → Done.
+ * In Progress → In Review → Waiting to Merge → Ready → Backlog → Done.
  * Planning and blocked are grouped after backlog, before done.
  */
 const STATUS_ORDER: Record<KanbanColumn, number> = {
   in_progress: 0,
   in_review: 1,
-  ready: 2,
-  waiting_to_merge: 3,
+  waiting_to_merge: 2,
+  ready: 3,
   backlog: 4,
   planning: 5,
   blocked: 6,
@@ -74,7 +74,7 @@ const STATUS_ORDER: Record<KanbanColumn, number> = {
 
 /**
  * Sort epic subtasks by status priority for Execute tab display.
- * Groups: In Progress → In Review → Ready → Waiting to Merge → Backlog → Done.
+ * Groups: In Progress → In Review → Waiting to Merge → Ready → Backlog → Done.
  * Within each status group: priority (0 highest) then ID as tiebreaker.
  *
  * @param tasks - Tasks to sort (not mutated)

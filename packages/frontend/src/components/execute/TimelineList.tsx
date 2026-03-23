@@ -211,9 +211,9 @@ export function TimelineList({
 
   const sections = useMemo(
     () => [
-      { key: "waiting_to_merge" as const, tasks: bySection.waiting_to_merge },
       ...(showBlockedSection ? [{ key: "blocked" as const, tasks: bySection.blocked }] : []),
       { key: TIMELINE_SECTION.active, tasks: bySection[TIMELINE_SECTION.active] },
+      { key: "waiting_to_merge" as const, tasks: bySection.waiting_to_merge },
       { key: "ready" as const, tasks: bySection.ready },
       { key: "in_line" as const, tasks: bySection.in_line },
       ...(bySection.planning.length > 0

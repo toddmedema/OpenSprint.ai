@@ -131,7 +131,7 @@ describe("TimelineList", () => {
     expect(screen.getByText("Queued Task")).toBeInTheDocument();
   });
 
-  it("displays Waiting to Merge section above In Progress when waiting_to_merge tasks exist", () => {
+  it("displays Waiting to Merge section after In Progress when waiting_to_merge tasks exist", () => {
     const tasks = [
       createMockTask({ id: "a", kanbanColumn: "in_progress", title: "Active Task" }),
       createMockTask({
@@ -151,9 +151,9 @@ describe("TimelineList", () => {
     expect(screen.getByText("Merge me")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "In Progress" })).toBeInTheDocument();
     const headings = screen.getAllByRole("heading", { level: 3 });
-    const waitingToMergeIdx = headings.findIndex((h) => h.textContent === "Waiting to Merge");
     const inProgressIdx = headings.findIndex((h) => h.textContent === "In Progress");
-    expect(waitingToMergeIdx).toBeLessThan(inProgressIdx);
+    const waitingToMergeIdx = headings.findIndex((h) => h.textContent === "Waiting to Merge");
+    expect(inProgressIdx).toBeLessThan(waitingToMergeIdx);
 
     const row = screen.getByTestId("timeline-row-w");
     expect(within(row).queryByTestId("timeline-waiting-to-merge-badge")).not.toBeInTheDocument();
