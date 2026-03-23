@@ -37,7 +37,11 @@ import {
 } from "../slices/executeSlice";
 import { updateFeedbackItem, updateFeedbackItemResolved } from "../slices/evalSlice";
 import { appendDeliverOutput, deliverStarted, deliverCompleted } from "../slices/deliverSlice";
-import { appendAuditorOutput, setAuditorOutputBackfill } from "../slices/planSlice";
+import {
+  appendAuditorOutput,
+  setAuditorOutputBackfill,
+  setDecomposeGeneratedCount,
+} from "../slices/planSlice";
 import { setPhaseUnread } from "../slices/unreadPhaseSlice";
 import type { QueryClient } from "@tanstack/react-query";
 import { getQueryClient } from "../../queryClient";
@@ -331,6 +335,11 @@ export const websocketMiddleware: Middleware = (storeApi) => {
         void qc.invalidateQueries({
           queryKey: queryKeys.plans.detail(projectId, event.planId),
         });
+        break;
+      }
+
+      case "plan.decompose.progress": {
+        d(setDecomposeGeneratedCount(event.createdCount));
         break;
       }
 

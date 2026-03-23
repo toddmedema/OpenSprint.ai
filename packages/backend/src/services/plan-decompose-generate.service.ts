@@ -357,6 +357,10 @@ export class PlanDecomposeGenerateService {
         })),
       });
       created.push(plan);
+      broadcastToProject(projectId, {
+        type: "plan.decompose.progress",
+        createdCount: created.length,
+      });
     }
 
     try {

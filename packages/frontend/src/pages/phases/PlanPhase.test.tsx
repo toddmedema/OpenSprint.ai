@@ -13,7 +13,11 @@ import { PHASE_MAIN_SCROLL_CLASSNAME } from "../../lib/phaseMainScrollLayout";
 import { api } from "../../api/client";
 import { queryKeys } from "../../api/queryKeys";
 import projectReducer from "../../store/slices/projectSlice";
-import planReducer, { setPlansAndGraph, setSelectedPlanId } from "../../store/slices/planSlice";
+import planReducer, {
+  setDecomposeGeneratedCount,
+  setPlansAndGraph,
+  setSelectedPlanId,
+} from "../../store/slices/planSlice";
 import executeReducer, { taskUpdated, toTasksByIdAndOrder } from "../../store/slices/executeSlice";
 import openQuestionsReducer, {
   addNotification as addOpenQuestionNotification,
@@ -262,6 +266,7 @@ function createStore(
     selectedPlanId?: string;
     chatMessages?: Record<string, unknown[]>;
     planTasksPlanIds?: string[];
+    decomposeGeneratedCount?: number;
   }
 ) {
   const plans = plansOverride ?? [basePlan];
@@ -285,6 +290,7 @@ function createStore(
         chatMessages: planOverrides?.chatMessages ?? {},
         loading: false,
         decomposing: false,
+        decomposeGeneratedCount: planOverrides?.decomposeGeneratedCount ?? 0,
         generating: false,
         planStatus: null,
         executingPlanId: null,
@@ -418,6 +424,33 @@ describe("PlanPhase Redux integration", () => {
     expect(document.querySelector(".animate-logo-pulse")).toBeTruthy();
   });
 
+  it("shows the next generated plan number while decompose progress events arrive", async () => {
+    mockPlansDecompose.mockImplementation(() => new Promise(() => {}));
+    const store = createStore([], undefined, undefined, { selectedPlanId: null });
+
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <StartDecomposeOnMount projectId="proj-1" />
+          <PlanPhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>,
+      { wrapper: PlanPhaseWrapperEmptyPlansCached }
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Generating Plan...")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      store.dispatch(setDecomposeGeneratedCount(1));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Generating Plan #2...")).toBeInTheDocument();
+    });
+  });
+
   it("keeps Generating Plan… until plans list refetch completes after decompose", async () => {
     let resolveList: (value: unknown) => void;
     mockPlansList.mockImplementation(
@@ -471,6 +504,67 @@ describe("PlanPhase Redux integration", () => {
 
     await waitFor(() => {
       expect(screen.queryByText("Generating Plan...")).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows how many plans were generated while waiting for the post-decompose refetch", async () => {
+    let resolveList: (value: unknown) => void;
+    mockPlansList.mockImplementation(
+      () =>
+        new Promise((r) => {
+          resolveList = r;
+        })
+    );
+
+    let resolveDecompose: (value: unknown) => void;
+    mockPlansDecompose.mockImplementation(
+      () =>
+        new Promise((r) => {
+          resolveDecompose = r;
+        })
+    );
+
+    function PlanPhaseWrapperDeferredList({ children }: { children: React.ReactNode }) {
+      const [client] = React.useState(() => {
+        const c = createPlanPhaseQueryClient();
+        c.setQueryData(queryKeys.plans.list("proj-1"), { plans: [], edges: [] });
+        return c;
+      });
+      return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    }
+
+    const store = createStore([], undefined, undefined, { selectedPlanId: null });
+
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <StartDecomposeOnMount projectId="proj-1" />
+          <PlanPhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>,
+      { wrapper: PlanPhaseWrapperDeferredList }
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Generating Plan...")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      store.dispatch(setDecomposeGeneratedCount(2));
+      resolveDecompose!({ created: 2, plans: [] });
+    });
+
+    await waitFor(() => {
+      expect(mockPlansList).toHaveBeenCalled();
+    });
+    expect(screen.getByText("Loading 2 generated plans...")).toBeInTheDocument();
+
+    await act(async () => {
+      resolveList!({ plans: [], edges: [] });
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("Loading 2 generated plans...")).not.toBeInTheDocument();
     });
   });
 

@@ -28,6 +28,8 @@ export interface PlanState {
   loading: boolean;
   [PLANS_IN_FLIGHT_KEY]: number;
   decomposing: boolean;
+  /** Number of plans created so far during PRD decomposition. */
+  decomposeGeneratedCount: number;
   /** Whether a plan is currently being generated from a feature description */
   generating: boolean;
   /** Plan status for Dream CTA (plan/replan/none) */
@@ -61,6 +63,7 @@ const initialState: PlanState = {
   loading: false,
   [PLANS_IN_FLIGHT_KEY]: 0,
   decomposing: false,
+  decomposeGeneratedCount: 0,
   generating: false,
   planStatus: null,
   executingPlanId: null,
@@ -99,9 +102,12 @@ export const fetchPlans = createAsyncThunk<
   };
 });
 
-export const decomposePlans = createAsyncThunk("plan/decompose", async (projectId: string) => {
-  await api.plans.decompose(projectId);
-});
+export const decomposePlans = createAsyncThunk(
+  "plan/decompose",
+  async (projectId: string): Promise<{ created: number; plans: Plan[] }> => {
+    return api.plans.decompose(projectId);
+  }
+);
 
 export interface GeneratePlanArg {
   projectId: string;
@@ -287,6 +293,9 @@ const planSlice = createSlice({
     clearPlanBackgroundError(state) {
       state.backgroundError = null;
     },
+    setDecomposeGeneratedCount(state, action: PayloadAction<number>) {
+      state.decomposeGeneratedCount = Math.max(0, action.payload);
+    },
     setPlansAndGraph(
       state,
       action: PayloadAction<{ plans: Plan[]; dependencyGraph: PlanDependencyGraph | null }>
@@ -385,10 +394,12 @@ const planSlice = createSlice({
       // decomposePlans
       .addCase(decomposePlans.pending, (state) => {
         state.decomposing = true;
+        state.decomposeGeneratedCount = 0;
         state.error = null;
       })
-      .addCase(decomposePlans.fulfilled, (state) => {
+      .addCase(decomposePlans.fulfilled, (state, action) => {
         state.decomposing = false;
+        state.decomposeGeneratedCount = Math.max(0, action.payload.created ?? 0);
       })
       .addCase(decomposePlans.rejected, (state, action) => {
         state.decomposing = false;
@@ -616,6 +627,7 @@ export const {
   setExecutingPlanId,
   clearExecuteError,
   clearPlanBackgroundError,
+  setDecomposeGeneratedCount,
   setPlansAndGraph,
   enqueuePlanTasksId,
   addOptimisticPlan,

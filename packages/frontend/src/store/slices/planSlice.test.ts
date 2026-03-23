@@ -19,6 +19,7 @@ import planReducer, {
   setExecutingPlanId,
   clearExecuteError,
   clearPlanBackgroundError,
+  setDecomposeGeneratedCount,
   setPlansAndGraph,
   resetPlan,
   type PlanState,
@@ -102,6 +103,7 @@ describe("planSlice", () => {
       expect(state.chatMessages).toEqual({});
       expect(state.loading).toBe(false);
       expect(state.decomposing).toBe(false);
+      expect(state.decomposeGeneratedCount).toBe(0);
       expect(state.planStatus).toBeNull();
       expect(state.error).toBeNull();
       expect(state.backgroundError).toBeNull();
@@ -164,11 +166,18 @@ describe("planSlice", () => {
       expect(store.getState().plan.dependencyGraph).toEqual(mockGraph);
     });
 
+    it("setDecomposeGeneratedCount stores live decompose progress", () => {
+      const store = createStore();
+      store.dispatch(setDecomposeGeneratedCount(2));
+      expect(store.getState().plan.decomposeGeneratedCount).toBe(2);
+    });
+
     it("resetPlan resets state to initial values", () => {
       const store = createStore();
       store.dispatch(addPlanLocally(mockPlan));
       store.dispatch(setSelectedPlanId("plan-1"));
       store.dispatch(setPlanError("error"));
+      store.dispatch(setDecomposeGeneratedCount(3));
 
       store.dispatch(resetPlan());
       const state = store.getState().plan as PlanState;
@@ -178,6 +187,7 @@ describe("planSlice", () => {
       expect(state.chatMessages).toEqual({});
       expect(state.loading).toBe(false);
       expect(state.decomposing).toBe(false);
+      expect(state.decomposeGeneratedCount).toBe(0);
       expect(state.error).toBeNull();
       expect(state.backgroundError).toBeNull();
       expect(state.executeError).toBeNull();
@@ -317,8 +327,8 @@ describe("planSlice", () => {
 
   describe("decomposePlans thunk", () => {
     it("sets decomposing true on pending", async () => {
-      let resolveApi: () => void;
-      const apiPromise = new Promise<void>((r) => {
+      let resolveApi: (value: { created: number; plans: Plan[] }) => void;
+      const apiPromise = new Promise<{ created: number; plans: Plan[] }>((r) => {
         resolveApi = r;
       });
       vi.mocked(api.plans.decompose).mockReturnValue(apiPromise as never);
@@ -326,9 +336,10 @@ describe("planSlice", () => {
       const dispatchPromise = store.dispatch(decomposePlans("proj-1"));
 
       expect(store.getState().plan.decomposing).toBe(true);
+      expect(store.getState().plan.decomposeGeneratedCount).toBe(0);
       expect(store.getState().plan.error).toBeNull();
 
-      resolveApi!();
+      resolveApi!({ created: 0, plans: [] });
       await dispatchPromise;
     });
 
@@ -338,6 +349,7 @@ describe("planSlice", () => {
       await store.dispatch(decomposePlans("proj-1"));
 
       expect(store.getState().plan.decomposing).toBe(false);
+      expect(store.getState().plan.decomposeGeneratedCount).toBe(2);
       expect(api.plans.decompose).toHaveBeenCalledWith("proj-1");
     });
 

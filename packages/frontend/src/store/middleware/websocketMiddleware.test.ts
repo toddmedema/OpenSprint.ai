@@ -374,6 +374,19 @@ describe("websocketMiddleware", () => {
       });
     });
 
+    it("stores live decompose progress on plan.decompose.progress", async () => {
+      const store = createStore();
+      store.dispatch(wsConnect({ projectId: "proj-1" }));
+      wsInstance!.simulateOpen();
+      await vi.waitFor(() => store.getState().websocket.connected);
+
+      wsInstance!.simulateMessage({ type: "plan.decompose.progress", createdCount: 2 });
+
+      await vi.waitFor(() => {
+        expect(store.getState().plan.decomposeGeneratedCount).toBe(2);
+      });
+    });
+
     it("invalidates tasks list on plan.updated so UI can refetch", async () => {
       const store = createStore();
       store.dispatch(wsConnect({ projectId: "proj-1" }));

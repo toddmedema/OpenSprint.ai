@@ -266,6 +266,12 @@ export interface PlanGeneratedEvent {
   planId: string;
 }
 
+/** Emitted as each plan is created during PRD decomposition so the UI can show live progress. */
+export interface PlanDecomposeProgressEvent {
+  type: "plan.decompose.progress";
+  createdCount: number;
+}
+
 /** Streaming output from plan-scoped agents (e.g. Auditor during Re-execute). */
 export interface PlanAgentOutputEvent {
   type: "plan.agent.output";
@@ -385,6 +391,7 @@ export type ServerEvent =
   | NotificationResolvedEvent
   | PlanUpdatedEvent
   | PlanGeneratedEvent
+  | PlanDecomposeProgressEvent
   | PlanAgentOutputEvent
   | PlanAgentOutputBackfillEvent;
 

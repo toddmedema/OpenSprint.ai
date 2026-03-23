@@ -272,6 +272,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   const optimisticPlans = useAppSelector(
     (s) => s.plan.optimisticPlans ?? EMPTY_OPTIMISTIC_PLAN_LIST
   );
+  const decomposeGeneratedCount = useAppSelector((s) => s.plan.decomposeGeneratedCount ?? 0);
   const planError = useAppSelector((s) => s.plan.error);
   const executeError = useAppSelector((s) => s.plan.executeError);
 
@@ -980,7 +981,17 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
 
   /* ── RENDER: Centered pulsing logo + status during fetch or PRD→plans decomposition ── */
   const showPlansBlockingSpinner = showPlansSpinner || generatingPlansFromPrd;
-  const plansBlockingStatus = generatingPlansFromPrd ? "Generating Plan..." : "Loading plans…";
+  const plansBlockingStatus = generatingPlansFromPrd
+    ? decomposeMutationsInFlight > 0
+      ? decomposeGeneratedCount > 0
+        ? `Generating Plan #${decomposeGeneratedCount + 1}...`
+        : "Generating Plan..."
+      : decomposeGeneratedCount > 0
+        ? `Loading ${decomposeGeneratedCount} generated ${
+            decomposeGeneratedCount === 1 ? "plan" : "plans"
+          }...`
+        : "Generating Plan..."
+    : "Loading plans…";
   const plansBlockingAriaLabel = generatingPlansFromPrd ? "Generating plan" : "Loading plans";
 
   if (showPlansBlockingSpinner) {
