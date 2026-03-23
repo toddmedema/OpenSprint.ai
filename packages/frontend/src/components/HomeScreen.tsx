@@ -58,17 +58,18 @@ function EmptyStateActionCard({
     <button
       type="button"
       onClick={onClick}
-      className="group relative flex min-h-[15rem] h-full flex-col overflow-hidden rounded-[1.75rem] border border-theme-border bg-theme-bg p-6 text-left shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-brand-600 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 sm:p-8"
+      className="group flex min-h-[15rem] h-full flex-col overflow-hidden rounded-[1.75rem] border border-theme-border bg-theme-bg p-6 text-left shadow-sm transition-colors duration-200 hover:border-brand-600 hover:bg-theme-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 sm:p-8"
       data-testid={dataTestId}
     >
-      <div className="absolute inset-x-6 top-0 h-1 rounded-full bg-theme-border-subtle group-hover:bg-brand-600 sm:inset-x-8" />
-      <span
-        className={`inline-flex h-14 w-14 items-center justify-center rounded-2xl ${iconToneClassName}`}
-        aria-hidden
-      >
-        {icon}
-      </span>
-      <span className="mt-6 text-2xl font-semibold tracking-tight text-theme-text">{title}</span>
+      <div className="flex items-center gap-4">
+        <span
+          className={`inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${iconToneClassName}`}
+          aria-hidden
+        >
+          {icon}
+        </span>
+        <span className="text-2xl font-semibold tracking-tight text-theme-text">{title}</span>
+      </div>
       <span className="mt-3 text-sm leading-6 text-theme-muted">{description}</span>
       <span className="mt-auto pt-8 text-sm font-semibold text-theme-text">{ctaLabel}</span>
     </button>
@@ -420,10 +421,7 @@ export function HomeScreen() {
                 />
 
                 <div className="relative z-10 flex h-full flex-col items-center justify-center text-center">
-                  <span className="inline-flex items-center rounded-full bg-theme-info-bg px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-theme-info-text">
-                    Open Sprint
-                  </span>
-                  <h1 className="mt-6 max-w-3xl text-4xl font-semibold tracking-tight text-theme-text sm:text-5xl lg:text-6xl">
+                  <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-theme-text sm:text-5xl lg:text-6xl">
                     Start your first sprint
                   </h1>
                   <p className="mt-4 max-w-2xl text-base leading-7 text-theme-muted sm:text-lg">
