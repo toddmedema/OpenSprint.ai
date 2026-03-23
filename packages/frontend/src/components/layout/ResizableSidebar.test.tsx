@@ -160,6 +160,20 @@ describe("ResizableSidebar", () => {
     expect(visibleDragger).toBeInTheDocument();
   });
 
+  it("keeps the resize divider visible before hover so the draggable edge is discoverable", () => {
+    render(
+      <ResizableSidebar storageKey={STORAGE_KEY}>
+        <span>Content</span>
+      </ResizableSidebar>
+    );
+
+    const handle = screen.getByRole("slider", { name: "Resize sidebar" });
+    const visibleDivider = handle.querySelector(".w-1.h-full");
+    expect(visibleDivider).toHaveClass("bg-theme-border");
+    expect(visibleDivider).toHaveClass("opacity-60");
+    expect(visibleDivider).not.toHaveClass("opacity-0");
+  });
+
   it("keeps the resize handle above sticky sidebar headers", () => {
     render(
       <ResizableSidebar storageKey={STORAGE_KEY}>

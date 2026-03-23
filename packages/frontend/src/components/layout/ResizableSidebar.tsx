@@ -313,7 +313,8 @@ export function ResizableSidebar({
           onMouseDown={onHandleMouseDown}
           className={`${handlePositionClass} ${responsive ? "hidden md:flex" : ""}`}
         >
-          <div className="h-full w-1 rounded-full bg-theme-ring group-hover:bg-brand-500/60 opacity-0 group-hover:opacity-100 transition-opacity" />
+          {/* Keep the divider visible at rest so users can discover the draggable edge. */}
+          <div className="h-full w-1 rounded-full bg-theme-border opacity-60 group-hover:bg-brand-500/60 group-hover:opacity-100 transition-[background-color,opacity]" />
         </div>
       )}
       <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">{children}</div>
