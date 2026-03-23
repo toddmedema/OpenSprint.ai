@@ -165,7 +165,7 @@ export function useActiveAgents(
   options?: { enabled?: boolean; refetchInterval?: number }
 ) {
   return useQuery({
-    queryKey: ["agents", "active", projectId ?? ""],
+    queryKey: queryKeys.agents.active(projectId ?? ""),
     queryFn: async () => {
       const agents = await api.agents.active(projectId!);
       const taskIdToStartedAt: Record<string, string> = {};

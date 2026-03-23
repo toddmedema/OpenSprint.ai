@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, memo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import type { ActiveAgent, Project } from "@opensprint/shared";
 import {
   AGENT_ROLE_DESCRIPTIONS,
@@ -8,11 +9,9 @@ import {
   sortAgentsByCanonicalOrder,
 } from "@opensprint/shared";
 import type { AgentRole } from "@opensprint/shared";
-import { useAppDispatch, useAppSelector } from "../store";
-import { fetchGlobalActiveAgents } from "../store/slices/globalSlice";
+import { useGlobalActiveAgents } from "../api/hooks";
+import { queryKeys } from "../api/queryKeys";
 import { getProjectPhasePath } from "../lib/phaseRouting";
-import { setSelectedTaskId } from "../store/slices/executeSlice";
-import { setSelectedPlanId } from "../store/slices/planSlice";
 import { useDisplayPreferences } from "../contexts/DisplayPreferencesContext";
 import { UptimeDisplay } from "./UptimeDisplay";
 import { api } from "../api/client";
@@ -176,26 +175,19 @@ const BUTTON_AGENT_ICON_SIZE = "1.5rem";
 
 export function GlobalActiveAgentsList() {
   const { runningAgentsDisplayMode } = useDisplayPreferences();
-  const dispatch = useAppDispatch();
-  const entries = useAppSelector((s) => s.global?.globalActiveAgents ?? []);
-  const loadedOnce = useAppSelector((s) => s.global?.globalAgentsLoadedOnce ?? false);
+  const queryClient = useQueryClient();
+  const globalActiveAgentsQuery = useGlobalActiveAgents({
+    refetchInterval: ACTIVE_AGENTS_POLL_INTERVAL_MS,
+  });
+  const entries = globalActiveAgentsQuery.data?.entries ?? [];
   /** Only show loading when never loaded; use cached list when refreshing (avoids flash on open) */
-  const showLoading = !loadedOnce;
-  const showLoadingInDropdown = !loadedOnce;
+  const showLoading = globalActiveAgentsQuery.isLoading && !globalActiveAgentsQuery.data;
+  const showLoadingInDropdown = showLoading;
   const [open, setOpen] = useState(false);
   const [dropdownRect, setDropdownRect] = useState<DOMRect | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    dispatch(fetchGlobalActiveAgents());
-    const interval = setInterval(
-      () => dispatch(fetchGlobalActiveAgents()),
-      ACTIVE_AGENTS_POLL_INTERVAL_MS
-    );
-    return () => clearInterval(interval);
-  }, [dispatch]);
 
   useEffect(() => {
     if (open && buttonRef.current) {
@@ -207,8 +199,8 @@ export function GlobalActiveAgentsList() {
 
   useEffect(() => {
     if (!open) return;
-    dispatch(fetchGlobalActiveAgents());
-  }, [open, dispatch]);
+    void globalActiveAgentsQuery.refetch();
+  }, [open, globalActiveAgentsQuery]);
 
   const handleAgentClick = useCallback(
     (projectId: string, agent: ActiveAgent) => {
@@ -217,27 +209,23 @@ export function GlobalActiveAgentsList() {
         navigate(getProjectPhasePath(projectId, "eval", { feedback: agent.feedbackId }));
       } else if (agent.role === "auditor" && agent.planId) {
         // Auditor results deep-link to Plan view (not Execute tasks)
-        dispatch(setSelectedPlanId(agent.planId));
         navigate(getProjectPhasePath(projectId, "plan", { plan: agent.planId }));
       } else if (agent.planId && phase === "plan") {
-        dispatch(setSelectedPlanId(agent.planId));
         navigate(getProjectPhasePath(projectId, "plan", { plan: agent.planId }));
       } else if (phase === "execute") {
         const selectedTaskId = agent.taskId ?? agent.id;
-        dispatch(setSelectedTaskId(selectedTaskId));
         navigate(getProjectPhasePath(projectId, "execute", { task: selectedTaskId }));
       } else {
-        if (phase === "plan") dispatch(setSelectedPlanId(null));
         navigate(getProjectPhasePath(projectId, phase));
       }
       setOpen(false);
     },
-    [dispatch, navigate]
+    [navigate]
   );
 
   const handleKillSuccess = useCallback(() => {
-    dispatch(fetchGlobalActiveAgents());
-  }, [dispatch]);
+    void queryClient.invalidateQueries({ queryKey: queryKeys.agents.global() });
+  }, [queryClient]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {

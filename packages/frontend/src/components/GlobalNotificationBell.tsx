@@ -2,11 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import type { Notification, Project } from "@opensprint/shared";
+import { useClearGlobalNotifications, useGlobalNotifications } from "../api/hooks";
 import { getProjectPhasePath } from "../lib/phaseRouting";
-import { setSelectedPlanId } from "../store/slices/planSlice";
-import { setSelectedTaskId } from "../store/slices/executeSlice";
-import { fetchGlobalNotifications, clearAllGlobal } from "../store/slices/openQuestionsSlice";
-import { useAppDispatch, useAppSelector } from "../store";
 import { api } from "../api/client";
 import { getDropdownPositionRightAligned } from "../lib/dropdownViewport";
 import {
@@ -19,23 +16,17 @@ import {
 const EMPTY_NOTIFICATIONS: Notification[] = [];
 
 export function GlobalNotificationBell() {
-  const notifications = useAppSelector((s) => s.openQuestions?.global ?? EMPTY_NOTIFICATIONS);
+  const notificationsQuery = useGlobalNotifications({
+    refetchInterval: NOTIFICATION_POLL_INTERVAL_MS,
+  });
+  const clearAllMutation = useClearGlobalNotifications();
+  const notifications = notificationsQuery.data ?? EMPTY_NOTIFICATIONS;
   const [projects, setProjects] = useState<Project[]>([]);
   const [open, setOpen] = useState(false);
   const [dropdownRect, setDropdownRect] = useState<DOMRect | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
-
-  useEffect(() => {
-    dispatch(fetchGlobalNotifications());
-    const interval = setInterval(
-      () => dispatch(fetchGlobalNotifications()),
-      NOTIFICATION_POLL_INTERVAL_MS
-    );
-    return () => clearInterval(interval);
-  }, [dispatch]);
 
   useEffect(() => {
     api.projects.list().then(setProjects).catch(console.error);
@@ -51,8 +42,8 @@ export function GlobalNotificationBell() {
 
   useEffect(() => {
     if (!open) return;
-    dispatch(fetchGlobalNotifications());
-  }, [open, dispatch]);
+    void notificationsQuery.refetch();
+  }, [open, notificationsQuery]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -75,9 +66,9 @@ export function GlobalNotificationBell() {
   const projectNameMap = new Map(projects.map((p) => [p.id, p.name]));
 
   const handleClearAll = useCallback(() => {
-    dispatch(clearAllGlobal());
+    clearAllMutation.mutate();
     setOpen(false);
-  }, [dispatch]);
+  }, [clearAllMutation]);
 
   const handleNotificationClick = useCallback(
     (n: Notification) => {
@@ -106,20 +97,18 @@ export function GlobalNotificationBell() {
       if (n.source === "plan") {
         if (!n.sourceId.startsWith("draft:")) {
           options.plan = n.sourceId;
-          dispatch(setSelectedPlanId(n.sourceId));
         }
       } else if (n.source === "prd") {
         options.section = n.sourceId || "open_questions";
       } else if (n.source === "execute") {
         options.task = n.sourceId;
-        dispatch(setSelectedTaskId(n.sourceId));
       } else if (n.source === "eval") {
         options.feedback = n.sourceId;
       }
       navigate(getProjectPhasePath(n.projectId, phase, options));
       setOpen(false);
     },
-    [navigate, dispatch]
+    [navigate]
   );
 
   // Hide when zero notifications

@@ -21,7 +21,6 @@ import {
   setPrdHistory,
   setMessages as setSketchMessages,
 } from "../store/slices/sketchSlice";
-import { setDeliverStatusPayload, setDeliverHistoryPayload } from "../store/slices/deliverSlice";
 import { wsConnect, wsDisconnect } from "../store/middleware/websocketMiddleware";
 import {
   useProject,
@@ -29,8 +28,6 @@ import {
   usePlans,
   useFeedback,
   useExecuteStatus,
-  useDeliverStatus,
-  useDeliverHistory,
   usePrd,
   usePrdHistory,
   useSketchChat,
@@ -91,7 +88,6 @@ export function ProjectShell() {
   const isSketch = currentPhase === "sketch";
   const isPlan = currentPhase === "plan";
   const isExecute = currentPhase === "execute";
-  const isDeliver = currentPhase === "deliver";
   const dbStatus = useDbStatus();
   const dbPhaseAvailable = dbStatus.data?.ok === true;
   const shouldEnableDbBackedQueries = dbPhaseAvailable;
@@ -104,12 +100,6 @@ export function ProjectShell() {
   const { data: feedbackData } = useFeedback(projectId, { enabled: shouldEnableDbBackedQueries });
   const { data: executeStatusData } = useExecuteStatus(projectId, {
     enabled: isExecute && shouldEnableDbBackedQueries,
-  });
-  const { data: deliverStatusData } = useDeliverStatus(projectId, {
-    enabled: isDeliver && shouldEnableDbBackedQueries,
-  });
-  const { data: deliverHistoryData } = useDeliverHistory(projectId, undefined, {
-    enabled: isDeliver && shouldEnableDbBackedQueries,
   });
   const { data: prdData } = usePrd(projectId, {
     enabled: isSketch && shouldEnableDbBackedQueries,
@@ -235,25 +225,6 @@ export function ProjectShell() {
       })
     );
   }, [projectId, executeStatusData, dispatch]);
-  useEffect(() => {
-    if (!projectId || !deliverStatusData) return;
-    const previous = lastSyncedRef.current["deliverStatus"];
-    if (previous?.projectId === projectId && previous.data === deliverStatusData) return;
-    lastSyncedRef.current["deliverStatus"] = { projectId, data: deliverStatusData };
-    dispatch(
-      setDeliverStatusPayload({
-        activeDeployId: deliverStatusData.activeDeployId,
-        currentDeploy: deliverStatusData.currentDeploy,
-      })
-    );
-  }, [projectId, deliverStatusData, dispatch]);
-  useEffect(() => {
-    if (!projectId || deliverHistoryData == null) return;
-    const previous = lastSyncedRef.current["deliverHistory"];
-    if (previous?.projectId === projectId && previous.data === deliverHistoryData) return;
-    lastSyncedRef.current["deliverHistory"] = { projectId, data: deliverHistoryData };
-    dispatch(setDeliverHistoryPayload(deliverHistoryData));
-  }, [projectId, deliverHistoryData, dispatch]);
   useEffect(() => {
     if (!projectId || prdData == null) return;
     const previous = lastSyncedRef.current["prd"];

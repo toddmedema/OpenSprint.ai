@@ -2,6 +2,8 @@ export * from "./project";
 export * from "./prd";
 export * from "./plans";
 export * from "./tasks";
+export * from "./agents";
 export * from "./feedback";
 export * from "./deliver";
+export * from "./notifications";
 export * from "./db-status";

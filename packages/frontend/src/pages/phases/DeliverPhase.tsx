@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import type { DeploymentRecord, DeploymentConfig } from "@opensprint/shared";
+import type { DeploymentRecord } from "@opensprint/shared";
 import { getDeploymentTargetConfig } from "@opensprint/shared";
 import { getProjectPhasePath } from "../../lib/phaseRouting";
 import {
@@ -10,15 +10,16 @@ import {
   PHASE_TOOLBAR_HEIGHT,
 } from "../../lib/constants";
 import { shouldRightAlignDropdown } from "../../lib/dropdownViewport";
-import { useAppDispatch, useAppSelector } from "../../store";
+import { useAppSelector } from "../../store";
 import {
-  triggerDeliver,
-  deployExpo,
-  rollbackDeliver,
-  setSelectedDeployId,
-  deliverCompleted,
-} from "../../store/slices/deliverSlice";
-import { useDeliverStatus, useDeliverHistory, useExpoReadiness } from "../../api/hooks";
+  useDeliverStatus,
+  useDeliverHistory,
+  useExpoReadiness,
+  useExpoDeploy,
+  useProjectSettings,
+  useRollbackDeliver,
+  useTriggerDeliver,
+} from "../../api/hooks";
 import { queryKeys } from "../../api/queryKeys";
 import { api } from "../../api/client";
 import { useViewportWidth } from "../../hooks/useViewportWidth";
@@ -102,22 +103,37 @@ function FilterIcon({ className }: { className?: string }) {
 }
 
 export function DeliverPhase({ projectId, onOpenSettings }: DeliverPhaseProps) {
-  const dispatch = useAppDispatch();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { projectId: paramProjectId } = useParams<{ projectId: string }>();
   const effectiveProjectId = projectId ?? paramProjectId ?? "";
   const viewportWidth = useViewportWidth();
   const isMobile = viewportWidth < MOBILE_BREAKPOINT;
-  const [settings, setSettings] = useState<{ deployment: DeploymentConfig } | null>(null);
   const [resetLoading, setResetLoading] = useState(false);
   const [envFilter, setEnvFilter] = useState<string>("all");
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
   const [filterDropdownAlignRight, setFilterDropdownAlignRight] = useState(false);
+  const [selectedDeployId, setSelectedDeployId] = useState<string | null>(null);
   const filterDropdownRef = useRef<HTMLDivElement>(null);
   const filterTriggerRef = useRef<HTMLButtonElement>(null);
-
-  const history = useAppSelector((s) => s.deliver.history);
+  const liveLogsByDeployId = useAppSelector((s) => s.deliver.liveLogsByDeployId ?? {});
+  const prePollStatusQuery = useDeliverStatus(projectId);
+  const prePollActiveDeployId = prePollStatusQuery.data?.activeDeployId ?? null;
+  const polling = Boolean(prePollActiveDeployId && projectId);
+  const projectSettingsQuery = useProjectSettings(projectId);
+  const settings = projectSettingsQuery.data ?? null;
+  const deliverStatusQuery = useDeliverStatus(projectId, {
+    refetchInterval: polling ? 1000 : undefined,
+  });
+  const deliverHistoryQuery = useDeliverHistory(projectId, undefined, {
+    refetchInterval: polling ? 1000 : undefined,
+  });
+  const triggerDeliverMutation = useTriggerDeliver(projectId);
+  const expoDeployMutation = useExpoDeploy(projectId);
+  const rollbackDeliverMutation = useRollbackDeliver(projectId);
+  const history = deliverHistoryQuery.data ?? [];
+  const activeDeployId = deliverStatusQuery.data?.activeDeployId ?? null;
+  const currentDeploy = deliverStatusQuery.data?.currentDeploy ?? null;
 
   const envCounts = useMemo(() => {
     const counts: Record<string, number> = { all: history.length };
@@ -154,33 +170,30 @@ export function DeliverPhase({ projectId, onOpenSettings }: DeliverPhaseProps) {
     }
   }, [filterDropdownOpen]);
 
-  const activeDeployId = useAppSelector((s) => s.deliver.activeDeployId);
-  const selectedDeployId = useAppSelector((s) => s.deliver.selectedDeployId);
-  const liveLog = useAppSelector((s) => s.deliver.liveLog);
-  const deliverLoading = useAppSelector((s) => s.deliver?.async?.trigger?.loading ?? false);
-  const expoDeployLoading = useAppSelector((s) => s.deliver?.async?.expoDeploy?.loading ?? false);
-  const expoDeployError = useAppSelector((s) => s.deliver?.async?.expoDeploy?.error ?? null);
-  const historyLoading = useAppSelector((s) => s.deliver?.async?.history?.loading ?? false);
-  const rollbackLoading = useAppSelector((s) => s.deliver?.async?.rollback?.loading ?? false);
-
-  const polling = Boolean(activeDeployId && projectId);
-  useDeliverStatus(projectId, { refetchInterval: polling ? 1000 : undefined });
-  useDeliverHistory(projectId, undefined, { refetchInterval: polling ? 1000 : undefined });
-
   const { data: expoReadiness } = useExpoReadiness(effectiveProjectId, {
     deploymentMode: settings?.deployment?.mode ?? undefined,
   });
 
   useEffect(() => {
-    api.projects
-      .getSettings(projectId)
-      .then(setSettings)
-      .catch(() => setSettings(null));
+    setSelectedDeployId(null);
   }, [projectId]);
+
+  useEffect(() => {
+    if (!selectedDeployId) return;
+    if (history.some((record) => record.id === selectedDeployId)) return;
+    setSelectedDeployId(null);
+  }, [history, selectedDeployId]);
 
   const selectedRecord = selectedDeployId
     ? (history.find((r) => r.id === selectedDeployId) ?? null)
-    : (filteredHistory[0] ?? history[0] ?? null);
+    : (currentDeploy ?? filteredHistory[0] ?? history[0] ?? null);
+  const liveLog = selectedRecord ? (liveLogsByDeployId[selectedRecord.id] ?? []) : [];
+  const deliverLoading = triggerDeliverMutation.isPending;
+  const expoDeployLoading = expoDeployMutation.isPending;
+  const expoDeployError =
+    expoDeployMutation.error instanceof Error ? expoDeployMutation.error.message : null;
+  const historyLoading = deliverHistoryQuery.isFetching;
+  const rollbackLoading = rollbackDeliverMutation.isPending;
 
   const displayLog = (() => {
     if (activeDeployId && (selectedDeployId === activeDeployId || !selectedDeployId)) {
@@ -203,24 +216,24 @@ export function DeliverPhase({ projectId, onOpenSettings }: DeliverPhaseProps) {
     selectedRecord?.status === "success";
 
   const handleDeployToBeta = () => {
-    dispatch(deployExpo({ projectId, variant: "beta" }));
+    expoDeployMutation.mutate("beta");
   };
 
   const handleDeployToProd = () => {
-    dispatch(deployExpo({ projectId, variant: "prod" }));
+    expoDeployMutation.mutate("prod");
   };
 
   const handleRollback = () => {
     if (!selectedRecord?.id || !canRollback || rollbackLoading) return;
-    dispatch(rollbackDeliver({ projectId, deployId: selectedRecord.id }));
+    rollbackDeliverMutation.mutate(selectedRecord.id);
   };
 
   const handleSelectDeploy = (id: string) => {
-    dispatch(setSelectedDeployId(id));
+    setSelectedDeployId(id);
   };
 
   const handleCloseDetailOverlay = () => {
-    dispatch(setSelectedDeployId(null));
+    setSelectedDeployId(null);
   };
 
   const handleResetDeliver = async () => {
@@ -228,9 +241,6 @@ export function DeliverPhase({ projectId, onOpenSettings }: DeliverPhaseProps) {
     setResetLoading(true);
     try {
       await api.deliver.cancel(projectId);
-      if (activeDeployId) {
-        dispatch(deliverCompleted({ deployId: activeDeployId, success: false }));
-      }
       void queryClient.invalidateQueries({ queryKey: queryKeys.deliver.status(projectId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.deliver.history(projectId) });
     } finally {
@@ -424,7 +434,7 @@ export function DeliverPhase({ projectId, onOpenSettings }: DeliverPhaseProps) {
                         <button
                           key={t.name}
                           type="button"
-                          onClick={() => dispatch(triggerDeliver({ projectId, target: t.name }))}
+                          onClick={() => triggerDeliverMutation.mutate(t.name)}
                           style={{
                             minHeight: PHASE_TOOLBAR_BUTTON_SIZE,
                             minWidth: PHASE_TOOLBAR_BUTTON_SIZE,

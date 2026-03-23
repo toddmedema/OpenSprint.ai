@@ -3,7 +3,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../../store";
 import {
-  setSelectedTaskId,
   setAgentOutputBackfill,
   setArchivedSessions,
   selectTasks,
@@ -51,10 +50,10 @@ import { EMPTY_STATE_COPY } from "../../lib/emptyStateCopy";
 
 interface ExecutePhaseProps {
   projectId: string;
-  /** Task ID from URL (?task=...) so sidebar can show on first paint before Redux sync. */
-  initialTaskIdFromUrl?: string | null;
+  selectedTaskId?: string;
+  onSelectTaskId?: (taskId: string | null) => void;
   onNavigateToPlan?: (planId: string) => void;
-  /** Called when user closes the sidebar. When provided (e.g. from ProjectView), clears URL param; otherwise just clears Redux. */
+  /** Called when user closes the sidebar. When provided (e.g. from ProjectView), clears URL param. */
   onClose?: () => void;
 }
 
@@ -70,7 +69,8 @@ const BASELINE_MERGE_PAUSE_SWEEP_MS = 8000;
 
 export function ExecutePhase({
   projectId,
-  initialTaskIdFromUrl,
+  selectedTaskId,
+  onSelectTaskId,
   onNavigateToPlan,
   onClose: onCloseProp,
 }: ExecutePhaseProps) {
@@ -129,9 +129,7 @@ export function ExecutePhase({
     (s) => s.execute.selfImprovementRunInProgress ?? false
   );
   const selfImprovementRunMode = useAppSelector((s) => s.execute.selfImprovementRunMode);
-  const selectedTask = useAppSelector((s) => s.execute.selectedTaskId);
-  /** Resolve selection from Redux or URL so sidebar shows on first paint when opening with ?task= */
-  const effectiveSelectedTask = selectedTask ?? initialTaskIdFromUrl ?? null;
+  const effectiveSelectedTask = selectedTaskId ?? null;
   const loading = useAppSelector((s) => s.execute?.async?.tasks?.loading ?? false);
   const activeTasks = useAppSelector((s) => s.execute?.activeTasks ?? EMPTY_ACTIVE_TASKS);
   const taskIdToStartedAt = useAppSelector(
@@ -319,11 +317,16 @@ export function ExecutePhase({
     handleClose();
   };
 
+  const handleSelectTask = useCallback(
+    (taskId: string) => {
+      onSelectTaskId?.(taskId);
+    },
+    [onSelectTaskId]
+  );
+
   const handleClose = () => {
     if (onCloseProp) {
       onCloseProp();
-    } else {
-      dispatch(setSelectedTaskId(null));
     }
   };
 
@@ -506,7 +509,7 @@ export function ExecutePhase({
                             statusFilter="ready"
                             searchQuery={searchQuery}
                             filteringActive={isSearchActive}
-                            onTaskSelect={(taskId) => dispatch(setSelectedTaskId(taskId))}
+                            onTaskSelect={handleSelectTask}
                             onUnblock={requestUnblock}
                             onViewPlan={
                               lane.planId && onNavigateToPlan
@@ -535,7 +538,7 @@ export function ExecutePhase({
                             statusFilter="in_line"
                             searchQuery={searchQuery}
                             filteringActive={isSearchActive}
-                            onTaskSelect={(taskId) => dispatch(setSelectedTaskId(taskId))}
+                            onTaskSelect={handleSelectTask}
                             onUnblock={requestUnblock}
                             onViewPlan={
                               lane.planId && onNavigateToPlan
@@ -564,7 +567,7 @@ export function ExecutePhase({
                             statusFilter="blocked"
                             searchQuery={searchQuery}
                             filteringActive={isSearchActive}
-                            onTaskSelect={(taskId) => dispatch(setSelectedTaskId(taskId))}
+                            onTaskSelect={handleSelectTask}
                             onUnblock={requestUnblock}
                             onViewPlan={
                               lane.planId && onNavigateToPlan
@@ -594,7 +597,7 @@ export function ExecutePhase({
                             searchQuery={searchQuery}
                             plans={plans}
                             filteringActive={isSearchActive}
-                            onTaskSelect={(taskId) => dispatch(setSelectedTaskId(taskId))}
+                            onTaskSelect={handleSelectTask}
                             onUnblock={requestUnblock}
                             onViewPlan={
                               lane.planId && onNavigateToPlan
@@ -638,7 +641,7 @@ export function ExecutePhase({
                       statusFilter={statusFilter}
                       searchQuery={searchQuery}
                       filteringActive={isSearchActive}
-                      onTaskSelect={(taskId) => dispatch(setSelectedTaskId(taskId))}
+                      onTaskSelect={handleSelectTask}
                       onUnblock={requestUnblock}
                       onViewPlan={
                         lane.planId && onNavigateToPlan
@@ -666,7 +669,7 @@ export function ExecutePhase({
               <TimelineList
                 tasks={filteredTasks}
                 plans={plans}
-                onTaskSelect={(taskId) => dispatch(setSelectedTaskId(taskId))}
+                onTaskSelect={handleSelectTask}
                 onUnblock={requestUnblock}
                 unblockInflightByTaskId={unblockInflightByTaskId}
                 taskIdToStartedAt={taskIdToStartedAt}
@@ -738,7 +741,7 @@ export function ExecutePhase({
               onMarkDone: handleMarkDone,
               onUnblock: handleUnblock,
               onDeleteTask: handleDeleteTask,
-              onSelectTask: (taskId) => dispatch(setSelectedTaskId(taskId)),
+              onSelectTask: handleSelectTask,
               onNavigateToPlan,
               onOpenQuestionResolved: (
                 resolved?: Notification,

@@ -4,7 +4,7 @@ import { useQueryClient, useIsMutating } from "@tanstack/react-query";
 import type { Plan, PlanExecuteBatchItem, PlanExecuteBatchStatus, PlanStatus } from "@opensprint/shared";
 import { DEFAULT_MAX_TOTAL_CONCURRENT_AGENTS, sortPlansByStatus } from "@opensprint/shared";
 import { useLocation, useNavigate } from "react-router-dom";
-import { store, useAppDispatch, useAppSelector } from "../../store";
+import { useAppDispatch, useAppSelector } from "../../store";
 import {
   executePlan,
   executePlanBatch,
@@ -15,7 +15,6 @@ import {
   deletePlan,
   sendPlanMessage,
   updatePlan,
-  setSelectedPlanId,
   setPlanChatMessages,
   generatePlan,
   setPlanError,
@@ -222,10 +221,17 @@ function topologicalPlanOrder(planIds: string[], edges: { from: string; to: stri
 
 interface PlanPhaseProps {
   projectId: string;
+  selectedPlanId?: string;
+  onSelectPlanId?: (planId: string | null) => void;
   onNavigateToBuildTask?: (taskId: string) => void;
 }
 
-export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) {
+export function PlanPhase({
+  projectId,
+  selectedPlanId,
+  onSelectPlanId,
+  onNavigateToBuildTask,
+}: PlanPhaseProps) {
   const dispatch = useAppDispatch();
   const queryClient = useQueryClient();
   const location = useLocation();
@@ -245,12 +251,16 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
   const autoExecutePlans = projectSettings?.autoExecutePlans === true;
 
   /* ── Redux state (needed for hook args) ── */
-  const selectedPlanId = useAppSelector((s) => s.plan.selectedPlanId);
   const planChatQuery = usePlanChat(
     projectId,
     selectedPlanId ? `plan:${selectedPlanId}` : undefined
   );
   const singlePlanQuery = useSinglePlan(projectId, selectedPlanId ?? undefined);
+  const selectedPlanIdRef = useRef<string | null>(selectedPlanId ?? null);
+
+  useEffect(() => {
+    selectedPlanIdRef.current = selectedPlanId ?? null;
+  }, [selectedPlanId]);
 
   useEffect(() => {
     if (planChatQuery.data) {
@@ -772,7 +782,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
             if (!planId) break;
             const result = await dispatch(planTasks({ projectId, planId }));
             dispatch(fetchPlans({ projectId, background: true }));
-            const currentSelected = store.getState().plan.selectedPlanId;
+            const currentSelected = selectedPlanIdRef.current;
             if (currentSelected === planId) {
               void queryClient.invalidateQueries({
                 queryKey: queryKeys.plans.detail(projectId, planId),
@@ -985,7 +995,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
     const result = await dispatch(deletePlan({ projectId, planId: deleteConfirmPlanId }));
     if (deletePlan.fulfilled.match(result)) {
       setDeleteConfirmPlanId(null);
-      dispatch(setSelectedPlanId(null));
+      onSelectPlanId?.(null);
       void queryClient.invalidateQueries({ queryKey: queryKeys.plans.list(projectId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list(projectId) });
     } else {
@@ -1020,14 +1030,14 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
 
   const handleSelectPlan = useCallback(
     (plan: Plan) => {
-      dispatch(setSelectedPlanId(plan.metadata.planId));
+      onSelectPlanId?.(plan.metadata.planId);
     },
-    [dispatch]
+    [onSelectPlanId]
   );
 
   const handleClosePlan = useCallback(() => {
-    dispatch(setSelectedPlanId(null));
-  }, [dispatch]);
+    onSelectPlanId?.(null);
+  }, [onSelectPlanId]);
 
   const handlePlanContentSave = useCallback(
     async (content: string) => {
@@ -1220,7 +1230,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
                       }
                       if (result.payload.response.planGenerated?.planId) {
                         const planId = result.payload.response.planGenerated.planId;
-                        dispatch(setSelectedPlanId(planId));
+                        onSelectPlanId?.(planId);
                         void queryClient.invalidateQueries({
                           queryKey: queryKeys.plans.list(projectId),
                         });
@@ -1255,7 +1265,7 @@ export function PlanPhase({ projectId, onNavigateToBuildTask }: PlanPhaseProps) 
               ) : (
                 <PlanListView
                   plans={plansForListView}
-                  selectedPlanId={selectedPlanId}
+                  selectedPlanId={selectedPlanId ?? null}
                   executingPlanId={executingPlanId}
                   reExecutingPlanId={reExecutingPlanId}
                   planTasksPlanIds={planTasksPlanIds ?? []}

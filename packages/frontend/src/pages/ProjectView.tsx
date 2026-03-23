@@ -1,4 +1,4 @@
-import { useEffect, lazy, Suspense } from "react";
+import { lazy, Suspense } from "react";
 import { useParams, useNavigate, useLocation, Navigate } from "react-router-dom";
 import type { ProjectPhase } from "@opensprint/shared";
 import {
@@ -7,9 +7,6 @@ import {
   isValidPhaseSlug,
   parseDetailParams,
 } from "../lib/phaseRouting";
-import { useAppDispatch, useAppSelector } from "../store";
-import { setSelectedPlanId } from "../store/slices/planSlice";
-import { setSelectedTaskId } from "../store/slices/executeSlice";
 import { PhaseLoadingFallback } from "../components/PhaseLoadingFallback";
 
 const LazySketchPhase = lazy(() =>
@@ -36,52 +33,14 @@ export function ProjectView() {
   const { projectId, phase: phaseSlug } = useParams<{ projectId: string; phase?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const dispatch = useAppDispatch();
   const redirectTo =
     projectId && !isValidPhaseSlug(phaseSlug) ? getProjectPhasePath(projectId, "sketch") : null;
 
   const currentPhase = phaseFromSlug(phaseSlug);
-  const selectedPlanId = useAppSelector((s) => s.plan.selectedPlanId);
-  const selectedTaskId = useAppSelector((s) => s.execute.selectedTaskId);
-
-  // Sync URL search params → Redux on load / when URL changes (deep link support).
-  useEffect(() => {
-    if (!projectId) return;
-    const { plan, task } = parseDetailParams(location.search);
-    if (plan && currentPhase === "plan") dispatch(setSelectedPlanId(plan));
-    if (task && currentPhase === "execute") dispatch(setSelectedTaskId(task));
-  }, [projectId, location.search, currentPhase, dispatch]);
-
-  // Sync Redux selection → URL when user selects plan/task (shareable links).
-  useEffect(() => {
-    if (!projectId) return;
-    const {
-      plan: urlPlan,
-      task: urlTask,
-      feedback: urlFeedback,
-      question: urlQuestion,
-      section: urlSection,
-    } = parseDetailParams(location.search);
-    const path = getProjectPhasePath(projectId, currentPhase, {
-      plan: currentPhase === "plan" ? (selectedPlanId ?? urlPlan ?? undefined) : undefined,
-      task: currentPhase === "execute" ? (selectedTaskId ?? urlTask ?? undefined) : undefined,
-      feedback: currentPhase === "eval" ? (urlFeedback ?? undefined) : undefined,
-      question: urlQuestion ?? undefined,
-      section: urlSection ?? undefined,
-    });
-    const currentPath = location.pathname + location.search;
-    if (path !== currentPath) {
-      navigate(path, { replace: true });
-    }
-  }, [
-    projectId,
-    currentPhase,
-    selectedPlanId,
-    selectedTaskId,
-    location.pathname,
-    location.search,
-    navigate,
-  ]);
+  const detailParams = parseDetailParams(location.search);
+  const selectedPlanId = currentPhase === "plan" ? detailParams.plan : null;
+  const selectedTaskId = currentPhase === "execute" ? detailParams.task : null;
+  const selectedFeedbackId = currentPhase === "eval" ? detailParams.feedback : null;
 
   if (!projectId) return null;
   if (redirectTo) return <Navigate to={redirectTo} replace />;
@@ -91,17 +50,16 @@ export function ProjectView() {
       getProjectPhasePath(projectId, phase, {
         plan: phase === "plan" ? (selectedPlanId ?? undefined) : undefined,
         task: phase === "execute" ? (selectedTaskId ?? undefined) : undefined,
+        feedback: phase === "eval" ? (selectedFeedbackId ?? undefined) : undefined,
       })
     );
   };
 
   const handleNavigateToBuildTask = (taskId: string) => {
-    dispatch(setSelectedTaskId(taskId));
     navigate(getProjectPhasePath(projectId, "execute", { task: taskId }));
   };
 
   const handleNavigateToPlan = (planId: string) => {
-    dispatch(setSelectedPlanId(planId));
     navigate(getProjectPhasePath(projectId, "plan", { plan: planId }));
   };
 
@@ -119,24 +77,39 @@ export function ProjectView() {
           />
         )}
         {currentPhase === "plan" && (
-          <LazyPlanPhase projectId={projectId} onNavigateToBuildTask={handleNavigateToBuildTask} />
+          <LazyPlanPhase
+            projectId={projectId}
+            selectedPlanId={selectedPlanId ?? undefined}
+            onSelectPlanId={(planId) =>
+              navigate(
+                getProjectPhasePath(projectId, "plan", {
+                  plan: planId ?? undefined,
+                })
+              )
+            }
+            onNavigateToBuildTask={handleNavigateToBuildTask}
+          />
         )}
         {currentPhase === "execute" && (
           <LazyExecutePhase
             projectId={projectId}
-            initialTaskIdFromUrl={parseDetailParams(location.search).task ?? undefined}
+            selectedTaskId={selectedTaskId ?? undefined}
+            onSelectTaskId={(taskId: string | null) =>
+              navigate(
+                getProjectPhasePath(projectId, "execute", {
+                  task: taskId ?? undefined,
+                })
+              )
+            }
             onNavigateToPlan={handleNavigateToPlan}
-            onClose={() => {
-              dispatch(setSelectedTaskId(null));
-              navigate(getProjectPhasePath(projectId, "execute"));
-            }}
+            onClose={() => navigate(getProjectPhasePath(projectId, "execute"))}
           />
         )}
         {currentPhase === "eval" && (
           <LazyEvalPhase
             projectId={projectId}
             onNavigateToBuildTask={handleNavigateToBuildTask}
-            feedbackIdFromUrl={parseDetailParams(location.search).feedback ?? undefined}
+            feedbackIdFromUrl={selectedFeedbackId ?? undefined}
           />
         )}
         {currentPhase === "deliver" && (

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, memo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import type { ActiveAgent } from "@opensprint/shared";
 import {
   AGENT_ROLE_DESCRIPTIONS,
@@ -8,14 +9,13 @@ import {
   sortAgentsByCanonicalOrder,
 } from "@opensprint/shared";
 import type { AgentRole } from "@opensprint/shared";
-import { useAppDispatch, useAppSelector } from "../store";
-import { setSelectedTaskId } from "../store/slices/executeSlice";
+import { useActiveAgents } from "../api/hooks";
+import { queryKeys } from "../api/queryKeys";
 import { getProjectPhasePath } from "../lib/phaseRouting";
-import { setSelectedPlanId } from "../store/slices/planSlice";
 import { useDisplayPreferences } from "../contexts/DisplayPreferencesContext";
 import { UptimeDisplay } from "./UptimeDisplay";
 import { api } from "../api/client";
-import { AGENT_DROPDOWN_ICON_SIZE } from "../lib/constants";
+import { ACTIVE_AGENTS_POLL_INTERVAL_MS, AGENT_DROPDOWN_ICON_SIZE } from "../lib/constants";
 import { getDropdownPositionRightAligned } from "../lib/dropdownViewport";
 import { getAgentIconSrc, getPhaseForAgentNavigation } from "../lib/agentUtils";
 import { getKillAgentConfirmDisabled } from "../lib/killAgentConfirmStorage";
@@ -161,11 +161,13 @@ function LoadingSpinner({ className = "w-4 h-4" }: { className?: string }) {
 }
 
 export function ActiveAgentsList({ projectId }: ActiveAgentsListProps) {
-  const dispatch = useAppDispatch();
-  const agents = useAppSelector((state) => state.execute.activeAgents);
-  const loadedOnce = useAppSelector((state) => state.execute.activeAgentsLoadedOnce);
-  const showLoading = !loadedOnce;
-  const showLoadingInDropdown = !loadedOnce;
+  const queryClient = useQueryClient();
+  const activeAgentsQuery = useActiveAgents(projectId, {
+    refetchInterval: ACTIVE_AGENTS_POLL_INTERVAL_MS,
+  });
+  const agents = activeAgentsQuery.data?.agents ?? [];
+  const showLoading = activeAgentsQuery.isLoading && !activeAgentsQuery.data;
+  const showLoadingInDropdown = showLoading;
   const [open, setOpen] = useState(false);
   const [hiddenAgentIds, setHiddenAgentIds] = useState<Set<string>>(new Set());
   const [dropdownRect, setDropdownRect] = useState<DOMRect | null>(null);
@@ -221,27 +223,24 @@ export function ActiveAgentsList({ projectId }: ActiveAgentsListProps) {
         navigate(getProjectPhasePath(projectId, "eval", { feedback: agent.feedbackId }));
       } else if (agent.role === "auditor" && agent.planId) {
         // Auditor results deep-link to Plan view (not Execute tasks)
-        dispatch(setSelectedPlanId(agent.planId));
         navigate(getProjectPhasePath(projectId, "plan", { plan: agent.planId }));
       } else if (agent.planId && phase === "plan") {
-        dispatch(setSelectedPlanId(agent.planId));
         navigate(getProjectPhasePath(projectId, "plan", { plan: agent.planId }));
       } else if (phase === "execute") {
         const selectedTaskId = agent.taskId ?? agent.id;
-        dispatch(setSelectedTaskId(selectedTaskId));
         navigate(getProjectPhasePath(projectId, "execute", { task: selectedTaskId }));
       } else {
-        if (phase === "plan") dispatch(setSelectedPlanId(null));
         navigate(getProjectPhasePath(projectId, phase));
       }
       setOpen(false);
     },
-    [dispatch, navigate, projectId]
+    [navigate, projectId]
   );
 
   const handleKillSuccess = useCallback((agentId: string) => {
     setHiddenAgentIds((prev) => new Set(prev).add(agentId));
-  }, []);
+    void queryClient.invalidateQueries({ queryKey: queryKeys.agents.active(projectId) });
+  }, [projectId, queryClient]);
 
   /** Sort agents by canonical README/PRD order for consistent icon display. */
   const visibleAgents =

@@ -21,6 +21,10 @@ export const queryKeys = {
   chat: {
     history: (projectId: string, context: string) => ["chat", projectId, context] as const,
   },
+  agents: {
+    active: (projectId: string) => ["agents", "active", projectId] as const,
+    global: () => ["agents", "global"] as const,
+  },
   plans: {
     list: (projectId: string) => ["plans", projectId] as const,
     /** Mutation key for POST …/plans/decompose (tracked globally for Plan tab loading UI). */
@@ -50,6 +54,10 @@ export const queryKeys = {
   },
   feedback: {
     list: (projectId: string) => ["feedback", projectId] as const,
+  },
+  notifications: {
+    project: (projectId: string) => ["notifications", "project", projectId] as const,
+    global: () => ["notifications", "global"] as const,
   },
   deliver: {
     status: (projectId: string) => ["deliver", projectId, "status"] as const,

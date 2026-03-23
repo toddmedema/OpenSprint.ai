@@ -28,6 +28,7 @@ export interface DeliverState {
   activeDeployId: string | null;
   selectedDeployId: string | null;
   liveLog: string[];
+  liveLogsByDeployId: Record<string, string[]>;
   [STATUS_IN_FLIGHT_KEY]: number;
   [HISTORY_IN_FLIGHT_KEY]: number;
   async: AsyncStates<DeliverAsyncKey>;
@@ -41,6 +42,7 @@ const initialState: DeliverState = {
   activeDeployId: null,
   selectedDeployId: null,
   liveLog: [],
+  liveLogsByDeployId: {},
   [STATUS_IN_FLIGHT_KEY]: 0,
   [HISTORY_IN_FLIGHT_KEY]: 0,
   async: createInitialAsyncStates(DELIVER_ASYNC_KEYS),
@@ -125,6 +127,14 @@ const deliverSlice = createSlice({
       state.liveLog = [];
     },
     appendDeliverOutput(state, action: PayloadAction<{ deployId: string; chunk: string }>) {
+      if (!state.liveLogsByDeployId[action.payload.deployId]) {
+        state.liveLogsByDeployId[action.payload.deployId] = [];
+      }
+      state.liveLogsByDeployId[action.payload.deployId].push(action.payload.chunk);
+      if (state.liveLogsByDeployId[action.payload.deployId].length > MAX_LIVE_LOG) {
+        state.liveLogsByDeployId[action.payload.deployId] =
+          state.liveLogsByDeployId[action.payload.deployId].slice(-MAX_LIVE_LOG);
+      }
       if (
         action.payload.deployId === state.selectedDeployId ||
         action.payload.deployId === state.activeDeployId
@@ -139,6 +149,7 @@ const deliverSlice = createSlice({
       state.activeDeployId = action.payload.deployId;
       state.selectedDeployId = action.payload.deployId;
       state.liveLog = [];
+      state.liveLogsByDeployId[action.payload.deployId] = [];
     },
     deliverCompleted(
       state,
