@@ -360,6 +360,11 @@ export const api = {
         method: "POST",
         ...(candidateId ? { body: JSON.stringify({ candidateId }) } : {}),
       }),
+    rollbackSelfImprovement: (id: string, body: { behaviorVersionId: string }) =>
+      request<SelfImprovementBehaviorStatus>(`/projects/${id}/self-improvement/rollback`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
     archive: (id: string) => request<void>(`/projects/${id}/archive`, { method: "POST" }),
     delete: (id: string) =>
       request<void>(`/projects/${id}`, {

@@ -186,6 +186,12 @@ export function WorkflowSettingsContent({
     text: string;
   } | null>(null);
 
+  const [rollbackMessage, setRollbackMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [selectedRollbackVersionId, setSelectedRollbackVersionId] = useState<string>("");
+
   const approveMutation = useMutation({
     mutationFn: () => api.projects.approveSelfImprovement(projectId, siStatus.pendingCandidateId),
     onSuccess: () => {
@@ -225,6 +231,29 @@ export function WorkflowSettingsContent({
     onError: (err: Error) => {
       setApprovalMessage({ type: "error", text: err.message || "Failed to reject candidate" });
       setTimeout(() => setApprovalMessage(null), 5000);
+    },
+  });
+
+  const rollbackMutation = useMutation({
+    mutationFn: (behaviorVersionId: string) =>
+      api.projects.rollbackSelfImprovement(projectId, { behaviorVersionId }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.projects.selfImprovementStatus(projectId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.projects.selfImprovementHistory(projectId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.projects.settings(projectId),
+      });
+      setRollbackMessage({ type: "success", text: "Rolled back successfully" });
+      setSelectedRollbackVersionId("");
+      setTimeout(() => setRollbackMessage(null), 5000);
+    },
+    onError: (err: Error) => {
+      setRollbackMessage({ type: "error", text: err.message || "Rollback failed" });
+      setTimeout(() => setRollbackMessage(null), 5000);
     },
   });
 
@@ -975,6 +1004,60 @@ export function WorkflowSettingsContent({
                 )}
               </div>
             )}
+
+            {(() => {
+              const versions = draftSettings.selfImprovementBehaviorVersions ?? [];
+              const activeId = draftSettings.selfImprovementActiveBehaviorVersionId;
+              const rollbackTargets = versions.filter((v) => v.id !== activeId);
+              if (rollbackTargets.length === 0) return null;
+              return (
+                <div
+                  className="mt-2 p-3 rounded-lg border border-theme-border bg-theme-bg space-y-2"
+                  data-testid="self-improvement-rollback-section"
+                >
+                  <h5 className="text-xs font-semibold text-theme-text">
+                    Rollback to previous version
+                  </h5>
+                  <div className="flex items-center gap-2">
+                    <select
+                      className="input text-xs flex-1"
+                      data-testid="rollback-version-select"
+                      value={selectedRollbackVersionId}
+                      onChange={(e) => setSelectedRollbackVersionId(e.target.value)}
+                    >
+                      <option value="">Select a version…</option>
+                      {rollbackTargets.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.id} (promoted {formatTimestamp(v.promotedAt)})
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="btn btn-secondary text-xs px-3 py-1"
+                      data-testid="rollback-btn"
+                      disabled={!selectedRollbackVersionId || rollbackMutation.isPending}
+                      onClick={() => {
+                        if (selectedRollbackVersionId) {
+                          rollbackMutation.mutate(selectedRollbackVersionId);
+                        }
+                      }}
+                    >
+                      {rollbackMutation.isPending ? "Rolling back…" : "Rollback"}
+                    </button>
+                  </div>
+                  {rollbackMessage && (
+                    <p
+                      className={`text-xs ${rollbackMessage.type === "success" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
+                      data-testid="rollback-feedback-message"
+                      role="status"
+                    >
+                      {rollbackMessage.text}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
 
             {historyRuns.length > 0 && (
               <div className="mt-3" data-testid="self-improvement-recent-runs">

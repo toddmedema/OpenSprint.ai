@@ -14,6 +14,7 @@ vi.mock("../../api/client", () => ({
       getSelfImprovementHistory: vi.fn(),
       approveSelfImprovement: vi.fn(),
       rejectSelfImprovement: vi.fn(),
+      rollbackSelfImprovement: vi.fn(),
     },
   },
 }));
@@ -68,6 +69,7 @@ describe("WorkflowSettingsContent", () => {
     vi.mocked(api.projects.runSelfImprovement).mockReset();
     vi.mocked(api.projects.getSelfImprovementStatus).mockReset();
     vi.mocked(api.projects.getSelfImprovementHistory).mockReset();
+    vi.mocked(api.projects.rollbackSelfImprovement).mockReset();
     vi.mocked(api.projects.getSelfImprovementStatus).mockResolvedValue({
       status: "idle",
     } satisfies SelfImprovementStatusSnapshot);
@@ -770,6 +772,219 @@ describe("WorkflowSettingsContent", () => {
       });
 
       expect(screen.getByTestId("self-improvement-approval-card")).toHaveTextContent("cand-42");
+    });
+  });
+
+  describe("rollback section", () => {
+    const sampleHistory: SelfImprovementHistoryEntry[] = [
+      {
+        timestamp: "2026-03-20T14:00:00.000Z",
+        status: "success",
+        tasksCreatedCount: 0,
+        mode: "audit_and_experiments",
+        outcome: "promoted",
+        summary: "Promoted v2",
+        runId: "run-1",
+        promotedVersionId: "bv-2",
+      },
+    ];
+
+    it("does not show rollback section when no behavior versions exist", async () => {
+      vi.mocked(api.projects.getSelfImprovementHistory).mockResolvedValue(sampleHistory);
+      renderWorkflowContent();
+
+      await waitFor(() => {
+        expect(screen.getByTestId("self-improvement-summary-row")).toBeInTheDocument();
+      });
+
+      expect(screen.queryByTestId("self-improvement-rollback-section")).not.toBeInTheDocument();
+    });
+
+    it("does not show rollback section when only one version exists (the active one)", async () => {
+      vi.mocked(api.projects.getSelfImprovementHistory).mockResolvedValue(sampleHistory);
+      renderWorkflowContent({
+        selfImprovementActiveBehaviorVersionId: "bv-2",
+        selfImprovementBehaviorVersions: [{ id: "bv-2", promotedAt: "2026-03-20T14:00:00Z" }],
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("self-improvement-summary-row")).toBeInTheDocument();
+      });
+
+      expect(screen.queryByTestId("self-improvement-rollback-section")).not.toBeInTheDocument();
+    });
+
+    it("shows rollback section when multiple promoted versions exist", async () => {
+      vi.mocked(api.projects.getSelfImprovementHistory).mockResolvedValue(sampleHistory);
+      renderWorkflowContent({
+        selfImprovementActiveBehaviorVersionId: "bv-2",
+        selfImprovementBehaviorVersions: [
+          { id: "bv-1", promotedAt: "2026-03-18T10:00:00Z" },
+          { id: "bv-2", promotedAt: "2026-03-20T14:00:00Z" },
+        ],
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("self-improvement-rollback-section")).toBeInTheDocument();
+      });
+
+      expect(screen.getByTestId("rollback-version-select")).toBeInTheDocument();
+      expect(screen.getByTestId("rollback-btn")).toBeInTheDocument();
+      expect(screen.getByTestId("rollback-btn")).toHaveTextContent("Rollback");
+    });
+
+    it("rollback button is disabled when no version is selected", async () => {
+      vi.mocked(api.projects.getSelfImprovementHistory).mockResolvedValue(sampleHistory);
+      renderWorkflowContent({
+        selfImprovementActiveBehaviorVersionId: "bv-2",
+        selfImprovementBehaviorVersions: [
+          { id: "bv-1", promotedAt: "2026-03-18T10:00:00Z" },
+          { id: "bv-2", promotedAt: "2026-03-20T14:00:00Z" },
+        ],
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("rollback-btn")).toBeInTheDocument();
+      });
+
+      expect(screen.getByTestId("rollback-btn")).toBeDisabled();
+    });
+
+    it("dropdown only lists versions other than the active one", async () => {
+      vi.mocked(api.projects.getSelfImprovementHistory).mockResolvedValue(sampleHistory);
+      renderWorkflowContent({
+        selfImprovementActiveBehaviorVersionId: "bv-2",
+        selfImprovementBehaviorVersions: [
+          { id: "bv-1", promotedAt: "2026-03-18T10:00:00Z" },
+          { id: "bv-2", promotedAt: "2026-03-20T14:00:00Z" },
+        ],
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("rollback-version-select")).toBeInTheDocument();
+      });
+
+      const select = screen.getByTestId("rollback-version-select") as HTMLSelectElement;
+      const options = Array.from(select.options);
+      expect(options).toHaveLength(2);
+      expect(options[0]).toHaveTextContent("Select a version…");
+      expect(options[1]).toHaveTextContent("bv-1");
+      expect(options.some((o) => o.textContent?.includes("bv-2"))).toBe(false);
+    });
+
+    it("calls rollbackSelfImprovement on Rollback click and shows success", async () => {
+      vi.mocked(api.projects.getSelfImprovementHistory).mockResolvedValue(sampleHistory);
+      vi.mocked(api.projects.rollbackSelfImprovement).mockResolvedValue({
+        activeBehaviorVersionId: "bv-1",
+        behaviorVersions: [
+          { id: "bv-1", promotedAt: "2026-03-18T10:00:00Z" },
+          { id: "bv-2", promotedAt: "2026-03-20T14:00:00Z" },
+        ],
+        history: [
+          {
+            timestamp: "2026-03-21T00:00:00Z",
+            action: "rollback",
+            behaviorVersionId: "bv-1",
+          },
+        ],
+      });
+      renderWorkflowContent({
+        selfImprovementActiveBehaviorVersionId: "bv-2",
+        selfImprovementBehaviorVersions: [
+          { id: "bv-1", promotedAt: "2026-03-18T10:00:00Z" },
+          { id: "bv-2", promotedAt: "2026-03-20T14:00:00Z" },
+        ],
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("rollback-version-select")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("rollback-version-select"), {
+        target: { value: "bv-1" },
+      });
+      fireEvent.click(screen.getByTestId("rollback-btn"));
+
+      await waitFor(() => {
+        expect(api.projects.rollbackSelfImprovement).toHaveBeenCalledWith("proj-1", {
+          behaviorVersionId: "bv-1",
+        });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("rollback-feedback-message")).toHaveTextContent(
+          "Rolled back successfully"
+        );
+      });
+    });
+
+    it("shows error feedback when rollback fails", async () => {
+      vi.mocked(api.projects.getSelfImprovementHistory).mockResolvedValue(sampleHistory);
+      vi.mocked(api.projects.rollbackSelfImprovement).mockRejectedValue(
+        new Error("Version not found")
+      );
+      renderWorkflowContent({
+        selfImprovementActiveBehaviorVersionId: "bv-2",
+        selfImprovementBehaviorVersions: [
+          { id: "bv-1", promotedAt: "2026-03-18T10:00:00Z" },
+          { id: "bv-2", promotedAt: "2026-03-20T14:00:00Z" },
+        ],
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("rollback-version-select")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("rollback-version-select"), {
+        target: { value: "bv-1" },
+      });
+      fireEvent.click(screen.getByTestId("rollback-btn"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("rollback-feedback-message")).toHaveTextContent(
+          "Version not found"
+        );
+      });
+    });
+
+    it("shows loading state while rollback is pending", async () => {
+      vi.mocked(api.projects.getSelfImprovementHistory).mockResolvedValue(sampleHistory);
+      let resolveRollback: (v: unknown) => void;
+      const rollbackPromise = new Promise((r) => {
+        resolveRollback = r;
+      });
+      vi.mocked(api.projects.rollbackSelfImprovement).mockReturnValue(
+        rollbackPromise as ReturnType<typeof api.projects.rollbackSelfImprovement>
+      );
+      renderWorkflowContent({
+        selfImprovementActiveBehaviorVersionId: "bv-2",
+        selfImprovementBehaviorVersions: [
+          { id: "bv-1", promotedAt: "2026-03-18T10:00:00Z" },
+          { id: "bv-2", promotedAt: "2026-03-20T14:00:00Z" },
+        ],
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("rollback-version-select")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("rollback-version-select"), {
+        target: { value: "bv-1" },
+      });
+      fireEvent.click(screen.getByTestId("rollback-btn"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("rollback-btn")).toHaveTextContent("Rolling back…");
+      });
+
+      resolveRollback!({
+        activeBehaviorVersionId: "bv-1",
+        behaviorVersions: [],
+        history: [],
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId("rollback-btn")).toHaveTextContent("Rollback");
+      });
     });
   });
 
