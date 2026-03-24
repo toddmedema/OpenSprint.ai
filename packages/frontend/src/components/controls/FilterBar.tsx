@@ -15,8 +15,8 @@ export function FilterBar({ left, right, dataTestId, variant = "default" }: Filt
     <div
       className={
         isPhase
-          ? "phase-toolbar w-full px-4 sm:px-6 flex items-center py-0.5 border-b border-theme-border bg-theme-surface shrink-0"
-          : "w-full px-4 sm:px-6 min-h-[48px] flex items-center py-2 border-b border-theme-border-subtle bg-theme-surface shrink-0"
+          ? "phase-toolbar w-full px-4 md:px-6 flex items-center py-0.5 border-b border-theme-border bg-theme-surface shrink-0"
+          : "w-full px-4 md:px-6 min-h-[48px] flex items-center py-2 border-b border-theme-border-subtle bg-theme-surface shrink-0"
       }
       style={isPhase ? { height: PHASE_TOOLBAR_HEIGHT } : undefined}
       data-testid={dataTestId}

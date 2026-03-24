@@ -270,7 +270,7 @@ describe("PlanFilterToolbar", () => {
     );
     const toolbar = container.firstElementChild;
     expect(toolbar).toHaveClass("px-4");
-    expect(toolbar).toHaveClass("sm:px-6");
+    expect(toolbar).toHaveClass("md:px-6");
     expect(screen.getByTestId("plan-filter-segmented")).toBeInTheDocument();
   });
 });
