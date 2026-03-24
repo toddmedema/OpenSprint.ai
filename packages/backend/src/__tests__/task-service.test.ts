@@ -1327,6 +1327,175 @@ describe("TaskService", () => {
     });
   });
 
+  describe("forceRetry", () => {
+    it("rejects completed tasks with 409", async () => {
+      const { taskStore } = await import("../services/task-store.service.js");
+      vi.mocked(taskStore.show).mockResolvedValue({
+        id: "task-1",
+        title: "Completed Task",
+        status: "closed",
+        issue_type: "task",
+        dependencies: [],
+      } as StoredTask);
+
+      await expect(taskService.forceRetry("proj-1", "task-1")).rejects.toMatchObject({
+        statusCode: 409,
+        code: "INVALID_INPUT",
+        message: expect.stringMatching(/already completed/i),
+      });
+    });
+
+    it("resets blocked task to open with full cleanup", async () => {
+      const { taskStore } = await import("../services/task-store.service.js");
+      vi.mocked(taskStore.show).mockResolvedValue({
+        id: "task-1",
+        title: "Blocked Task",
+        status: "blocked",
+        issue_type: "task",
+        labels: ["attempts:3"],
+        dependencies: [],
+      } as StoredTask);
+      vi.mocked(taskStore.update).mockResolvedValue(undefined as never);
+      vi.mocked(taskStore.removeLabel).mockResolvedValue(undefined as never);
+
+      const result = await taskService.forceRetry("proj-1", "task-1");
+
+      expect(result).toBeDefined();
+      expect(result.id).toBe("task-1");
+      expect(mockOrchestrator.stopTaskAndFreeSlot).toHaveBeenCalledWith("proj-1", "task-1");
+      expect(mockOrchestrator.nudge).toHaveBeenCalledWith("proj-1");
+      expect(mockBranchManagerInstance.revertAndReturnToMain).toHaveBeenCalledWith(
+        "/tmp/test-repo",
+        "opensprint/task-1",
+        "main"
+      );
+      expect(taskStore.update).toHaveBeenCalledWith("proj-1", "task-1", {
+        status: "open",
+        assignee: "",
+        block_reason: null,
+        extra: {
+          last_execution_summary: null,
+          next_retry_context: null,
+          qualityGateDetail: null,
+          failedGateCommand: null,
+          failedGateReason: null,
+          failedGateOutputSnippet: null,
+          worktreePath: null,
+        },
+      });
+      expect(taskStore.removeLabel).toHaveBeenCalledWith("proj-1", "task-1", "attempts:3");
+    });
+
+    it("resets in_progress task to open", async () => {
+      const { taskStore } = await import("../services/task-store.service.js");
+      vi.mocked(taskStore.show).mockResolvedValue({
+        id: "task-1",
+        title: "In Progress Task",
+        status: "in_progress",
+        issue_type: "task",
+        labels: [],
+        dependencies: [],
+      } as StoredTask);
+      vi.mocked(taskStore.update).mockResolvedValue(undefined as never);
+
+      const result = await taskService.forceRetry("proj-1", "task-1");
+
+      expect(result).toBeDefined();
+      expect(taskStore.update).toHaveBeenCalledWith(
+        "proj-1",
+        "task-1",
+        expect.objectContaining({ status: "open", assignee: "" })
+      );
+    });
+
+    it("succeeds even if no agent is running (idempotent)", async () => {
+      const { taskStore } = await import("../services/task-store.service.js");
+      vi.mocked(taskStore.show).mockResolvedValue({
+        id: "task-1",
+        title: "Open Task",
+        status: "open",
+        issue_type: "task",
+        labels: [],
+        dependencies: [],
+      } as StoredTask);
+      vi.mocked(taskStore.update).mockResolvedValue(undefined as never);
+      mockOrchestrator.stopTaskAndFreeSlot.mockRejectedValueOnce(new Error("no agent"));
+
+      const result = await taskService.forceRetry("proj-1", "task-1");
+
+      expect(result).toBeDefined();
+      expect(result.id).toBe("task-1");
+    });
+
+    it("removes worktree when in worktree mode", async () => {
+      const { taskStore } = await import("../services/task-store.service.js");
+      const { ProjectService } = await import("../services/project.service.js");
+
+      vi.mocked(ProjectService).mockImplementationOnce(
+        () =>
+          ({
+            getProject: vi.fn().mockResolvedValue({
+              id: "proj-1",
+              repoPath: "/tmp/test-repo",
+            }),
+            getProjectByRepoPath: vi
+              .fn()
+              .mockResolvedValue({ id: "proj-1", repoPath: "/tmp/test-repo" }),
+            getSettings: vi.fn().mockResolvedValue({ gitWorkingMode: "worktree" }),
+          }) as never
+      );
+
+      mockBranchManagerInstance.listTaskWorktrees.mockResolvedValueOnce([
+        { taskId: "task-1", worktreePath: "/tmp/opensprint-worktrees/task-1" },
+      ]);
+
+      vi.mocked(taskStore.show).mockResolvedValue({
+        id: "task-1",
+        title: "Task",
+        status: "blocked",
+        issue_type: "task",
+        labels: [],
+        dependencies: [],
+      } as StoredTask);
+      vi.mocked(taskStore.update).mockResolvedValue(undefined as never);
+
+      const svc = new TaskService(
+        new ProjectService(),
+        taskStore,
+        new FeedbackService(),
+        new SessionManager(),
+        new ContextAssembler(),
+        new BranchManager(),
+        mockOrchestrator
+      );
+      await svc.forceRetry("proj-1", "task-1");
+
+      expect(mockBranchManagerInstance.removeTaskWorktree).toHaveBeenCalledWith(
+        "/tmp/test-repo",
+        "task-1",
+        "/tmp/opensprint-worktrees/task-1"
+      );
+    });
+
+    it("does not remove attempts label when none exists", async () => {
+      const { taskStore } = await import("../services/task-store.service.js");
+      vi.mocked(taskStore.show).mockResolvedValue({
+        id: "task-1",
+        title: "Task",
+        status: "open",
+        issue_type: "task",
+        labels: [],
+        dependencies: [],
+      } as StoredTask);
+      vi.mocked(taskStore.update).mockResolvedValue(undefined as never);
+      vi.mocked(taskStore.removeLabel).mockClear();
+
+      await taskService.forceRetry("proj-1", "task-1");
+
+      expect(taskStore.removeLabel).not.toHaveBeenCalled();
+    });
+  });
+
   describe("sourceFeedbackIds", () => {
     it("derives sourceFeedbackIds from discovered-from dep to feedback source task", async () => {
       mockTaskStoreState.listAll = [

@@ -85,6 +85,17 @@ export function createTasksRouter(taskService: TaskService): Router {
     })
   );
 
+  // POST /projects/:projectId/tasks/:taskId/force-retry — Force-retry a task (kill agent, clean state, reset to open)
+  router.post(
+    "/:taskId/force-retry",
+    validateParams(taskIdParamSchema),
+    wrapAsync(async (req: Request<TaskParams>, res) => {
+      const task = await taskService.forceRetry(req.params.projectId, req.params.taskId);
+      const body: ApiResponse<Task> = { data: task };
+      res.json(body);
+    })
+  );
+
   // POST /projects/:projectId/tasks/:taskId/done — Manually mark task done (and epic if last)
   router.post(
     "/:taskId/done",

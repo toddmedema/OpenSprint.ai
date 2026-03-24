@@ -633,6 +633,101 @@ export class TaskService {
     return { taskUnblocked: true };
   }
 
+  /**
+   * Force-retry a task: kill any running agent, remove worktree + active artifacts,
+   * reset the task to open so the orchestrator picks it up fresh.
+   * Returns 409 if the task is already completed.
+   */
+  async forceRetry(projectId: string, taskId: string): Promise<Task> {
+    const project = await this.projectService.getProject(projectId);
+    const repoPath = project.repoPath;
+    const issue = await this.taskStore.show(projectId, taskId);
+    const status = (issue.status as string) ?? "open";
+
+    if (status === "closed") {
+      throw new AppError(
+        409,
+        ErrorCodes.INVALID_INPUT,
+        `Task ${taskId} is already completed and cannot be retried`
+      );
+    }
+
+    // 1. Stop any running agent and free slot
+    try {
+      await this.orchestrator.stopTaskAndFreeSlot(projectId, taskId);
+    } catch (err) {
+      log.warn("Stop-agent-on-force-retry failed, continuing cleanup", {
+        projectId,
+        taskId,
+        err,
+      });
+    }
+
+    // 2. Remove worktree if it exists
+    const settings = await this.projectService.getSettings(projectId);
+    const gitWorkingMode = settings.gitWorkingMode ?? "worktree";
+    if (gitWorkingMode !== "branches") {
+      const worktrees = await this.branchManager.listTaskWorktrees(repoPath);
+      const found = worktrees.find((w) => w.taskId === taskId);
+      if (found) {
+        try {
+          await this.branchManager.removeTaskWorktree(repoPath, taskId, found.worktreePath);
+        } catch (err) {
+          log.warn("Remove-worktree-on-force-retry failed", { taskId, err });
+        }
+      }
+    }
+
+    // 3. Delete task branch so next agent starts from fresh base branch
+    const branchName = `opensprint/${taskId}`;
+    const baseBranch = await resolveBaseBranch(repoPath, settings.worktreeBaseBranch);
+    try {
+      await this.branchManager.revertAndReturnToMain(repoPath, branchName, baseBranch);
+    } catch (err) {
+      log.warn("Revert-branch-on-force-retry failed (branch may not exist)", {
+        taskId,
+        branchName,
+        err,
+      });
+    }
+
+    // 4. Delete .opensprint/active/<task-id>/
+    const activeDir = this.sessionManager.getActiveDir(repoPath, taskId);
+    try {
+      await fs.rm(activeDir, { recursive: true, force: true });
+    } catch (err) {
+      log.warn("Delete-active-dir-on-force-retry failed", { taskId, activeDir, err });
+    }
+
+    // 5. Reset task: status=open, clear assignee, clear block_reason, clear failure metadata
+    await this.taskStore.update(projectId, taskId, {
+      status: "open",
+      assignee: "",
+      block_reason: null,
+      extra: {
+        last_execution_summary: null,
+        next_retry_context: null,
+        qualityGateDetail: null,
+        failedGateCommand: null,
+        failedGateReason: null,
+        failedGateOutputSnippet: null,
+        worktreePath: null,
+      },
+    });
+
+    // 6. Zero cumulative attempt counters
+    const labels = (issue.labels ?? []) as string[];
+    const attemptsLabel = labels.find((l) => /^attempts:\d+$/.test(l));
+    if (attemptsLabel) {
+      await this.taskStore.removeLabel(projectId, taskId, attemptsLabel);
+    }
+
+    // 7. Nudge orchestrator to pick up the task
+    this.orchestrator.nudge(projectId);
+
+    return this.getTask(projectId, taskId);
+  }
+
   /** Delete a task and cascade cleanup of references in store-backed entities. */
   async deleteTask(projectId: string, taskId: string): Promise<{ taskDeleted: boolean }> {
     await this.projectService.getProject(projectId);
