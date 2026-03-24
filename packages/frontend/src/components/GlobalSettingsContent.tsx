@@ -7,7 +7,13 @@ import { api, isConnectionError } from "../api/client";
 import { DB_STATUS_QUERY_KEY } from "../api/hooks/db-status";
 import { ApiKeysSection } from "./ApiKeysSection";
 import { CloseButton } from "./CloseButton";
+import { GlobalAgentConfigSection, type GlobalAgentEnvKeys } from "./GlobalAgentConfigSection";
+import {
+  GlobalSettingsSubTabsBar,
+  type GlobalSettingsPanelTab,
+} from "./settings/GlobalSettingsSubTabsBar";
 import type {
+  AgentConfig,
   ApiKeyEntry,
   ApiKeys,
   ApiKeyUpdateEntry,
@@ -15,9 +21,14 @@ import type {
   MaskedApiKeyEntry,
   MaskedApiKeys,
 } from "@opensprint/shared";
-import { API_KEY_PROVIDERS } from "@opensprint/shared";
+import { API_KEY_PROVIDERS, DEFAULT_AGENT_CONFIG } from "@opensprint/shared";
 import type { SaveStatus } from "./SaveIndicator";
 import { MIN_SAVE_SPINNER_MS } from "../lib/constants";
+import {
+  DEFAULT_LMSTUDIO_BASE_URL,
+  DEFAULT_OLLAMA_BASE_URL,
+  hasConfiguredLocalModel,
+} from "../lib/localModelProviders";
 
 const THEME_OPTIONS: { value: "light" | "dark" | "system"; label: string }[] = [
   { value: "light", label: "Light" },
@@ -30,6 +41,26 @@ const RUNNING_AGENTS_DISPLAY_OPTIONS: { value: RunningAgentsDisplayMode; label: 
   { value: "icons", label: "Icons" },
   { value: "both", label: "Both" },
 ];
+
+const LOCAL_PROVIDER_MODEL_REQUIRED_MESSAGE =
+  "Select a model before saving LM Studio or Ollama settings.";
+
+function toPutAgent(agent: AgentConfig): AgentConfig {
+  const base: AgentConfig = {
+    type: agent.type,
+    model: agent.model || null,
+    cliCommand: agent.cliCommand || null,
+  };
+  if (agent.type === "lmstudio" || agent.type === "ollama") {
+    return {
+      ...base,
+      baseUrl:
+        agent.baseUrl ||
+        (agent.type === "ollama" ? DEFAULT_OLLAMA_BASE_URL : DEFAULT_LMSTUDIO_BASE_URL),
+    };
+  }
+  return base;
+}
 
 function EyeIcon({ className }: { className?: string }) {
   return (
@@ -112,6 +143,21 @@ export function GlobalSettingsContent({ onSaveStateChange }: GlobalSettingsConte
   const initialLoadRef = useRef(true);
   const lastSyncedDatabaseUrlRef = useRef("");
 
+  const [panelTab, setPanelTab] = useState<GlobalSettingsPanelTab>("general");
+  const [simpleAgent, setSimpleAgent] = useState<AgentConfig>(() => ({ ...DEFAULT_AGENT_CONFIG }));
+  const [complexAgent, setComplexAgent] = useState<AgentConfig>(() => ({
+    ...DEFAULT_AGENT_CONFIG,
+  }));
+  const simpleAgentRef = useRef(simpleAgent);
+  const complexAgentRef = useRef(complexAgent);
+  simpleAgentRef.current = simpleAgent;
+  complexAgentRef.current = complexAgent;
+
+  const [agentEnvKeys, setAgentEnvKeys] = useState<GlobalAgentEnvKeys | null>(null);
+  const [modelRefreshTrigger, setModelRefreshTrigger] = useState(0);
+  const [agentConfigError, setAgentConfigError] = useState<string | null>(null);
+  const agentSaveOnBlurRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const notifySaveState = useCallback(
     (status: SaveStatus) => {
       onSaveStateChange?.(status);
@@ -141,13 +187,115 @@ export function GlobalSettingsContent({ onSaveStateChange }: GlobalSettingsConte
     [notifySaveState]
   );
 
+  const persistBothAgents = useCallback(
+    async (simple: AgentConfig, complex: AgentConfig) => {
+      if (simple.type === "custom" && !(simple.cliCommand ?? "").trim()) return;
+      if (complex.type === "custom" && !(complex.cliCommand ?? "").trim()) return;
+      if (!hasConfiguredLocalModel(simple) || !hasConfiguredLocalModel(complex)) {
+        setAgentConfigError(LOCAL_PROVIDER_MODEL_REQUIRED_MESSAGE);
+        return;
+      }
+      setAgentConfigError(null);
+      saveGenerationRef.current += 1;
+      const startTime = Date.now();
+      notifySaveState("saving");
+      try {
+        const res = await api.globalSettings.put({
+          simpleComplexityAgent: toPutAgent(simple),
+          complexComplexityAgent: toPutAgent(complex),
+        });
+        const nextSimple = res.simpleComplexityAgent ?? DEFAULT_AGENT_CONFIG;
+        const nextComplex = res.complexComplexityAgent ?? DEFAULT_AGENT_CONFIG;
+        setSimpleAgent(nextSimple);
+        setComplexAgent(nextComplex);
+        simpleAgentRef.current = nextSimple;
+        complexAgentRef.current = nextComplex;
+        if (res.apiKeys !== undefined) setApiKeys(res.apiKeys);
+        scheduleSaveComplete(startTime);
+      } catch (err) {
+        setAgentConfigError(
+          isConnectionError(err)
+            ? "Unable to connect. Please check your network and try again."
+            : err instanceof Error
+              ? err.message
+              : "Failed to save"
+        );
+        scheduleSaveComplete(startTime);
+      }
+    },
+    [notifySaveState, scheduleSaveComplete]
+  );
+
+  const scheduleAgentSaveOnBlur = useCallback(() => {
+    if (agentSaveOnBlurRef.current) clearTimeout(agentSaveOnBlurRef.current);
+    agentSaveOnBlurRef.current = setTimeout(() => {
+      agentSaveOnBlurRef.current = null;
+      void persistBothAgents(simpleAgentRef.current, complexAgentRef.current);
+    }, 100);
+  }, [persistBothAgents]);
+
+  const updateSimpleAgent = useCallback(
+    (updates: Partial<AgentConfig>, options?: { immediate?: boolean }) => {
+      const next = { ...simpleAgentRef.current, ...updates };
+      simpleAgentRef.current = next;
+      setSimpleAgent(next);
+      if (options?.immediate !== false) {
+        void persistBothAgents(next, complexAgentRef.current);
+      }
+    },
+    [persistBothAgents]
+  );
+
+  const updateComplexAgent = useCallback(
+    (updates: Partial<AgentConfig>, options?: { immediate?: boolean }) => {
+      const next = { ...complexAgentRef.current, ...updates };
+      complexAgentRef.current = next;
+      setComplexAgent(next);
+      if (options?.immediate !== false) {
+        void persistBothAgents(simpleAgentRef.current, next);
+      }
+    },
+    [persistBothAgents]
+  );
+
+  const handlePanelTabChange = useCallback(
+    (tab: GlobalSettingsPanelTab) => {
+      if (panelTab === "agents" && tab === "general") {
+        void persistBothAgents(simpleAgentRef.current, complexAgentRef.current);
+      }
+      setPanelTab(tab);
+    },
+    [panelTab, persistBothAgents]
+  );
+
   useEffect(() => {
     return () => {
       if (saveCompleteTimeoutRef.current) {
         clearTimeout(saveCompleteTimeoutRef.current);
       }
+      if (agentSaveOnBlurRef.current) {
+        clearTimeout(agentSaveOnBlurRef.current);
+      }
     };
   }, []);
+
+  useEffect(() => {
+    if (panelTab !== "agents") return;
+    Promise.all([api.globalSettings.get(), api.env.getKeys()])
+      .then(([global, env]) => {
+        const keys = global.apiKeys;
+        setAgentEnvKeys({
+          anthropic: (keys?.ANTHROPIC_API_KEY?.length ?? 0) > 0,
+          cursor: (keys?.CURSOR_API_KEY?.length ?? 0) > 0,
+          openai: (keys?.OPENAI_API_KEY?.length ?? 0) > 0,
+          google: (keys?.GOOGLE_API_KEY?.length ?? 0) > 0,
+          claudeCli: env.claudeCli,
+          cursorCli: env.cursorCli,
+          ollamaCli: env.ollamaCli,
+        });
+      })
+      .catch(() => setAgentEnvKeys(null));
+  }, [panelTab]);
 
   useEffect(() => {
     setDatabaseUrlLoading(true);
@@ -161,11 +309,21 @@ export function GlobalSettingsContent({ onSaveStateChange }: GlobalSettingsConte
         setApiKeys(res.apiKeys);
         setShowNotificationDotInMenuBar(res.showNotificationDotInMenuBar !== false);
         setShowRunningAgentCountInMenuBar(res.showRunningAgentCountInMenuBar !== false);
+        const nextSimple = res.simpleComplexityAgent ?? DEFAULT_AGENT_CONFIG;
+        const nextComplex = res.complexComplexityAgent ?? DEFAULT_AGENT_CONFIG;
+        setSimpleAgent(nextSimple);
+        setComplexAgent(nextComplex);
+        simpleAgentRef.current = nextSimple;
+        complexAgentRef.current = nextComplex;
       })
       .catch(() => {
         setDatabaseUrl("");
         lastSyncedDatabaseUrlRef.current = "";
         setApiKeys(undefined);
+        setSimpleAgent({ ...DEFAULT_AGENT_CONFIG });
+        setComplexAgent({ ...DEFAULT_AGENT_CONFIG });
+        simpleAgentRef.current = { ...DEFAULT_AGENT_CONFIG };
+        complexAgentRef.current = { ...DEFAULT_AGENT_CONFIG };
       })
       .finally(() => {
         setDatabaseUrlLoading(false);
@@ -296,6 +454,7 @@ export function GlobalSettingsContent({ onSaveStateChange }: GlobalSettingsConte
     try {
       const res = await api.globalSettings.put({ apiKeys: merged });
       setApiKeys(res.apiKeys);
+      setModelRefreshTrigger((t) => t + 1);
       scheduleSaveComplete(startTime);
     } catch (err) {
       const message = isConnectionError(err)
@@ -360,368 +519,399 @@ export function GlobalSettingsContent({ onSaveStateChange }: GlobalSettingsConte
 
   return (
     <div className="space-y-6" data-testid="global-settings-content">
-      <div data-testid="api-keys-section-wrapper">
-        <ApiKeysSection
-          apiKeys={apiKeys}
-          providers={API_KEY_PROVIDERS}
-          variant="global"
-          onRevealKey={(provider, id) =>
-            api.globalSettings.revealKey(provider, id).then((r) => r.value)
-          }
-          onClearLimitHit={handleClearLimitHit}
-          onApiKeysChange={handleApiKeysChange}
-        />
-        {apiKeysError && (
-          <p className="text-sm text-theme-error-text mt-2" role="alert">
-            {apiKeysError}
-          </p>
-        )}
-      </div>
-      {databaseDialect === "sqlite" && (
-        <div
-          className="rounded-xl border border-theme-border bg-theme-bg-elevated p-4"
-          data-testid="upgrade-to-postgres-card"
+      <GlobalSettingsSubTabsBar activeTab={panelTab} onTabChange={handlePanelTabChange} />
+      {agentConfigError && (
+        <p
+          className="text-sm text-theme-error-text"
+          role="alert"
+          data-testid="global-agent-config-error"
         >
-          <h3 className="text-sm font-semibold text-theme-text">Upgrade to PostgreSQL</h3>
-          <p className="text-xs text-theme-muted mt-1 mb-3">
-            You&apos;re using SQLite. Migrate your data to PostgreSQL for production or multi-user
-            use.
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              setUpgradeError(null);
-              setUpgradePostgresUrl("");
-              setUpgradeDialogOpen(true);
-            }}
-            className="btn-primary"
-            data-testid="upgrade-to-postgres-button"
-          >
-            Migrate data to PostgreSQL
-          </button>
-        </div>
-      )}
-      <div data-testid="database-url-section">
-        <h3 className="text-sm font-semibold text-theme-text">Database</h3>
-        <p className="text-xs text-theme-muted mb-3">
-          {databaseDialect === "sqlite"
-            ? "Using SQLite by default. Enter a PostgreSQL URL to switch, or use the upgrade button above to migrate data."
-            : "PostgreSQL connection URL for tasks, feedback, and sessions. Password is hidden in display."}
+          {agentConfigError}
         </p>
-        <div className="flex gap-2 items-end">
-          <div className="flex-1">
-            <div className="relative flex">
-              <input
-                type={showDatabaseUrl ? "text" : "password"}
-                className="input font-mono text-sm w-full pr-10"
-                placeholder="postgresql://user:password@host:port/database"
-                value={databaseUrl}
-                onChange={(e) => {
-                  setDatabaseUrl(e.target.value);
-                  setDatabaseUrlError(null);
+      )}
+      {panelTab === "general" && (
+        <>
+          <div data-testid="api-keys-section-wrapper">
+            <ApiKeysSection
+              apiKeys={apiKeys}
+              providers={API_KEY_PROVIDERS}
+              variant="global"
+              onRevealKey={(provider, id) =>
+                api.globalSettings.revealKey(provider, id).then((r) => r.value)
+              }
+              onClearLimitHit={handleClearLimitHit}
+              onApiKeysChange={handleApiKeysChange}
+            />
+            {apiKeysError && (
+              <p className="text-sm text-theme-error-text mt-2" role="alert">
+                {apiKeysError}
+              </p>
+            )}
+          </div>
+          {databaseDialect === "sqlite" && (
+            <div
+              className="rounded-xl border border-theme-border bg-theme-bg-elevated p-4"
+              data-testid="upgrade-to-postgres-card"
+            >
+              <h3 className="text-sm font-semibold text-theme-text">Upgrade to PostgreSQL</h3>
+              <p className="text-xs text-theme-muted mt-1 mb-3">
+                You&apos;re using SQLite. Migrate your data to PostgreSQL for production or
+                multi-user use.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setUpgradeError(null);
+                  setUpgradePostgresUrl("");
+                  setUpgradeDialogOpen(true);
                 }}
-                onBlur={() => {
-                  const trimmed = databaseUrlRef.current.trim();
-                  if (trimmed && trimmed.includes("***")) {
-                    setDatabaseUrlError("Enter the full connection URL to save changes");
-                  } else {
-                    setDatabaseUrlError(null);
+                className="btn-primary"
+                data-testid="upgrade-to-postgres-button"
+              >
+                Migrate data to PostgreSQL
+              </button>
+            </div>
+          )}
+          <div data-testid="database-url-section">
+            <h3 className="text-sm font-semibold text-theme-text">Database</h3>
+            <p className="text-xs text-theme-muted mb-3">
+              {databaseDialect === "sqlite"
+                ? "Using SQLite by default. Enter a PostgreSQL URL to switch, or use the upgrade button above to migrate data."
+                : "PostgreSQL connection URL for tasks, feedback, and sessions. Password is hidden in display."}
+            </p>
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <div className="relative flex">
+                  <input
+                    type={showDatabaseUrl ? "text" : "password"}
+                    className="input font-mono text-sm w-full pr-10"
+                    placeholder="postgresql://user:password@host:port/database"
+                    value={databaseUrl}
+                    onChange={(e) => {
+                      setDatabaseUrl(e.target.value);
+                      setDatabaseUrlError(null);
+                    }}
+                    onBlur={() => {
+                      const trimmed = databaseUrlRef.current.trim();
+                      if (trimmed && trimmed.includes("***")) {
+                        setDatabaseUrlError("Enter the full connection URL to save changes");
+                      } else {
+                        setDatabaseUrlError(null);
+                      }
+                    }}
+                    disabled={databaseUrlLoading}
+                    autoComplete="off"
+                    data-testid="database-url-input"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowDatabaseUrl((v) => !v)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-theme-muted hover:text-theme-text p-1"
+                    aria-label={showDatabaseUrl ? "Hide database URL" : "Show database URL"}
+                  >
+                    {showDatabaseUrl ? (
+                      <EyeOffIcon className="w-4 h-4" />
+                    ) : (
+                      <EyeIcon className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+              {showSetupTablesButton && (
+                <button
+                  type="button"
+                  onClick={() => setSetupTablesDialogOpen(true)}
+                  disabled={databaseUrlLoading}
+                  className="btn-secondary"
+                  data-testid="setup-tables-button"
+                >
+                  Set up tables
+                </button>
+              )}
+            </div>
+            {databaseUrlError && (
+              <p className="text-sm text-theme-error-text mt-2" role="alert">
+                {databaseUrlError}
+              </p>
+            )}
+          </div>
+          {setupTablesDialogOpen && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center"
+              data-testid="setup-tables-dialog"
+            >
+              <button
+                type="button"
+                className="absolute inset-0 w-full h-full bg-theme-overlay backdrop-blur-sm border-0 cursor-default"
+                onClick={() => !setupTablesLoading && setSetupTablesDialogOpen(false)}
+                aria-label="Close"
+              />
+              <div className="relative bg-theme-surface rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-theme-border">
+                  <h2 className="text-lg font-semibold text-theme-text">Set up tables</h2>
+                  <CloseButton
+                    onClick={() => !setupTablesLoading && setSetupTablesDialogOpen(false)}
+                    ariaLabel="Close setup tables confirmation"
+                  />
+                </div>
+                <div className="px-5 py-4 space-y-3">
+                  <p className="text-sm text-theme-text">
+                    Data loss may occur. Please confirm that you&apos;ve backed up any important
+                    data in this database before proceeding.
+                  </p>
+                  {setupTablesError && (
+                    <p className="text-sm text-theme-error-text" role="alert">
+                      {setupTablesError}
+                    </p>
+                  )}
+                </div>
+                <div className="flex justify-end gap-2 px-5 py-4 border-t border-theme-border bg-theme-bg rounded-b-xl">
+                  <button
+                    type="button"
+                    onClick={() => !setupTablesLoading && setSetupTablesDialogOpen(false)}
+                    className="btn-secondary"
+                    disabled={setupTablesLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleSetupTablesConfirm()}
+                    disabled={setupTablesLoading}
+                    className="btn-primary disabled:opacity-50"
+                    data-testid="setup-tables-confirm"
+                  >
+                    {setupTablesLoading ? "Setting up…" : "Confirm"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {upgradeDialogOpen && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center"
+              data-testid="upgrade-to-postgres-dialog"
+            >
+              <button
+                type="button"
+                className="absolute inset-0 w-full h-full bg-theme-overlay backdrop-blur-sm border-0 cursor-default"
+                onClick={() => !upgradeLoading && setUpgradeDialogOpen(false)}
+                aria-label="Close"
+              />
+              <div className="relative bg-theme-surface rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-theme-border">
+                  <h2 className="text-lg font-semibold text-theme-text">Upgrade to PostgreSQL</h2>
+                  <CloseButton
+                    onClick={() => !upgradeLoading && setUpgradeDialogOpen(false)}
+                    ariaLabel="Close upgrade dialog"
+                  />
+                </div>
+                <div className="px-5 py-4 space-y-3">
+                  <p className="text-sm text-theme-text">
+                    Enter your PostgreSQL connection URL. All data will be copied from SQLite to the
+                    new database, then the app will switch to it.
+                  </p>
+                  <input
+                    type="text"
+                    className="input font-mono text-sm w-full"
+                    placeholder="postgresql://user:password@host:5432/database"
+                    value={upgradePostgresUrl}
+                    onChange={(e) => {
+                      setUpgradePostgresUrl(e.target.value);
+                      setUpgradeError(null);
+                    }}
+                    disabled={upgradeLoading}
+                    autoComplete="off"
+                    data-testid="upgrade-postgres-url-input"
+                  />
+                  {upgradeError && (
+                    <p className="text-sm text-theme-error-text" role="alert">
+                      {upgradeError}
+                    </p>
+                  )}
+                </div>
+                <div className="flex justify-end gap-2 px-5 py-4 border-t border-theme-border bg-theme-bg rounded-b-xl">
+                  <button
+                    type="button"
+                    onClick={() => !upgradeLoading && setUpgradeDialogOpen(false)}
+                    className="btn-secondary"
+                    disabled={upgradeLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleMigrateToPostgresConfirm()}
+                    disabled={upgradeLoading || !upgradePostgresUrl.trim()}
+                    className="btn-primary disabled:opacity-50"
+                    data-testid="upgrade-to-postgres-confirm"
+                  >
+                    {upgradeLoading ? "Copying data…" : "Migrate and switch"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          <div>
+            <h3 className="text-sm font-semibold text-theme-text">Theme</h3>
+            <p className="text-xs text-theme-muted mb-3">
+              Choose how Open Sprint looks. System follows your operating system preference.
+            </p>
+            <div className="flex gap-2 flex-wrap">
+              {THEME_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setTheme(opt.value)}
+                  data-testid={`theme-option-${opt.value}`}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    themePreference === opt.value
+                      ? "bg-brand-600 text-white"
+                      : "bg-theme-border-subtle text-theme-text hover:bg-theme-bg-elevated"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-theme-text">Running agents display mode</h3>
+            <p className="text-xs text-theme-muted mb-3">
+              How to show running agents in the navbar and execute view: count only, icons only, or
+              both.
+            </p>
+            <select
+              value={runningAgentsDisplayMode}
+              onChange={(e) =>
+                setRunningAgentsDisplayMode(e.target.value as RunningAgentsDisplayMode)
+              }
+              data-testid="running-agents-display-mode"
+              className="input w-fit"
+            >
+              {RUNNING_AGENTS_DISPLAY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {isElectron && (
+            <div data-testid="desktop-notification-dot-section">
+              <label
+                htmlFor="show-notification-dot-in-menu-bar"
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <input
+                  id="show-notification-dot-in-menu-bar"
+                  type="checkbox"
+                  checked={showNotificationDotInMenuBar}
+                  onChange={async (e) => {
+                    const value = e.target.checked;
+                    setShowNotificationDotInMenuBar(value);
+                    const startTime = Date.now();
+                    notifySaveState("saving");
+                    try {
+                      await api.globalSettings.put({ showNotificationDotInMenuBar: value });
+                      scheduleSaveComplete(startTime);
+                    } catch {
+                      setShowNotificationDotInMenuBar(!value);
+                      scheduleSaveComplete(startTime);
+                    }
+                  }}
+                  data-testid="show-notification-dot-in-menu-bar"
+                  className="rounded border-theme-border focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                />
+                <span className="text-sm text-theme-text">Show notification dot in menu bar</span>
+              </label>
+              <p className="text-xs text-theme-muted mt-1 ml-6">
+                When unchecked, the tray icon will not show a dot when you have pending
+                notifications.
+              </p>
+              <label
+                htmlFor="show-running-agent-count-in-menu-bar"
+                className="flex items-center gap-2 cursor-pointer mt-3"
+              >
+                <input
+                  id="show-running-agent-count-in-menu-bar"
+                  type="checkbox"
+                  checked={showRunningAgentCountInMenuBar}
+                  onChange={async (e) => {
+                    const value = e.target.checked;
+                    setShowRunningAgentCountInMenuBar(value);
+                    const startTime = Date.now();
+                    notifySaveState("saving");
+                    try {
+                      await api.globalSettings.put({ showRunningAgentCountInMenuBar: value });
+                      scheduleSaveComplete(startTime);
+                    } catch {
+                      setShowRunningAgentCountInMenuBar(!value);
+                      scheduleSaveComplete(startTime);
+                    }
+                  }}
+                  data-testid="show-running-agent-count-in-menu-bar"
+                  className="rounded border-theme-border focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                />
+                <span className="text-sm text-theme-text">
+                  Show running agent count in menu bar
+                </span>
+              </label>
+              <p className="text-xs text-theme-muted mt-1 ml-6">
+                When unchecked, the number of running agents will not appear next to the menu bar
+                icon (macOS).
+              </p>
+            </div>
+          )}
+          {isElectron && appVersion && (
+            <div data-testid="update-check-section">
+              <h3 className="text-sm font-semibold text-theme-text">Software updates</h3>
+              <p className="text-xs text-theme-muted mb-3">
+                Version {appVersion}
+                {lastUpdateCheck && (
+                  <span className="ml-1">
+                    &middot; Last checked{" "}
+                    {new Date(lastUpdateCheck).toLocaleString(undefined, {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}
+                  </span>
+                )}
+              </p>
+              <button
+                type="button"
+                disabled={updateChecking}
+                onClick={async () => {
+                  if (!window.electron?.checkForUpdates) return;
+                  setUpdateChecking(true);
+                  try {
+                    const result = await window.electron.checkForUpdates();
+                    setLastUpdateCheck(result.lastCheckTimestamp);
+                  } catch {
+                    // Updater errors are surfaced via the native dialog.
+                  } finally {
+                    setUpdateChecking(false);
                   }
                 }}
-                disabled={databaseUrlLoading}
-                autoComplete="off"
-                data-testid="database-url-input"
-              />
-              <button
-                type="button"
-                onClick={() => setShowDatabaseUrl((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-theme-muted hover:text-theme-text p-1"
-                aria-label={showDatabaseUrl ? "Hide database URL" : "Show database URL"}
+                className="btn-secondary"
+                data-testid="check-for-updates-button"
               >
-                {showDatabaseUrl ? (
-                  <EyeOffIcon className="w-4 h-4" />
-                ) : (
-                  <EyeIcon className="w-4 h-4" />
-                )}
+                {updateChecking ? "Checking…" : "Check for updates"}
               </button>
             </div>
-          </div>
-          {showSetupTablesButton && (
-            <button
-              type="button"
-              onClick={() => setSetupTablesDialogOpen(true)}
-              disabled={databaseUrlLoading}
-              className="btn-secondary"
-              data-testid="setup-tables-button"
-            >
-              Set up tables
-            </button>
           )}
-        </div>
-        {databaseUrlError && (
-          <p className="text-sm text-theme-error-text mt-2" role="alert">
-            {databaseUrlError}
-          </p>
-        )}
-      </div>
-      {setupTablesDialogOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          data-testid="setup-tables-dialog"
-        >
-          <button
-            type="button"
-            className="absolute inset-0 w-full h-full bg-theme-overlay backdrop-blur-sm border-0 cursor-default"
-            onClick={() => !setupTablesLoading && setSetupTablesDialogOpen(false)}
-            aria-label="Close"
-          />
-          <div className="relative bg-theme-surface rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-theme-border">
-              <h2 className="text-lg font-semibold text-theme-text">Set up tables</h2>
-              <CloseButton
-                onClick={() => !setupTablesLoading && setSetupTablesDialogOpen(false)}
-                ariaLabel="Close setup tables confirmation"
-              />
-            </div>
-            <div className="px-5 py-4 space-y-3">
-              <p className="text-sm text-theme-text">
-                Data loss may occur. Please confirm that you&apos;ve backed up any important data in
-                this database before proceeding.
-              </p>
-              {setupTablesError && (
-                <p className="text-sm text-theme-error-text" role="alert">
-                  {setupTablesError}
-                </p>
-              )}
-            </div>
-            <div className="flex justify-end gap-2 px-5 py-4 border-t border-theme-border bg-theme-bg rounded-b-xl">
-              <button
-                type="button"
-                onClick={() => !setupTablesLoading && setSetupTablesDialogOpen(false)}
-                className="btn-secondary"
-                disabled={setupTablesLoading}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleSetupTablesConfirm()}
-                disabled={setupTablesLoading}
-                className="btn-primary disabled:opacity-50"
-                data-testid="setup-tables-confirm"
-              >
-                {setupTablesLoading ? "Setting up…" : "Confirm"}
-              </button>
-            </div>
-          </div>
-        </div>
+        </>
       )}
-      {upgradeDialogOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          data-testid="upgrade-to-postgres-dialog"
-        >
-          <button
-            type="button"
-            className="absolute inset-0 w-full h-full bg-theme-overlay backdrop-blur-sm border-0 cursor-default"
-            onClick={() => !upgradeLoading && setUpgradeDialogOpen(false)}
-            aria-label="Close"
-          />
-          <div className="relative bg-theme-surface rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-theme-border">
-              <h2 className="text-lg font-semibold text-theme-text">Upgrade to PostgreSQL</h2>
-              <CloseButton
-                onClick={() => !upgradeLoading && setUpgradeDialogOpen(false)}
-                ariaLabel="Close upgrade dialog"
-              />
-            </div>
-            <div className="px-5 py-4 space-y-3">
-              <p className="text-sm text-theme-text">
-                Enter your PostgreSQL connection URL. All data will be copied from SQLite to the new
-                database, then the app will switch to it.
-              </p>
-              <input
-                type="text"
-                className="input font-mono text-sm w-full"
-                placeholder="postgresql://user:password@host:5432/database"
-                value={upgradePostgresUrl}
-                onChange={(e) => {
-                  setUpgradePostgresUrl(e.target.value);
-                  setUpgradeError(null);
-                }}
-                disabled={upgradeLoading}
-                autoComplete="off"
-                data-testid="upgrade-postgres-url-input"
-              />
-              {upgradeError && (
-                <p className="text-sm text-theme-error-text" role="alert">
-                  {upgradeError}
-                </p>
-              )}
-            </div>
-            <div className="flex justify-end gap-2 px-5 py-4 border-t border-theme-border bg-theme-bg rounded-b-xl">
-              <button
-                type="button"
-                onClick={() => !upgradeLoading && setUpgradeDialogOpen(false)}
-                className="btn-secondary"
-                disabled={upgradeLoading}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleMigrateToPostgresConfirm()}
-                disabled={upgradeLoading || !upgradePostgresUrl.trim()}
-                className="btn-primary disabled:opacity-50"
-                data-testid="upgrade-to-postgres-confirm"
-              >
-                {upgradeLoading ? "Copying data…" : "Migrate and switch"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      <div>
-        <h3 className="text-sm font-semibold text-theme-text">Theme</h3>
-        <p className="text-xs text-theme-muted mb-3">
-          Choose how Open Sprint looks. System follows your operating system preference.
-        </p>
-        <div className="flex gap-2 flex-wrap">
-          {THEME_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => setTheme(opt.value)}
-              data-testid={`theme-option-${opt.value}`}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                themePreference === opt.value
-                  ? "bg-brand-600 text-white"
-                  : "bg-theme-border-subtle text-theme-text hover:bg-theme-bg-elevated"
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div>
-        <h3 className="text-sm font-semibold text-theme-text">Running agents display mode</h3>
-        <p className="text-xs text-theme-muted mb-3">
-          How to show running agents in the navbar and execute view: count only, icons only, or
-          both.
-        </p>
-        <select
-          value={runningAgentsDisplayMode}
-          onChange={(e) => setRunningAgentsDisplayMode(e.target.value as RunningAgentsDisplayMode)}
-          data-testid="running-agents-display-mode"
-          className="input w-fit"
-        >
-          {RUNNING_AGENTS_DISPLAY_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </div>
-      {isElectron && (
-        <div data-testid="desktop-notification-dot-section">
-          <label
-            htmlFor="show-notification-dot-in-menu-bar"
-            className="flex items-center gap-2 cursor-pointer"
-          >
-            <input
-              id="show-notification-dot-in-menu-bar"
-              type="checkbox"
-              checked={showNotificationDotInMenuBar}
-              onChange={async (e) => {
-                const value = e.target.checked;
-                setShowNotificationDotInMenuBar(value);
-                const startTime = Date.now();
-                notifySaveState("saving");
-                try {
-                  await api.globalSettings.put({ showNotificationDotInMenuBar: value });
-                  scheduleSaveComplete(startTime);
-                } catch {
-                  setShowNotificationDotInMenuBar(!value);
-                  scheduleSaveComplete(startTime);
-                }
-              }}
-              data-testid="show-notification-dot-in-menu-bar"
-              className="rounded border-theme-border focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-            />
-            <span className="text-sm text-theme-text">Show notification dot in menu bar</span>
-          </label>
-          <p className="text-xs text-theme-muted mt-1 ml-6">
-            When unchecked, the tray icon will not show a dot when you have pending notifications.
-          </p>
-          <label
-            htmlFor="show-running-agent-count-in-menu-bar"
-            className="flex items-center gap-2 cursor-pointer mt-3"
-          >
-            <input
-              id="show-running-agent-count-in-menu-bar"
-              type="checkbox"
-              checked={showRunningAgentCountInMenuBar}
-              onChange={async (e) => {
-                const value = e.target.checked;
-                setShowRunningAgentCountInMenuBar(value);
-                const startTime = Date.now();
-                notifySaveState("saving");
-                try {
-                  await api.globalSettings.put({ showRunningAgentCountInMenuBar: value });
-                  scheduleSaveComplete(startTime);
-                } catch {
-                  setShowRunningAgentCountInMenuBar(!value);
-                  scheduleSaveComplete(startTime);
-                }
-              }}
-              data-testid="show-running-agent-count-in-menu-bar"
-              className="rounded border-theme-border focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-            />
-            <span className="text-sm text-theme-text">Show running agent count in menu bar</span>
-          </label>
-          <p className="text-xs text-theme-muted mt-1 ml-6">
-            When unchecked, the number of running agents will not appear next to the menu bar icon
-            (macOS).
-          </p>
-        </div>
-      )}
-      {isElectron && appVersion && (
-        <div data-testid="update-check-section">
-          <h3 className="text-sm font-semibold text-theme-text">Software updates</h3>
-          <p className="text-xs text-theme-muted mb-3">
-            Version {appVersion}
-            {lastUpdateCheck && (
-              <span className="ml-1">
-                &middot; Last checked{" "}
-                {new Date(lastUpdateCheck).toLocaleString(undefined, {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                })}
-              </span>
-            )}
-          </p>
-          <button
-            type="button"
-            disabled={updateChecking}
-            onClick={async () => {
-              if (!window.electron?.checkForUpdates) return;
-              setUpdateChecking(true);
-              try {
-                const result = await window.electron.checkForUpdates();
-                setLastUpdateCheck(result.lastCheckTimestamp);
-              } catch {
-                // Updater errors are surfaced via the native dialog.
-              } finally {
-                setUpdateChecking(false);
-              }
-            }}
-            className="btn-secondary"
-            data-testid="check-for-updates-button"
-          >
-            {updateChecking ? "Checking…" : "Check for updates"}
-          </button>
-        </div>
+      {panelTab === "agents" && (
+        <GlobalAgentConfigSection
+          simpleAgent={simpleAgent}
+          complexAgent={complexAgent}
+          onUpdateSimple={updateSimpleAgent}
+          onUpdateComplex={updateComplexAgent}
+          scheduleSaveOnBlur={scheduleAgentSaveOnBlur}
+          envKeys={agentEnvKeys}
+          onOpenGeneralTab={() => setPanelTab("general")}
+          modelRefreshTrigger={modelRefreshTrigger}
+        />
       )}
     </div>
   );

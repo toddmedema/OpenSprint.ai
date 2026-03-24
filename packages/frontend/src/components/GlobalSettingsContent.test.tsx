@@ -37,6 +37,9 @@ const mockRevealKey = vi.fn();
 const mockClearLimitHit = vi.fn();
 const mockSetupTables = vi.fn();
 
+const mockEnvGetKeys = vi.fn();
+const mockModelsList = vi.fn();
+
 vi.mock("../api/client", () => ({
   api: {
     globalSettings: {
@@ -47,6 +50,12 @@ vi.mock("../api/client", () => ({
       clearLimitHit: (provider: string, id: string) => mockClearLimitHit(provider, id),
       setupTables: (databaseUrl: string) => mockSetupTables(databaseUrl),
     },
+    env: {
+      getKeys: () => mockEnvGetKeys(),
+    },
+    models: {
+      list: (...args: unknown[]) => mockModelsList(...args),
+    },
   },
   isConnectionError: () => false,
 }));
@@ -54,6 +63,12 @@ vi.mock("../api/client", () => ({
 describe("GlobalSettingsContent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockEnvGetKeys.mockResolvedValue({
+      claudeCli: true,
+      cursorCli: true,
+      ollamaCli: true,
+    });
+    mockModelsList.mockResolvedValue([{ id: "gpt-4", label: "GPT-4" }]);
     mockGlobalSettingsGet.mockResolvedValue({
       databaseUrl: "postgresql://user:***@localhost:5432/opensprint",
       apiKeys: undefined,
@@ -587,5 +602,82 @@ describe("GlobalSettingsContent", () => {
     );
 
     expect(onSaveStateChange).toHaveBeenCalledWith("saved");
+  });
+
+  it("renders General and Agent Config sub-tabs", async () => {
+    renderGlobalSettingsContent();
+    await screen.findByTestId("global-settings-sub-tabs-bar");
+    expect(screen.getByTestId("global-settings-tab-general")).toBeInTheDocument();
+    expect(screen.getByTestId("global-settings-tab-agents")).toBeInTheDocument();
+  });
+
+  it("Agent Config tab shows global defaults and task complexity section", async () => {
+    renderGlobalSettingsContent();
+    await screen.findByTestId("api-keys-section-wrapper");
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("global-settings-tab-agents"));
+    });
+    await screen.findByTestId("global-agent-config-section");
+    expect(screen.getByText(/Global agent defaults/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/These defaults apply when a project does not override/)
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("task-complexity-section")).toBeInTheDocument();
+    expect(mockEnvGetKeys).toHaveBeenCalled();
+  });
+
+  it("loads simple and complex agents from GET into Agent Config tab", async () => {
+    mockGlobalSettingsGet.mockResolvedValue({
+      databaseUrl: "postgresql://user:***@localhost:5432/opensprint",
+      apiKeys: undefined,
+      simpleComplexityAgent: { type: "openai", model: "gpt-4o", cliCommand: null },
+      complexComplexityAgent: {
+        type: "claude",
+        model: "claude-3-5-sonnet-20241022",
+        cliCommand: null,
+      },
+    });
+    renderGlobalSettingsContent();
+    await screen.findByTestId("api-keys-section-wrapper");
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("global-settings-tab-agents"));
+    });
+    await screen.findByTestId("global-agent-config-section");
+    await waitFor(() => {
+      const simpleSelect = document.getElementById(
+        "global-simple-provider-select"
+      ) as HTMLSelectElement;
+      expect(simpleSelect.value).toBe("openai");
+    });
+  });
+
+  it("OpenAI prerequisite links back to General tab for API keys", async () => {
+    mockGlobalSettingsGet.mockResolvedValue({
+      databaseUrl: "postgresql://user:***@localhost:5432/opensprint",
+      apiKeys: {},
+    });
+    renderGlobalSettingsContent();
+    await screen.findByTestId("api-keys-section-wrapper");
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("global-settings-tab-agents"));
+    });
+    await screen.findByTestId("global-agent-config-section");
+    const simpleProvider = document.getElementById(
+      "global-simple-provider-select"
+    ) as HTMLSelectElement;
+    await act(async () => {
+      fireEvent.change(simpleProvider, { target: { value: "openai" } });
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("simple-provider-prerequisite")).toBeInTheDocument();
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("configure-api-keys-link-simple"));
+    });
+    await screen.findByTestId("api-keys-section");
+    expect(screen.getByTestId("global-settings-tab-general")).toHaveAttribute(
+      "data-active",
+      "true"
+    );
   });
 });
