@@ -1,6 +1,11 @@
 import { useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { getProjectPhasePath } from "../lib/phaseRouting";
+import {
+  getProjectPhasePath,
+  isValidPhaseSlug,
+  phaseFromSlug,
+  VALID_PHASES,
+} from "../lib/phaseRouting";
 import type { ProjectPhase } from "@opensprint/shared";
 
 const PHASE_BY_DIGIT: Record<string, ProjectPhase> = {
@@ -48,6 +53,7 @@ function isFocusInModal(e: KeyboardEvent): boolean {
 /**
  * Registers global keyboard shortcuts (web and Electron):
  * - 1/2/3/4/5: switch to Sketch/Plan/Execute/Evaluate/Deliver (when on a project)
+ * - Ctrl+Tab / Ctrl+Shift+Tab: next/previous phase tab with wrap (when on a project; skipped in editable fields)
  * - ~ (Backquote): go to home
  * - Escape: close modal if one is open; otherwise open settings (project if in a project, else global)
  * - ?: open help (project help if in a project, else global; same navigation as Settings)
@@ -62,10 +68,18 @@ function projectIdFromPathname(pathname: string): string | undefined {
   return id;
 }
 
+function phaseIndexFromPathname(pathname: string): number {
+  const m = pathname.match(/^\/projects\/[^/]+\/([^/]+)/);
+  if (!m || !isValidPhaseSlug(m[1])) return 0;
+  const idx = VALID_PHASES.indexOf(phaseFromSlug(m[1]));
+  return idx >= 0 ? idx : 0;
+}
+
 export function GlobalKeyboardShortcuts() {
   const navigate = useNavigate();
   const location = useLocation();
-  const projectId = projectIdFromPathname(location.pathname);
+  const pathname = location.pathname;
+  const projectId = projectIdFromPathname(pathname);
   const isElectron = typeof window !== "undefined" && Boolean(window.electron?.isElectron);
 
   const handleKeyDown = useCallback(
@@ -74,6 +88,23 @@ export function GlobalKeyboardShortcuts() {
 
       const key = e.key;
       const hasModifier = e.ctrlKey || e.metaKey || e.altKey;
+
+      // Ctrl+Tab / Ctrl+Shift+Tab: cycle phase tabs (wrap); Control only so we don't steal Cmd+Tab (macOS app switcher)
+      if (
+        key === "Tab" &&
+        e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        projectId
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        const len = VALID_PHASES.length;
+        const idx = phaseIndexFromPathname(pathname);
+        const nextIdx = e.shiftKey ? (idx - 1 + len) % len : (idx + 1) % len;
+        navigate(getProjectPhasePath(projectId, VALID_PHASES[nextIdx]!));
+        return;
+      }
 
       // 1–5: phase tabs (only when we're under a project; no modifiers so we don't steal Cmd+1 etc.)
       if (!hasModifier) {
@@ -125,7 +156,7 @@ export function GlobalKeyboardShortcuts() {
         }
       }
     },
-    [isElectron, navigate, projectId]
+    [isElectron, navigate, pathname, projectId]
   );
 
   useEffect(() => {

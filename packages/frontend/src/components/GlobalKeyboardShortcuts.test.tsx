@@ -21,6 +21,20 @@ function dispatchKeydown(key: string, options?: { code?: string; metaKey?: boole
   return ev;
 }
 
+function dispatchCtrlTab(options?: { shiftKey?: boolean }) {
+  const ev = new KeyboardEvent("keydown", {
+    key: "Tab",
+    code: "Tab",
+    ctrlKey: true,
+    shiftKey: options?.shiftKey ?? false,
+    metaKey: false,
+    altKey: false,
+    bubbles: true,
+  });
+  document.dispatchEvent(ev);
+  return ev;
+}
+
 describe("GlobalKeyboardShortcuts", () => {
   it("1–5 switch to Sketch/Plan/Execute/Evaluate/Deliver when on a project", async () => {
     render(
@@ -69,6 +83,135 @@ describe("GlobalKeyboardShortcuts", () => {
     await waitFor(() => {
       expect(screen.getByTestId("location")).toHaveTextContent("/projects/p1/sketch");
     });
+  });
+
+  it("Ctrl+Tab cycles phases forward with wrap (Deliver → Sketch)", async () => {
+    render(
+      <MemoryRouter initialEntries={["/projects/p1/deliver"]}>
+        <GlobalKeyboardShortcuts />
+        <Routes>
+          <Route path="/projects/:projectId/:phase" element={<LocationDisplay />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    expect(screen.getByTestId("location")).toHaveTextContent("/projects/p1/deliver");
+    await act(() => {
+      dispatchCtrlTab();
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/projects/p1/sketch");
+    });
+  });
+
+  it("Ctrl+Shift+Tab cycles phases backward with wrap (Sketch → Deliver)", async () => {
+    render(
+      <MemoryRouter initialEntries={["/projects/p1/sketch"]}>
+        <GlobalKeyboardShortcuts />
+        <Routes>
+          <Route path="/projects/:projectId/:phase" element={<LocationDisplay />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    await act(() => {
+      dispatchCtrlTab({ shiftKey: true });
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/projects/p1/deliver");
+    });
+  });
+
+  it("Ctrl+Tab advances Sketch → Plan → Execute in order", async () => {
+    render(
+      <MemoryRouter initialEntries={["/projects/p1/sketch"]}>
+        <GlobalKeyboardShortcuts />
+        <Routes>
+          <Route path="/projects/:projectId/:phase" element={<LocationDisplay />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    await act(() => {
+      dispatchCtrlTab();
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/projects/p1/plan");
+    });
+    await act(() => {
+      dispatchCtrlTab();
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/projects/p1/execute");
+    });
+  });
+
+  it("Ctrl+Tab does not navigate when focus is in an input", async () => {
+    render(
+      <MemoryRouter initialEntries={["/projects/p1/sketch"]}>
+        <GlobalKeyboardShortcuts />
+        <input data-testid="input" />
+        <Routes>
+          <Route path="/projects/:projectId/:phase" element={<LocationDisplay />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    const input = screen.getByTestId("input");
+    input.focus();
+    await act(() => {
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Tab",
+          code: "Tab",
+          ctrlKey: true,
+          shiftKey: false,
+          metaKey: false,
+          altKey: false,
+          bubbles: true,
+        })
+      );
+    });
+    await waitFor(() => {}, { timeout: 50 });
+    expect(screen.getByTestId("location")).toHaveTextContent("/projects/p1/sketch");
+  });
+
+  it("Ctrl+Tab does nothing when not in a project", async () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <GlobalKeyboardShortcuts />
+        <Routes>
+          <Route path="/" element={<LocationDisplay />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    await act(() => {
+      dispatchCtrlTab();
+    });
+    await waitFor(() => {}, { timeout: 50 });
+    expect(screen.getByTestId("location")).toHaveTextContent("/");
+  });
+
+  it("Cmd+Tab does not cycle phases (reserved for macOS app switcher pattern)", async () => {
+    render(
+      <MemoryRouter initialEntries={["/projects/p1/sketch"]}>
+        <GlobalKeyboardShortcuts />
+        <Routes>
+          <Route path="/projects/:projectId/:phase" element={<LocationDisplay />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    await act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Tab",
+          code: "Tab",
+          ctrlKey: false,
+          metaKey: true,
+          shiftKey: false,
+          altKey: false,
+          bubbles: true,
+        })
+      );
+    });
+    await waitFor(() => {}, { timeout: 50 });
+    expect(screen.getByTestId("location")).toHaveTextContent("/projects/p1/sketch");
   });
 
   it("~ (backquote) navigates to home", async () => {

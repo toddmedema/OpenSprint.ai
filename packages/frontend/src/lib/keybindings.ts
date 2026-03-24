@@ -12,12 +12,15 @@ export interface KeyboardShortcutEntry {
 /**
  * Returns all keyboard shortcuts for display in Help and elsewhere.
  * Sourced from the same bindings used by GlobalKeyboardShortcuts and useSubmitShortcut
+ * (phase cycling uses Ctrl/⌃ + Tab, not Meta/Cmd, so Cmd+Tab remains the OS app switcher on macOS)
  * so the list stays accurate.
  */
 export function getKeyboardShortcuts(): KeyboardShortcutEntry[] {
   const submitKeys = isMac()
     ? "Enter or ⌘ + Enter to submit · Shift+Enter for new line"
     : "Enter or Ctrl + Enter to submit · Shift+Enter for new line";
+  const phaseCycleForward = isMac() ? "⌃ + Tab" : "Ctrl + Tab";
+  const phaseCycleBack = isMac() ? "⌃ + Shift + Tab" : "Ctrl + Shift + Tab";
 
   return [
     { action: "Go to Sketch", keys: "1", context: "When in a project" },
@@ -25,6 +28,16 @@ export function getKeyboardShortcuts(): KeyboardShortcutEntry[] {
     { action: "Go to Execute", keys: "3", context: "When in a project" },
     { action: "Go to Evaluate", keys: "4", context: "When in a project" },
     { action: "Go to Deliver", keys: "5", context: "When in a project" },
+    {
+      action: "Next phase tab (wraps)",
+      keys: phaseCycleForward,
+      context: "When in a project",
+    },
+    {
+      action: "Previous phase tab (wraps)",
+      keys: phaseCycleBack,
+      context: "When in a project",
+    },
     { action: "Go to Home", keys: "` or ~" },
     {
       action: "Open Settings",

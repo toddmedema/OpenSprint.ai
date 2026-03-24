@@ -322,6 +322,8 @@ describe("HelpContent", () => {
     expect(screen.getByTestId("keyboard-shortcuts-content")).toBeInTheDocument();
     expect(screen.getByText("Go to Sketch")).toBeInTheDocument();
     expect(screen.getByText("1")).toBeInTheDocument();
+    expect(screen.getByText("Next phase tab (wraps)")).toBeInTheDocument();
+    expect(screen.getByText("Previous phase tab (wraps)")).toBeInTheDocument();
     expect(screen.getByText("Open Help")).toBeInTheDocument();
     expect(screen.getByText("? or F1")).toBeInTheDocument();
     expect(screen.getAllByText("When in a project").length).toBeGreaterThan(0);
