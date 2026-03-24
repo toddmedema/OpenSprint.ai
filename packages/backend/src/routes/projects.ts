@@ -236,7 +236,6 @@ export function createProjectsRouter(
     validateParams(projectIdParamSchema),
     wrapAsync(async (req: Request<ProjectParams>, res) => {
       const projectId = req.params.id;
-      orchestratorService.stopProject(projectId);
       await projectService.archiveProject(projectId);
       res.status(204).send();
     })
@@ -248,7 +247,6 @@ export function createProjectsRouter(
     validateParams(projectIdParamSchema),
     wrapAsync(async (req: Request<ProjectParams>, res) => {
       const projectId = req.params.id;
-      orchestratorService.stopProject(projectId);
       await projectService.deleteProject(projectId);
       res.status(204).send();
     })
