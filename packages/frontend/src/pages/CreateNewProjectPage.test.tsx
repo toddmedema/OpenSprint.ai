@@ -162,11 +162,62 @@ describe("CreateNewProjectPage", () => {
     expect(screen.getByText("Project files will be created in this folder")).toBeInTheDocument();
   });
 
-  it("template dropdown has Web App (Expo/React) option", () => {
+  it("template dropdown has Web App (Expo/React) option selected by default", () => {
     renderCreateNewProjectPage();
     const select = screen.getByTestId("template-select");
     expect(select).toHaveValue("web-app-expo-react");
     expect(screen.getByRole("option", { name: "Web App (Expo/React)" })).toBeInTheDocument();
+  });
+
+  it("template dropdown has Empty option", () => {
+    renderCreateNewProjectPage();
+    expect(screen.getByRole("option", { name: "Empty" })).toBeInTheDocument();
+  });
+
+  it("can select Empty template and scaffold succeeds", async () => {
+    mockScaffold.mockResolvedValue({
+      project: { id: "proj-empty", name: "My Empty App", repoPath: "/path/to/parent" },
+    });
+    const user = userEvent.setup();
+    renderCreateNewProjectPage();
+    await user.type(screen.getByLabelText(/project name/i), "My Empty App");
+    await user.type(screen.getByPlaceholderText("/Users/you/projects/my-app"), "/path/to/parent");
+    await user.selectOptions(screen.getByTestId("template-select"), "empty");
+    expect(screen.getByTestId("template-select")).toHaveValue("empty");
+    await user.click(screen.getByTestId("next-button"));
+    await user.click(screen.getByTestId("next-button"));
+
+    await screen.findByText(/your project is ready/i);
+    expect(mockScaffold).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "My Empty App",
+        parentPath: "/path/to/parent",
+        template: "empty",
+      })
+    );
+  });
+
+  it("shows 'Setting up your project...' when scaffolding with empty template", async () => {
+    let resolveScaffold: (value: typeof defaultScaffoldResponse) => void;
+    mockScaffold.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveScaffold = resolve;
+        })
+    );
+    const user = userEvent.setup();
+    renderCreateNewProjectPage();
+    await user.type(screen.getByLabelText(/project name/i), "My App");
+    await user.type(screen.getByPlaceholderText("/Users/you/projects/my-app"), "/path/to/parent");
+    await user.selectOptions(screen.getByTestId("template-select"), "empty");
+    await user.click(screen.getByTestId("next-button"));
+    await user.click(screen.getByTestId("next-button"));
+
+    expect(screen.getByText("Setting up your project...")).toBeInTheDocument();
+    expect(screen.queryByText(/Creating scaffolding/)).not.toBeInTheDocument();
+
+    resolveScaffold!(defaultScaffoldResponse);
+    await screen.findByText(/your project is ready/i);
   });
 
   it("disables Next when project name is empty", () => {

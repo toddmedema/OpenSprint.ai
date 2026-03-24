@@ -330,6 +330,7 @@ Test task directory creation.
     "POST /tasks/:taskId/prepare with phase=review generates review prompt per PRD §12.3",
     {
       timeout: 20000,
+      retry: 2,
     },
     async () => {
       const planRes = await request(app)

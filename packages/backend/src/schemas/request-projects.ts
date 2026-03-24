@@ -16,7 +16,7 @@ export const scaffoldProjectBodySchema = z
   .object({
     name: z.string().min(1, { message: "name is required" }),
     parentPath: z.string().min(1, { message: "parentPath is required" }),
-    template: z.literal("web-app-expo-react"),
+    template: z.enum(["web-app-expo-react", "empty"]),
   })
   .passthrough();
 

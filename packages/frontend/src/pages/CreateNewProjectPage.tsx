@@ -17,6 +17,7 @@ import type {
   EnvRuntimeResponse,
   Project,
   ScaffoldRecoveryInfo,
+  ScaffoldTemplate,
 } from "@opensprint/shared";
 import { isWindowsMountedWslPath, UNSUPPORTED_WSL_REPO_PATH_MESSAGE } from "@opensprint/shared";
 import { api, ApiError } from "../api/client";
@@ -42,14 +43,17 @@ const STEPS: { key: Step; label: string }[] = [
   { key: "scaffold", label: "Scaffold" },
 ];
 
-const TEMPLATE_OPTIONS = [{ value: "web-app-expo-react", label: "Web App (Expo/React)" }] as const;
+const TEMPLATE_OPTIONS: readonly { value: ScaffoldTemplate; label: string }[] = [
+  { value: "web-app-expo-react", label: "Web App (Expo/React)" },
+  { value: "empty", label: "Empty" },
+];
 export function CreateNewProjectPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>("basics");
   const [metadata, setMetadata] = useState<ProjectMetadataState>({ name: "" });
   const [metadataError, setMetadataError] = useState<string | null>(null);
   const [parentPath, setParentPath] = useState("");
-  const [template, setTemplate] = useState<"web-app-expo-react">(TEMPLATE_OPTIONS[0].value);
+  const [template, setTemplate] = useState<ScaffoldTemplate>(TEMPLATE_OPTIONS[0].value);
   const [showFolderBrowser, setShowFolderBrowser] = useState(false);
 
   const [simpleComplexityAgent, setSimpleComplexityAgent] = useState({
@@ -96,7 +100,7 @@ export function CreateNewProjectPage() {
       : null;
   const runInstructions =
     scaffoldedProject && backendRuntime
-      ? getRunInstructions(scaffoldedProject.repoPath, backendRuntime)
+      ? getRunInstructions(scaffoldedProject.repoPath, backendRuntime, template)
       : null;
 
   useEffect(() => {
@@ -503,7 +507,7 @@ export function CreateNewProjectPage() {
                     id="template-select"
                     className="input w-full"
                     value={template}
-                    onChange={(e) => setTemplate(e.target.value as "web-app-expo-react")}
+                    onChange={(e) => setTemplate(e.target.value as ScaffoldTemplate)}
                     data-testid="template-select"
                   >
                     {TEMPLATE_OPTIONS.map((opt) => (
@@ -561,11 +565,15 @@ export function CreateNewProjectPage() {
                       className="w-8 h-8 border-2 border-brand-600 border-t-transparent rounded-full animate-spin mb-4"
                       aria-hidden
                     />
-                    <p className="text-theme-text font-medium">Building your project...</p>
-                    <p className="text-sm text-theme-muted mt-1">
-                      Creating scaffolding and installing dependencies. If an error is detected, an
-                      agent will attempt to fix it automatically.
+                    <p className="text-theme-text font-medium">
+                      {template === "empty" ? "Setting up your project..." : "Building your project..."}
                     </p>
+                    {template !== "empty" && (
+                      <p className="text-sm text-theme-muted mt-1">
+                        Creating scaffolding and installing dependencies. If an error is detected, an
+                        agent will attempt to fix it automatically.
+                      </p>
+                    )}
                   </div>
                 )}
                 {scaffoldError && !scaffolding && (

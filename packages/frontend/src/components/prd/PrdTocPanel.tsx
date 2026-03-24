@@ -115,10 +115,10 @@ export function PrdTocPanel({
   );
 
   const widthClass = collapsed
-    ? "w-12 min-w-[48px] items-center justify-start pt-3"
+    ? "w-12 items-center justify-start pt-3"
     : resizable
       ? "w-full min-w-0"
-      : "w-[220px] min-w-[180px]";
+      : "w-[220px]";
   const containerClass = `flex flex-col h-full min-h-0 bg-theme-bg shrink-0 overflow-hidden transition-[width] duration-200 ease-out ${widthClass}`;
 
   return (

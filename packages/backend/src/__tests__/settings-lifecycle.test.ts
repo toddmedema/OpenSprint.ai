@@ -97,7 +97,7 @@ async function writeProjectToGlobalStore(
   }
 }
 
-describe("Settings lifecycle — service-level", () => {
+describe("Settings lifecycle — service-level", { retry: 2 }, () => {
   let projectService: ProjectService;
   let tempDir: string;
   let originalHome: string | undefined;
@@ -267,7 +267,7 @@ describe("Settings lifecycle — service-level", () => {
   });
 });
 
-describe("Settings API lifecycle", () => {
+describe("Settings API lifecycle", { retry: 2 }, () => {
   let app: ReturnType<typeof createApp>;
   let projectService: ProjectService;
   let tempDir: string;

@@ -61,11 +61,14 @@ export interface UpdateProjectRequest {
   repoPath?: string;
 }
 
+/** Supported scaffold templates for the Create New wizard */
+export type ScaffoldTemplate = "web-app-expo-react" | "empty";
+
 /** Scaffold project request (Create New wizard) */
 export interface ScaffoldProjectRequest {
   name: string;
   parentPath: string;
-  template: "web-app-expo-react";
+  template: ScaffoldTemplate;
   simpleComplexityAgent?: AgentConfigInput;
   complexComplexityAgent?: AgentConfigInput;
 }

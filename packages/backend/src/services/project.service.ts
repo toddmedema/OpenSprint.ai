@@ -788,12 +788,36 @@ export class ProjectService {
     if (!parentPath) {
       throw new AppError(400, ErrorCodes.INVALID_INPUT, "Project folder (parentPath) is required");
     }
-    if (template !== "web-app-expo-react") {
+    if (template !== "web-app-expo-react" && template !== "empty") {
       throw new AppError(
         400,
         ErrorCodes.INVALID_INPUT,
-        `Unsupported template: ${template}. Only "web-app-expo-react" is supported.`
+        `Unsupported template: ${template}. Supported templates: "web-app-expo-react", "empty".`
       );
+    }
+
+    const repoPath = path.resolve(parentPath);
+    assertSupportedRepoPath(repoPath);
+
+    if (template === "empty") {
+      await fs.mkdir(repoPath, { recursive: true });
+
+      const simpleInput = input.simpleComplexityAgent ?? DEFAULT_AGENT_CONFIG;
+      const complexInput = input.complexComplexityAgent ?? DEFAULT_AGENT_CONFIG;
+      const createRequest: CreateProjectRequest = {
+        name,
+        repoPath,
+        simpleComplexityAgent: simpleInput as AgentConfigInput,
+        complexComplexityAgent: complexInput as AgentConfigInput,
+        deployment: DEFAULT_DEPLOYMENT_CONFIG,
+        aiAutonomyLevel: DEFAULT_AI_AUTONOMY_LEVEL,
+        gitWorkingMode: "worktree",
+        maxConcurrentCoders: 1,
+        testFramework: null,
+      };
+
+      const project = await this.createProject(createRequest);
+      return { project };
     }
 
     const prereq = await this.checkScaffoldPrerequisites();
@@ -812,8 +836,6 @@ export class ProjectService {
       });
     }
 
-    const repoPath = path.resolve(parentPath);
-    assertSupportedRepoPath(repoPath);
     const agentConfig = (input.simpleComplexityAgent ??
       DEFAULT_AGENT_CONFIG) as AgentConfigInput & {
       type:

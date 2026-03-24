@@ -268,6 +268,44 @@ describe("ProjectService.scaffoldProject", () => {
     });
   });
 
+  it("scaffolds empty template with no application files", async () => {
+    const emptyDir = path.join(tempDir, "empty-project");
+    const result = await projectService.scaffoldProject({
+      name: "empty-app",
+      parentPath: emptyDir,
+      template: "empty",
+      simpleComplexityAgent: { type: "cursor", model: "composer-1.5", cliCommand: null },
+      complexComplexityAgent: { type: "cursor", model: "composer-1.5", cliCommand: null },
+    });
+
+    expect(result.project).toBeDefined();
+    expect(result.project.name).toBe("empty-app");
+    expect(result.project.repoPath).toBe(path.resolve(emptyDir));
+    expect(result.recovery).toBeUndefined();
+
+    const repoPath = path.resolve(emptyDir);
+    const entries = await fs.readdir(repoPath);
+    expect(entries).not.toContain("package.json");
+    expect(entries).toContain(".opensprint");
+    expect(entries).toContain("AGENTS.md");
+    expect(entries).toContain(".git");
+
+    expect(observedCommands.some((c) => c.includes("create-expo-app"))).toBe(false);
+    expect(observedCommands.some((c) => c.includes("npm install"))).toBe(false);
+  });
+
+  it("scaffolds empty template with default agent config", async () => {
+    const emptyDir = path.join(tempDir, "empty-defaults");
+    const result = await projectService.scaffoldProject({
+      name: "empty-defaults",
+      parentPath: emptyDir,
+      template: "empty",
+    });
+
+    expect(result.project).toBeDefined();
+    expect(result.project.name).toBe("empty-defaults");
+  });
+
   it("rejects /mnt parent paths when runtime is WSL", async () => {
     setBackendRuntimeInfoForTesting({
       platform: "linux",
