@@ -38,10 +38,14 @@ import {
   AI_AUTONOMY_LEVELS,
   DEFAULT_AI_AUTONOMY_LEVEL,
   DEFAULT_REVIEW_MODE,
+  GLOBAL_DEFAULT_AGENT_UI_LABEL,
   getDeploymentTargetsForUi,
   AUTO_DEPLOY_TRIGGER_OPTIONS,
   type AutoDeployTrigger,
 } from "@opensprint/shared";
+
+/** `<select>` value for “use global default” (not a real AgentType). */
+const INHERIT_AGENT_SELECT_VALUE = "__opensprint_global_default__";
 import { MIN_SAVE_SPINNER_MS, SETTINGS_HELP_CONTAINER_CLASS } from "../lib/constants";
 import { queryKeys } from "../api/queryKeys";
 import {
@@ -286,6 +290,8 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
         },
       [settings?.complexComplexityAgent]
     );
+    const simpleInherited = settings?.simpleComplexityAgentInherited === true;
+    const complexInherited = settings?.complexComplexityAgentInherited === true;
     const deployment = useMemo(
       () => settings?.deployment ?? { mode: "custom" as DeploymentMode },
       [settings?.deployment]
@@ -311,8 +317,10 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
     type PersistOverrides = Partial<{
       name: string;
       repoPath: string;
-      simpleComplexityAgent: typeof simpleComplexityAgent;
-      complexComplexityAgent: typeof complexComplexityAgent;
+      /** `null` persists “inherit global” for this tier. */
+      simpleComplexityAgent: typeof simpleComplexityAgent | null;
+      /** `null` persists “inherit global” for this tier. */
+      complexComplexityAgent: typeof complexComplexityAgent | null;
       deployment: typeof deployment;
       aiAutonomyLevel: AiAutonomyLevel;
       gitWorkingMode: GitWorkingMode;
@@ -335,8 +343,22 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
         if (loading || !settings) return;
         const effName = overrides?.name ?? name;
         const effRepoPath = overrides?.repoPath ?? repoPath;
-        const effSimple = overrides?.simpleComplexityAgent ?? simpleComplexityAgent;
-        const effComplex = overrides?.complexComplexityAgent ?? complexComplexityAgent;
+        const effSimple =
+          overrides?.simpleComplexityAgent != null
+            ? overrides.simpleComplexityAgent
+            : simpleComplexityAgent;
+        const effComplex =
+          overrides?.complexComplexityAgent != null
+            ? overrides.complexComplexityAgent
+            : complexComplexityAgent;
+        const persistSimpleAsGlobal =
+          overrides?.simpleComplexityAgent === null ||
+          (overrides?.simpleComplexityAgent === undefined &&
+            settings.simpleComplexityAgentInherited === true);
+        const persistComplexAsGlobal =
+          overrides?.complexComplexityAgent === null ||
+          (overrides?.complexComplexityAgent === undefined &&
+            settings.complexComplexityAgentInherited === true);
         const effDeployment = overrides?.deployment ?? deployment;
         const effAiAutonomy = overrides?.aiAutonomyLevel ?? aiAutonomyLevel;
         const effGitMode = overrides?.gitWorkingMode ?? gitWorkingMode;
@@ -360,30 +382,34 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
           await Promise.all([
             api.projects.update(project.id, { name: effName, repoPath: effRepoPath }),
             api.projects.updateSettings(project.id, {
-              simpleComplexityAgent: {
-                type: effSimple.type,
-                model: effSimple.model || null,
-                cliCommand: effSimple.cliCommand || null,
-                ...((effSimple.type === "lmstudio" || effSimple.type === "ollama") && {
-                  baseUrl:
-                    effSimple.baseUrl ||
-                    (effSimple.type === "ollama"
-                      ? DEFAULT_OLLAMA_BASE_URL
-                      : DEFAULT_LMSTUDIO_BASE_URL),
-                }),
-              },
-              complexComplexityAgent: {
-                type: effComplex.type,
-                model: effComplex.model || null,
-                cliCommand: effComplex.cliCommand || null,
-                ...((effComplex.type === "lmstudio" || effComplex.type === "ollama") && {
-                  baseUrl:
-                    effComplex.baseUrl ||
-                    (effComplex.type === "ollama"
-                      ? DEFAULT_OLLAMA_BASE_URL
-                      : DEFAULT_LMSTUDIO_BASE_URL),
-                }),
-              },
+              simpleComplexityAgent: persistSimpleAsGlobal
+                ? null
+                : {
+                    type: effSimple.type,
+                    model: effSimple.model || null,
+                    cliCommand: effSimple.cliCommand || null,
+                    ...((effSimple.type === "lmstudio" || effSimple.type === "ollama") && {
+                      baseUrl:
+                        effSimple.baseUrl ||
+                        (effSimple.type === "ollama"
+                          ? DEFAULT_OLLAMA_BASE_URL
+                          : DEFAULT_LMSTUDIO_BASE_URL),
+                    }),
+                  },
+              complexComplexityAgent: persistComplexAsGlobal
+                ? null
+                : {
+                    type: effComplex.type,
+                    model: effComplex.model || null,
+                    cliCommand: effComplex.cliCommand || null,
+                    ...((effComplex.type === "lmstudio" || effComplex.type === "ollama") && {
+                      baseUrl:
+                        effComplex.baseUrl ||
+                        (effComplex.type === "ollama"
+                          ? DEFAULT_OLLAMA_BASE_URL
+                          : DEFAULT_LMSTUDIO_BASE_URL),
+                    }),
+                  },
               deployment: {
                 mode: effDeployment.mode,
                 expoConfig:
@@ -556,7 +582,9 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
       options?: { immediate?: boolean }
     ) => {
       const next = { ...(simpleComplexityAgent ?? defaultAgent), ...updates };
-      setSettings((s) => (s ? { ...s, simpleComplexityAgent: next } : null));
+      setSettings((s) =>
+        s ? { ...s, simpleComplexityAgent: next, simpleComplexityAgentInherited: false } : null
+      );
       if (options?.immediate !== false) {
         void persistSettings(undefined, { simpleComplexityAgent: next });
       }
@@ -567,7 +595,9 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
       options?: { immediate?: boolean }
     ) => {
       const next = { ...(complexComplexityAgent ?? defaultAgent), ...updates };
-      setSettings((s) => (s ? { ...s, complexComplexityAgent: next } : null));
+      setSettings((s) =>
+        s ? { ...s, complexComplexityAgent: next, complexComplexityAgentInherited: false } : null
+      );
       if (options?.immediate !== false) {
         void persistSettings(undefined, { complexComplexityAgent: next });
       }
@@ -939,9 +969,21 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                             <select
                               id="simple-provider-select"
                               className="input w-full"
-                              value={simpleComplexityAgent.type}
+                              value={
+                                simpleInherited
+                                  ? INHERIT_AGENT_SELECT_VALUE
+                                  : simpleComplexityAgent.type
+                              }
                               onChange={(e) => {
-                                const type = e.target.value as AgentType;
+                                const v = e.target.value;
+                                if (v === INHERIT_AGENT_SELECT_VALUE) {
+                                  setSettings((s) =>
+                                    s ? { ...s, simpleComplexityAgentInherited: true } : null
+                                  );
+                                  void persistSettings(undefined, { simpleComplexityAgent: null });
+                                  return;
+                                }
+                                const type = v as AgentType;
                                 updateSimpleComplexityAgent(
                                   {
                                     type,
@@ -957,6 +999,9 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                                 );
                               }}
                             >
+                              <option value={INHERIT_AGENT_SELECT_VALUE}>
+                                {GLOBAL_DEFAULT_AGENT_UI_LABEL}
+                              </option>
                               <option value="claude">Claude (API)</option>
                               <option value="claude-cli">Claude (CLI)</option>
                               <option value="cursor">Cursor</option>
@@ -967,7 +1012,8 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                               <option value="custom">Custom CLI</option>
                             </select>
                           </div>
-                          {(simpleComplexityAgent.type === "lmstudio" ||
+                          {!simpleInherited &&
+                          (simpleComplexityAgent.type === "lmstudio" ||
                             simpleComplexityAgent.type === "ollama") && (
                             <div className="flex-1 min-w-[180px]">
                               <label
@@ -995,7 +1041,11 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                               />
                             </div>
                           )}
-                          {simpleComplexityAgent.type !== "custom" ? (
+                          {simpleInherited ? (
+                            <p className="text-sm text-theme-muted flex-1 min-w-[200px] self-end pb-1">
+                              Provider and model follow global Settings → Agent Config.
+                            </p>
+                          ) : simpleComplexityAgent.type !== "custom" ? (
                             <div className="flex-1 min-w-[140px]">
                               <label
                                 htmlFor="simple-agent-select"
@@ -1063,9 +1113,21 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                             <select
                               id="complex-provider-select"
                               className="input w-full"
-                              value={complexComplexityAgent.type}
+                              value={
+                                complexInherited
+                                  ? INHERIT_AGENT_SELECT_VALUE
+                                  : complexComplexityAgent.type
+                              }
                               onChange={(e) => {
-                                const type = e.target.value as AgentType;
+                                const v = e.target.value;
+                                if (v === INHERIT_AGENT_SELECT_VALUE) {
+                                  setSettings((s) =>
+                                    s ? { ...s, complexComplexityAgentInherited: true } : null
+                                  );
+                                  void persistSettings(undefined, { complexComplexityAgent: null });
+                                  return;
+                                }
+                                const type = v as AgentType;
                                 updateComplexComplexityAgent(
                                   {
                                     type,
@@ -1081,6 +1143,9 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                                 );
                               }}
                             >
+                              <option value={INHERIT_AGENT_SELECT_VALUE}>
+                                {GLOBAL_DEFAULT_AGENT_UI_LABEL}
+                              </option>
                               <option value="claude">Claude (API)</option>
                               <option value="claude-cli">Claude (CLI)</option>
                               <option value="cursor">Cursor</option>
@@ -1091,7 +1156,8 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                               <option value="custom">Custom CLI</option>
                             </select>
                           </div>
-                          {(complexComplexityAgent.type === "lmstudio" ||
+                          {!complexInherited &&
+                          (complexComplexityAgent.type === "lmstudio" ||
                             complexComplexityAgent.type === "ollama") && (
                             <div className="flex-1 min-w-[180px]">
                               <label
@@ -1119,7 +1185,11 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                               />
                             </div>
                           )}
-                          {complexComplexityAgent.type !== "custom" ? (
+                          {complexInherited ? (
+                            <p className="text-sm text-theme-muted flex-1 min-w-[200px] self-end pb-1">
+                              Provider and model follow global Settings → Agent Config.
+                            </p>
+                          ) : complexComplexityAgent.type !== "custom" ? (
                             <div className="flex-1 min-w-[140px]">
                               <label
                                 htmlFor="complex-agent-select"

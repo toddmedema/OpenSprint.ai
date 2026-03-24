@@ -464,6 +464,9 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   cliCommand: null,
 };
 
+/** UI label when a project tier uses global agent defaults (no project-level override stored). */
+export const GLOBAL_DEFAULT_AGENT_UI_LABEL = "(global default)";
+
 /** Global settings stored at ~/.opensprint/global-settings.json */
 export interface GlobalSettings {
   apiKeys?: ApiKeys;
@@ -687,6 +690,15 @@ export function maskApiKeysForResponse(apiKeys: ApiKeys | undefined): MaskedApiK
 export interface ProjectSettings {
   simpleComplexityAgent: AgentConfig;
   complexComplexityAgent: AgentConfig;
+  /**
+   * API response only: no project-stored simple-tier agent; `simpleComplexityAgent` is resolved from
+   * global settings (or built-in default when global omits it).
+   */
+  simpleComplexityAgentInherited?: boolean;
+  /**
+   * API response only: no project-stored complex-tier agent; `complexComplexityAgent` is resolved from global.
+   */
+  complexComplexityAgentInherited?: boolean;
   deployment: DeploymentConfig;
   /** AI Autonomy level (source of truth). HilConfig is derived from this for HIL service. */
   aiAutonomyLevel?: AiAutonomyLevel;
@@ -792,6 +804,23 @@ export interface ProjectSettings {
     candidateId?: string;
   }>;
 }
+
+/**
+ * Request body for PUT /projects/:id/settings.
+ * `simpleComplexityAgent` / `complexComplexityAgent` may be `null` to clear project overrides (inherit global).
+ */
+export type ProjectSettingsApiUpdate = Partial<
+  Omit<
+    ProjectSettings,
+    | "simpleComplexityAgent"
+    | "complexComplexityAgent"
+    | "simpleComplexityAgentInherited"
+    | "complexComplexityAgentInherited"
+  >
+> & {
+  simpleComplexityAgent?: AgentConfig | null;
+  complexComplexityAgent?: AgentConfig | null;
+};
 
 /** Planning agent roles — Dreamer/Analyst use fixed tiers; others inherit plan complexity */
 export type PlanningRole =
@@ -939,6 +968,44 @@ export function projectStoredDefinesComplexAgent(raw: Record<string, unknown>): 
     Object.prototype.hasOwnProperty.call(raw, "complexComplexityAgent") ||
     Object.prototype.hasOwnProperty.call(raw, "highComplexityAgent")
   );
+}
+
+/**
+ * Merge global default agents into a copy of raw project JSON when the project does not define that tier.
+ * Matches backend `getSettings` / `parseSettings` behavior before canonicalization.
+ */
+export function applyGlobalAgentDefaultsToRawRecord(
+  raw: Record<string, unknown>,
+  gs: Pick<GlobalSettings, "simpleComplexityAgent" | "complexComplexityAgent">
+): Record<string, unknown> {
+  const normalized = { ...raw };
+  if (!projectStoredDefinesSimpleAgent(normalized) && gs.simpleComplexityAgent) {
+    normalized.simpleComplexityAgent = gs.simpleComplexityAgent;
+  }
+  if (!projectStoredDefinesComplexAgent(normalized) && gs.complexComplexityAgent) {
+    normalized.complexComplexityAgent = gs.complexComplexityAgent;
+  }
+  return normalized;
+}
+
+/**
+ * Drop agent tiers from a persisted settings object when the source raw record had no project override,
+ * so global inheritance is not materialized into `settings.json` on unrelated saves.
+ */
+export function omitInheritedAgentTiersForStore<T extends Record<string, unknown>>(
+  persisted: T,
+  sourceRaw: Record<string, unknown>
+): T {
+  const out = { ...persisted } as Record<string, unknown>;
+  if (!projectStoredDefinesSimpleAgent(sourceRaw)) {
+    delete out.simpleComplexityAgent;
+    delete out.lowComplexityAgent;
+  }
+  if (!projectStoredDefinesComplexAgent(sourceRaw)) {
+    delete out.complexComplexityAgent;
+    delete out.highComplexityAgent;
+  }
+  return out as T;
 }
 
 /**

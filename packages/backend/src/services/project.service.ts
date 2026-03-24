@@ -7,6 +7,7 @@ import type {
   Project,
   CreateProjectRequest,
   ProjectSettings,
+  ProjectSettingsApiUpdate,
   ScaffoldProjectRequest,
   ScaffoldProjectResponse,
   ScaffoldRecoveryInfo,
@@ -29,6 +30,8 @@ import {
   parseTeamMembers,
   getProvidersRequiringApiKeys,
   DEFAULT_AGENT_CONFIG,
+  applyGlobalAgentDefaultsToRawRecord,
+  omitInheritedAgentTiersForStore,
   projectStoredDefinesSimpleAgent,
   projectStoredDefinesComplexAgent,
   VALID_MERGE_STRATEGIES,
@@ -43,6 +46,7 @@ import type { AiAutonomyLevel, DeploymentConfig, HilConfig } from "@opensprint/s
 import { taskStore as taskStoreSingleton } from "./task-store.service.js";
 import {
   getSettingsFromStore,
+  getRawSettingsRecord,
   setSettingsInStore,
   deleteSettingsFromStore,
   getSettingsWithMetaFromStore,
@@ -382,6 +386,20 @@ export class ProjectService {
     this.listCache = null;
   }
 
+  /** Merge global agent defaults into raw JSON, parse, and annotate inheritance for API responses. */
+  private projectSettingsFromRaw(
+    raw: Record<string, unknown>,
+    gs: Awaited<ReturnType<typeof getGlobalSettings>>
+  ): ProjectSettings {
+    const normalized = applyGlobalAgentDefaultsToRawRecord(raw, gs);
+    const parsed = toCanonicalSettings(parseSettings(normalized));
+    return {
+      ...parsed,
+      simpleComplexityAgentInherited: !projectStoredDefinesSimpleAgent(raw),
+      complexComplexityAgentInherited: !projectStoredDefinesComplexAgent(raw),
+    };
+  }
+
   private async stageAndCommitPaths(repoPath: string, pathsToStage: string[]): Promise<boolean> {
     const existingPaths: string[] = [];
     for (const relPath of pathsToStage) {
@@ -525,14 +543,18 @@ export class ProjectService {
     assertSupportedRepoPath(repoPath);
     const normalizedRepoPath = normalizeRepoPath(repoPath);
 
-    // Validate agent config schema (accept new or legacy keys)
+    // Agent config: omit both tiers to inherit global defaults; otherwise validate provided tiers only.
     const simpleInput = input.simpleComplexityAgent ?? input.lowComplexityAgent;
     const complexInput = input.complexComplexityAgent ?? input.highComplexityAgent;
-    let simpleComplexityAgent: AgentConfigInput;
-    let complexComplexityAgent: AgentConfigInput;
+    let simpleComplexityAgent: AgentConfigInput | undefined;
+    let complexComplexityAgent: AgentConfigInput | undefined;
     try {
-      simpleComplexityAgent = parseAgentConfig(simpleInput, "simpleComplexityAgent");
-      complexComplexityAgent = parseAgentConfig(complexInput, "complexComplexityAgent");
+      if (simpleInput !== undefined && simpleInput !== null) {
+        simpleComplexityAgent = parseAgentConfig(simpleInput, "simpleComplexityAgent");
+      }
+      if (complexInput !== undefined && complexInput !== null) {
+        complexComplexityAgent = parseAgentConfig(complexInput, "complexComplexityAgent");
+      }
     } catch (err) {
       const msg = getErrorMessage(err, "Invalid agent configuration");
       throw new AppError(400, ErrorCodes.INVALID_AGENT_CONFIG, msg);
@@ -563,7 +585,12 @@ export class ProjectService {
       });
       // Ensure settings exist in global store so getSettings() and Sketch/Plan flows work (PRD §6.3).
       const defaults = buildDefaultSettings();
-      await setSettingsInStore(adoptId, defaults);
+      const adoptInitial = toCanonicalSettings(defaults) as unknown as Record<string, unknown>;
+      delete adoptInitial.simpleComplexityAgent;
+      delete adoptInitial.complexComplexityAgent;
+      delete adoptInitial.lowComplexityAgent;
+      delete adoptInitial.highComplexityAgent;
+      await setSettingsInStore(adoptId, adoptInitial as unknown as ProjectSettings);
       this.invalidateListCache();
       return this.getProject(adoptId);
     } catch (err) {
@@ -673,9 +700,7 @@ export class ProjectService {
       typeof rawMaxTotal === "number" && Number.isFinite(rawMaxTotal) && rawMaxTotal >= 1
         ? Math.min(MAX_TOTAL_CONCURRENT_AGENTS_CAP, Math.max(1, Math.round(rawMaxTotal)))
         : undefined;
-    const settings: ProjectSettings = {
-      simpleComplexityAgent,
-      complexComplexityAgent,
+    const settingsPayload: Record<string, unknown> = {
       deployment,
       aiAutonomyLevel,
       hilConfig,
@@ -691,7 +716,13 @@ export class ProjectService {
           unknownScopeStrategy: input.unknownScopeStrategy,
         }),
     };
-    await setSettingsInStore(id, settings);
+    if (simpleComplexityAgent !== undefined) {
+      settingsPayload.simpleComplexityAgent = simpleComplexityAgent;
+    }
+    if (complexComplexityAgent !== undefined) {
+      settingsPayload.complexComplexityAgent = complexComplexityAgent;
+    }
+    await setSettingsInStore(id, settingsPayload as unknown as ProjectSettings);
 
     // Create eas.json for Expo projects (PRD §6.4)
     if (deployment.mode === "expo") {
@@ -798,13 +829,15 @@ export class ProjectService {
     if (template === "empty") {
       await fs.mkdir(repoPath, { recursive: true });
 
-      const simpleInput = input.simpleComplexityAgent ?? DEFAULT_AGENT_CONFIG;
-      const complexInput = input.complexComplexityAgent ?? DEFAULT_AGENT_CONFIG;
       const createRequest: CreateProjectRequest = {
         name,
         repoPath,
-        simpleComplexityAgent: simpleInput as AgentConfigInput,
-        complexComplexityAgent: complexInput as AgentConfigInput,
+        ...(input.simpleComplexityAgent !== undefined && {
+          simpleComplexityAgent: input.simpleComplexityAgent as AgentConfigInput,
+        }),
+        ...(input.complexComplexityAgent !== undefined && {
+          complexComplexityAgent: input.complexComplexityAgent as AgentConfigInput,
+        }),
         deployment: DEFAULT_DEPLOYMENT_CONFIG,
         aiAutonomyLevel: DEFAULT_AI_AUTONOMY_LEVEL,
         gitWorkingMode: "worktree",
@@ -1216,26 +1249,19 @@ export class ProjectService {
     const gs = await getGlobalSettings();
     if (stored === defaults) {
       const detected = await detectTestFramework(repoPath);
-      const enriched: ProjectSettings = {
-        ...defaults,
-        simpleComplexityAgent: gs.simpleComplexityAgent ?? defaults.simpleComplexityAgent,
-        complexComplexityAgent: gs.complexComplexityAgent ?? defaults.complexComplexityAgent,
-        testFramework: detected?.framework ?? null,
-        testCommand: detected?.testCommand ?? (getTestCommandForFramework(null) || null),
-      };
-      await setSettingsInStore(projectId, enriched);
-      return toCanonicalSettings(enriched);
+      const canonicalDefaults = toCanonicalSettings(defaults) as unknown as Record<string, unknown>;
+      delete canonicalDefaults.simpleComplexityAgent;
+      delete canonicalDefaults.complexComplexityAgent;
+      delete canonicalDefaults.lowComplexityAgent;
+      delete canonicalDefaults.highComplexityAgent;
+      canonicalDefaults.testFramework = detected?.framework ?? null;
+      canonicalDefaults.testCommand =
+        detected?.testCommand ?? (getTestCommandForFramework(null) || null);
+      await setSettingsInStore(projectId, canonicalDefaults as unknown as ProjectSettings);
+      return this.projectSettingsFromRaw(canonicalDefaults, gs);
     }
-    const storedRecord = stored as unknown as Record<string, unknown>;
-    const normalized: Record<string, unknown> = { ...storedRecord };
-    if (!projectStoredDefinesSimpleAgent(normalized) && gs.simpleComplexityAgent) {
-      normalized.simpleComplexityAgent = gs.simpleComplexityAgent;
-    }
-    if (!projectStoredDefinesComplexAgent(normalized) && gs.complexComplexityAgent) {
-      normalized.complexComplexityAgent = gs.complexComplexityAgent;
-    }
-    const parsed = toCanonicalSettings(parseSettings(normalized));
-    return parsed;
+    const raw = await getRawSettingsRecord(projectId);
+    return this.projectSettingsFromRaw(raw, gs);
   }
 
   async getSettingsWithRuntimeState(projectId: string): Promise<ProjectSettings> {
@@ -1299,6 +1325,7 @@ export class ProjectService {
 
     const defaults = buildDefaultSettings();
     await updateSettingsInStore(projectId, defaults, (current) => {
+      const rawSnapshot = current as unknown as Record<string, unknown>;
       const normalized = toCanonicalSettings(parseSettings(current));
       const existing = normalized.validationTimingProfile ?? {};
       const scopedSamples =
@@ -1310,7 +1337,7 @@ export class ProjectService {
           ? [...(existing.full ?? []), sample].slice(-VALIDATION_TIMING_SAMPLE_LIMIT)
           : (existing.full ?? []);
 
-      return toCanonicalSettings({
+      const merged = toCanonicalSettings({
         ...normalized,
         validationTimingProfile: {
           ...(scopedSamples.length > 0 && { scoped: scopedSamples }),
@@ -1318,16 +1345,22 @@ export class ProjectService {
           updatedAt: new Date().toISOString(),
         },
       });
+      return omitInheritedAgentTiersForStore(
+        merged as unknown as Record<string, unknown>,
+        rawSnapshot
+      ) as unknown as ProjectSettings;
     });
   }
 
   /** Update project settings (persisted in global store). */
   async updateSettings(
     projectId: string,
-    updates: Partial<ProjectSettings>
+    updates: ProjectSettingsApiUpdate
   ): Promise<ProjectSettings> {
     await this.getRepoPath(projectId);
-    const current = await this.getSettings(projectId);
+    const diskRaw = await getRawSettingsRecord(projectId);
+    const gs = await getGlobalSettings();
+    const workingRaw: Record<string, unknown> = { ...diskRaw };
 
     // Client cannot set self-improvement run metadata; only internal runs update these. nextRunAt is computed.
     const {
@@ -1344,31 +1377,58 @@ export class ProjectService {
       validationTimingProfile?: unknown;
     };
 
-    // Validate agent config if provided (accept new or legacy keys)
-    const raw = sanitizedUpdates as Partial<ProjectSettings> & {
+    // Agent overrides: null clears project storage (inherit global); object sets explicit config; undefined leaves disk keys unchanged.
+    const bodyLegacy = sanitizedUpdates as Partial<ProjectSettings> & {
       lowComplexityAgent?: unknown;
       highComplexityAgent?: unknown;
     };
-    const simpleUpdate = sanitizedUpdates.simpleComplexityAgent ?? raw.lowComplexityAgent;
-    const complexUpdate = sanitizedUpdates.complexComplexityAgent ?? raw.highComplexityAgent;
-    let simpleComplexityAgent = current.simpleComplexityAgent;
-    let complexComplexityAgent = current.complexComplexityAgent;
-    if (simpleUpdate !== undefined) {
+    // Do not use ?? here: explicit `null` must clear overrides; ?? would skip null and fall through to legacy keys.
+    const simpleUpdate = Object.prototype.hasOwnProperty.call(
+      sanitizedUpdates,
+      "simpleComplexityAgent"
+    )
+      ? sanitizedUpdates.simpleComplexityAgent
+      : Object.prototype.hasOwnProperty.call(bodyLegacy, "lowComplexityAgent")
+        ? bodyLegacy.lowComplexityAgent
+        : undefined;
+    const complexUpdate = Object.prototype.hasOwnProperty.call(
+      sanitizedUpdates,
+      "complexComplexityAgent"
+    )
+      ? sanitizedUpdates.complexComplexityAgent
+      : Object.prototype.hasOwnProperty.call(bodyLegacy, "highComplexityAgent")
+        ? bodyLegacy.highComplexityAgent
+        : undefined;
+
+    if (simpleUpdate === null) {
+      delete workingRaw.simpleComplexityAgent;
+      delete workingRaw.lowComplexityAgent;
+    } else if (simpleUpdate !== undefined) {
       try {
-        simpleComplexityAgent = parseAgentConfig(simpleUpdate, "simpleComplexityAgent");
+        workingRaw.simpleComplexityAgent = parseAgentConfig(simpleUpdate, "simpleComplexityAgent");
+        delete workingRaw.lowComplexityAgent;
       } catch (err) {
         const msg = getErrorMessage(err, "Invalid simple complexity agent configuration");
         throw new AppError(400, ErrorCodes.INVALID_AGENT_CONFIG, msg);
       }
     }
-    if (complexUpdate !== undefined) {
+
+    if (complexUpdate === null) {
+      delete workingRaw.complexComplexityAgent;
+      delete workingRaw.highComplexityAgent;
+    } else if (complexUpdate !== undefined) {
       try {
-        complexComplexityAgent = parseAgentConfig(complexUpdate, "complexComplexityAgent");
+        workingRaw.complexComplexityAgent = parseAgentConfig(complexUpdate, "complexComplexityAgent");
+        delete workingRaw.highComplexityAgent;
       } catch (err) {
         const msg = getErrorMessage(err, "Invalid complex complexity agent configuration");
         throw new AppError(400, ErrorCodes.INVALID_AGENT_CONFIG, msg);
       }
     }
+
+    const current = this.projectSettingsFromRaw(workingRaw, gs);
+    const simpleComplexityAgent = current.simpleComplexityAgent;
+    const complexComplexityAgent = current.complexComplexityAgent;
 
     // Validate API keys in global store when agent config requires them (Claude API or Cursor)
     const agentConfigChanged = simpleUpdate !== undefined || complexUpdate !== undefined;
@@ -1376,7 +1436,6 @@ export class ProjectService {
       ? getProvidersRequiringApiKeys([simpleComplexityAgent, complexComplexityAgent])
       : [];
     if (requiredProviders.length > 0) {
-      const gs = await getGlobalSettings();
       const missing: ApiKeyProvider[] = [];
       for (const provider of requiredProviders) {
         const entries = gs.apiKeys?.[provider];
@@ -1538,7 +1597,16 @@ export class ProjectService {
       // Branches mode forces maxConcurrentCoders=1 regardless of stored value
       ...(gitWorkingMode === "branches" && { maxConcurrentCoders: 1 }),
     };
-    const toPersist = toCanonicalSettings(updated);
+    const {
+      simpleComplexityAgentInherited: _stripSimpleInherited,
+      complexComplexityAgentInherited: _stripComplexInherited,
+      ...settingsForCanonical
+    } = updated;
+    const canonical = toCanonicalSettings(settingsForCanonical);
+    const toPersist = omitInheritedAgentTiersForStore(
+      canonical as unknown as Record<string, unknown>,
+      workingRaw
+    ) as unknown as ProjectSettings;
     await setSettingsInStore(projectId, toPersist);
     if ((toPersist.worktreeBaseBranch ?? "main") !== (current.worktreeBaseBranch ?? "main")) {
       projectGitRuntimeCache.invalidate(projectId);

@@ -474,16 +474,29 @@ describe("ProjectService", () => {
     expect(again.repoPath).toBe(first.repoPath);
   });
 
-  it("should reject createProject when simpleComplexityAgent/complexComplexityAgent are missing", async () => {
+  it("should accept createProject when agent tiers are omitted (inherit global defaults)", async () => {
+    await setGlobalSettings({
+      apiKeys: {
+        ANTHROPIC_API_KEY: [{ id: "test-ant", value: "sk-ant-test" }],
+        CURSOR_API_KEY: [{ id: "test-cur", value: "cursor-test" }],
+      },
+      simpleComplexityAgent: { type: "cursor", model: "create-omit-simple", cliCommand: null },
+      complexComplexityAgent: { type: "cursor", model: "create-omit-complex", cliCommand: null },
+    });
     const repoPath = path.join(tempDir, "missing-agents");
-    await expect(
-      projectService.createProject({
-        name: "Test",
-        repoPath,
-        deployment: { mode: "custom" },
-        hilConfig: DEFAULT_HIL_CONFIG,
-      } as Record<string, unknown>)
-    ).rejects.toMatchObject({ code: "INVALID_AGENT_CONFIG" });
+    const project = await projectService.createProject({
+      name: "Test",
+      repoPath,
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+    expect(project.id).toBeDefined();
+    const stored = await readSettingsFromGlobalStore(tempDir, project.id);
+    expect(stored.simpleComplexityAgent).toBeUndefined();
+    expect(stored.complexComplexityAgent).toBeUndefined();
+    const settings = await projectService.getSettings(project.id);
+    expect(settings.simpleComplexityAgent.model).toBe("create-omit-simple");
+    expect(settings.complexComplexityAgent.model).toBe("create-omit-complex");
   });
 
   it("should reject invalid simpleComplexityAgent schema", async () => {
@@ -582,6 +595,95 @@ describe("ProjectService", () => {
     const settings = await projectService.getSettings(project.id);
     expect(settings.simpleComplexityAgent.model).toBe("from-global-simple");
     expect(settings.complexComplexityAgent.model).toBe("from-global-complex");
+    expect(settings.simpleComplexityAgentInherited).toBe(true);
+    expect(settings.complexComplexityAgentInherited).toBe(true);
+  });
+
+  it("should omit agent keys in store when createProject omits agents (inherit global)", async () => {
+    await setGlobalSettings({
+      apiKeys: {
+        ANTHROPIC_API_KEY: [{ id: "test-ant", value: "sk-ant-test" }],
+        CURSOR_API_KEY: [{ id: "test-cur", value: "cursor-test" }],
+      },
+      simpleComplexityAgent: { type: "openai", model: "gpt-4o", cliCommand: null },
+      complexComplexityAgent: { type: "openai", model: "gpt-4o-mini", cliCommand: null },
+    });
+
+    const repoPath = path.join(tempDir, "inherit-on-create");
+    const project = await projectService.createProject({
+      name: "Inherit On Create",
+      repoPath,
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    const stored = await readSettingsFromGlobalStore(tempDir, project.id);
+    expect(stored.simpleComplexityAgent).toBeUndefined();
+    expect(stored.complexComplexityAgent).toBeUndefined();
+
+    const settings = await projectService.getSettings(project.id);
+    expect(settings.simpleComplexityAgentInherited).toBe(true);
+    expect(settings.complexComplexityAgentInherited).toBe(true);
+    expect(settings.simpleComplexityAgent.type).toBe("openai");
+    expect(settings.simpleComplexityAgent.model).toBe("gpt-4o");
+    expect(settings.complexComplexityAgent.model).toBe("gpt-4o-mini");
+  });
+
+  it("should not materialize inherited agents when updateSettings changes a non-agent field", async () => {
+    await setGlobalSettings({
+      apiKeys: {
+        ANTHROPIC_API_KEY: [{ id: "test-ant", value: "sk-ant-test" }],
+        CURSOR_API_KEY: [{ id: "test-cur", value: "cursor-test" }],
+      },
+      simpleComplexityAgent: { type: "cursor", model: "only-global", cliCommand: null },
+      complexComplexityAgent: { type: "cursor", model: "only-global-c", cliCommand: null },
+    });
+
+    const repoPath = path.join(tempDir, "inherit-no-materialize");
+    const project = await projectService.createProject({
+      name: "No Materialize",
+      repoPath,
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    await projectService.updateSettings(project.id, { testFramework: "vitest" });
+
+    const stored = await readSettingsFromGlobalStore(tempDir, project.id);
+    expect(stored.simpleComplexityAgent).toBeUndefined();
+    expect(stored.complexComplexityAgent).toBeUndefined();
+  });
+
+  it("should clear project simple agent with null and resume inheriting global", async () => {
+    await setGlobalSettings({
+      apiKeys: {
+        ANTHROPIC_API_KEY: [{ id: "test-ant", value: "sk-ant-test" }],
+        CURSOR_API_KEY: [{ id: "test-cur", value: "cursor-test" }],
+      },
+      simpleComplexityAgent: { type: "cursor", model: "after-clear", cliCommand: null },
+      complexComplexityAgent: { type: "claude", model: null, cliCommand: null },
+    });
+
+    const repoPath = path.join(tempDir, "clear-simple-null");
+    const project = await projectService.createProject({
+      name: "Clear Simple",
+      repoPath,
+      simpleComplexityAgent: { type: "claude", model: "project-owned", cliCommand: null },
+      complexComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    await projectService.updateSettings(project.id, {
+      simpleComplexityAgent: null,
+    });
+
+    const stored = await readSettingsFromGlobalStore(tempDir, project.id);
+    expect(stored.simpleComplexityAgent).toBeUndefined();
+
+    const settings = await projectService.getSettings(project.id);
+    expect(settings.simpleComplexityAgentInherited).toBe(true);
+    expect(settings.simpleComplexityAgent.model).toBe("after-clear");
   });
 
   it("should accept custom agent with cliCommand", async () => {

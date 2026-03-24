@@ -492,7 +492,16 @@ describe("Projects REST API — create and settings", () => {
     expect(res.body.data.complexComplexityAgent.model).toBe("claude-opus-4");
   });
 
-  it("POST /projects without simpleComplexityAgent/complexComplexityAgent returns 400", async () => {
+  it("POST /projects without agent tiers inherits global defaults and flags inheritance on GET settings", async () => {
+    await setGlobalSettings({
+      apiKeys: {
+        ANTHROPIC_API_KEY: [{ id: "test-ant", value: "sk-ant-test" }],
+        CURSOR_API_KEY: [{ id: "test-cur", value: "cursor-test" }],
+      },
+      simpleComplexityAgent: { type: "openai", model: "route-omit-simple", cliCommand: null },
+      complexComplexityAgent: { type: "openai", model: "route-omit-complex", cliCommand: null },
+    });
+
     const repoPath = path.join(tempDir, "missing-agents");
     await fs.mkdir(repoPath, { recursive: true });
 
@@ -505,9 +514,17 @@ describe("Projects REST API — create and settings", () => {
 
     const res = await request(app).post(`${API_PREFIX}/projects`).send(body);
 
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBeDefined();
-    expect(res.body.error.code).toBe("INVALID_AGENT_CONFIG");
+    expect(res.status).toBe(201);
+    const newId = res.body.data.id;
+
+    const settingsRes = await request(app).get(`${API_PREFIX}/projects/${newId}/settings`);
+    expect(settingsRes.status).toBe(200);
+    expect(settingsRes.body.data.simpleComplexityAgentInherited).toBe(true);
+    expect(settingsRes.body.data.complexComplexityAgentInherited).toBe(true);
+    expect(settingsRes.body.data.simpleComplexityAgent.model).toBe("route-omit-simple");
+    expect(settingsRes.body.data.complexComplexityAgent.model).toBe("route-omit-complex");
+
+    await cleanupTestProject({ projectService, projectId: newId });
   });
 
   it("POST /projects creates project; GET settings does not return apiKeys", async () => {

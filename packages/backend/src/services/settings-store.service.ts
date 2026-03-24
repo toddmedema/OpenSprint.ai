@@ -89,6 +89,18 @@ export async function getSettingsFromStore(
 }
 
 /**
+ * Raw project settings object as stored (no merge with global agents). Empty object when missing.
+ */
+export async function getRawSettingsRecord(projectId: string): Promise<Record<string, unknown>> {
+  const store = await loadStore();
+  const entry = store[projectId];
+  if (!entry?.settings) {
+    return {};
+  }
+  return stripApiKeys({ ...(entry.settings as unknown as Record<string, unknown>) });
+}
+
+/**
  * Get settings and updatedAt for a project. Returns { settings: defaults, updatedAt: null } if not found.
  * Strips apiKeys from stored data (project-level keys deprecated).
  */

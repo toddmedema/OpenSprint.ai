@@ -7,6 +7,7 @@ import type {
   ScaffoldProjectResponse,
   UpdateProjectRequest,
   ProjectSettings,
+  ProjectSettingsApiUpdate,
   Prd,
   PrdSection,
   PrdChangeLogEntry,
@@ -334,7 +335,7 @@ export const api = {
         body: JSON.stringify(data),
       }),
     getSettings: (id: string) => request<ProjectSettings>(`/projects/${id}/settings`),
-    updateSettings: (id: string, data: Partial<ProjectSettings>) =>
+    updateSettings: (id: string, data: ProjectSettingsApiUpdate) =>
       request<ProjectSettings>(`/projects/${id}/settings`, {
         method: "PUT",
         body: JSON.stringify(data),

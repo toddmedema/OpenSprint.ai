@@ -30,6 +30,8 @@ import {
   SELF_IMPROVEMENT_FREQUENCY_OPTIONS,
   projectStoredDefinesSimpleAgent,
   projectStoredDefinesComplexAgent,
+  applyGlobalAgentDefaultsToRawRecord,
+  omitInheritedAgentTiersForStore,
 } from "../types/settings.ts";
 import type {
   ProjectSettings,
@@ -70,6 +72,52 @@ describe("projectStoredDefinesSimpleAgent / projectStoredDefinesComplexAgent", (
       })
     ).toBe(true);
     expect(projectStoredDefinesComplexAgent({})).toBe(false);
+  });
+});
+
+describe("applyGlobalAgentDefaultsToRawRecord / omitInheritedAgentTiersForStore", () => {
+  const gs = {
+    simpleComplexityAgent: lowAgent,
+    complexComplexityAgent: highAgent,
+  };
+
+  it("merges global agents only when project JSON omits that tier", () => {
+    const merged = applyGlobalAgentDefaultsToRawRecord({ deployment: { mode: "custom" } }, gs);
+    expect(merged.simpleComplexityAgent).toEqual(lowAgent);
+    expect(merged.complexComplexityAgent).toEqual(highAgent);
+
+    const withProjectSimple = applyGlobalAgentDefaultsToRawRecord(
+      { simpleComplexityAgent: defaultAgent, deployment: { mode: "custom" } },
+      gs
+    );
+    expect(withProjectSimple.simpleComplexityAgent).toEqual(defaultAgent);
+    expect(withProjectSimple.complexComplexityAgent).toEqual(highAgent);
+  });
+
+  it("strips agent keys from a persisted object when raw had no override", () => {
+    const persisted = {
+      simpleComplexityAgent: lowAgent,
+      complexComplexityAgent: highAgent,
+      deployment: { mode: "custom" as const },
+    };
+    const stripped = omitInheritedAgentTiersForStore(persisted, {
+      deployment: { mode: "custom" },
+    });
+    expect(stripped.simpleComplexityAgent).toBeUndefined();
+    expect(stripped.complexComplexityAgent).toBeUndefined();
+    expect(stripped.deployment).toEqual({ mode: "custom" });
+  });
+
+  it("preserves agent keys in persisted object when raw defined that tier", () => {
+    const raw = { simpleComplexityAgent: defaultAgent, deployment: { mode: "custom" } };
+    const persisted = {
+      simpleComplexityAgent: lowAgent,
+      complexComplexityAgent: highAgent,
+      deployment: { mode: "custom" as const },
+    };
+    const stripped = omitInheritedAgentTiersForStore(persisted, raw);
+    expect(stripped.simpleComplexityAgent).toEqual(lowAgent);
+    expect(stripped.complexComplexityAgent).toBeUndefined();
   });
 });
 
