@@ -3198,6 +3198,7 @@ describe("PlanPhase Generate Plan", () => {
         )
       ).toBeDefined();
     });
+    expect(screen.queryByTestId("add-plan-modal")).not.toBeInTheDocument();
   });
 
   it("renders draft planner questions without a selected plan and answers through plan-draft context", async () => {
@@ -3223,7 +3224,7 @@ describe("PlanPhase Generate Plan", () => {
       planGenerated: { planId: "volunteer-signup-form" },
     });
 
-    const store = createStore([basePlan], null, defaultExecuteTasks, { selectedPlanId: null });
+    const store = createStore([basePlan], null, defaultExecuteTasks, { selectedPlanId: "" });
     const user = userEvent.setup();
     act(() => {
       store.dispatch(addOpenQuestionNotification(draftNotification as never));
