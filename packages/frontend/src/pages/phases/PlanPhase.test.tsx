@@ -986,6 +986,56 @@ describe("PlanPhase archive", () => {
 
     expect(mockArchive).toHaveBeenCalledWith("proj-1", "archive-test-feature");
   });
+
+  it("closes plan sidebar when close button is clicked", async () => {
+    const store = createStore();
+    const user = userEvent.setup();
+    const onSelectPlanId = vi.fn();
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <PlanPhase projectId="proj-1" onSelectPlanId={onSelectPlanId} />
+        </Provider>
+      </MemoryRouter>,
+      { wrapper: PlanPhaseWrapper }
+    );
+
+    expect(screen.getByRole("textbox", { name: /title/i })).toBeInTheDocument();
+
+    const closeBtn = screen.getByRole("button", { name: "Close plan panel" });
+    await user.click(closeBtn);
+
+    expect(store.getState().plan.selectedPlanId).toBeNull();
+    expect(onSelectPlanId).toHaveBeenCalledWith(null);
+  });
+
+  it("closes plan sidebar and re-opening shows expected content", async () => {
+    const store = createStore();
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <PlanPhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>,
+      { wrapper: PlanPhaseWrapper }
+    );
+
+    expect(screen.getByRole("textbox", { name: /title/i })).toBeInTheDocument();
+
+    const closeBtn = screen.getByRole("button", { name: "Close plan panel" });
+    await user.click(closeBtn);
+
+    expect(screen.queryByRole("textbox", { name: /title/i })).not.toBeInTheDocument();
+
+    const planCard = screen.getByText("Archive Test Feature");
+    await user.click(planCard);
+
+    await waitFor(() => {
+      expect(screen.getByRole("textbox", { name: /title/i })).toBeInTheDocument();
+    });
+    expect(screen.getByRole("textbox", { name: /title/i })).toHaveValue("Archive Test");
+  });
 });
 
 describe("PlanPhase inline editing", () => {

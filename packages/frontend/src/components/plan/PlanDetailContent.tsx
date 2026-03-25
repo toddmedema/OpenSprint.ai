@@ -241,7 +241,7 @@ export function PlanDetailContent({
             </>
           )}
         </div>
-        {headerActions && !isReadOnly && (
+        {headerActions && (
           <div className="shrink-0 flex items-center gap-2">{headerActions}</div>
         )}
       </div>

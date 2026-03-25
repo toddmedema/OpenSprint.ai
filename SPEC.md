@@ -55,7 +55,20 @@ A small team that builds software for clients. They need to move quickly from cl
 
 **Coverage enforcement in CI:** The merge gate (`.github/workflows/merge-gate.yml`) runs `npm run test:coverage` for the shared, backend, and frontend workspaces. Vitest is configured with coverage thresholds: backend uses 80% for statements, lines, and functions and 70% for branches; frontend uses 80% for statements and lines, 70% for branches, and 73% for functions (raised toward 80% as coverage improves). The CI job fails if any workspace is below its threshold. Frontend E2E tests (`*.e2e.test.tsx`) are run as part of the frontend test suite in the same job; the test step is bounded by a 20-minute timeout so the gate does not hang. The SPEC target of >80% coverage with passing E2E tests is thus enforced in CI.
 
+## Assumptions and Constraints
+
+_No content yet_
+
 ## Feature List
+
+Add under Sketch phase:
+
+- **Scale, speed, and cost discovery:** The Sketch Dreamer agent checks whether the user's input or existing PRD sections mention scale (expected users, data volume, geographic distribution, growth), speed (latency targets, throughput, real-time vs batch), or cost (infrastructure budget, hosting constraints, cost-per-request/user limits). If none have been discussed, the agent asks the user before finalizing technical architecture and non-functional requirements. When provided, constraints are incorporated into the relevant PRD sections; when the user declines or has none, the agent notes in assumptions that sensible defaults are assumed. The discovery flow is non-blocking.
+
+Add under Plan phase:
+
+- **Scale, speed, and cost awareness in plan generation:** Plan-from-description and decompose-from-PRD agents scan feature descriptions and PRD context for scale, speed, and cost constraints and reflect them in each plan's Technical Approach. When constraints are absent, plans include a brief note in the Assumptions section that no scale/speed/cost constraints were specified and defaults are assumed. Single-shot plan generation handles missing constraints via an assumptions note rather than open questions.
+- **Plan refinement constraint awareness:** When suggesting Technical Approach changes during plan refinement, the agent considers any scale, speed, or cost constraints present in the plan or PRD.
 
 Add under Execute phase:
 

@@ -97,6 +97,8 @@ describe.skipIf(!helpPostgresOk)("Help chat API", () => {
     });
     projectId = project.id;
     const db = await taskStore.getDb();
+    await db.execute("DELETE FROM agent_sessions");
+    await db.execute("DELETE FROM agent_stats");
     await db.execute("DELETE FROM help_chat_histories");
     helpChatService.clearProjectListCacheForTesting();
   });

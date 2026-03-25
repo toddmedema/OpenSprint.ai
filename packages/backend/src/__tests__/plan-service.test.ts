@@ -1923,6 +1923,27 @@ describe("PlanService createWithRetry usage", () => {
     expect(mockTaskStoreCreate).not.toHaveBeenCalled();
   });
 
+  it("generatePlanFromDescription system prompt includes scale/speed/cost awareness paragraph", async () => {
+    mockInvokePlanningAgent.mockResolvedValue({
+      content: JSON.stringify({
+        title: "Export Feature",
+        content: "# Export Feature\n\n## Overview\n\nExport data.",
+        complexity: "low",
+        mockups: [],
+      }),
+    });
+
+    await planService.generatePlanFromDescription(projectId, "Add an export screen");
+
+    const callArgs = mockInvokePlanningAgent.mock.calls[0][0] as { systemPrompt?: string };
+    expect(callArgs.systemPrompt).toBeDefined();
+    expect(callArgs.systemPrompt).toContain("Scale, speed, and cost awareness");
+    expect(callArgs.systemPrompt).toContain(
+      "No scale, speed, or cost constraints were specified; sensible defaults are assumed."
+    );
+    expect(callArgs.systemPrompt).toContain("factor them into the Technical Approach");
+  });
+
   it("listPlans returns plans from task store (no file-based plans)", async () => {
     const planId = "why-opensprint-section";
     const metadata = {

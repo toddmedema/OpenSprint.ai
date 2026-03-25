@@ -414,6 +414,8 @@ Template structure: ${getPlanTemplateStructure()}
 
 Field rules: complexity: low, medium, high, or very_high (plan-level).
 
+**Scale, speed, and cost awareness:** Before writing the Technical Approach, check whether the feature description or PRD context mentions scale (expected users, data volume, growth), speed (latency, throughput), or cost (budget, infra constraints). When present, factor them into the Technical Approach and any relevant sections. When absent, include a brief note in the Assumptions section: "No scale, speed, or cost constraints were specified; sensible defaults are assumed."
+
 **When requirements are unclear:** If the feature idea is too vague to decompose, return JSON with \`open_questions\`: [{ "id": "q1", "text": "Clarification question" }] instead of a plan. The server surfaces these via the Human Notification System; wait for user answers before proceeding.`;
 
     const autonomyDesc = buildAutonomyDescription(settings.aiAutonomyLevel, settings.hilConfig);

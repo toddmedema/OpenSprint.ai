@@ -189,16 +189,13 @@ export class PlanShipService {
       plan.metadata as unknown as Record<string, unknown>
     );
 
-    try {
-      await this.deps.chatService.syncPrdFromPlanShip(
-        projectId,
-        planId,
-        versionContent,
-        plan.metadata.complexity
-      );
-    } catch (err) {
-      log.error("PRD sync on build approval failed", { err });
-    }
+    // Fire-and-forget: harmonizer runs in background so the HTTP response
+    // returns as soon as tasks are ready, not when the harmonizer finishes.
+    this.deps.chatService
+      .syncPrdFromPlanShip(projectId, planId, versionContent, plan.metadata.complexity)
+      .catch((err) => {
+        log.error("PRD sync on build approval failed", { err });
+      });
 
     if (tasksGenerated > 0) {
       const finalPlan = await this.deps.crudService.getPlan(projectId, planId);

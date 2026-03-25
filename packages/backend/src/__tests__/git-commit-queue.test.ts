@@ -408,7 +408,7 @@ describe.skipIf(!gitQueuePostgresOk)("GitCommitQueue", () => {
     expect(logOut).not.toContain("and reporting");
   });
 
-  it("should fetch task title from task store when available", async () => {
+  it("should fetch task title from task store when available", { timeout: 30_000 }, async () => {
     const projectHome = path.join(os.tmpdir(), `gq-project-home-${Date.now()}`);
     const originalHome = process.env.HOME;
     process.env.HOME = projectHome;

@@ -34,7 +34,9 @@ complexity: low, medium, high, or very_high (plan-level). dependsOnPlans: array 
 Plan markdown MUST follow this structure (PRD §7.2.3). Each plan's content must include these sections in order:
 ${PLAN_MARKDOWN_SECTIONS.map((s) => `- ## ${s}`).join("\n")}
 
-Template structure: ${PLAN_TEMPLATE_STRUCTURE}`;
+Template structure: ${PLAN_TEMPLATE_STRUCTURE}
+
+**Scale, speed, and cost:** Check the PRD for constraints around scale (users, data volume, growth), speed (latency, throughput), and cost (budget, infrastructure). When present, ensure each relevant plan's Technical Approach reflects them. When absent, add a brief note in the Assumptions section of plans likely affected by scale/speed/cost (e.g., data-heavy, latency-sensitive, or infrastructure features).`;
 
 export const TASK_GENERATION_SYSTEM_PROMPT = `You are an AI planning assistant for Open Sprint. Given a feature plan specification (and optional PRD context), break it down into granular, atomic implementation tasks that an AI coding agent can complete in a single session.
 

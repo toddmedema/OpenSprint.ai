@@ -594,6 +594,86 @@ describe("PlanDetailContent", () => {
       expect(screen.queryByTestId("plan-back-to-current")).not.toBeInTheDocument();
     });
 
+    it("renders headerActions (close button) even when viewing a past version (read-only)", () => {
+      const onClose = vi.fn();
+      vi.mocked(usePlanVersions).mockReturnValue({
+        data: [
+          {
+            id: "v1",
+            version_number: 1,
+            created_at: "2025-01-01T00:00:00Z",
+            is_executed_version: false,
+          },
+          {
+            id: "v2",
+            version_number: 2,
+            created_at: "2025-01-02T00:00:00Z",
+            is_executed_version: true,
+          },
+        ],
+      } as ReturnType<typeof usePlanVersions>);
+      vi.mocked(usePlanVersion).mockReturnValue({
+        data: {
+          version_number: 1,
+          title: "Past version title",
+          content: "# Past version title\n\nOld body content.",
+          created_at: "2025-01-01T00:00:00Z",
+        },
+        isLoading: false,
+      } as ReturnType<typeof usePlanVersion>);
+      const planWithVersion: Plan = {
+        ...mockPlan,
+        currentVersionNumber: 2,
+        lastExecutedVersionNumber: 2,
+      };
+      render(
+        <PlanDetailContent
+          plan={planWithVersion}
+          onContentSave={onContentSave}
+          projectId="proj-1"
+          planId="plan-1"
+          selectedVersionNumber={1}
+          onVersionSelect={vi.fn()}
+          headerActions={
+            <button type="button" onClick={onClose}>
+              Close
+            </button>
+          }
+        />
+      );
+      const closeBtn = screen.getByRole("button", { name: "Close" });
+      expect(closeBtn).toBeInTheDocument();
+      closeBtn.click();
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("renders headerActions when viewing current version (not read-only)", () => {
+      vi.mocked(usePlanVersions).mockReturnValue({
+        data: [
+          {
+            id: "v1",
+            version_number: 1,
+            created_at: "2025-01-01T00:00:00Z",
+            is_executed_version: false,
+          },
+        ],
+      } as ReturnType<typeof usePlanVersions>);
+      const planWithVersion: Plan = {
+        ...mockPlan,
+        currentVersionNumber: 1,
+      };
+      render(
+        <PlanDetailContent
+          plan={planWithVersion}
+          onContentSave={onContentSave}
+          projectId="proj-1"
+          planId="plan-1"
+          headerActions={<button type="button">Close</button>}
+        />
+      );
+      expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+    });
+
     it("shows version not found and falls back to current content when GET version returns 404", () => {
       vi.mocked(usePlanVersions).mockReturnValue({
         data: [

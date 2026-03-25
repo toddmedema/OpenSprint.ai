@@ -11,6 +11,13 @@
  * createMockDbClient or task-store mocks for examples.
  */
 import { vi } from "vitest";
+import events from "events";
+
+// Integration tests create many concurrent supertest HTTP connections,
+// each adding listeners (unpipe, error, close, finish) to internal Sockets.
+// Raise the global ceiling to avoid MaxListenersExceededWarning noise in CI.
+events.defaultMaxListeners = 50;
+events.setMaxListeners(50);
 
 process.env.GIT_AUTHOR_NAME = process.env.GIT_AUTHOR_NAME || "Open Sprint Test";
 process.env.GIT_AUTHOR_EMAIL = process.env.GIT_AUTHOR_EMAIL || "test@opensprint.dev";
