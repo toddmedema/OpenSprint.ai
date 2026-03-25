@@ -51,6 +51,9 @@ describe("ExecuteFilterToolbar", () => {
     const bar = screen.getByTestId("execute-filter-toolbar");
     expect(bar.className).toContain("bg-theme-surface");
     expect(bar.className).toContain("border-theme-border");
+    expect(bar.className).toContain("z-20");
+    expect(bar.className).toContain("relative");
+    expect(bar.className).toContain("[background-clip:padding-box]");
 
     const segmented = screen.getByTestId("execute-filter-segmented");
     expect(segmented.className).toContain("bg-theme-surface-muted");

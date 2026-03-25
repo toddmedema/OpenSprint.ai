@@ -274,7 +274,7 @@ export function TimelineList({
         ({ key, tasks: sectionTasks }) =>
           sectionTasks.length > 0 && (
             <section key={key} data-testid={`timeline-section-${key}`}>
-              <div className="sticky top-0 z-10 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-4 sm:pt-5 pb-[2px] mb-[7px] border-b border-theme-border-subtle bg-theme-bg">
+              <div className="sticky top-0 z-[12] -mx-4 sm:-mx-6 px-4 sm:px-6 pt-3 sm:pt-4 pb-[2px] mb-[7px] border-b border-theme-border-subtle bg-theme-surface [background-clip:padding-box]">
                 <h3 className="text-xs font-semibold text-theme-muted tracking-wide uppercase">
                   {SECTION_LABELS[key]}
                 </h3>

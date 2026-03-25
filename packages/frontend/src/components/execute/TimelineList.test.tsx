@@ -599,7 +599,8 @@ describe("TimelineList", () => {
     const completedSection = screen.getByTestId("timeline-section-completed");
     const stickyWrapper = activeSection.querySelector(".sticky");
     expect(stickyWrapper).toBeInTheDocument();
-    expect(stickyWrapper).toHaveClass("top-0", "z-10");
+    expect(stickyWrapper).toHaveClass("top-0", "z-[12]", "bg-theme-surface");
+    expect(stickyWrapper?.className).toContain("[background-clip:padding-box]");
     expect(completedSection.querySelector(".sticky")).toBeInTheDocument();
   });
 
@@ -629,7 +630,7 @@ describe("TimelineList", () => {
     for (const section of allSections) {
       const sticky = section.querySelector(".sticky");
       expect(sticky).toBeInTheDocument();
-      expect(sticky).toHaveClass("z-10");
+      expect(sticky).toHaveClass("z-[12]");
     }
 
     expect(screen.getByRole("heading", { name: "In Progress" })).toBeInTheDocument();

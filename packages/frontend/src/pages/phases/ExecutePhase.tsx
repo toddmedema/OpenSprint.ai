@@ -48,7 +48,11 @@ import { TimelineList } from "../../components/execute/TimelineList";
 import { clearPhaseUnread } from "../../store/slices/unreadPhaseSlice";
 import { PhaseEmptyState, PhaseEmptyStateLogo } from "../../components/PhaseEmptyState";
 import { getProjectPhasePath } from "../../lib/phaseRouting";
-import { EXECUTE_MAIN_SCROLL_CLASSNAME } from "../../lib/phaseMainScrollLayout";
+import {
+  EXECUTE_MAIN_CONTENT_INSET_CLASSNAME,
+  EXECUTE_SCROLL_PORT_CLASSNAME,
+  EXECUTE_STICKY_TOOLBAR_CLUSTER_CLASSNAME,
+} from "../../lib/phaseMainScrollLayout";
 import { EMPTY_STATE_COPY } from "../../lib/emptyStateCopy";
 import type { StatusFilter } from "../../lib/executeTaskFilter";
 import { mergeExecuteSelectedTaskData } from "../../lib/mergeExecuteSelectedTask";
@@ -446,31 +450,34 @@ export function ExecutePhase({
 
   return (
     <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
-      <div className="flex-1 flex flex-col min-h-0 min-w-0">
-        <ExecuteFilterToolbar
-          chipConfig={chipConfig}
-          statusFilter={statusFilter}
-          setStatusFilter={setStatusFilter}
-          awaitingApproval={awaitingApproval}
-          selfImprovementRunInProgress={selfImprovementRunInProgress}
-          selfImprovementRunMode={selfImprovementRunMode}
-          searchExpanded={searchExpanded}
-          searchInputValue={searchInputValue}
-          setSearchInputValue={setSearchInputValue}
-          searchInputRef={searchInputRef}
-          handleSearchExpand={handleSearchExpand}
-          handleSearchClose={handleSearchClose}
-          handleSearchKeyDown={handleSearchKeyDown}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          mergeStrategy={projectSettingsQuery.data?.mergeStrategy}
-        />
-
+      <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-theme-surface overflow-hidden">
         <div
           ref={executeScrollRef}
-          className={EXECUTE_MAIN_SCROLL_CLASSNAME}
+          className={EXECUTE_SCROLL_PORT_CLASSNAME}
           data-testid="execute-main-scroll"
         >
+          <div className={EXECUTE_STICKY_TOOLBAR_CLUSTER_CLASSNAME}>
+            <ExecuteFilterToolbar
+              chipConfig={chipConfig}
+              statusFilter={statusFilter}
+              setStatusFilter={setStatusFilter}
+              awaitingApproval={awaitingApproval}
+              selfImprovementRunInProgress={selfImprovementRunInProgress}
+              selfImprovementRunMode={selfImprovementRunMode}
+              searchExpanded={searchExpanded}
+              searchInputValue={searchInputValue}
+              setSearchInputValue={setSearchInputValue}
+              searchInputRef={searchInputRef}
+              handleSearchExpand={handleSearchExpand}
+              handleSearchClose={handleSearchClose}
+              handleSearchKeyDown={handleSearchKeyDown}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              mergeStrategy={projectSettingsQuery.data?.mergeStrategy}
+            />
+          </div>
+
+          <div className={EXECUTE_MAIN_CONTENT_INSET_CLASSNAME}>
           {baselineStatus === "failing" && (
             <div
               className="mb-4 rounded-lg border border-theme-warning-border bg-theme-warning-bg px-4 py-3 text-theme-warning-text"
@@ -715,6 +722,7 @@ export function ExecutePhase({
               />
             </>
           )}
+          </div>
         </div>
       </div>
 
