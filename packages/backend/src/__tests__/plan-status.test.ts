@@ -120,6 +120,7 @@ describe.skipIf(!planStatusPostgresOk)("Plan status endpoint and planning run cr
   });
 
   beforeEach(async () => {
+    mockDecomposeInvoke.mockReset();
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-plan-status-test-"));
     originalHome = process.env.HOME;
     process.env.HOME = tempDir;
@@ -194,7 +195,7 @@ describe.skipIf(!planStatusPostgresOk)("Plan status endpoint and planning run cr
       timeout: 15000,
     },
     async () => {
-      mockDecomposeInvoke.mockResolvedValueOnce({
+      mockDecomposeInvoke.mockResolvedValue({
         content: JSON.stringify({
           plans: [
             {
@@ -218,7 +219,7 @@ describe.skipIf(!planStatusPostgresOk)("Plan status endpoint and planning run cr
       const decomposeRes = await request(app).post(
         `${API_PREFIX}/projects/${projectId}/plans/decompose`
       );
-      expect(decomposeRes.status).toBe(201);
+      expect(decomposeRes.status, `decompose responded ${decomposeRes.status}: ${JSON.stringify(decomposeRes.body)}`).toBe(201);
 
       const db = await planStatusTaskStore.getDb();
       const rows = await db.query(
@@ -238,7 +239,7 @@ describe.skipIf(!planStatusPostgresOk)("Plan status endpoint and planning run cr
   );
 
   it("plan-status returns replan when PRD changed since last run", { timeout: 15000 }, async () => {
-    mockDecomposeInvoke.mockResolvedValueOnce({
+    mockDecomposeInvoke.mockResolvedValue({
       content: JSON.stringify({
         plans: [
           {
@@ -279,7 +280,7 @@ describe.skipIf(!planStatusPostgresOk)("Plan status endpoint and planning run cr
       timeout: 15000,
     },
     async () => {
-      mockDecomposeInvoke.mockResolvedValueOnce({
+      mockDecomposeInvoke.mockResolvedValue({
         content: JSON.stringify({
           plans: [
             {
@@ -302,7 +303,7 @@ describe.skipIf(!planStatusPostgresOk)("Plan status endpoint and planning run cr
       const decomposeRes = await request(app).post(
         `${API_PREFIX}/projects/${projectId}/plans/decompose`
       );
-      expect(decomposeRes.status).toBe(201);
+      expect(decomposeRes.status, `decompose responded ${decomposeRes.status}: ${JSON.stringify(decomposeRes.body)}`).toBe(201);
 
       const db = await planStatusTaskStore.getDb();
       const row = await db.queryOne(
@@ -336,7 +337,7 @@ describe.skipIf(!planStatusPostgresOk)("Plan status endpoint and planning run cr
       timeout: 15000,
     },
     async () => {
-      mockDecomposeInvoke.mockResolvedValueOnce({
+      mockDecomposeInvoke.mockResolvedValue({
         content: JSON.stringify({
           plans: [
             {

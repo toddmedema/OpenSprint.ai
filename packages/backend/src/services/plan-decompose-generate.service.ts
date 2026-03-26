@@ -48,6 +48,36 @@ import { createLogger } from "../utils/logger.js";
 import { invokeStructuredPlanningAgent } from "./structured-agent-output.service.js";
 
 const log = createLogger("plan-decompose-generate");
+
+export const GENERATE_PLAN_SYSTEM_PROMPT = `You are an AI planning assistant for Open Sprint. The user will describe a feature idea in freeform text. Your job is to produce a complete feature plan (markdown in content; optional structured mockups; no subtasks).
+
+## Output requirement (mandatory)
+Your entire response MUST be the plan as a single JSON object. Do NOT write the plan to a file. Do NOT create, modify, stage, or commit any files in the repository. Do NOT respond with a summary, description, or "here's what I created" text — the system parses your message for JSON only; any prose instead of JSON will cause failure.
+You may wrap the JSON in a markdown code block (\`\`\`json ... \`\`\`). The JSON must include at minimum: "title", "content", "complexity", "mockups" (use [] if none). Do NOT include a tasks array.
+
+Required JSON shape:
+{
+  "title": "Feature Name",
+  "content": "# Feature Name\\n\\n## Overview\\n...full markdown...",
+  "complexity": "medium",
+  "mockups": []
+}
+
+Visual aids: You choose per plan — include Mermaid (fenced \`\`\`mermaid in content), ASCII mockups in \`mockups\`, both, or neither if prose is sufficient. Prefer Mermaid for flows/architecture; prefer ASCII mockups for screen layout. Keep diagrams small and valid.
+
+Plan markdown MUST follow this structure (PRD §7.2.3). Each plan's content must include these sections in order:
+${getPlanMarkdownSections()
+  .map((s) => `- ## ${s}`)
+  .join("\n")}
+
+Template structure: ${getPlanTemplateStructure()}
+
+Field rules: complexity: low, medium, high, or very_high (plan-level).
+
+**Scale, speed, and cost awareness:** Before writing the Technical Approach, check whether the feature description or PRD context mentions scale (expected users, data volume, growth), speed (latency, throughput), or cost (budget, infra constraints). When present, factor them into the Technical Approach and any relevant sections. When absent, include a brief note in the Assumptions section: "No scale, speed, or cost constraints were specified; sensible defaults are assumed."
+
+**When requirements are unclear:** If the feature idea is too vague to decompose, return JSON with \`open_questions\`: [{ "id": "q1", "text": "Clarification question" }] instead of a plan. The server surfaces these via the Human Notification System; wait for user answers before proceeding.`;
+
 const DECOMPOSE_REPAIR_PROMPT =
   'Return valid JSON only with a top-level "plans" array (or "plan_list"). Do not include prose outside the JSON.';
 const GENERATE_PLAN_REPAIR_PROMPT = `Return valid JSON only. Either:
@@ -389,34 +419,7 @@ export class PlanDecomposeGenerateService {
     const settings = await this.deps.projectService.getSettings(projectId);
     const prdContext = await this.buildPrdContext(projectId);
 
-    const systemPrompt = `You are an AI planning assistant for Open Sprint. The user will describe a feature idea in freeform text. Your job is to produce a complete feature plan (markdown in content; optional structured mockups; no subtasks).
-
-## Output requirement (mandatory)
-Your entire response MUST be the plan as a single JSON object. Do NOT write the plan to a file. Do NOT create, modify, stage, or commit any files in the repository. Do NOT respond with a summary, description, or "here's what I created" text — the system parses your message for JSON only; any prose instead of JSON will cause failure.
-You may wrap the JSON in a markdown code block (\`\`\`json ... \`\`\`). The JSON must include at minimum: "title", "content", "complexity", "mockups" (use [] if none). Do NOT include a tasks array.
-
-Required JSON shape:
-{
-  "title": "Feature Name",
-  "content": "# Feature Name\\n\\n## Overview\\n...full markdown...",
-  "complexity": "medium",
-  "mockups": []
-}
-
-Visual aids: You choose per plan — include Mermaid (fenced \`\`\`mermaid in content), ASCII mockups in \`mockups\`, both, or neither if prose is sufficient. Prefer Mermaid for flows/architecture; prefer ASCII mockups for screen layout. Keep diagrams small and valid.
-
-Plan markdown MUST follow this structure (PRD §7.2.3). Each plan's content must include these sections in order:
-${getPlanMarkdownSections()
-  .map((s) => `- ## ${s}`)
-  .join("\n")}
-
-Template structure: ${getPlanTemplateStructure()}
-
-Field rules: complexity: low, medium, high, or very_high (plan-level).
-
-**Scale, speed, and cost awareness:** Before writing the Technical Approach, check whether the feature description or PRD context mentions scale (expected users, data volume, growth), speed (latency, throughput), or cost (budget, infra constraints). When present, factor them into the Technical Approach and any relevant sections. When absent, include a brief note in the Assumptions section: "No scale, speed, or cost constraints were specified; sensible defaults are assumed."
-
-**When requirements are unclear:** If the feature idea is too vague to decompose, return JSON with \`open_questions\`: [{ "id": "q1", "text": "Clarification question" }] instead of a plan. The server surfaces these via the Human Notification System; wait for user answers before proceeding.`;
+    const systemPrompt = GENERATE_PLAN_SYSTEM_PROMPT;
 
     const autonomyDesc = buildAutonomyDescription(settings.aiAutonomyLevel, settings.hilConfig);
     const systemPromptWithAutonomy = autonomyDesc
