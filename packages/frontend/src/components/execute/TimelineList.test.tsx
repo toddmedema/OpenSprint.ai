@@ -1,8 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within, render } from "@testing-library/react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { Provider } from "react-redux";
 import userEvent from "@testing-library/user-event";
-import { TimelineList } from "./TimelineList";
-import { renderWithProviders } from "../../test/test-utils";
+import { TimelineList, TIMELINE_VIRTUALIZE_THRESHOLD } from "./TimelineList";
+import {
+  renderWithProviders,
+  createTestStore,
+  createTestQueryClient,
+} from "../../test/test-utils";
+import type { ComponentProps, RefObject } from "react";
 import type { Task } from "@opensprint/shared";
 import type { Plan } from "@opensprint/shared";
 import { formatTimestamp, formatUptime } from "../../lib/formatting";
@@ -65,6 +72,36 @@ const createMockTask = (
     updatedAt: "2024-01-02T12:00:00Z",
     ...overrides,
   }) as Task;
+
+/** Scroll host with explicit layout dimensions so @tanstack/react-virtual yields visible rows in jsdom. */
+function renderTimelineInSizedScrollPort(
+  props: Omit<ComponentProps<typeof TimelineList>, "scrollRef">,
+  size: { width?: number; height?: number } = {}
+) {
+  const width = size.width ?? 800;
+  const height = size.height ?? 480;
+  const host = document.createElement("div");
+  document.body.appendChild(host);
+  Object.defineProperty(host, "offsetHeight", { value: height, configurable: true });
+  Object.defineProperty(host, "offsetWidth", { value: width, configurable: true });
+  Object.defineProperty(host, "clientHeight", { value: height, configurable: true });
+  Object.defineProperty(host, "clientWidth", { value: width, configurable: true });
+  host.style.overflow = "auto";
+  host.style.height = `${height}px`;
+
+  const scrollRef: RefObject<HTMLDivElement | null> = { current: host };
+  const store = createTestStore();
+  const queryClient = createTestQueryClient();
+  const utils = render(
+    <QueryClientProvider client={queryClient}>
+      <Provider store={store}>
+        <TimelineList {...props} scrollRef={scrollRef} />
+      </Provider>
+    </QueryClientProvider>,
+    { container: host, baseElement: document.body }
+  );
+  return { ...utils, host };
+}
 
 const createMockPlan = (epicId: string, title: string, status: Plan["status"] = "building"): Plan =>
   ({
@@ -787,5 +824,60 @@ describe("TimelineList", () => {
       await vi.advanceTimersByTimeAsync(20_000);
     });
     expect(screen.getByText("2m ago")).toBeInTheDocument();
+  });
+
+  it("does not set data-timeline-virtualized when task count is at threshold", () => {
+    const tasks = Array.from({ length: TIMELINE_VIRTUALIZE_THRESHOLD }, (_, i) =>
+      createMockTask({ id: `t-${i}`, kanbanColumn: "ready", title: `Task ${i}` })
+    );
+    renderWithProviders(
+      <TimelineList tasks={tasks} plans={[]} onTaskSelect={vi.fn()} {...defaultListProps} />
+    );
+    expect(screen.getByTestId("timeline-list")).not.toHaveAttribute("data-timeline-virtualized");
+  });
+
+  it("virtualizes task rows when count exceeds threshold and scrollport reports size", () => {
+    const n = TIMELINE_VIRTUALIZE_THRESHOLD + 12;
+    const tasks = Array.from({ length: n }, (_, i) =>
+      createMockTask({ id: `task-${i}`, kanbanColumn: "ready", title: `Task ${i}` })
+    );
+    const { unmount, host } = renderTimelineInSizedScrollPort(
+      { tasks, plans: [], onTaskSelect: vi.fn(), ...defaultListProps },
+      { height: 220, width: 640 }
+    );
+
+    try {
+      const list = screen.getByTestId("timeline-list");
+      expect(list).toHaveAttribute("data-timeline-virtualized", "true");
+      expect(list).toHaveAttribute("role", "list");
+      const items = within(list).getAllByRole("listitem");
+      expect(items.length).toBeGreaterThan(0);
+      const rows = screen.queryAllByTestId(/^timeline-row-/);
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows.length).toBeLessThan(n);
+    } finally {
+      unmount();
+      host.remove();
+    }
+  });
+
+  it("virtualized mode omits sticky class on section headers", () => {
+    const n = TIMELINE_VIRTUALIZE_THRESHOLD + 5;
+    const tasks = Array.from({ length: n }, (_, i) =>
+      createMockTask({ id: `task-${i}`, kanbanColumn: "ready", title: `Task ${i}` })
+    );
+    const { unmount, host } = renderTimelineInSizedScrollPort(
+      { tasks, plans: [], onTaskSelect: vi.fn(), ...defaultListProps },
+      { height: 240, width: 640 }
+    );
+
+    try {
+      expect(screen.getByTestId("timeline-list")).toHaveAttribute("data-timeline-virtualized", "true");
+      const section = screen.getByTestId("timeline-section-ready");
+      expect(section.querySelector(".sticky")).toBeNull();
+    } finally {
+      unmount();
+      host.remove();
+    }
   });
 });

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import type { Task } from "@opensprint/shared";
 import type { Plan } from "@opensprint/shared";
 import { isAgentAssignee } from "@opensprint/shared";
@@ -18,6 +19,15 @@ import { RelativeTimestampDisplay } from "../RelativeTimestampDisplay";
 import { UptimeDisplay } from "../UptimeDisplay";
 
 const ACTIVE_TASK_TICK_MS = 10_000;
+
+/** Virtualize when task count exceeds this (matches BuildEpicCard; keeps small lists fully mounted for tests). */
+export const TIMELINE_VIRTUALIZE_THRESHOLD = 10;
+const ESTIMATED_SECTION_HEADER_HEIGHT = 44;
+const ESTIMATED_TIMELINE_ROW_HEIGHT = 52;
+
+type FlatTimelineItem =
+  | { kind: "header"; sectionKey: string; label: string }
+  | { kind: "row"; sectionKey: string; task: Task };
 
 export interface TimelineListProps {
   tasks: Task[];
@@ -62,6 +72,7 @@ function TimelineRow({
   projectId,
   teamMembers,
   enableHumanTeammates,
+  asListItem = true,
 }: {
   task: Task;
   epicName: string;
@@ -72,6 +83,8 @@ function TimelineRow({
   projectId: string;
   teamMembers: Array<{ id: string; name: string }>;
   enableHumanTeammates?: boolean;
+  /** False when row is inside a flat virtual list (section headers break ul/li grouping). */
+  asListItem?: boolean;
 }) {
   const isBlocked = task.kanbanColumn === "blocked";
   const isUnblocking = (unblockInflightByTaskId?.[task.id] ?? 0) > 0;
@@ -80,7 +93,8 @@ function TimelineRow({
   const [assigneeDropdownOpen, setAssigneeDropdownOpen] = useState(false);
 
   return (
-    <li
+    <div
+      role={asListItem ? "listitem" : undefined}
       data-testid={`timeline-row-${task.id}`}
       className={assigneeDropdownOpen ? "relative z-[1000]" : undefined}
     >
@@ -164,7 +178,7 @@ function TimelineRow({
           </button>
         )}
       </div>
-    </li>
+    </div>
   );
 }
 
@@ -246,14 +260,74 @@ export function TimelineList({
     [showBlockedSection, bySection]
   );
 
-  const lastScrolledTaskIdRef = useRef<string | null>(null);
-  useEffect(() => {
+  const flatTimelineItems = useMemo((): FlatTimelineItem[] => {
+    const items: FlatTimelineItem[] = [];
+    for (const { key, tasks: sectionTasks } of sections) {
+      if (sectionTasks.length === 0) continue;
+      items.push({
+        kind: "header",
+        sectionKey: key,
+        label: SECTION_LABELS[key] ?? key,
+      });
+      for (const task of sectionTasks) {
+        items.push({ kind: "row", sectionKey: key, task });
+      }
+    }
+    return items;
+  }, [sections]);
+
+  const useVirtual = tasks.length > TIMELINE_VIRTUALIZE_THRESHOLD;
+
+  const virtualizer = useVirtualizer({
+    count: useVirtual ? flatTimelineItems.length : 0,
+    getScrollElement: () => scrollRef?.current ?? null,
+    estimateSize: (index) => {
+      const row = flatTimelineItems[index];
+      if (!row) return ESTIMATED_TIMELINE_ROW_HEIGHT;
+      return row.kind === "header" ? ESTIMATED_SECTION_HEADER_HEIGHT : ESTIMATED_TIMELINE_ROW_HEIGHT;
+    },
+    overscan: 6,
+  });
+
+  const virtualItems = virtualizer.getVirtualItems();
+  const useVirtualFallback =
+    useVirtual && virtualItems.length === 0 && flatTimelineItems.length > 0;
+  const effectivelyVirtual = useVirtual && !useVirtualFallback;
+
+  const rowRelativeTime = (task: Task) =>
+    (task.kanbanColumn === "in_progress" || task.kanbanColumn === "in_review") &&
+    taskIdToStartedAt[task.id] ? (
+      <UptimeDisplay
+        startedAt={taskIdToStartedAt[task.id]}
+        tickMs={ACTIVE_TASK_TICK_MS}
+        className="text-inherit tabular-nums"
+      />
+    ) : (
+      <RelativeTimestampDisplay
+        timestamp={task.updatedAt || task.createdAt || ""}
+        className="text-inherit tabular-nums"
+      />
+    );
+
+  const lastScrollKeyRef = useRef<string | null>(null);
+  useLayoutEffect(() => {
     if (!selectedTaskId) {
-      lastScrolledTaskIdRef.current = null;
+      lastScrollKeyRef.current = null;
       return;
     }
-    if (lastScrolledTaskIdRef.current === selectedTaskId) return;
-    lastScrolledTaskIdRef.current = selectedTaskId;
+    const scrollKey = `${selectedTaskId}\0${effectivelyVirtual}`;
+    if (lastScrollKeyRef.current === scrollKey) return;
+    lastScrollKeyRef.current = scrollKey;
+
+    if (effectivelyVirtual) {
+      const idx = flatTimelineItems.findIndex(
+        (it) => it.kind === "row" && it.task.id === selectedTaskId
+      );
+      if (idx >= 0) {
+        virtualizer.scrollToIndex(idx, { align: "center", behavior: "smooth" });
+      }
+      return;
+    }
 
     const container = scrollRef?.current;
     if (!container) return;
@@ -263,44 +337,101 @@ export function TimelineList({
     if (el && typeof el.scrollIntoView === "function") {
       el.scrollIntoView({ block: "center", behavior: "smooth" });
     }
-  }, [selectedTaskId, scrollRef]);
+  }, [selectedTaskId, scrollRef, effectivelyVirtual, flatTimelineItems, virtualizer]);
 
   if (tasks.length === 0) {
     return null;
   }
 
+  if (effectivelyVirtual) {
+    return (
+      <div
+        data-testid="timeline-list"
+        data-timeline-virtualized="true"
+        className="w-full"
+        role="list"
+      >
+        <div
+          style={{
+            height: `${virtualizer.getTotalSize()}px`,
+            width: "100%",
+            position: "relative",
+          }}
+        >
+          {virtualItems.map((virtualRow) => {
+            const item = flatTimelineItems[virtualRow.index];
+            if (!item) return null;
+            return (
+              <div
+                key={virtualRow.key}
+                data-index={virtualRow.index}
+                role="listitem"
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                {item.kind === "header" ? (
+                  <div data-testid={`timeline-section-${item.sectionKey}`}>
+                    <div
+                      className="-mx-4 sm:-mx-6 px-4 sm:px-6 pt-3 sm:pt-4 pb-[2px] mb-[7px] min-h-[44px] border-b border-theme-border-subtle bg-theme-surface [background-clip:padding-box]"
+                    >
+                      <h3 className="text-xs font-semibold text-theme-muted tracking-wide uppercase">
+                        {item.label}
+                      </h3>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border-b border-theme-border-subtle min-h-[52px]">
+                    <TimelineRow
+                      task={item.task}
+                      epicName={
+                        item.task.epicId
+                          ? (epicIdToTitle.get(item.task.epicId) ?? item.task.epicId)
+                          : ""
+                      }
+                      relativeTime={rowRelativeTime(item.task)}
+                      onTaskSelect={onTaskSelect}
+                      onUnblock={item.task.kanbanColumn === "blocked" ? onUnblock : undefined}
+                      unblockInflightByTaskId={unblockInflightByTaskId}
+                      projectId={projectId}
+                      teamMembers={teamMembers}
+                      enableHumanTeammates={enableHumanTeammates}
+                      asListItem={false}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div data-testid="timeline-list">
+    <div data-testid="timeline-list" className="w-full">
       {sections.map(
         ({ key, tasks: sectionTasks }) =>
           sectionTasks.length > 0 && (
             <section key={key} data-testid={`timeline-section-${key}`}>
-              <div className={`sticky ${EXECUTE_SECTION_HEADER_STICKY_TOP} z-[12] -mx-4 sm:-mx-6 px-4 sm:px-6 pt-3 sm:pt-4 pb-[2px] mb-[7px] border-b border-theme-border-subtle bg-theme-surface [background-clip:padding-box]`}>
+              <div
+                className={`sticky ${EXECUTE_SECTION_HEADER_STICKY_TOP} z-[12] -mx-4 sm:-mx-6 px-4 sm:px-6 pt-3 sm:pt-4 pb-[2px] mb-[7px] border-b border-theme-border-subtle bg-theme-surface [background-clip:padding-box]`}
+              >
                 <h3 className="text-xs font-semibold text-theme-muted tracking-wide uppercase">
                   {SECTION_LABELS[key]}
                 </h3>
               </div>
-              <ul className="divide-y divide-theme-border-subtle">
+              <div role="list" className="divide-y divide-theme-border-subtle">
                 {sectionTasks.map((task) => (
                   <TimelineRow
                     key={task.id}
                     task={task}
                     epicName={task.epicId ? (epicIdToTitle.get(task.epicId) ?? task.epicId) : ""}
-                    relativeTime={
-                      (task.kanbanColumn === "in_progress" || task.kanbanColumn === "in_review") &&
-                      taskIdToStartedAt[task.id] ? (
-                        <UptimeDisplay
-                          startedAt={taskIdToStartedAt[task.id]}
-                          tickMs={ACTIVE_TASK_TICK_MS}
-                          className="text-inherit tabular-nums"
-                        />
-                      ) : (
-                        <RelativeTimestampDisplay
-                          timestamp={task.updatedAt || task.createdAt || ""}
-                          className="text-inherit tabular-nums"
-                        />
-                      )
-                    }
+                    relativeTime={rowRelativeTime(task)}
                     onTaskSelect={onTaskSelect}
                     onUnblock={task.kanbanColumn === "blocked" ? onUnblock : undefined}
                     unblockInflightByTaskId={unblockInflightByTaskId}
@@ -309,7 +440,7 @@ export function TimelineList({
                     enableHumanTeammates={enableHumanTeammates}
                   />
                 ))}
-              </ul>
+              </div>
             </section>
           )
       )}
