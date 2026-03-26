@@ -229,7 +229,7 @@ describe.skipIf(!helpPostgresOk)("Help chat API", () => {
   });
 
   it("GET /help/chat/history returns empty when no history exists (project)", async () => {
-    const res = await st.get(`${API_PREFIX}/help/chat/history?projectId=${projectId}`);
+    const res = await st.get(`${API_PREFIX}/help/chat/history?projectId=${encodeURIComponent(projectId)}`);
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ messages: [] });
   });
@@ -243,7 +243,7 @@ describe.skipIf(!helpPostgresOk)("Help chat API", () => {
       "utf-8"
     );
 
-    const res = await st.get(`${API_PREFIX}/help/chat/history?projectId=${projectId}`);
+    const res = await st.get(`${API_PREFIX}/help/chat/history?projectId=${encodeURIComponent(projectId)}`);
     expect(res.status).toBe(409);
     expect(res.body.error?.code).toBe("MIGRATION_REQUIRED");
   });
@@ -253,7 +253,7 @@ describe.skipIf(!helpPostgresOk)("Help chat API", () => {
       .post(`${API_PREFIX}/help/chat`)
       .send({ message: "What is this project?", projectId });
 
-    const res = await st.get(`${API_PREFIX}/help/chat/history?projectId=${projectId}`);
+    const res = await st.get(`${API_PREFIX}/help/chat/history?projectId=${encodeURIComponent(projectId)}`);
     expect(res.status).toBe(200);
     expect(res.body.data.messages).toHaveLength(2);
     expect(res.body.data.messages[0]).toEqual({
@@ -294,7 +294,7 @@ describe.skipIf(!helpPostgresOk)("Help chat API", () => {
     await taskStore.close(projectId, t1.id, "Done");
     await taskStore.close(projectId, t2.id, "Done");
 
-    const res = await st.get(`${API_PREFIX}/help/analytics?projectId=${projectId}`);
+    const res = await st.get(`${API_PREFIX}/help/analytics?projectId=${encodeURIComponent(projectId)}`);
 
     expect(res.status).toBe(200);
     expect(res.body.data).toBeDefined();
@@ -336,7 +336,7 @@ describe.skipIf(!helpPostgresOk)("Help chat API", () => {
       );
     });
 
-    const res = await st.get(`${API_PREFIX}/help/agent-log?projectId=${projectId}`);
+    const res = await st.get(`${API_PREFIX}/help/agent-log?projectId=${encodeURIComponent(projectId)}`);
 
     expect(res.status).toBe(200);
     expect(res.body.data).toBeDefined();
@@ -423,7 +423,7 @@ describe.skipIf(!helpPostgresOk)("Help chat API", () => {
       );
     });
 
-    const res = await st.get(`${API_PREFIX}/help/agent-log?projectId=${projectId}`);
+    const res = await st.get(`${API_PREFIX}/help/agent-log?projectId=${encodeURIComponent(projectId)}`);
     expect(res.status).toBe(200);
     const labelEntry = res.body.data.find(
       (e: { model: string }) => e.model === "Cursor Composer 1.5"
@@ -468,7 +468,7 @@ describe.skipIf(!helpPostgresOk)("Help chat API", () => {
       );
     });
 
-    const res = await st.get(`${API_PREFIX}/help/agent-log?projectId=${projectId}`);
+    const res = await st.get(`${API_PREFIX}/help/agent-log?projectId=${encodeURIComponent(projectId)}`);
     expect(res.status).toBe(200);
     const entry = res.body.data.find(
       (e: { model: string; durationMs: number }) =>
@@ -498,7 +498,7 @@ describe.skipIf(!helpPostgresOk)("Help chat API", () => {
       );
     });
 
-    const res = await st.get(`${API_PREFIX}/help/agent-log?projectId=${projectId}`);
+    const res = await st.get(`${API_PREFIX}/help/agent-log?projectId=${encodeURIComponent(projectId)}`);
     expect(res.status).toBe(200);
     const unknownEntry = res.body.data.find((e: { durationMs: number }) => e.durationMs === 30000);
     expect(unknownEntry).toBeDefined();
@@ -541,7 +541,7 @@ describe.skipIf(!helpPostgresOk)("Help chat API", () => {
       );
     });
 
-    const logRes = await st.get(`${API_PREFIX}/help/agent-log?projectId=${projectId}`);
+    const logRes = await st.get(`${API_PREFIX}/help/agent-log?projectId=${encodeURIComponent(projectId)}`);
     expect(logRes.status).toBe(200);
     const entry = logRes.body.data.find(
       (e: { role: string; durationMs: number }) => e.role === "Coder" && e.durationMs === 60000
@@ -593,7 +593,7 @@ describe.skipIf(!helpPostgresOk)("Help chat API", () => {
       );
     });
 
-    const res = await st.get(`${API_PREFIX}/help/agent-log?projectId=${projectId}`);
+    const res = await st.get(`${API_PREFIX}/help/agent-log?projectId=${encodeURIComponent(projectId)}`);
     expect(res.status).toBe(200);
     const entry = res.body.data.find(
       (item: { taskId?: string }) => item.taskId === "os-authoritative.1"
@@ -632,7 +632,7 @@ describe.skipIf(!helpPostgresOk)("Help chat API", () => {
 
     const homepageRes = await st.get(`${API_PREFIX}/help/chat/history`);
     const projectRes = await st.get(
-      `${API_PREFIX}/help/chat/history?projectId=${projectId}`
+      `${API_PREFIX}/help/chat/history?projectId=${encodeURIComponent(projectId)}`
     );
     expect(homepageRes.body.data.messages[0].content).toBe("Homepage question");
     expect(projectRes.body.data.messages[0].content).toBe("Project question");
