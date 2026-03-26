@@ -254,6 +254,7 @@ describe.skipIf(!deployRoutePostgresOk)("Deliver API (phase routes for deploymen
 
       expect(res.status).toBe(404);
       expect(res.body.error).toBeDefined();
+      expect(res.body.error.code).toBe("PROJECT_NOT_FOUND");
     });
   });
 
