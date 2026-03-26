@@ -50,21 +50,50 @@ describe("computeLineDiff", () => {
     expect(result.summary).toEqual({ additions: 0, deletions: 3 });
   });
 
-  it("mixed: context, additions, and deletions", () => {
+  it("mixed: context, additions, and deletions (deterministic order and line numbers)", () => {
     const oldContent = "first\nsecond\nthird\n";
     const newContent = "first\nmodified\nthird\nfourth\n";
     const result = computeLineDiff(oldContent, newContent);
 
     expect(result.summary).toEqual({ additions: 2, deletions: 1 });
+    // newlineIsToken: true can emit a blank context row between changed and following lines; lock full shape.
+    expect(result.lines).toEqual([
+      { type: "context", text: "first", oldLineNumber: 1, newLineNumber: 1 },
+      { type: "remove", text: "second", oldLineNumber: 2 },
+      { type: "add", text: "modified", newLineNumber: 2 },
+      { type: "context", text: "", oldLineNumber: 3, newLineNumber: 3 },
+      { type: "context", text: "third", oldLineNumber: 4, newLineNumber: 4 },
+      { type: "add", text: "fourth", newLineNumber: 5 },
+    ]);
+  });
 
-    const contextLines = result.lines.filter((l) => l.type === "context");
-    const addLines = result.lines.filter((l) => l.type === "add");
-    const removeLines = result.lines.filter((l) => l.type === "remove");
+  it("deterministic: repeated calls return identical payloads", () => {
+    const a = "x\ny\n";
+    const b = "x\nz\n";
+    expect(JSON.stringify(computeLineDiff(a, b))).toBe(JSON.stringify(computeLineDiff(a, b)));
+  });
 
-    expect(contextLines.length).toBeGreaterThanOrEqual(2); // first, third
-    expect(removeLines).toContainEqual(expect.objectContaining({ type: "remove", text: "second" }));
-    expect(addLines).toContainEqual(expect.objectContaining({ type: "add", text: "modified" }));
-    expect(addLines).toContainEqual(expect.objectContaining({ type: "add", text: "fourth" }));
+  it("large input: completes without throwing and reports expected change", () => {
+    const n = 8000;
+    const oldContent = Array.from({ length: n }, (_, i) => `line-${i}`).join("\n") + "\n";
+    const newContent =
+      Array.from({ length: n }, (_, i) => (i === 4000 ? "changed" : `line-${i}`)).join("\n") + "\n";
+    expect(() => computeLineDiff(oldContent, newContent)).not.toThrow();
+    const result = computeLineDiff(oldContent, newContent);
+    expect(result.summary).toEqual({ additions: 1, deletions: 1 });
+    expect(result.lines.some((l) => l.type === "add" && l.text === "changed")).toBe(true);
+    expect(result.lines.some((l) => l.type === "remove" && l.text === "line-4000")).toBe(true);
+  });
+
+  it("no trailing newline: single line add and remove", () => {
+    expect(computeLineDiff("", "only")).toEqual({
+      lines: [{ type: "add", text: "only", newLineNumber: 1 }],
+      summary: { additions: 1, deletions: 0 },
+    });
+    expect(computeLineDiff("only", "")).toEqual({
+      lines: [{ type: "remove", text: "only", oldLineNumber: 1 }],
+      summary: { additions: 0, deletions: 1 },
+    });
   });
 
   it("empty: both inputs empty", () => {

@@ -5,23 +5,9 @@
  */
 
 import * as Diff from "diff";
+import type { PrdDiffLine, PrdDiffResult } from "@opensprint/shared";
 
-/** Single line in a PRD diff result */
-export interface PrdDiffLine {
-  type: "add" | "remove" | "context";
-  text: string;
-  oldLineNumber?: number;
-  newLineNumber?: number;
-}
-
-/** Result of diffing two text contents (shared format for API responses) */
-export interface PrdDiffResult {
-  lines: PrdDiffLine[];
-  summary?: {
-    additions: number;
-    deletions: number;
-  };
-}
+export type { PrdDiffLine, PrdDiffResult } from "@opensprint/shared";
 
 /**
  * Splits a chunk value into logical lines. With newlineIsToken: true, trailing \n
