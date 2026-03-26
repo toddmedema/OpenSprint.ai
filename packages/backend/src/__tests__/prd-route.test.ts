@@ -7,6 +7,10 @@ import { createApp } from "../app.js";
 import { ProjectService } from "../services/project.service.js";
 import { API_PREFIX, DEFAULT_HIL_CONFIG, SPEC_MD, prdToSpecMarkdown } from "@opensprint/shared";
 import { cleanupTestProject } from "./test-project-cleanup.js";
+import {
+  pinOpenSprintPathsForTesting,
+  resetOpenSprintPathsForTesting,
+} from "./opensprint-path-test-helper.js";
 
 vi.mock("drizzle-orm", () => ({
   and: (...args: unknown[]) => args,
@@ -70,7 +74,6 @@ describe.skipIf(!prdPostgresOk)("PRD REST API", () => {
   let projectService: ProjectService;
   let tempDir: string;
   let projectId: string;
-  let originalHome: string | undefined;
 
   afterAll(async () => {
     const mod = (await import("../services/task-store.service.js")) as {
@@ -88,8 +91,7 @@ describe.skipIf(!prdPostgresOk)("PRD REST API", () => {
     app = createApp();
     projectService = new ProjectService();
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-prd-route-test-"));
-    originalHome = process.env.HOME;
-    process.env.HOME = tempDir;
+    pinOpenSprintPathsForTesting(tempDir);
 
     const project = await projectService.createProject({
       name: "Test Project",
@@ -104,7 +106,8 @@ describe.skipIf(!prdPostgresOk)("PRD REST API", () => {
 
   afterEach(async () => {
     await cleanupTestProject({ projectService, projectId });
-    process.env.HOME = originalHome;
+    projectService.clearListCacheForTesting();
+    resetOpenSprintPathsForTesting();
     try {
       await fs.rm(tempDir, { recursive: true, force: true });
     } catch {

@@ -32,6 +32,8 @@ export interface PlanDetailContentProps {
   selectedVersionNumber?: number | null;
   /** Called when user selects a version from the dropdown, or null for "Back to current". */
   onVersionSelect?: (versionNumber: number | null) => void;
+  /** External command to expand/collapse all plan body sections. */
+  sectionExpansionCommand?: { mode: "expand" | "collapse"; token: number } | null;
 }
 
 /**
@@ -49,6 +51,7 @@ export function PlanDetailContent({
   planId,
   selectedVersionNumber,
   onVersionSelect,
+  sectionExpansionCommand = null,
 }: PlanDetailContentProps) {
   const { title, body } = parsePlanContent(plan.content ?? "");
   const displayTitle = title || formatPlanIdAsTitle(plan.metadata.planId);
@@ -210,6 +213,19 @@ export function PlanDetailContent({
     [sections, titleValue, displayTitle, plan.content, onContentSave]
   );
 
+  const lastSectionCommandTokenRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!sectionExpansionCommand) return;
+    if (lastSectionCommandTokenRef.current === sectionExpansionCommand.token) return;
+    lastSectionCommandTokenRef.current = sectionExpansionCommand.token;
+    const expanded = sectionExpansionCommand.mode === "expand";
+    const next: Record<number, boolean> = {};
+    for (const { originalIndex } of sectionsToRender) {
+      next[originalIndex] = expanded;
+    }
+    setSectionExpanded(next);
+  }, [sectionExpansionCommand, sectionsToRender]);
+
   const header = (
     <div className="flex flex-col gap-2 p-4">
       <div className="flex items-start justify-between gap-4">
@@ -241,50 +257,50 @@ export function PlanDetailContent({
             </>
           )}
         </div>
-        {headerActions && (
-          <div className="shrink-0 flex items-center gap-2">{headerActions}</div>
-        )}
-      </div>
-      {showVersionSelector && (
-        <div className="flex items-center gap-2 flex-wrap" data-testid="plan-version-selector">
-          <span className="text-xs text-theme-muted shrink-0">Version:</span>
-          {isViewingPastVersion && (
-            <button
-              type="button"
-              onClick={() => onVersionSelect?.(null)}
-              className="text-xs text-theme-info hover:underline shrink-0"
-              data-testid="plan-back-to-current"
-            >
-              Back to current
-            </button>
+        <div className="shrink-0 flex items-center gap-2 flex-wrap justify-end">
+          {showVersionSelector && (
+            <>
+              {isViewingPastVersion && (
+                <button
+                  type="button"
+                  onClick={() => onVersionSelect?.(null)}
+                  className="text-xs text-theme-info hover:underline shrink-0"
+                  data-testid="plan-back-to-current"
+                >
+                  Back to current
+                </button>
+              )}
+              {versions.length > 0 && (
+                <select
+                  data-testid="plan-version-dropdown"
+                  aria-label="Select plan version"
+                  value={effectiveSelectedVersion}
+                  onChange={(e) => {
+                    const n = Number(e.target.value);
+                    if (Number.isFinite(n)) onVersionSelect?.(n);
+                  }}
+                  className="text-xs bg-theme-surface border border-theme-border rounded px-2 py-1 text-theme-text min-w-0 max-w-[8rem]"
+                >
+                  {versions.map((v) => {
+                    const num = v.version_number ?? 0;
+                    const isExecuted =
+                      num === lastExecuted ||
+                      (v as { is_executed_version?: boolean }).is_executed_version;
+                    const label = isExecuted ? `v${num} (Executed)` : `v${num}`;
+                    return (
+                      <option key={v.id ?? num} value={num}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+              )}
+            </>
           )}
-          {versions.length > 0 && (
-            <select
-              data-testid="plan-version-dropdown"
-              aria-label="Select plan version"
-              value={effectiveSelectedVersion}
-              onChange={(e) => {
-                const n = Number(e.target.value);
-                if (Number.isFinite(n)) onVersionSelect?.(n);
-              }}
-              className="text-xs bg-theme-surface border border-theme-border rounded px-2 py-1 text-theme-text min-w-0 max-w-[8rem]"
-            >
-              {versions.map((v) => {
-                const num = v.version_number ?? 0;
-                const isExecuted =
-                  num === lastExecuted ||
-                  (v as { is_executed_version?: boolean }).is_executed_version;
-                const label = isExecuted ? `v${num} (Executed)` : `v${num}`;
-                return (
-                  <option key={v.id ?? num} value={num}>
-                    {label}
-                  </option>
-                );
-              })}
-            </select>
-          )}
+          {headerActions && <div className="shrink-0 flex items-center gap-2">{headerActions}</div>}
         </div>
-      )}
+      </div>
+      {showVersionSelector && <div data-testid="plan-version-selector" className="sr-only" />}
     </div>
   );
 
@@ -317,6 +333,8 @@ export function PlanDetailContent({
             contentId={`plan-section-${originalIndex}-content`}
             headerId={`plan-section-${originalIndex}-header`}
             contentClassName="p-4 pt-0"
+            sectionNavId={`plan-body-section-${originalIndex}`}
+            sectionNavTitle={section.title}
           >
             <div
               data-testid="plan-markdown-editor"

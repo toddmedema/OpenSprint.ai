@@ -9,6 +9,10 @@ import { activeAgentsService } from "../services/active-agents.service.js";
 import { API_PREFIX, DEFAULT_HIL_CONFIG, OPENSPRINT_PATHS } from "@opensprint/shared";
 import type { DbClient } from "../db/client.js";
 import { cleanupTestProject } from "./test-project-cleanup.js";
+import {
+  pinOpenSprintPathsForTesting,
+  resetOpenSprintPathsForTesting,
+} from "./opensprint-path-test-helper.js";
 import { withLocalSessionAuth } from "./local-auth-test-helpers.js";
 
 const { testClientRef } = vi.hoisted(() => ({
@@ -58,14 +62,12 @@ describe("Agents API", () => {
   let projectService: ProjectService;
   let tempDir: string;
   let projectId: string;
-  let originalHome: string | undefined;
 
   beforeEach(async () => {
     app = createApp();
     projectService = new ProjectService();
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-agents-route-test-"));
-    originalHome = process.env.HOME;
-    process.env.HOME = tempDir;
+    pinOpenSprintPathsForTesting(tempDir);
 
     const repoPath = path.join(tempDir, "my-project");
     const project = await projectService.createProject({
@@ -81,7 +83,8 @@ describe("Agents API", () => {
 
   afterEach(async () => {
     await cleanupTestProject({ projectService, projectId });
-    process.env.HOME = originalHome;
+    projectService.clearListCacheForTesting();
+    resetOpenSprintPathsForTesting();
     await fs.rm(tempDir, { recursive: true, force: true });
   });
   const describeIfDb = testClientRef.current ? describe : describe.skip;
@@ -321,9 +324,9 @@ describe("Agents API", () => {
         "2026-02-16T10:00:00.000Z"
       );
 
-      const res = await withLocalSessionAuth(request(app).post(
-        `${API_PREFIX}/projects/${projectId}/agents/plan-agent-1/kill`
-      ));
+      const res = await withLocalSessionAuth(
+        request(app).post(`${API_PREFIX}/projects/${projectId}/agents/plan-agent-1/kill`)
+      );
 
       expect(res.status).toBe(404);
       expect(res.body.error).toContain("not found");
@@ -332,9 +335,9 @@ describe("Agents API", () => {
     });
 
     it("should return 404 for non-existent project", async () => {
-      const res = await withLocalSessionAuth(request(app).post(
-        `${API_PREFIX}/projects/nonexistent-id/agents/task-123/kill`
-      ));
+      const res = await withLocalSessionAuth(
+        request(app).post(`${API_PREFIX}/projects/nonexistent-id/agents/task-123/kill`)
+      );
 
       expect(res.status).toBe(404);
     });

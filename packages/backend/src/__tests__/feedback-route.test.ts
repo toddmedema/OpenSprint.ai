@@ -9,6 +9,10 @@ import { feedbackStore } from "../services/feedback-store.service.js";
 import { taskStore } from "../services/task-store.service.js";
 import { API_PREFIX, DEFAULT_HIL_CONFIG } from "@opensprint/shared";
 import { cleanupTestProject } from "./test-project-cleanup.js";
+import {
+  pinOpenSprintPathsForTesting,
+  resetOpenSprintPathsForTesting,
+} from "./opensprint-path-test-helper.js";
 
 vi.mock("drizzle-orm", () => ({
   and: (...args: unknown[]) => args,
@@ -80,14 +84,12 @@ describe.skipIf(!feedbackRoutePostgresOk)("Feedback REST API", () => {
   let projectService: ProjectService;
   let tempDir: string;
   let projectId: string;
-  let originalHome: string | undefined;
 
   beforeEach(async () => {
     app = createApp();
     projectService = new ProjectService();
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-feedback-route-test-"));
-    originalHome = process.env.HOME;
-    process.env.HOME = tempDir;
+    pinOpenSprintPathsForTesting(tempDir);
 
     const project = await projectService.createProject({
       name: "Test Project",
@@ -103,7 +105,8 @@ describe.skipIf(!feedbackRoutePostgresOk)("Feedback REST API", () => {
 
   afterEach(async () => {
     await cleanupTestProject({ projectService, projectId });
-    process.env.HOME = originalHome;
+    projectService.clearListCacheForTesting();
+    resetOpenSprintPathsForTesting();
     await fs.rm(tempDir, { recursive: true, force: true });
   });
 

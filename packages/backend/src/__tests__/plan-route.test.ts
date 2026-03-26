@@ -9,6 +9,10 @@ import { TaskStoreService } from "../services/task-store.service.js";
 import { API_PREFIX } from "@opensprint/shared";
 import { DEFAULT_HIL_CONFIG } from "@opensprint/shared";
 import { cleanupTestProject } from "./test-project-cleanup.js";
+import {
+  pinOpenSprintPathsForTesting,
+  resetOpenSprintPathsForTesting,
+} from "./opensprint-path-test-helper.js";
 
 vi.mock("drizzle-orm", () => ({
   and: (...args: unknown[]) => args,
@@ -96,7 +100,6 @@ describe.skipIf(!planRoutePostgresOk)("Plan REST endpoints - task decomposition"
   let app: ReturnType<typeof createApp>;
   let suiteTempDir: string;
   let currentRepoPath: string | undefined;
-  let originalHome: string | undefined;
   let caseCounter = 0;
   let projectId: string;
   let projectService: ProjectService;
@@ -105,8 +108,7 @@ describe.skipIf(!planRoutePostgresOk)("Plan REST endpoints - task decomposition"
   beforeAll(async () => {
     app = createApp();
     suiteTempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-plan-route-suite-"));
-    originalHome = process.env.HOME;
-    process.env.HOME = suiteTempDir;
+    pinOpenSprintPathsForTesting(suiteTempDir);
 
     projectService = new ProjectService();
     taskStore = new TaskStoreService();
@@ -140,6 +142,7 @@ describe.skipIf(!planRoutePostgresOk)("Plan REST endpoints - task decomposition"
 
   afterEach(async () => {
     await cleanupTestProject({ projectService, projectId });
+    projectService.clearListCacheForTesting();
     if (!currentRepoPath) return;
     // maxRetries/retryDelay help when git-commit-queue or task store hold files during cleanup
     await fs.rm(currentRepoPath, {
@@ -151,7 +154,7 @@ describe.skipIf(!planRoutePostgresOk)("Plan REST endpoints - task decomposition"
   });
 
   afterAll(async () => {
-    process.env.HOME = originalHome;
+    resetOpenSprintPathsForTesting();
     await fs.rm(suiteTempDir, { recursive: true, force: true });
     const mod = (await import("../services/task-store.service.js")) as {
       _testPool?: { end: () => Promise<void> };

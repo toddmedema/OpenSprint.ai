@@ -17,4 +17,11 @@ describe("merge-gate workflow", () => {
     );
     expect(workflow).toContain("NODE_ENV: test");
   });
+
+  it("summarizes Vitest reports before uploading CI artifacts", () => {
+    const workflow = readFileSync(workflowPath, "utf-8");
+    expect(workflow).toContain("Summarize test reports");
+    expect(workflow).toContain("node scripts/ci/summarize-test-results.mjs artifacts/test-results");
+    expect(workflow).toContain("merge-gate-test-reports-run-${{ github.run_id }}");
+  });
 });

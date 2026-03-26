@@ -104,6 +104,9 @@ jobs:
             --reporter=json \
             --outputFile.junit=../../artifacts/test-results/frontend-junit.xml \
             --outputFile.json=../../artifacts/test-results/frontend-results.json
+      - name: Summarize test reports
+        if: always() && matrix.gate == 'test'
+        run: node scripts/ci/summarize-test-results.mjs artifacts/test-results
       - name: Upload test reports
         if: always() && matrix.gate == 'test'
         uses: actions/upload-artifact@v6

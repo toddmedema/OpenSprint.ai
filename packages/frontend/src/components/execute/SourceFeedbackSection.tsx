@@ -50,6 +50,8 @@ function SourceFeedbackSectionInner({
       collapseAriaLabel={`Collapse ${title}`}
       contentId={contentId}
       headerId={headerId}
+      sectionNavId={`source-feedback-${feedbackId}`}
+      sectionNavTitle={title}
     >
       {loading ? (
         <div className="bg-theme-code-bg rounded-lg border border-theme-border overflow-hidden">

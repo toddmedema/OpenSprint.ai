@@ -22,9 +22,17 @@ export interface TaskDetailDescriptionProps {
   content: string;
   expanded: boolean;
   onToggle: () => void;
+  sectionNavId?: string;
+  sectionNavTitle?: string;
 }
 
-export function TaskDetailDescription({ content, expanded, onToggle }: TaskDetailDescriptionProps) {
+export function TaskDetailDescription({
+  content,
+  expanded,
+  onToggle,
+  sectionNavId,
+  sectionNavTitle,
+}: TaskDetailDescriptionProps) {
   return (
     <div className="-mb-2">
       <CollapsibleSection
@@ -36,6 +44,8 @@ export function TaskDetailDescription({ content, expanded, onToggle }: TaskDetai
         contentId="description-content"
         headerId="description-header"
         contentClassName="px-4 pt-0 pb-0"
+        sectionNavId={sectionNavId}
+        sectionNavTitle={sectionNavTitle}
       >
         <DescriptionMarkdown content={content} />
       </CollapsibleSection>

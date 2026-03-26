@@ -2546,6 +2546,82 @@ describe("TaskDetailSidebar", () => {
     expect(setArtifactsSectionExpanded).toHaveBeenCalledTimes(1);
   });
 
+  it("renders sidebar section nav and supports collapse-all/expand-all in Execute sidebar", async () => {
+    const user = userEvent.setup();
+    mockGet.mockResolvedValue({
+      id: "fb-1",
+      text: "Add feature",
+      category: "feature",
+      mappedPlanId: null,
+      createdTaskIds: [],
+      status: "pending",
+      createdAt: "2026-02-17T10:00:00Z",
+    });
+
+    const setSourceFeedbackExpanded = vi.fn();
+    const setDescriptionSectionExpanded = vi.fn();
+    const setArtifactsSectionExpanded = vi.fn();
+    const setDiagnosticsSectionExpanded = vi.fn();
+    const props = createMinimalProps({
+      selectedTaskData: {
+        id: "epic-1.1",
+        title: "Task with both",
+        epicId: "epic-1",
+        kanbanColumn: "in_progress" as const,
+        priority: 0,
+        assignee: null,
+        type: "task" as const,
+        status: "in_progress" as const,
+        labels: [],
+        dependencies: [],
+        description: "Task description content",
+        sourceFeedbackId: "fb-1",
+        createdAt: "",
+        updatedAt: "",
+      },
+      diagnostics: {
+        taskId: "epic-1.1",
+        taskStatus: "in_progress",
+        blockReason: null,
+        cumulativeAttempts: 1,
+        latestSummary: "Running",
+        latestFailureType: null,
+        latestOutcome: "running" as const,
+        latestNextAction: null,
+        timeline: [],
+        attempts: [],
+      },
+      sourceFeedbackExpanded: { "fb-1": true },
+      setSourceFeedbackExpanded,
+      descriptionSectionExpanded: true,
+      setDescriptionSectionExpanded,
+      artifactsSectionExpanded: true,
+      setArtifactsSectionExpanded,
+      diagnosticsSectionExpanded: true,
+      setDiagnosticsSectionExpanded,
+    });
+
+    renderSidebar(props, {
+      preloadedState: defaultPreloadedState,
+    });
+
+    await screen.findByText("Add feature");
+    expect(screen.getByTestId("sidebar-section-nav")).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-section-nav-progress")).toHaveTextContent(/1 of/i);
+
+    await user.click(screen.getByTestId("sidebar-section-nav-collapse-all"));
+    expect(setDescriptionSectionExpanded).toHaveBeenCalledWith(false);
+    expect(setDiagnosticsSectionExpanded).toHaveBeenCalledWith(false);
+    expect(setArtifactsSectionExpanded).toHaveBeenCalledWith(false);
+    expect(setSourceFeedbackExpanded).toHaveBeenCalledWith({ "fb-1": false });
+
+    await user.click(screen.getByTestId("sidebar-section-nav-expand-all"));
+    expect(setDescriptionSectionExpanded).toHaveBeenCalledWith(true);
+    expect(setDiagnosticsSectionExpanded).toHaveBeenCalledWith(true);
+    expect(setArtifactsSectionExpanded).toHaveBeenCalledWith(true);
+    expect(setSourceFeedbackExpanded).toHaveBeenCalledWith({ "fb-1": true });
+  });
+
   it("visual regression: Description, Source Feedback, Live Output headers have identical structure (no unintended style differences)", async () => {
     mockGet.mockResolvedValue({
       id: "fb-1",

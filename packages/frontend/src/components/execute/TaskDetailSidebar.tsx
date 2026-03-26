@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useAutoScroll } from "../../hooks/useAutoScroll";
 import type {
   AgentSession,
@@ -21,6 +21,7 @@ import { TaskDetailDescription } from "./TaskDetailDescription";
 import { TaskDetailFeedbackSections } from "./TaskDetailFeedbackSections";
 import { TaskDetailDiagnostics } from "./TaskDetailDiagnostics";
 import { TaskDetailAgentOutput } from "./TaskDetailAgentOutput";
+import { SidebarSectionNav } from "../layout/SidebarSectionNav";
 
 /** Compare task data excluding priority. When only priority changed, skip sidebar re-render (TaskPriorityDropdown handles it via Redux). */
 function taskDataEqualExceptPriority(a: Task | null, b: Task | null): boolean {
@@ -276,8 +277,43 @@ function TaskDetailSidebarInner({
     () => task?.sourceFeedbackIds ?? (task?.sourceFeedbackId ? [task.sourceFeedbackId] : []),
     [task?.sourceFeedbackIds, task?.sourceFeedbackId]
   );
+  const sidebarScrollRef = React.useRef<HTMLDivElement>(null);
 
   const hasActions = isBlockedTask || (!isDoneTask && !isBlockedTask);
+
+  const collapseAllSections = useCallback(() => {
+    setDescriptionSectionExpanded(false);
+    setDiagnosticsSectionExpanded(false);
+    setArtifactsSectionExpanded(false);
+    if (feedbackIds.length > 0) {
+      const next: Record<string, boolean> = {};
+      for (const id of feedbackIds) next[id] = false;
+      setSourceFeedbackExpanded(next);
+    }
+  }, [
+    feedbackIds,
+    setArtifactsSectionExpanded,
+    setDescriptionSectionExpanded,
+    setDiagnosticsSectionExpanded,
+    setSourceFeedbackExpanded,
+  ]);
+
+  const expandAllSections = useCallback(() => {
+    setDescriptionSectionExpanded(true);
+    setDiagnosticsSectionExpanded(true);
+    setArtifactsSectionExpanded(true);
+    if (feedbackIds.length > 0) {
+      const next: Record<string, boolean> = {};
+      for (const id of feedbackIds) next[id] = true;
+      setSourceFeedbackExpanded(next);
+    }
+  }, [
+    feedbackIds,
+    setArtifactsSectionExpanded,
+    setDescriptionSectionExpanded,
+    setDiagnosticsSectionExpanded,
+    setSourceFeedbackExpanded,
+  ]);
 
   const handleRemoveLink = useMemo(
     () => async (targetId: string) => {
@@ -328,7 +364,12 @@ function TaskDetailSidebarInner({
         onRemoveLink={handleRemoveLink}
       />
 
-      <div className="flex-1 overflow-y-auto min-h-0">
+      <div ref={sidebarScrollRef} className="flex-1 overflow-y-auto min-h-0">
+        <SidebarSectionNav
+          scrollContainerRef={sidebarScrollRef}
+          onCollapseAll={collapseAllSections}
+          onExpandAll={expandAllSections}
+        />
         <TaskDetailOpenQuestions
           projectId={projectId}
           selectedTask={selectedTask}
@@ -382,6 +423,8 @@ function TaskDetailSidebarInner({
             content={displayDesc}
             expanded={descriptionSectionExpanded}
             onToggle={() => setDescriptionSectionExpanded((prev) => !prev)}
+            sectionNavId="execute-description-section"
+            sectionNavTitle="Description"
           />
         ) : null}
 
@@ -400,6 +443,8 @@ function TaskDetailSidebarInner({
           collapseAriaLabel="Collapse Execution diagnostics"
           contentId="execution-diagnostics-content"
           headerId="execution-diagnostics-header"
+          sectionNavId="execute-diagnostics-section"
+          sectionNavTitle="Execution diagnostics"
         >
           <TaskDetailDiagnostics
             task={task}
@@ -416,6 +461,8 @@ function TaskDetailSidebarInner({
           collapseAriaLabel={`Collapse ${isDoneTask ? "Done Work Artifacts" : "Live agent output"}`}
           contentId="artifacts-content"
           headerId="artifacts-header"
+          sectionNavId="execute-artifacts-section"
+          sectionNavTitle={isDoneTask ? "Done Work Artifacts" : "Live agent output"}
         >
           <TaskDetailAgentOutput
             projectId={projectId}

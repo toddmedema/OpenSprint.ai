@@ -15,9 +15,18 @@ import { createLogger } from "../utils/logger.js";
 
 const log = createLogger("feedback-store");
 
+let feedbackAssetsBaseDirForTesting: string | null = null;
+
 function getFeedbackAssetsBaseDir(): string {
+  if (feedbackAssetsBaseDirForTesting) {
+    return feedbackAssetsBaseDirForTesting;
+  }
   const home = process.env.HOME ?? process.env.USERPROFILE ?? os.homedir();
   return path.join(home, ".opensprint", "feedback-assets");
+}
+
+export function setFeedbackAssetsBaseDirForTesting(testDir: string | null): void {
+  feedbackAssetsBaseDirForTesting = testDir;
 }
 
 function getFeedbackAssetsDir(projectId: string, feedbackId: string): string {

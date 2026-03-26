@@ -49,6 +49,7 @@ import { PlanListView } from "../../components/plan/PlanListView";
 import { AuditorRunsSection } from "../../components/plan/AuditorRunsSection";
 import { PhaseEmptyState, PhaseEmptyStateLogo } from "../../components/PhaseEmptyState";
 import { ResizableSidebar } from "../../components/layout/ResizableSidebar";
+import { SidebarSectionNav } from "../../components/layout/SidebarSectionNav";
 import { ChatInput } from "../../components/ChatInput";
 import { OpenQuestionsBlock } from "../../components/OpenQuestionsBlock";
 import { selectTasksForEpic } from "../../store/slices/executeSlice";
@@ -384,6 +385,10 @@ export function PlanPhase({
     };
   }, [projectId, dispatch, queryClient]);
   const [selectedVersionNumber, setSelectedVersionNumber] = useState<number | null>(null);
+  const [sectionExpansionCommand, setSectionExpansionCommand] = useState<{
+    mode: "expand" | "collapse";
+    token: number;
+  } | null>(null);
   const [planActionsMenuOpen, setPlanActionsMenuOpen] = useState(false);
   const planActionsMenuRef = useRef<HTMLDivElement>(null);
   const planActionsMenuTriggerRef = useRef<HTMLButtonElement>(null);
@@ -1120,6 +1125,20 @@ export function PlanPhase({
     [dispatch, projectId, queryClient, selectedPlanId]
   );
 
+  const handleCollapseAllPlanSections = useCallback(() => {
+    setTasksSectionExpanded(false);
+    setMockupsSectionExpanded(false);
+    setRefineSectionExpanded(false);
+    setSectionExpansionCommand({ mode: "collapse", token: Date.now() });
+  }, []);
+
+  const handleExpandAllPlanSections = useCallback(() => {
+    setTasksSectionExpanded(true);
+    setMockupsSectionExpanded(true);
+    setRefineSectionExpanded(true);
+    setSectionExpansionCommand({ mode: "expand", token: Date.now() });
+  }, []);
+
   const handleSendChat = async () => {
     if (!chatInput.trim() || !activePlanContext || chatSending) return;
 
@@ -1416,6 +1435,7 @@ export function PlanPhase({
               planId={selectedPlan.metadata.planId}
               selectedVersionNumber={selectedVersionNumber}
               onVersionSelect={setSelectedVersionNumber}
+              sectionExpansionCommand={sectionExpansionCommand}
               headerActions={
                 <>
                   <div ref={planActionsMenuRef} className="relative shrink-0">
@@ -1483,6 +1503,11 @@ export function PlanPhase({
                     ref={sidebarScrollRef}
                     className="flex-1 overflow-y-auto min-h-0 flex flex-col"
                   >
+                    <SidebarSectionNav
+                      scrollContainerRef={sidebarScrollRef}
+                      onCollapseAll={handleCollapseAllPlanSections}
+                      onExpandAll={handleExpandAllPlanSections}
+                    />
                     {body}
                     {/* Mockups — collapsible (matches Execute sidebar section styling) */}
                     {selectedPlan.metadata.mockups && selectedPlan.metadata.mockups.length > 0 && (
@@ -1495,6 +1520,8 @@ export function PlanPhase({
                         contentId="plan-mockups-content"
                         headerId="plan-mockups-header"
                         contentClassName="p-4 pt-0"
+                        sectionNavId="plan-mockups-section"
+                        sectionNavTitle="Mockups"
                       >
                         <div className="space-y-3">
                           {selectedPlan.metadata.mockups.map((mockup, i) => (
@@ -1526,6 +1553,8 @@ export function PlanPhase({
                       contentId="plan-tasks-content"
                       headerId="plan-tasks-header"
                       contentClassName="px-4 pt-0"
+                      sectionNavId="plan-tasks-section"
+                      sectionNavTitle="Tasks"
                     >
                       <div className="space-y-2">
                         {selectedPlanNeedsTaskGeneration && (
@@ -1681,6 +1710,8 @@ export function PlanPhase({
                       contentId="plan-refine-content"
                       headerId="plan-refine-header"
                       contentClassName="p-4 pt-0"
+                      sectionNavId="plan-refine-section"
+                      sectionNavTitle="Refine with AI"
                     >
                       <div
                         className="space-y-3"
@@ -1741,6 +1772,11 @@ export function PlanPhase({
                 <CloseButton onClick={handleClosePlan} ariaLabel="Close plan panel" />
               </div>
               <div ref={sidebarScrollRef} className="flex-1 overflow-y-auto min-h-0 flex flex-col">
+                <SidebarSectionNav
+                  scrollContainerRef={sidebarScrollRef}
+                  onCollapseAll={handleCollapseAllPlanSections}
+                  onExpandAll={handleExpandAllPlanSections}
+                />
                 <div className="p-4 text-sm text-theme-muted">Loading plan...</div>
                 {sidebarOpenQuestionNotification && (
                   <OpenQuestionsBlock
@@ -1785,6 +1821,8 @@ export function PlanPhase({
                   contentId="plan-refine-content"
                   headerId="plan-refine-header"
                   contentClassName="p-4 pt-0"
+                  sectionNavId="plan-refine-section"
+                  sectionNavTitle="Refine with AI"
                 >
                   <div
                     className="space-y-3"

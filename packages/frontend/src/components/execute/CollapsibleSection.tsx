@@ -15,6 +15,8 @@ function CollapsibleSectionInner({
   headerId,
   contentClassName,
   containerClassName,
+  sectionNavId,
+  sectionNavTitle,
   children,
 }: {
   title: string;
@@ -28,10 +30,17 @@ function CollapsibleSectionInner({
   contentClassName?: string;
   /** Optional wrapper around the whole section. */
   containerClassName?: string;
+  /** Optional stable id/title metadata consumed by SidebarSectionNav. */
+  sectionNavId?: string;
+  sectionNavTitle?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className={containerClassName}>
+    <div
+      className={containerClassName}
+      {...(sectionNavId ? { "data-sidebar-section-id": sectionNavId } : {})}
+      {...(sectionNavTitle ? { "data-sidebar-section-title": sectionNavTitle } : {})}
+    >
       <button
         type="button"
         onClick={onToggle}

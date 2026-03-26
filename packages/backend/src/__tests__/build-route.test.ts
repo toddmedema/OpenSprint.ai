@@ -8,6 +8,10 @@ import { ProjectService } from "../services/project.service.js";
 import { setSelfImprovementRunInProgressForTest } from "../services/self-improvement-runner.service.js";
 import { API_PREFIX, DEFAULT_HIL_CONFIG } from "@opensprint/shared";
 import { cleanupTestProject } from "./test-project-cleanup.js";
+import {
+  pinOpenSprintPathsForTesting,
+  resetOpenSprintPathsForTesting,
+} from "./opensprint-path-test-helper.js";
 import { withLocalSessionAuth } from "./local-auth-test-helpers.js";
 
 vi.mock("drizzle-orm", () => ({
@@ -55,14 +59,12 @@ describe.skipIf(!buildRoutePostgresOk)("Execute API", () => {
   let projectService: ProjectService;
   let tempDir: string;
   let projectId: string;
-  let originalHome: string | undefined;
 
   beforeEach(async () => {
     app = createApp();
     projectService = new ProjectService();
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-execute-route-test-"));
-    originalHome = process.env.HOME;
-    process.env.HOME = tempDir;
+    pinOpenSprintPathsForTesting(tempDir);
 
     const repoPath = path.join(tempDir, "my-project");
     const project = await projectService.createProject({
@@ -78,7 +80,8 @@ describe.skipIf(!buildRoutePostgresOk)("Execute API", () => {
 
   afterEach(async () => {
     await cleanupTestProject({ projectService, projectId });
-    process.env.HOME = originalHome;
+    projectService.clearListCacheForTesting();
+    resetOpenSprintPathsForTesting();
     await fs.rm(tempDir, { recursive: true, force: true });
   });
 
@@ -212,7 +215,9 @@ describe.skipIf(!buildRoutePostgresOk)("Execute API", () => {
 
   describe("POST /projects/:projectId/execute/nudge", () => {
     it("should accept nudge and return status", async () => {
-      const res = await withLocalSessionAuth(request(app).post(`${API_PREFIX}/projects/${projectId}/execute/nudge`));
+      const res = await withLocalSessionAuth(
+        request(app).post(`${API_PREFIX}/projects/${projectId}/execute/nudge`)
+      );
 
       expect(res.status).toBe(200);
       expect(res.body.data).toBeDefined();
@@ -221,7 +226,9 @@ describe.skipIf(!buildRoutePostgresOk)("Execute API", () => {
     });
 
     it("should return 404 for non-existent project", async () => {
-      const res = await withLocalSessionAuth(request(app).post(`${API_PREFIX}/projects/nonexistent-id/execute/nudge`));
+      const res = await withLocalSessionAuth(
+        request(app).post(`${API_PREFIX}/projects/nonexistent-id/execute/nudge`)
+      );
 
       expect(res.status).toBe(404);
       expect(res.body.error).toBeDefined();

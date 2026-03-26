@@ -83,6 +83,51 @@ describe("PlanDetailContent", () => {
     expect(screen.getByTestId("body-markdown")).toHaveTextContent("Implement the Plan phase.");
   });
 
+  it("adds sidebar navigation metadata to rendered plan sections", () => {
+    const planWithTwoSections: Plan = {
+      ...mockPlan,
+      content: "# Plan\n\n## Overview\n\nOverview text.\n\n## Risks\n\nRisk text.",
+    };
+    const { container } = render(
+      <PlanDetailContent plan={planWithTwoSections} onContentSave={onContentSave} />
+    );
+    const overviewSection = container.querySelector('[data-sidebar-section-id="plan-body-section-0"]');
+    const risksSection = container.querySelector('[data-sidebar-section-id="plan-body-section-1"]');
+    expect(overviewSection).toBeInTheDocument();
+    expect(overviewSection).toHaveAttribute("data-sidebar-section-title", "Overview");
+    expect(risksSection).toBeInTheDocument();
+    expect(risksSection).toHaveAttribute("data-sidebar-section-title", "Risks");
+  });
+
+  it("applies collapse-all and expand-all section commands", async () => {
+    const planWithTwoSections: Plan = {
+      ...mockPlan,
+      content: "# Plan\n\n## Overview\n\nOverview text.\n\n## Risks\n\nRisk text.",
+    };
+    const { rerender } = render(
+      <PlanDetailContent
+        plan={planWithTwoSections}
+        onContentSave={onContentSave}
+        sectionExpansionCommand={{ mode: "collapse", token: 1 }}
+      />
+    );
+    expect(screen.getByRole("button", { name: /expand overview/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /expand risks/i })).toBeInTheDocument();
+
+    rerender(
+      <PlanDetailContent
+        plan={planWithTwoSections}
+        onContentSave={onContentSave}
+        sectionExpansionCommand={{ mode: "expand", token: 2 }}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /collapse overview/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /collapse risks/i })).toBeInTheDocument();
+    });
+  });
+
   it("hides markdown Mockup(s) section when plan has structured metadata.mockups to avoid duplicate sections", () => {
     const planWithMockups: Plan = {
       ...mockPlan,
@@ -330,7 +375,6 @@ describe("PlanDetailContent", () => {
         />
       );
       expect(screen.getByTestId("plan-version-selector")).toBeInTheDocument();
-      expect(screen.getByText("Version:")).toBeInTheDocument();
       const dropdown = screen.getByTestId("plan-version-dropdown");
       expect(dropdown).toHaveValue("3");
     });

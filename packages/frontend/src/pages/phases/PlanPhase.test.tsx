@@ -1130,6 +1130,30 @@ describe("PlanPhase inline editing", () => {
     expect(editorContainer).toBeInTheDocument();
     expect(editorContainer?.className).toContain("first-child");
   });
+
+  it("renders sidebar section nav and supports collapse-all/expand-all controls", async () => {
+    const user = userEvent.setup();
+    const store = createStore();
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <PlanPhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>,
+      { wrapper: PlanPhaseWrapper }
+    );
+
+    const nav = await screen.findByTestId("sidebar-section-nav");
+    expect(nav).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-section-nav-select")).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-section-nav-progress")).toHaveTextContent(/\d+ of \d+/i);
+
+    await user.click(screen.getByTestId("sidebar-section-nav-collapse-all"));
+    expect(screen.getByRole("button", { name: /expand tasks/i })).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("sidebar-section-nav-expand-all"));
+    expect(screen.getByRole("button", { name: /collapse tasks/i })).toBeInTheDocument();
+  });
 });
 
 describe("PlanPhase Re-execute button", () => {
