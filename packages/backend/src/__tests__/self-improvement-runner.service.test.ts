@@ -120,6 +120,14 @@ vi.mock("../services/behavior-version-store.service.js", () => ({
     ),
 }));
 
+vi.mock("../services/self-improvement-failure-collector.service.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/self-improvement-failure-collector.service.js")>();
+  return {
+    ...actual,
+    collectFailuresSince: vi.fn().mockResolvedValue([]),
+  };
+});
+
 describe("getSelfImprovementStatus", () => {
   afterEach(() => {
     setSelfImprovementRunInProgressForTest("test-proj", false);
@@ -1723,5 +1731,159 @@ describe("experiment pipeline wiring", () => {
     await service.runSelfImprovement(projectId, { runId: "cleanup-check" });
 
     expect(isSelfImprovementRunInProgress(projectId)).toBe(false);
+  });
+});
+
+describe("failure root-cause analysis prompt integration", () => {
+  const projectId = "proj-failure-review";
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    setSelfImprovementRunInProgressForTest(projectId, false);
+    const { taskStore } = await import("../services/task-store.service.js");
+    const { agentService } = await import("../services/agent.service.js");
+    const { updateSettingsInStore } = await import("../services/settings-store.service.js");
+    vi.mocked(taskStore.create).mockResolvedValue({ id: "os-1", title: "Task" } as never);
+    vi.mocked(agentService.invokePlanningAgent).mockResolvedValue({
+      content: '[{"title":"[Root Cause] Fix flaky test setup","description":"**Root cause:** Missing test fixture.\\n**Affected area:** src/tests/\\n**Remediation steps:** 1. Add fixture. 2. Update imports.\\n**Acceptance criteria:** Tests pass without retry.","priority":0,"complexity":3}]',
+    } as never);
+    vi.mocked(updateSettingsInStore).mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    setSelfImprovementRunInProgressForTest(projectId, false);
+  });
+
+  it("includes failure root-cause analysis instructions in system prompt when failures exist", async () => {
+    const { collectFailuresSince } = await import(
+      "../services/self-improvement-failure-collector.service.js"
+    );
+    vi.mocked(collectFailuresSince).mockResolvedValue([
+      {
+        taskId: "os-fail-1",
+        failureType: "execution",
+        rawFailureType: "test_failure",
+        attemptCount: 3,
+        finalDisposition: "blocked",
+        timestamp: "2026-03-20T12:00:00.000Z",
+        errorSnippet: "Cannot find module 'react'",
+      },
+    ]);
+
+    const { agentService } = await import("../services/agent.service.js");
+    const service = new SelfImprovementRunnerService();
+    await service.runSelfImprovement(projectId, { runId: "failure-review-run" });
+
+    const calls = vi.mocked(agentService.invokePlanningAgent).mock.calls;
+    expect(calls.length).toBeGreaterThanOrEqual(1);
+
+    const reviewCall = calls[0]!;
+    const systemPrompt = reviewCall[0].systemPrompt as string;
+    expect(systemPrompt).toContain("Failure Root-Cause Analysis");
+    expect(systemPrompt).toContain("Group failures by pattern/root cause");
+    expect(systemPrompt).toContain("[Root Cause]");
+    expect(systemPrompt).toContain("Remediation steps");
+    expect(systemPrompt).toContain("Acceptance criteria");
+
+    const userMessage = (reviewCall[0].messages as Array<{ content: string }>)[0]!.content;
+    expect(userMessage).toContain("Failure Review");
+    expect(userMessage).toContain("1 failure(s)");
+    expect(userMessage).toContain("1 blocked");
+  });
+
+  it("omits failure root-cause analysis instructions when no failures exist", async () => {
+    const { collectFailuresSince } = await import(
+      "../services/self-improvement-failure-collector.service.js"
+    );
+    vi.mocked(collectFailuresSince).mockResolvedValue([]);
+
+    const { agentService } = await import("../services/agent.service.js");
+    const service = new SelfImprovementRunnerService();
+    await service.runSelfImprovement(projectId, { runId: "no-failures-run" });
+
+    const calls = vi.mocked(agentService.invokePlanningAgent).mock.calls;
+    expect(calls.length).toBeGreaterThanOrEqual(1);
+
+    const reviewCall = calls[0]!;
+    const systemPrompt = reviewCall[0].systemPrompt as string;
+    expect(systemPrompt).not.toContain("Failure Root-Cause Analysis");
+    expect(systemPrompt).not.toContain("Group failures by pattern");
+
+    const userMessage = (reviewCall[0].messages as Array<{ content: string }>)[0]!.content;
+    expect(userMessage).not.toContain("Failure Review");
+  });
+
+  it("creates root-cause fix tasks with structured description from agent output", async () => {
+    const { collectFailuresSince } = await import(
+      "../services/self-improvement-failure-collector.service.js"
+    );
+    vi.mocked(collectFailuresSince).mockResolvedValue([
+      {
+        taskId: "os-fail-1",
+        failureType: "execution",
+        attemptCount: 2,
+        finalDisposition: "requeued",
+        timestamp: "2026-03-20T12:00:00.000Z",
+      },
+    ]);
+
+    const { taskStore } = await import("../services/task-store.service.js");
+    const service = new SelfImprovementRunnerService();
+    const result = await service.runSelfImprovement(projectId, { runId: "root-cause-run" });
+
+    expect(result.tasksCreated).toBe(1);
+    expect(taskStore.create).toHaveBeenCalledWith(
+      projectId,
+      "[Root Cause] Fix flaky test setup",
+      expect.objectContaining({
+        description: expect.stringContaining("Root cause:"),
+        priority: 0,
+        complexity: 3,
+      }),
+    );
+  });
+
+  it("includes failure stats in user prompt for mixed failure dispositions", async () => {
+    const { collectFailuresSince } = await import(
+      "../services/self-improvement-failure-collector.service.js"
+    );
+    vi.mocked(collectFailuresSince).mockResolvedValue([
+      {
+        taskId: "os-a",
+        failureType: "execution",
+        attemptCount: 3,
+        finalDisposition: "blocked",
+        timestamp: "2026-03-20T10:00:00.000Z",
+      },
+      {
+        taskId: "os-b",
+        failureType: "environment",
+        attemptCount: 1,
+        finalDisposition: "requeued",
+        timestamp: "2026-03-20T11:00:00.000Z",
+      },
+      {
+        taskId: "os-c",
+        failureType: "merge",
+        attemptCount: 2,
+        finalDisposition: "blocked",
+        timestamp: "2026-03-20T12:00:00.000Z",
+      },
+    ]);
+
+    const { agentService } = await import("../services/agent.service.js");
+    const service = new SelfImprovementRunnerService();
+    await service.runSelfImprovement(projectId, { runId: "mixed-failures-run" });
+
+    const calls = vi.mocked(agentService.invokePlanningAgent).mock.calls;
+    const userMessage = (calls[0]![0].messages as Array<{ content: string }>)[0]!.content;
+    expect(userMessage).toContain("3 failure(s)");
+    expect(userMessage).toContain("2 blocked");
+    expect(userMessage).toContain("1 requeued");
+    expect(userMessage).toContain("2 with multiple attempts");
+
+    const systemPrompt = calls[0]![0].systemPrompt as string;
+    expect(systemPrompt).toContain("Environmental/infrastructure");
+    expect(systemPrompt).toContain("Code/logic");
   });
 });

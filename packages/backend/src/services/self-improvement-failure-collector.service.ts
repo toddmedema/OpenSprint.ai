@@ -221,3 +221,84 @@ export function formatFailuresForPrompt(failures: CollectedFailure[]): string {
 
   return lines.join("\n");
 }
+
+/**
+ * Build supplemental system-prompt instructions for failure root-cause analysis.
+ * Returns an empty string when no failures are present so the prompt
+ * gracefully omits the section with no empty placeholders.
+ */
+export function buildFailureReviewSystemSupplement(failures: CollectedFailure[]): string {
+  if (failures.length === 0) return "";
+
+  const typeCounts = new Map<AgentFailureType, number>();
+  for (const f of failures) {
+    typeCounts.set(f.failureType, (typeCounts.get(f.failureType) ?? 0) + 1);
+  }
+  const hasEnvOrInfra = typeCounts.has("environment") || typeCounts.has("quality_gate");
+  const hasCodeLogic = typeCounts.has("execution") || typeCounts.has("merge");
+
+  const lines: string[] = [
+    "",
+    "## Failure Root-Cause Analysis",
+    "",
+    `You have been provided with ${failures.length} agent failure(s) from recent runs.`,
+    "In addition to general improvements, perform a **failure root-cause analysis**:",
+    "",
+    "1. **Group failures by pattern/root cause.** Identify clusters of failures that share the same underlying cause (e.g. missing dependency, flaky test, incorrect merge base).",
+    "2. **Classify each group as environmental/infrastructure or code/logic:**",
+  ];
+
+  if (hasEnvOrInfra) {
+    lines.push("   - **Environmental/infrastructure:** failures caused by environment setup, missing tools, dependency issues, CI configuration, or quality-gate command misconfiguration.");
+  }
+  if (hasCodeLogic) {
+    lines.push("   - **Code/logic:** failures caused by bugs, incorrect implementations, test logic errors, or merge conflicts from overlapping changes.");
+  }
+  if (!hasEnvOrInfra && !hasCodeLogic) {
+    lines.push("   - **Environmental/infrastructure:** failures caused by environment setup, missing tools, dependency issues, CI configuration.");
+    lines.push("   - **Code/logic:** failures caused by bugs, incorrect implementations, test logic errors, or merge conflicts.");
+  }
+
+  lines.push(
+    "3. **Identify recurring failure patterns** that appear across multiple tasks. Prioritize patterns by frequency (how many tasks affected) and impact (blocked vs. requeued).",
+    "4. **Propose root-cause fix tasks.** Each fix task MUST include:",
+    "   - A clear title prefixed with `[Root Cause]`.",
+    "   - A `description` containing:",
+    "     - **Root cause:** one-sentence explanation of the underlying problem.",
+    "     - **Affected area:** file path(s), module(s), or subsystem(s) involved.",
+    "     - **Remediation steps:** concrete, numbered steps to fix the root cause.",
+    "     - **Acceptance criteria:** measurable conditions that confirm the fix works.",
+    "   - `priority` — lower (0-1) for high-frequency or high-impact patterns; higher (2-4) for isolated issues.",
+    "   - `complexity` — as usual, 1-10 based on implementation difficulty.",
+    "",
+    "Prioritize root-cause fix tasks for **high-frequency** (affecting multiple tasks) and **high-impact** (tasks blocked rather than requeued) failure patterns.",
+    "Root-cause fix tasks should appear first in your output, before general improvement tasks.",
+  );
+
+  return lines.join("\n");
+}
+
+/**
+ * Build supplemental user-prompt instructions that direct the agent to
+ * analyze the provided failures. Returns empty string when no failures exist.
+ */
+export function buildFailureReviewUserSupplement(failures: CollectedFailure[]): string {
+  if (failures.length === 0) return "";
+
+  const blockedCount = failures.filter((f) => f.finalDisposition === "blocked").length;
+  const requeuedCount = failures.filter((f) => f.finalDisposition === "requeued").length;
+  const multiAttempt = failures.filter((f) => f.attemptCount > 1).length;
+
+  const stats: string[] = [];
+  if (blockedCount > 0) stats.push(`${blockedCount} blocked`);
+  if (requeuedCount > 0) stats.push(`${requeuedCount} requeued`);
+  if (multiAttempt > 0) stats.push(`${multiAttempt} with multiple attempts`);
+  const statsLine = stats.length > 0 ? ` (${stats.join(", ")})` : "";
+
+  return [
+    "",
+    `**Failure Review:** The failures section above contains ${failures.length} failure(s)${statsLine}. ` +
+      "Analyze them for root causes and include `[Root Cause]`-prefixed fix tasks in your output. " +
+      "See the system instructions for the required fix-task format.",
+  ].join("\n");
+}

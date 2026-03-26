@@ -29,6 +29,8 @@ import type { SelfImprovementRunOutcome } from "./self-improvement-run-history.s
 import {
   collectFailuresSince,
   formatFailuresForPrompt,
+  buildFailureReviewSystemSupplement,
+  buildFailureReviewUserSupplement,
 } from "./self-improvement-failure-collector.service.js";
 import { createLogger } from "../utils/logger.js";
 import { shellExec } from "../utils/shell-exec.js";
@@ -686,6 +688,8 @@ export class SelfImprovementRunnerService {
       settings.selfImprovementLastRunAt ?? undefined,
     );
     const failureContext = formatFailuresForPrompt(failures);
+    const failureSystemSupplement = buildFailureReviewSystemSupplement(failures);
+    const failureUserSupplement = buildFailureReviewUserSupplement(failures);
 
     const baseContext = `## SPEC (product/sketch)
 
@@ -705,7 +709,7 @@ ${failureContext ? `\n${failureContext}` : ""}
 
 Review the codebase and output a structured list of improvement tasks (JSON array or markdown list).`;
 
-    const systemPrompt = `${SELF_IMPROVEMENT_SYSTEM_PROMPT}\n\n${await getCombinedInstructions(repoPath, "auditor")}`;
+    const systemPrompt = `${SELF_IMPROVEMENT_SYSTEM_PROMPT}${failureSystemSupplement}\n\n${await getCombinedInstructions(repoPath, "auditor")}`;
     const config = getAgentForPlanningRole(settings, "auditor");
     const extraBase: Record<string, unknown> = {
       source: "self-improvement",
@@ -723,8 +727,8 @@ Review the codebase and output a structured list of improvement tasks (JSON arra
           : (REVIEW_ANGLE_OPTIONS.find((o) => o.value === lens)?.label ?? lens);
       const userPrompt =
         lens === "general"
-          ? `${baseContext}\n\nProvide improvement tasks from a general code quality and maintainability perspective.`
-          : `${baseContext}\n\nFocus ONLY on the **${angleLabel}** lens. Provide improvement tasks for this angle only.`;
+          ? `${baseContext}\n\nProvide improvement tasks from a general code quality and maintainability perspective.${failureUserSupplement}`
+          : `${baseContext}\n\nFocus ONLY on the **${angleLabel}** lens. Provide improvement tasks for this angle only.${failureUserSupplement}`;
 
       const agentId = `self-improvement-${lens}-${projectId}-${runId}`;
       try {

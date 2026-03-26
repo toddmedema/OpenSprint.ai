@@ -3,6 +3,8 @@ import {
   collectFailuresSince,
   classifyFailureType,
   formatFailuresForPrompt,
+  buildFailureReviewSystemSupplement,
+  buildFailureReviewUserSupplement,
   type CollectedFailure,
 } from "../services/self-improvement-failure-collector.service.js";
 import type { OrchestratorEvent } from "../services/event-log.service.js";
@@ -561,5 +563,505 @@ describe("formatFailuresForPrompt", () => {
     const result = formatFailuresForPrompt(failures);
     expect(result).toContain("**Failure type:** execution\n");
     expect(result).not.toContain("execution (");
+  });
+});
+
+describe("buildFailureReviewSystemSupplement", () => {
+  it("returns empty string when no failures", () => {
+    expect(buildFailureReviewSystemSupplement([])).toBe("");
+  });
+
+  it("includes root-cause analysis instructions when failures present", () => {
+    const failures: CollectedFailure[] = [
+      {
+        taskId: "os-1",
+        failureType: "execution",
+        attemptCount: 2,
+        finalDisposition: "requeued",
+        timestamp: "2026-03-20T12:00:00.000Z",
+      },
+    ];
+    const result = buildFailureReviewSystemSupplement(failures);
+    expect(result).toContain("Failure Root-Cause Analysis");
+    expect(result).toContain("Group failures by pattern/root cause");
+    expect(result).toContain("Classify each group as environmental/infrastructure or code/logic");
+    expect(result).toContain("Identify recurring failure patterns");
+    expect(result).toContain("Propose root-cause fix tasks");
+    expect(result).toContain("[Root Cause]");
+    expect(result).toContain("Root cause:");
+    expect(result).toContain("Affected area:");
+    expect(result).toContain("Remediation steps:");
+    expect(result).toContain("Acceptance criteria:");
+    expect(result).toContain("high-frequency");
+    expect(result).toContain("high-impact");
+  });
+
+  it("mentions code/logic classification when execution failures present", () => {
+    const failures: CollectedFailure[] = [
+      {
+        taskId: "os-1",
+        failureType: "execution",
+        attemptCount: 1,
+        finalDisposition: "open",
+        timestamp: "2026-03-20T12:00:00.000Z",
+      },
+    ];
+    const result = buildFailureReviewSystemSupplement(failures);
+    expect(result).toContain("Code/logic");
+    expect(result).toContain("bugs, incorrect implementations");
+  });
+
+  it("mentions environmental/infrastructure classification when environment failures present", () => {
+    const failures: CollectedFailure[] = [
+      {
+        taskId: "os-1",
+        failureType: "environment",
+        attemptCount: 1,
+        finalDisposition: "blocked",
+        timestamp: "2026-03-20T12:00:00.000Z",
+      },
+    ];
+    const result = buildFailureReviewSystemSupplement(failures);
+    expect(result).toContain("Environmental/infrastructure");
+    expect(result).toContain("environment setup");
+  });
+
+  it("mentions both classifications when both failure types present", () => {
+    const failures: CollectedFailure[] = [
+      {
+        taskId: "os-1",
+        failureType: "environment",
+        attemptCount: 1,
+        finalDisposition: "blocked",
+        timestamp: "2026-03-20T12:00:00.000Z",
+      },
+      {
+        taskId: "os-2",
+        failureType: "execution",
+        attemptCount: 2,
+        finalDisposition: "requeued",
+        timestamp: "2026-03-20T13:00:00.000Z",
+      },
+    ];
+    const result = buildFailureReviewSystemSupplement(failures);
+    expect(result).toContain("Environmental/infrastructure");
+    expect(result).toContain("Code/logic");
+  });
+
+  it("includes quality_gate failures in environmental/infrastructure category", () => {
+    const failures: CollectedFailure[] = [
+      {
+        taskId: "os-1",
+        failureType: "quality_gate",
+        attemptCount: 1,
+        finalDisposition: "blocked",
+        timestamp: "2026-03-20T12:00:00.000Z",
+      },
+    ];
+    const result = buildFailureReviewSystemSupplement(failures);
+    expect(result).toContain("Environmental/infrastructure");
+  });
+
+  it("includes merge failures in code/logic category", () => {
+    const failures: CollectedFailure[] = [
+      {
+        taskId: "os-1",
+        failureType: "merge",
+        attemptCount: 1,
+        finalDisposition: "blocked",
+        timestamp: "2026-03-20T12:00:00.000Z",
+      },
+    ];
+    const result = buildFailureReviewSystemSupplement(failures);
+    expect(result).toContain("Code/logic");
+  });
+
+  it("reports correct failure count in the supplement", () => {
+    const failures: CollectedFailure[] = [
+      {
+        taskId: "os-1",
+        failureType: "execution",
+        attemptCount: 1,
+        finalDisposition: "open",
+        timestamp: "2026-03-20T12:00:00.000Z",
+      },
+      {
+        taskId: "os-2",
+        failureType: "execution",
+        attemptCount: 3,
+        finalDisposition: "blocked",
+        timestamp: "2026-03-20T13:00:00.000Z",
+      },
+      {
+        taskId: "os-3",
+        failureType: "environment",
+        attemptCount: 1,
+        finalDisposition: "requeued",
+        timestamp: "2026-03-20T14:00:00.000Z",
+      },
+    ];
+    const result = buildFailureReviewSystemSupplement(failures);
+    expect(result).toContain("3 agent failure(s)");
+  });
+});
+
+describe("buildFailureReviewUserSupplement", () => {
+  it("returns empty string when no failures", () => {
+    expect(buildFailureReviewUserSupplement([])).toBe("");
+  });
+
+  it("includes failure count and root-cause instruction when failures present", () => {
+    const failures: CollectedFailure[] = [
+      {
+        taskId: "os-1",
+        failureType: "execution",
+        attemptCount: 1,
+        finalDisposition: "requeued",
+        timestamp: "2026-03-20T12:00:00.000Z",
+      },
+    ];
+    const result = buildFailureReviewUserSupplement(failures);
+    expect(result).toContain("1 failure(s)");
+    expect(result).toContain("[Root Cause]");
+    expect(result).toContain("Failure Review");
+  });
+
+  it("includes blocked count in stats", () => {
+    const failures: CollectedFailure[] = [
+      {
+        taskId: "os-1",
+        failureType: "execution",
+        attemptCount: 1,
+        finalDisposition: "blocked",
+        timestamp: "2026-03-20T12:00:00.000Z",
+      },
+      {
+        taskId: "os-2",
+        failureType: "merge",
+        attemptCount: 2,
+        finalDisposition: "blocked",
+        timestamp: "2026-03-20T13:00:00.000Z",
+      },
+    ];
+    const result = buildFailureReviewUserSupplement(failures);
+    expect(result).toContain("2 blocked");
+  });
+
+  it("includes requeued count in stats", () => {
+    const failures: CollectedFailure[] = [
+      {
+        taskId: "os-1",
+        failureType: "execution",
+        attemptCount: 1,
+        finalDisposition: "requeued",
+        timestamp: "2026-03-20T12:00:00.000Z",
+      },
+    ];
+    const result = buildFailureReviewUserSupplement(failures);
+    expect(result).toContain("1 requeued");
+  });
+
+  it("includes multi-attempt count in stats", () => {
+    const failures: CollectedFailure[] = [
+      {
+        taskId: "os-1",
+        failureType: "execution",
+        attemptCount: 3,
+        finalDisposition: "requeued",
+        timestamp: "2026-03-20T12:00:00.000Z",
+      },
+      {
+        taskId: "os-2",
+        failureType: "execution",
+        attemptCount: 1,
+        finalDisposition: "open",
+        timestamp: "2026-03-20T13:00:00.000Z",
+      },
+    ];
+    const result = buildFailureReviewUserSupplement(failures);
+    expect(result).toContain("1 with multiple attempts");
+  });
+
+  it("includes all stats when multiple types present", () => {
+    const failures: CollectedFailure[] = [
+      {
+        taskId: "os-1",
+        failureType: "execution",
+        attemptCount: 3,
+        finalDisposition: "blocked",
+        timestamp: "2026-03-20T12:00:00.000Z",
+      },
+      {
+        taskId: "os-2",
+        failureType: "merge",
+        attemptCount: 1,
+        finalDisposition: "requeued",
+        timestamp: "2026-03-20T13:00:00.000Z",
+      },
+    ];
+    const result = buildFailureReviewUserSupplement(failures);
+    expect(result).toContain("2 failure(s)");
+    expect(result).toContain("1 blocked");
+    expect(result).toContain("1 requeued");
+    expect(result).toContain("1 with multiple attempts");
+  });
+});
+
+describe("prompt snapshot tests — failure-review dimension", () => {
+  it("formatFailuresForPrompt snapshot: single failure with all fields", () => {
+    const failures: CollectedFailure[] = [
+      {
+        taskId: "os-snap-1",
+        failureType: "quality_gate",
+        rawFailureType: "merge_quality_gate",
+        failedCommand: "npm run build",
+        errorSnippet: "TS2345: Argument of type 'string' is not assignable",
+        attemptCount: 2,
+        finalDisposition: "blocked",
+        timestamp: "2026-03-20T12:00:00.000Z",
+      },
+    ];
+    expect(formatFailuresForPrompt(failures)).toMatchInlineSnapshot(`
+      "## Agent Failures Since Last Self-Improvement Run (1 total)
+
+      ### Task os-snap-1
+      - **Failure type:** quality_gate (merge_quality_gate)
+      - **Attempts:** 2
+      - **Disposition:** blocked
+      - **Failed command:** \`npm run build\`
+      - **Error snippet:**
+      \`\`\`
+      TS2345: Argument of type 'string' is not assignable
+      \`\`\`
+      "
+    `);
+  });
+
+  it("formatFailuresForPrompt snapshot: multiple failures with mixed fields", () => {
+    const failures: CollectedFailure[] = [
+      {
+        taskId: "os-a",
+        failureType: "execution",
+        rawFailureType: "test_failure",
+        attemptCount: 3,
+        finalDisposition: "requeued",
+        timestamp: "2026-03-20T10:00:00.000Z",
+        errorSnippet: "Cannot find module 'react'",
+      },
+      {
+        taskId: "os-b",
+        failureType: "environment",
+        rawFailureType: "environment_setup",
+        attemptCount: 1,
+        finalDisposition: "blocked",
+        timestamp: "2026-03-20T11:00:00.000Z",
+      },
+    ];
+    expect(formatFailuresForPrompt(failures)).toMatchInlineSnapshot(`
+      "## Agent Failures Since Last Self-Improvement Run (2 total)
+
+      ### Task os-a
+      - **Failure type:** execution (test_failure)
+      - **Attempts:** 3
+      - **Disposition:** requeued
+      - **Error snippet:**
+      \`\`\`
+      Cannot find module 'react'
+      \`\`\`
+
+      ### Task os-b
+      - **Failure type:** environment (environment_setup)
+      - **Attempts:** 1
+      - **Disposition:** blocked
+      "
+    `);
+  });
+
+  it("formatFailuresForPrompt snapshot: empty array returns empty string", () => {
+    expect(formatFailuresForPrompt([])).toMatchInlineSnapshot(`""`);
+  });
+
+  it("buildFailureReviewSystemSupplement snapshot: code/logic failures only", () => {
+    const failures: CollectedFailure[] = [
+      {
+        taskId: "os-1",
+        failureType: "execution",
+        attemptCount: 2,
+        finalDisposition: "requeued",
+        timestamp: "2026-03-20T12:00:00.000Z",
+      },
+    ];
+    expect(buildFailureReviewSystemSupplement(failures)).toMatchInlineSnapshot(`
+      "
+      ## Failure Root-Cause Analysis
+
+      You have been provided with 1 agent failure(s) from recent runs.
+      In addition to general improvements, perform a **failure root-cause analysis**:
+
+      1. **Group failures by pattern/root cause.** Identify clusters of failures that share the same underlying cause (e.g. missing dependency, flaky test, incorrect merge base).
+      2. **Classify each group as environmental/infrastructure or code/logic:**
+         - **Code/logic:** failures caused by bugs, incorrect implementations, test logic errors, or merge conflicts from overlapping changes.
+      3. **Identify recurring failure patterns** that appear across multiple tasks. Prioritize patterns by frequency (how many tasks affected) and impact (blocked vs. requeued).
+      4. **Propose root-cause fix tasks.** Each fix task MUST include:
+         - A clear title prefixed with \`[Root Cause]\`.
+         - A \`description\` containing:
+           - **Root cause:** one-sentence explanation of the underlying problem.
+           - **Affected area:** file path(s), module(s), or subsystem(s) involved.
+           - **Remediation steps:** concrete, numbered steps to fix the root cause.
+           - **Acceptance criteria:** measurable conditions that confirm the fix works.
+         - \`priority\` — lower (0-1) for high-frequency or high-impact patterns; higher (2-4) for isolated issues.
+         - \`complexity\` — as usual, 1-10 based on implementation difficulty.
+
+      Prioritize root-cause fix tasks for **high-frequency** (affecting multiple tasks) and **high-impact** (tasks blocked rather than requeued) failure patterns.
+      Root-cause fix tasks should appear first in your output, before general improvement tasks."
+    `);
+  });
+
+  it("buildFailureReviewSystemSupplement snapshot: environment/infra failures only", () => {
+    const failures: CollectedFailure[] = [
+      {
+        taskId: "os-1",
+        failureType: "environment",
+        attemptCount: 1,
+        finalDisposition: "blocked",
+        timestamp: "2026-03-20T12:00:00.000Z",
+      },
+      {
+        taskId: "os-2",
+        failureType: "quality_gate",
+        attemptCount: 2,
+        finalDisposition: "requeued",
+        timestamp: "2026-03-20T13:00:00.000Z",
+      },
+    ];
+    expect(buildFailureReviewSystemSupplement(failures)).toMatchInlineSnapshot(`
+      "
+      ## Failure Root-Cause Analysis
+
+      You have been provided with 2 agent failure(s) from recent runs.
+      In addition to general improvements, perform a **failure root-cause analysis**:
+
+      1. **Group failures by pattern/root cause.** Identify clusters of failures that share the same underlying cause (e.g. missing dependency, flaky test, incorrect merge base).
+      2. **Classify each group as environmental/infrastructure or code/logic:**
+         - **Environmental/infrastructure:** failures caused by environment setup, missing tools, dependency issues, CI configuration, or quality-gate command misconfiguration.
+      3. **Identify recurring failure patterns** that appear across multiple tasks. Prioritize patterns by frequency (how many tasks affected) and impact (blocked vs. requeued).
+      4. **Propose root-cause fix tasks.** Each fix task MUST include:
+         - A clear title prefixed with \`[Root Cause]\`.
+         - A \`description\` containing:
+           - **Root cause:** one-sentence explanation of the underlying problem.
+           - **Affected area:** file path(s), module(s), or subsystem(s) involved.
+           - **Remediation steps:** concrete, numbered steps to fix the root cause.
+           - **Acceptance criteria:** measurable conditions that confirm the fix works.
+         - \`priority\` — lower (0-1) for high-frequency or high-impact patterns; higher (2-4) for isolated issues.
+         - \`complexity\` — as usual, 1-10 based on implementation difficulty.
+
+      Prioritize root-cause fix tasks for **high-frequency** (affecting multiple tasks) and **high-impact** (tasks blocked rather than requeued) failure patterns.
+      Root-cause fix tasks should appear first in your output, before general improvement tasks."
+    `);
+  });
+
+  it("buildFailureReviewSystemSupplement snapshot: mixed failure types", () => {
+    const failures: CollectedFailure[] = [
+      {
+        taskId: "os-1",
+        failureType: "environment",
+        attemptCount: 1,
+        finalDisposition: "blocked",
+        timestamp: "2026-03-20T12:00:00.000Z",
+      },
+      {
+        taskId: "os-2",
+        failureType: "execution",
+        attemptCount: 3,
+        finalDisposition: "requeued",
+        timestamp: "2026-03-20T13:00:00.000Z",
+      },
+      {
+        taskId: "os-3",
+        failureType: "merge",
+        attemptCount: 2,
+        finalDisposition: "blocked",
+        timestamp: "2026-03-20T14:00:00.000Z",
+      },
+    ];
+    expect(buildFailureReviewSystemSupplement(failures)).toMatchInlineSnapshot(`
+      "
+      ## Failure Root-Cause Analysis
+
+      You have been provided with 3 agent failure(s) from recent runs.
+      In addition to general improvements, perform a **failure root-cause analysis**:
+
+      1. **Group failures by pattern/root cause.** Identify clusters of failures that share the same underlying cause (e.g. missing dependency, flaky test, incorrect merge base).
+      2. **Classify each group as environmental/infrastructure or code/logic:**
+         - **Environmental/infrastructure:** failures caused by environment setup, missing tools, dependency issues, CI configuration, or quality-gate command misconfiguration.
+         - **Code/logic:** failures caused by bugs, incorrect implementations, test logic errors, or merge conflicts from overlapping changes.
+      3. **Identify recurring failure patterns** that appear across multiple tasks. Prioritize patterns by frequency (how many tasks affected) and impact (blocked vs. requeued).
+      4. **Propose root-cause fix tasks.** Each fix task MUST include:
+         - A clear title prefixed with \`[Root Cause]\`.
+         - A \`description\` containing:
+           - **Root cause:** one-sentence explanation of the underlying problem.
+           - **Affected area:** file path(s), module(s), or subsystem(s) involved.
+           - **Remediation steps:** concrete, numbered steps to fix the root cause.
+           - **Acceptance criteria:** measurable conditions that confirm the fix works.
+         - \`priority\` — lower (0-1) for high-frequency or high-impact patterns; higher (2-4) for isolated issues.
+         - \`complexity\` — as usual, 1-10 based on implementation difficulty.
+
+      Prioritize root-cause fix tasks for **high-frequency** (affecting multiple tasks) and **high-impact** (tasks blocked rather than requeued) failure patterns.
+      Root-cause fix tasks should appear first in your output, before general improvement tasks."
+    `);
+  });
+
+  it("buildFailureReviewSystemSupplement snapshot: empty returns empty string", () => {
+    expect(buildFailureReviewSystemSupplement([])).toMatchInlineSnapshot(`""`);
+  });
+
+  it("buildFailureReviewUserSupplement snapshot: single requeued failure", () => {
+    const failures: CollectedFailure[] = [
+      {
+        taskId: "os-1",
+        failureType: "execution",
+        attemptCount: 1,
+        finalDisposition: "requeued",
+        timestamp: "2026-03-20T12:00:00.000Z",
+      },
+    ];
+    expect(buildFailureReviewUserSupplement(failures)).toMatchInlineSnapshot(`
+      "
+      **Failure Review:** The failures section above contains 1 failure(s) (1 requeued). Analyze them for root causes and include \`[Root Cause]\`-prefixed fix tasks in your output. See the system instructions for the required fix-task format."
+    `);
+  });
+
+  it("buildFailureReviewUserSupplement snapshot: mixed dispositions and multi-attempt", () => {
+    const failures: CollectedFailure[] = [
+      {
+        taskId: "os-1",
+        failureType: "execution",
+        attemptCount: 3,
+        finalDisposition: "blocked",
+        timestamp: "2026-03-20T10:00:00.000Z",
+      },
+      {
+        taskId: "os-2",
+        failureType: "environment",
+        attemptCount: 1,
+        finalDisposition: "requeued",
+        timestamp: "2026-03-20T11:00:00.000Z",
+      },
+      {
+        taskId: "os-3",
+        failureType: "merge",
+        attemptCount: 2,
+        finalDisposition: "blocked",
+        timestamp: "2026-03-20T12:00:00.000Z",
+      },
+    ];
+    expect(buildFailureReviewUserSupplement(failures)).toMatchInlineSnapshot(`
+      "
+      **Failure Review:** The failures section above contains 3 failure(s) (2 blocked, 1 requeued, 2 with multiple attempts). Analyze them for root causes and include \`[Root Cause]\`-prefixed fix tasks in your output. See the system instructions for the required fix-task format."
+    `);
+  });
+
+  it("buildFailureReviewUserSupplement snapshot: empty returns empty string", () => {
+    expect(buildFailureReviewUserSupplement([])).toMatchInlineSnapshot(`""`);
   });
 });
