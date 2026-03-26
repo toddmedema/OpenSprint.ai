@@ -26,6 +26,10 @@ import { ExperimentReplayService } from "./experiment-replay.service.js";
 import type { ReplayAgentRunner, ReplayOutcome } from "./experiment-replay.service.js";
 import { decideExperimentOutcome } from "./experiment-scoring.service.js";
 import type { SelfImprovementRunOutcome } from "./self-improvement-run-history.service.js";
+import {
+  collectFailuresSince,
+  formatFailuresForPrompt,
+} from "./self-improvement-failure-collector.service.js";
 import { createLogger } from "../utils/logger.js";
 import { shellExec } from "../utils/shell-exec.js";
 import { notificationService } from "./notification.service.js";
@@ -677,6 +681,12 @@ export class SelfImprovementRunnerService {
     const { fileTree, keyFilesContent } = await this.planService.getCodebaseContext(projectId);
     const specContent = await this.contextAssembler.extractPrdExcerpt(repoPath);
 
+    const failures = await collectFailuresSince(
+      projectId,
+      settings.selfImprovementLastRunAt ?? undefined,
+    );
+    const failureContext = formatFailuresForPrompt(failures);
+
     const baseContext = `## SPEC (product/sketch)
 
 ${specContent.slice(0, 12000)}${specContent.length > 12000 ? "\n\n...(truncated)" : ""}
@@ -690,7 +700,7 @@ ${fileTree}
 ## Key file contents
 
 ${keyFilesContent.slice(0, 20000)}${keyFilesContent.length > 20000 ? "\n\n...(truncated)" : ""}
-
+${failureContext ? `\n${failureContext}` : ""}
 ---
 
 Review the codebase and output a structured list of improvement tasks (JSON array or markdown list).`;
