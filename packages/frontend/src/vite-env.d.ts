@@ -2,6 +2,8 @@
 
 declare global {
   interface Window {
+    /** Injected by desktop backend when serving index.html (OPENSPRINT_DESKTOP). */
+    __OPENSPRINT_LOCAL_SESSION__?: string;
     electron?: {
       isElectron: true;
       platform?: string;

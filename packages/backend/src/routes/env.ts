@@ -1,4 +1,5 @@
 import { Router, Request } from "express";
+import { requireLocalSessionAuth } from "../middleware/require-local-session-auth.js";
 import { wrapAsync } from "../middleware/wrap-async.js";
 import { validateBody } from "../middleware/validate.js";
 import {
@@ -220,6 +221,7 @@ envRouter.get(
 // PUT /env/global-settings — Update global settings (e.g. useCustomCli).
 envRouter.put(
   "/global-settings",
+  requireLocalSessionAuth,
   validateBody(envGlobalSettingsBodySchema),
   wrapAsync(async (req: Request, res) => {
     const body = req.body as { useCustomCli?: boolean };
@@ -286,6 +288,7 @@ const CURSOR_CLI_INSTALL_WIN = "https://cursor.com/install?win32=true";
 // POST /env/cursor-cli-install — Run the official Cursor CLI install script (user-initiated).
 envRouter.post(
   "/cursor-cli-install",
+  requireLocalSessionAuth,
   wrapAsync(async (_req, res) => {
     const isWin = process.platform === "win32";
     return new Promise<void>((resolve) => {
@@ -354,6 +357,7 @@ envRouter.post(
 // POST /env/keys/validate — Validate an API key via minimal API call (Claude: list models limit 1; Cursor: GET /v0/models).
 envRouter.post(
   "/keys/validate",
+  requireLocalSessionAuth,
   validateBody(envKeysValidateBodySchema),
   wrapAsync(async (req: Request, res) => {
     const { provider, value } = req.body as { provider: string; value: string };
@@ -372,6 +376,7 @@ envRouter.post(
 // Writes to ~/.opensprint/global-settings.json (merge with existing apiKeys) and .env.
 envRouter.post(
   "/keys",
+  requireLocalSessionAuth,
   validateBody(envKeysPostBodySchema),
   wrapAsync(async (req: Request, res) => {
     const { key, value } = req.body as { key: string; value: string };

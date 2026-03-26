@@ -8,6 +8,7 @@ import { ProjectService } from "../services/project.service.js";
 import { setSelfImprovementRunInProgressForTest } from "../services/self-improvement-runner.service.js";
 import { API_PREFIX, DEFAULT_HIL_CONFIG } from "@opensprint/shared";
 import { cleanupTestProject } from "./test-project-cleanup.js";
+import { withLocalSessionAuth } from "./local-auth-test-helpers.js";
 
 vi.mock("drizzle-orm", () => ({
   and: (...args: unknown[]) => args,
@@ -211,7 +212,7 @@ describe.skipIf(!buildRoutePostgresOk)("Execute API", () => {
 
   describe("POST /projects/:projectId/execute/nudge", () => {
     it("should accept nudge and return status", async () => {
-      const res = await request(app).post(`${API_PREFIX}/projects/${projectId}/execute/nudge`);
+      const res = await withLocalSessionAuth(request(app).post(`${API_PREFIX}/projects/${projectId}/execute/nudge`));
 
       expect(res.status).toBe(200);
       expect(res.body.data).toBeDefined();
@@ -220,7 +221,7 @@ describe.skipIf(!buildRoutePostgresOk)("Execute API", () => {
     });
 
     it("should return 404 for non-existent project", async () => {
-      const res = await request(app).post(`${API_PREFIX}/projects/nonexistent-id/execute/nudge`);
+      const res = await withLocalSessionAuth(request(app).post(`${API_PREFIX}/projects/nonexistent-id/execute/nudge`));
 
       expect(res.status).toBe(404);
       expect(res.body.error).toBeDefined();

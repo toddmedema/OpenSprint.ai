@@ -189,10 +189,13 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   const { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, ...fetchOptions } = options;
   const signal = mergeRequestSignal(timeoutMs, fetchOptions.signal);
 
+  const sessionToken =
+    typeof window !== "undefined" ? window.__OPENSPRINT_LOCAL_SESSION__ : undefined;
   const response = await fetch(url, {
     ...fetchOptions,
     headers: {
       "Content-Type": "application/json",
+      ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
       ...fetchOptions.headers,
     },
     ...(signal ? { signal } : {}),

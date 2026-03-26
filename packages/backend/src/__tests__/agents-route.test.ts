@@ -9,6 +9,7 @@ import { activeAgentsService } from "../services/active-agents.service.js";
 import { API_PREFIX, DEFAULT_HIL_CONFIG, OPENSPRINT_PATHS } from "@opensprint/shared";
 import type { DbClient } from "../db/client.js";
 import { cleanupTestProject } from "./test-project-cleanup.js";
+import { withLocalSessionAuth } from "./local-auth-test-helpers.js";
 
 const { testClientRef } = vi.hoisted(() => ({
   testClientRef: { current: null as DbClient | null },
@@ -320,9 +321,9 @@ describe("Agents API", () => {
         "2026-02-16T10:00:00.000Z"
       );
 
-      const res = await request(app).post(
+      const res = await withLocalSessionAuth(request(app).post(
         `${API_PREFIX}/projects/${projectId}/agents/plan-agent-1/kill`
-      );
+      ));
 
       expect(res.status).toBe(404);
       expect(res.body.error).toContain("not found");
@@ -331,9 +332,9 @@ describe("Agents API", () => {
     });
 
     it("should return 404 for non-existent project", async () => {
-      const res = await request(app).post(
+      const res = await withLocalSessionAuth(request(app).post(
         `${API_PREFIX}/projects/nonexistent-id/agents/task-123/kill`
-      );
+      ));
 
       expect(res.status).toBe(404);
     });

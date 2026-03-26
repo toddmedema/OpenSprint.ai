@@ -1,4 +1,5 @@
 import path from "path";
+import fs from "fs/promises";
 import express from "express";
 import { localhostCors } from "./middleware/cors.js";
 import { errorHandler } from "./middleware/error-handler.js";
@@ -29,8 +30,10 @@ import { requestIdMiddleware } from "./middleware/request-id.js";
 import { wrapAsync } from "./middleware/wrap-async.js";
 import { requireDatabase } from "./middleware/require-database.js";
 import { orchestratorService } from "./services/orchestrator.service.js";
+import { getLocalSessionToken, ensureLocalSessionToken } from "./services/local-session-auth.service.js";
 
 export function createApp(services?: AppServices) {
+  ensureLocalSessionToken();
   const app = express();
   const svc = services ?? createAppServices();
   const {
@@ -133,8 +136,23 @@ export function createApp(services?: AppServices) {
     const frontendDist = process.env.OPENSPRINT_FRONTEND_DIST;
     if (frontendDist) {
       app.use(express.static(frontendDist));
-      app.get("*", (_req, res) => {
-        res.sendFile(path.join(frontendDist, "index.html"));
+      app.get("*", async (req, res, next) => {
+        if (req.path.startsWith("/api/") || req.path.startsWith("/ws")) {
+          next();
+          return;
+        }
+        const indexPath = path.join(frontendDist, "index.html");
+        try {
+          const html = await fs.readFile(indexPath, "utf8");
+          const token = getLocalSessionToken();
+          const inject = `<script>window.__OPENSPRINT_LOCAL_SESSION__=${JSON.stringify(token)};</script>`;
+          const body = html.includes("</head>")
+            ? html.replace("</head>", `${inject}</head>`)
+            : `${inject}${html}`;
+          res.type("html").send(body);
+        } catch (err) {
+          next(err);
+        }
       });
     }
   }

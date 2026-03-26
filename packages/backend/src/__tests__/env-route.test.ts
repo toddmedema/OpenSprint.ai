@@ -13,6 +13,7 @@ import {
   setGlobalSettingsPathForTesting,
 } from "../services/global-settings.service.js";
 import { setBackendRuntimeInfoForTesting } from "../utils/runtime-info.js";
+import { withLocalSessionAuth } from "./local-auth-test-helpers.js";
 
 const mockExecFile = vi.fn();
 
@@ -120,7 +121,7 @@ describe("Env API", () => {
 
   describe("POST /env/keys/validate", () => {
     it("returns 400 when provider and value are missing", async () => {
-      const res = await request(app).post(`${API_PREFIX}/env/keys/validate`).send({});
+      const res = await withLocalSessionAuth(request(app).post(`${API_PREFIX}/env/keys/validate`)).send({});
       expect(res.status).toBe(400);
       expect(res.body.error?.code).toBe("VALIDATION_ERROR");
       expect(res.body.error?.message).toMatch(/provider|value|required|option|invalid/i);
@@ -128,8 +129,8 @@ describe("Env API", () => {
     });
 
     it("returns 400 when provider is not claude, cursor, openai, or google", async () => {
-      const res = await request(app)
-        .post(`${API_PREFIX}/env/keys/validate`)
+      const res = await withLocalSessionAuth(request(app)
+        .post(`${API_PREFIX}/env/keys/validate`))
         .send({ provider: "unknown", value: "sk-test" });
       expect(res.status).toBe(400);
       expect(res.body.error?.code).toBe("VALIDATION_ERROR");
@@ -142,8 +143,8 @@ describe("Env API", () => {
     it("returns valid: true when validation succeeds for Google", async () => {
       mockValidateApiKey.mockResolvedValue({ valid: true });
 
-      const res = await request(app)
-        .post(`${API_PREFIX}/env/keys/validate`)
+      const res = await withLocalSessionAuth(request(app)
+        .post(`${API_PREFIX}/env/keys/validate`))
         .send({ provider: "google", value: "AIza-test" });
 
       expect(res.status).toBe(200);
@@ -154,8 +155,8 @@ describe("Env API", () => {
     it("returns valid: true when validation succeeds for OpenAI", async () => {
       mockValidateApiKey.mockResolvedValue({ valid: true });
 
-      const res = await request(app)
-        .post(`${API_PREFIX}/env/keys/validate`)
+      const res = await withLocalSessionAuth(request(app)
+        .post(`${API_PREFIX}/env/keys/validate`))
         .send({ provider: "openai", value: "sk-openai-test" });
 
       expect(res.status).toBe(200);
@@ -166,8 +167,8 @@ describe("Env API", () => {
     it("returns valid: true when validation succeeds for Claude", async () => {
       mockValidateApiKey.mockResolvedValue({ valid: true });
 
-      const res = await request(app)
-        .post(`${API_PREFIX}/env/keys/validate`)
+      const res = await withLocalSessionAuth(request(app)
+        .post(`${API_PREFIX}/env/keys/validate`))
         .send({ provider: "claude", value: "sk-ant-test" });
 
       expect(res.status).toBe(200);
@@ -178,8 +179,8 @@ describe("Env API", () => {
     it("returns valid: true when validation succeeds for Cursor", async () => {
       mockValidateApiKey.mockResolvedValue({ valid: true });
 
-      const res = await request(app)
-        .post(`${API_PREFIX}/env/keys/validate`)
+      const res = await withLocalSessionAuth(request(app)
+        .post(`${API_PREFIX}/env/keys/validate`))
         .send({ provider: "cursor", value: "cursor-key-123" });
 
       expect(res.status).toBe(200);
@@ -193,8 +194,8 @@ describe("Env API", () => {
         error: "Invalid API key",
       });
 
-      const res = await request(app)
-        .post(`${API_PREFIX}/env/keys/validate`)
+      const res = await withLocalSessionAuth(request(app)
+        .post(`${API_PREFIX}/env/keys/validate`))
         .send({ provider: "claude", value: "bad-key" });
 
       expect(res.status).toBe(200);
@@ -406,7 +407,7 @@ describe("Env API", () => {
 
   describe("POST /env/cursor-cli-install", () => {
     it("returns 200 with success and message when install script completes", async () => {
-      const res = await request(app).post(`${API_PREFIX}/env/cursor-cli-install`);
+      const res = await withLocalSessionAuth(request(app).post(`${API_PREFIX}/env/cursor-cli-install`));
       expect(res.status).toBe(200);
       expect(res.body.data).toBeDefined();
       expect(res.body.data.success).toBe(true);
@@ -416,30 +417,30 @@ describe("Env API", () => {
 
   describe("POST /env/keys", () => {
     it("returns 400 when key and value are missing", async () => {
-      const res = await request(app).post(`${API_PREFIX}/env/keys`).send({});
+      const res = await withLocalSessionAuth(request(app).post(`${API_PREFIX}/env/keys`)).send({});
       expect(res.status).toBe(400);
       expect(res.body.error?.code).toBe("VALIDATION_ERROR");
     });
 
     it("returns 400 when key is not allowed", async () => {
-      const res = await request(app)
-        .post(`${API_PREFIX}/env/keys`)
+      const res = await withLocalSessionAuth(request(app)
+        .post(`${API_PREFIX}/env/keys`))
         .send({ key: "OTHER_KEY", value: "secret" });
       expect(res.status).toBe(400);
       expect(res.body.error?.code).toBe("VALIDATION_ERROR");
     });
 
     it("returns 400 when value is empty", async () => {
-      const res = await request(app)
-        .post(`${API_PREFIX}/env/keys`)
+      const res = await withLocalSessionAuth(request(app)
+        .post(`${API_PREFIX}/env/keys`))
         .send({ key: "ANTHROPIC_API_KEY", value: "   " });
       expect(res.status).toBe(400);
       expect(res.body.error?.code).toBe("INVALID_INPUT");
     });
 
     it("saves allowed key to .env and returns 200", async () => {
-      const res = await request(app)
-        .post(`${API_PREFIX}/env/keys`)
+      const res = await withLocalSessionAuth(request(app)
+        .post(`${API_PREFIX}/env/keys`))
         .send({ key: "ANTHROPIC_API_KEY", value: "sk-test-value" });
       expect(res.status).toBe(200);
       expect(res.body.data?.saved).toBe(true);
@@ -451,8 +452,8 @@ describe("Env API", () => {
     it("appends to existing .env without stripping other keys", async () => {
       fs.writeFileSync(path.join(tmpDir, ".env"), "EXISTING=ok\n", "utf-8");
 
-      await request(app)
-        .post(`${API_PREFIX}/env/keys`)
+      await withLocalSessionAuth(request(app)
+        .post(`${API_PREFIX}/env/keys`))
         .send({ key: "CURSOR_API_KEY", value: "cursor-secret" });
 
       const content = fs.readFileSync(path.join(tmpDir, ".env"), "utf-8");
@@ -461,8 +462,8 @@ describe("Env API", () => {
     });
 
     it("persists to global store with unique id", async () => {
-      await request(app)
-        .post(`${API_PREFIX}/env/keys`)
+      await withLocalSessionAuth(request(app)
+        .post(`${API_PREFIX}/env/keys`))
         .send({ key: "ANTHROPIC_API_KEY", value: "sk-ant-global-test" });
 
       const settings = await getGlobalSettings();
@@ -482,8 +483,8 @@ describe("Env API", () => {
         },
       });
 
-      await request(app)
-        .post(`${API_PREFIX}/env/keys`)
+      await withLocalSessionAuth(request(app)
+        .post(`${API_PREFIX}/env/keys`))
         .send({ key: "ANTHROPIC_API_KEY", value: "sk-ant-new" });
 
       const settings = await getGlobalSettings();
@@ -503,8 +504,8 @@ describe("Env API", () => {
         },
       });
 
-      await request(app)
-        .post(`${API_PREFIX}/env/keys`)
+      await withLocalSessionAuth(request(app)
+        .post(`${API_PREFIX}/env/keys`))
         .send({ key: "CURSOR_API_KEY", value: "cursor-new" });
 
       const settings = await getGlobalSettings();
@@ -514,8 +515,8 @@ describe("Env API", () => {
     });
 
     it("saves OPENAI_API_KEY to .env and global store", async () => {
-      const res = await request(app)
-        .post(`${API_PREFIX}/env/keys`)
+      const res = await withLocalSessionAuth(request(app)
+        .post(`${API_PREFIX}/env/keys`))
         .send({ key: "OPENAI_API_KEY", value: "sk-openai-test-value" });
       expect(res.status).toBe(200);
       expect(res.body.data?.saved).toBe(true);
@@ -612,8 +613,8 @@ describe("Env API", () => {
 
   describe("PUT /env/global-settings", () => {
     it("updates useCustomCli and returns it", async () => {
-      const res = await request(app)
-        .put(`${API_PREFIX}/env/global-settings`)
+      const res = await withLocalSessionAuth(request(app)
+        .put(`${API_PREFIX}/env/global-settings`))
         .send({ useCustomCli: true });
 
       expect(res.status).toBe(200);
@@ -624,8 +625,8 @@ describe("Env API", () => {
     });
 
     it("persists useCustomCli across requests", async () => {
-      const putRes = await request(app)
-        .put(`${API_PREFIX}/env/global-settings`)
+      const putRes = await withLocalSessionAuth(request(app)
+        .put(`${API_PREFIX}/env/global-settings`))
         .send({ useCustomCli: true })
         .timeout(10_000);
       expect(putRes.status).toBe(200);
@@ -639,7 +640,7 @@ describe("Env API", () => {
     it("returns current useCustomCli when body has no valid updates", async () => {
       await setGlobalSettings({ useCustomCli: true });
 
-      const res = await request(app).put(`${API_PREFIX}/env/global-settings`).send({});
+      const res = await withLocalSessionAuth(request(app).put(`${API_PREFIX}/env/global-settings`)).send({});
 
       expect(res.status).toBe(200);
       expect(res.body.data.useCustomCli).toBe(true);
@@ -648,8 +649,8 @@ describe("Env API", () => {
     it("can set useCustomCli to false", async () => {
       await setGlobalSettings({ useCustomCli: true });
 
-      const res = await request(app)
-        .put(`${API_PREFIX}/env/global-settings`)
+      const res = await withLocalSessionAuth(request(app)
+        .put(`${API_PREFIX}/env/global-settings`))
         .send({ useCustomCli: false });
 
       expect(res.status).toBe(200);

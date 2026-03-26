@@ -1,6 +1,7 @@
 import cors from "cors";
 
-const LOCALHOST_ORIGIN_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+const LOCALHOST_ORIGIN_RE =
+  /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
 
 /**
  * CORS middleware restricted to localhost / 127.0.0.1 origins.

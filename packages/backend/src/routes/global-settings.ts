@@ -1,4 +1,5 @@
 import { Router, Request } from "express";
+import { requireLocalSessionAuth } from "../middleware/require-local-session-auth.js";
 import { wrapAsync } from "../middleware/wrap-async.js";
 import { validateParams, validateBody } from "../middleware/validate.js";
 import {
@@ -53,6 +54,7 @@ function buildResponse(settings: GlobalSettings) {
 // GET /global-settings/reveal-key/:provider/:id — Returns the raw value for a single API key (for reveal-on-click after refresh).
 globalSettingsRouter.get(
   "/reveal-key/:provider/:id",
+  requireLocalSessionAuth,
   validateParams(apiKeyProviderParamSchema),
   wrapAsync(async (req, res) => {
     const provider = req.params.provider as ApiKeyProvider;
@@ -72,6 +74,7 @@ globalSettingsRouter.get(
 // so work can resume promptly after API access is restored.
 globalSettingsRouter.post(
   "/clear-limit-hit/:provider/:id",
+  requireLocalSessionAuth,
   validateParams(apiKeyProviderParamSchema),
   wrapAsync(async (req, res) => {
     const provider = req.params.provider as ApiKeyProvider;
@@ -92,6 +95,7 @@ globalSettingsRouter.post(
 // POST /global-settings/migrate-to-postgres — Copy data from current DB (SQLite) to target Postgres, then switch.
 globalSettingsRouter.post(
   "/migrate-to-postgres",
+  requireLocalSessionAuth,
   validateBody(migrateToPostgresBodySchema),
   wrapAsync(async (req: Request, res) => {
     const body = req.body as { databaseUrl: string };
@@ -132,6 +136,7 @@ globalSettingsRouter.post(
 // POST /global-settings/setup-tables — Runs schema setup against provided databaseUrl. Session-only; does not persist URL.
 globalSettingsRouter.post(
   "/setup-tables",
+  requireLocalSessionAuth,
   validateBody(setupTablesBodySchema),
   wrapAsync(async (req: Request, res) => {
     const body = req.body as { databaseUrl: string };
@@ -171,6 +176,7 @@ globalSettingsRouter.get(
 // PUT /global-settings — Accepts databaseUrl, apiKeys, menu bar toggles, simpleComplexityAgent / complexComplexityAgent (or null to clear). Validates and sanitizes. Merge apiKeys with existing (preserve value when id exists and value omitted).
 globalSettingsRouter.put(
   "/",
+  requireLocalSessionAuth,
   validateBody(globalSettingsPutBodySchema),
   wrapAsync(async (req: Request, res) => {
     const body = req.body as {

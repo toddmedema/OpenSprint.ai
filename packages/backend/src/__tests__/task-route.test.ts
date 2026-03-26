@@ -8,6 +8,7 @@ import { TaskStoreService } from "../services/task-store.service.js";
 import { API_PREFIX } from "@opensprint/shared";
 import { DEFAULT_HIL_CONFIG } from "@opensprint/shared";
 import { createReusedProjectFixture, type ReusedProjectFixture } from "./reused-project-fixture.js";
+import { withLocalSessionAuth } from "./local-auth-test-helpers.js";
 
 vi.mock("drizzle-orm", () => ({
   and: (...args: unknown[]) => args,
@@ -295,8 +296,8 @@ Test task directory creation.
       const taskX = tasks.find((t: { title: string }) => t.title === "Task X");
       expect(taskX).toBeDefined();
 
-      const prepareRes = await request(app)
-        .post(`${API_PREFIX}/projects/${projectId}/execute/tasks/${taskX.id}/prepare`)
+      const prepareRes = await withLocalSessionAuth(request(app)
+        .post(`${API_PREFIX}/projects/${projectId}/execute/tasks/${taskX.id}/prepare`))
         .set("Content-Type", "application/json")
         .send({ createBranch: false });
 
@@ -364,8 +365,8 @@ Test review prompt generation.
       const taskY = tasks.find((t: { title: string }) => t.title === "Task Y");
       expect(taskY).toBeDefined();
 
-      const prepareRes = await request(app)
-        .post(`${API_PREFIX}/projects/${projectId}/execute/tasks/${taskY.id}/prepare`)
+      const prepareRes = await withLocalSessionAuth(request(app)
+        .post(`${API_PREFIX}/projects/${projectId}/execute/tasks/${taskY.id}/prepare`))
         .set("Content-Type", "application/json")
         .send({ phase: "review", createBranch: false });
 
@@ -414,8 +415,8 @@ Test review prompt generation.
       const taskE1 = tasks.find((t: { title: string }) => t.title === "Task E1");
       expect(taskE1).toBeDefined();
 
-      const prepareRes = await request(app)
-        .post(`${API_PREFIX}/projects/${projectId}/execute/tasks/${taskE1.id}/prepare`)
+      const prepareRes = await withLocalSessionAuth(request(app)
+        .post(`${API_PREFIX}/projects/${projectId}/execute/tasks/${taskE1.id}/prepare`))
         .set("Content-Type", "application/json")
         .send({ createBranch: false });
 
