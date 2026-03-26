@@ -807,7 +807,7 @@ A simple marketing site for Open Sprint.
         projectId,
         "plan",
         "dreamer",
-        "Plan chat",
+        "Plan chat - Auth Plan",
         expect.any(String)
       );
       expect(mockUnregister).toHaveBeenCalledTimes(1);

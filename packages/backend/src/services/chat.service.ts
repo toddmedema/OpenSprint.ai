@@ -7,7 +7,11 @@ import type {
   ChatResponse,
   PrdSectionKey,
 } from "@opensprint/shared";
-import { OPENSPRINT_PATHS, getAgentForPlanningRole } from "@opensprint/shared";
+import {
+  OPENSPRINT_PATHS,
+  formatPlanChatRunningAgentsLabel,
+  getAgentForPlanningRole,
+} from "@opensprint/shared";
 import type { PlanComplexity } from "@opensprint/shared";
 import { ProjectService } from "./project.service.js";
 import { PrdService } from "./prd.service.js";
@@ -34,6 +38,7 @@ import { getCombinedInstructions } from "./agent-instructions.service.js";
 import { maybeAutoRespond } from "./open-question-autoresolve.service.js";
 import { activeAgentsService } from "./active-agents.service.js";
 import { invokeStructuredPlanningAgent } from "./structured-agent-output.service.js";
+import { getEpicTitleFromPlanContent } from "./plan/planner-normalize.js";
 import {
   buildPromptEnvelope,
   fingerprintPrompt,
@@ -575,6 +580,8 @@ export class ChatService {
     // Build system prompt and context based on design vs plan vs execute
     let baseSystemPrompt: string;
     let projectContext = "";
+    /** Plan markdown for active-agent label (Plan chat only); set when plan context loads content */
+    let planMarkdownForActiveAgentLabel = "";
     if (isExecuteContext && taskId) {
       let taskContext = `## Task ${taskId}\n\n(Task details not found.)`;
       try {
@@ -587,6 +594,7 @@ export class ChatService {
       projectContext = taskContext;
     } else if (isPlanContext && planId) {
       const planContent = await this.getPlanContent(projectId, planId);
+      planMarkdownForActiveAgentLabel = planContent;
       const planContext = planContent
         ? `## Current Plan (${planId})\n\n${planContent}`
         : `## Plan ${planId}\n\n(Plan file is empty or not found.)`;
@@ -651,7 +659,11 @@ export class ChatService {
       : isPlanDraftContext
         ? "Draft plan generation chat"
         : isPlanContext
-          ? "Plan chat"
+          ? planId
+            ? formatPlanChatRunningAgentsLabel(
+                getEpicTitleFromPlanContent(planMarkdownForActiveAgentLabel, planId)
+              )
+            : "Plan chat"
           : "Sketch chat";
     const trackingRole = isExecuteContext ? "analyst" : isPlanDraftContext ? "planner" : "dreamer";
     try {

@@ -121,7 +121,12 @@ const AgentDropdownItem = memo(function AgentDropdownItem({
           aria-hidden
         />
         <div className="min-w-0 flex-1">
-          <div className="font-medium text-theme-text">{agent.label || agent.id}</div>
+          <div
+            className="font-medium text-theme-text truncate"
+            title={agent.label || agent.id}
+          >
+            {agent.label || agent.id}
+          </div>
           <div className="text-theme-muted mt-0.5">
             {getRoleDisplayLabel(agent)} &middot;{" "}
             {statusLabel ? statusLabel : <UptimeDisplay startedAt={agent.startedAt} />}
