@@ -8,6 +8,7 @@ import { ThemeProvider } from "../contexts/ThemeContext";
 import { DisplayPreferencesProvider } from "../contexts/DisplayPreferencesContext";
 import { ProjectSettingsModal } from "./ProjectSettingsModal";
 import type { Project } from "@opensprint/shared";
+import { api } from "../api/client";
 
 const storage: Record<string, string> = {};
 
@@ -78,6 +79,7 @@ describe("ProjectSettingsModal", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(api.projects.getSelfImprovementHistory).mockResolvedValue([]);
     mockGetSettings.mockResolvedValue(mockSettings);
     mockGlobalSettingsGet.mockResolvedValue({
       databaseUrl: "",
@@ -790,6 +792,36 @@ describe("ProjectSettingsModal", () => {
     const lastRun = await screen.findByTestId("self-improvement-last-run");
     expect(lastRun).toHaveTextContent("Last run:");
     expect(lastRun.textContent).toMatch(/\d/);
+  });
+
+  it("does not show Last run in schedule when Recent runs has entries (same info as first row)", async () => {
+    vi.mocked(api.projects.getSelfImprovementHistory).mockResolvedValue([
+      {
+        timestamp: "2025-03-01T14:30:00.000Z",
+        status: "success",
+        tasksCreatedCount: 0,
+        mode: "audit_only",
+        outcome: "no_changes",
+        summary: "No changes",
+        runId: "r1",
+      },
+    ]);
+    mockGetSettings.mockResolvedValue({
+      ...mockSettings,
+      selfImprovementLastRunAt: "2025-03-01T14:30:00Z",
+    });
+
+    renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
+    await waitForModalReady();
+
+    const workflowTab = screen.getByRole("button", { name: "Workflow" });
+    await userEvent.click(workflowTab);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("self-improvement-recent-runs")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("self-improvement-last-run")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("history-outcome-badge")[0]).toHaveTextContent("No changes");
   });
 
   it("shows Next run when nextRunAt is set (e.g. daily/weekly frequency)", async () => {

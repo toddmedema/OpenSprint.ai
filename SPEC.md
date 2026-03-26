@@ -2,11 +2,7 @@
 
 ## Executive Summary
 
-Open Sprint is a web application that guides users through the complete software development lifecycle using AI agents. It provides a structured, five-phase workflow — **SPEED**: Sketch, Plan, Execute, Evaluate, and Deliver — that transforms high-level product ideas into working software with minimal manual intervention.
-
-The platform pairs a browser-based interface with a background agent CLI, enabling AI to autonomously execute development tasks while keeping the user in control of strategy and direction. The core philosophy is that humans should focus on _what_ to build and _why_, while AI handles _how_ to build it.
-
-Open Sprint supports multiple agent backends (Claude, Cursor, OpenAI, LM Studio for local models, and custom CLI agents), comprehensive automated testing including end-to-end and integration tests, configurable human-in-the-loop thresholds, and full offline operation for users with local agent setups (including LM Studio). An opt-in **closed-loop agent self-improvement** flow runs audits and, when enabled, an experiment pipeline (replay mining, candidate behavior generation, baseline vs candidate replay, scoring, and optional promotion) with approval and behavior versioning.
+During **Execute**, users can **open the task worktree in VS Code or Cursor** for live file and diff inspection, and—when using **in-process API agent backends**—**chat with the running agent** between turns for mid-flight guidance. **CLI-based agent backends** do not support reliable mid-flight messaging; the product surfaces a clear disabled state and directs users to API mode. A **browser-only** fallback exposes the worktree path and copyable shell commands when the desktop app cannot launch an editor.
 
 ## Problem Statement
 
@@ -61,114 +57,49 @@ _No content yet_
 
 ## Feature List
 
-Add under Sketch phase:
+Add under **Execute** phase:
 
-- **Scale, speed, and cost discovery:** The Sketch Dreamer agent checks whether the user's input or existing PRD sections mention scale (expected users, data volume, geographic distribution, growth), speed (latency targets, throughput, real-time vs batch), or cost (infrastructure budget, hosting constraints, cost-per-request/user limits). If none have been discussed, the agent asks the user before finalizing technical architecture and non-functional requirements. When provided, constraints are incorporated into the relevant PRD sections; when the user declines or has none, the agent notes in assumptions that sensible defaults are assumed. The discovery flow is non-blocking.
-
-Add under Plan phase:
-
-- **Scale, speed, and cost awareness in plan generation:** Plan-from-description and decompose-from-PRD agents scan feature descriptions and PRD context for scale, speed, and cost constraints and reflect them in each plan's Technical Approach. When constraints are absent, plans include a brief note in the Assumptions section that no scale/speed/cost constraints were specified and defaults are assumed. Single-shot plan generation handles missing constraints via an assumptions note rather than open questions.
-- **Plan refinement constraint awareness:** When suggesting Technical Approach changes during plan refinement, the agent considers any scale, speed, or cost constraints present in the plan or PRD.
-
-Add under Execute phase:
-
-- **Repository dependency integrity preflight:** Before agent execution, run a fast dependency health check (`npm ls --depth=0`, or `--workspaces` for workspace roots). If unhealthy, run one auto-repair attempt (`npm ci`) and re-check; if still unhealthy, stop execution with explicit remediation steps.
-- **Quality-gate environment auto-repair:** During pre-merge quality gates, detect environment/setup fingerprints (for example `MODULE_NOT_FOUND`, missing `node_modules`, native addon load errors), run one repair attempt (`npm ci` + worktree `node_modules` re-symlink), and re-run the failed gate once.
-- **Environment-aware failure policy:** Classify deterministic environment failures as `repo_preflight` or `environment_setup` and block/pause with remediation guidance instead of repeatedly requeueing coding attempts.
-- **Actionable diagnostics-first failures:** For quality-gate and test failures, surface primary diagnostics as `failed command + first compiler/test error`, with expandable structured details for deeper troubleshooting.
-
-Add under Self-Improvement:
-
-- **Opt-in agent enhancement experiments:** New project setting `runAgentEnhancementExperiments` (boolean, default false). When off, self-improvement runs are audit-only (existing behavior); when on, runs execute the experiment pipeline (replay mining, candidate behavior generation, baseline vs candidate replay, scoring) and optional promotion governed by project autonomy (confirm_all / major_only / full).
-- **Self-improvement status and history UI:** Live status row (Idle, Running audit, Running experiments, Awaiting approval), stage label when running (e.g. Collecting replay cases, Generating candidate, Replaying, Scoring, Promoting), summary row (Last run, Last outcome, Active behavior version, Pending promotion), and Recent runs list with outcome badges (No changes, Tasks created, Candidate rejected, Promotion pending, Promoted, Failed).
-- **Approval and rollback:** Notification `self_improvement_approval` deep-links to project settings; card shows candidate diff, replay sample size, baseline vs candidate metrics, and Promote / Reject actions; API support to promote, reject, or rollback to a previous promoted behavior version.
+- **Open in Editor:** In-progress task cards and the task detail sidebar expose an **Open in Editor** control when a worktree path is available; it opens the worktree (or repo root in **branches** mode with a **shared-checkout** warning) in the user's preferred editor (**VS Code**, **Cursor**, or **auto** from global settings). If the path is missing, the task is not in progress, or the editor CLI is unavailable, the control is disabled with tooltips or inline guidance; pure web clients get **copy path** / pasteable commands.
+- **Live Chat with Execute agent:** For **Claude API, OpenAI, Google/Gemini, LM Studio, and Ollama** (shared `runAgenticLoop`), users send messages that are **queued and injected between agentic turns** as real user turns (replacing the default continuation). **Claude CLI, Cursor CLI, and Custom CLI** backends disable chat with an explicit **switch to API mode** message. The Execute sidebar combines **Output** (streaming logs) and **Chat** (Sketch/Plan-style `PrdChatPanel` pattern): optimistic send, **Waiting for response…** while the agent processes, persisted **per-attempt** history (survives refresh), bounded pending-message queue, and WebSocket delivery/receipt events.
 
 ## Technical Architecture
 
-**Repo preflight and dependency integrity**
+**Execute inspect and live chat**
 
-- Extend preflight to run dependency integrity checks after existing repository setup checks.
-- Implement a dependency health routine in branch/worktree management that:
-  - runs `npm ls --depth=0` (or `npm ls --depth=0 --workspaces` when workspace config is detected),
-  - performs one remediation attempt with `npm ci` on failure,
-  - re-runs integrity check,
-  - throws `RepoPreflightError` with remediation commands when still unhealthy.
-- Skip dependency integrity checks when no `package.json` is present.
-
-**Quality-gate failure handling**
-
-- In merge quality gates, detect env/setup failure fingerprints from command output.
-- On match, perform exactly one repair cycle (`npm ci` + `symlinkNodeModules`) and retry the failed gate once.
-- Avoid infinite repair loops; if retry fails, proceed with standard gate failure handling.
-- Classify as environment/setup failure only when the retry failure still matches env fingerprints.
-
-**Failure classification and diagnostics**
-
-- Add `environment_setup` as a first-class failure type alongside `repo_preflight` where failure policy is applied.
-- Route deterministic env/setup failures to block/pause with remediation text rather than repeated requeue behavior.
-- Build user-visible failure summaries from structured gate data, prioritizing failed command plus first meaningful compiler/test error line.
-
-**Closed-loop agent self-improvement**
-
-- Retain existing self-improvement audit flow (frequency-driven review, task creation). When `runAgentEnhancementExperiments` is true, run an experiment pipeline after the audit: mine replay-grade Execute sessions, generate candidate behavior (general/role instruction overlays, prompt template overrides for coder, reviewer, final review, self-improvement), run baseline vs candidate replay in disposable worktrees, score (task success quality first; retry/review regressions and latency/cost as guardrails), then promote, queue approval, or reject per project autonomy.
-- Persist behavior versions (promoted and candidate bundles) with version id and timestamps; support rollback to a previously promoted version.
-- Expose current run status (idle, running_audit, running_experiments, awaiting_approval) and optional stage when running; persist and expose run history (timestamp, mode, outcome, summary, promoted/pending refs).
-- Attach replay metadata to Execute sessions (e.g. in assignment or run context): base_commit_sha, behavior_version, template_version for replay and versioning.
+- **Open in Editor:** Backend resolves **worktree path** from `BranchManager` and/or active assignment, validates on-disk existence, and returns path plus resolved **editor preference** (`vscode` | `cursor` | `auto`). Desktop/Electron uses `child_process` or **URI schemes** (`vscode://file/…`, `cursor://file/…`); browser-only clients use path + copy command fallback. Editor CLI availability is detected for UX messaging.
+- **Agentic loop:** `runAgenticLoop` accepts an optional **async pending-messages channel**; after tool results and before the next `adapter.send`, the loop drains the channel and uses the concatenated user text as the next user message instead of **Continue.** Multiple queued messages are merged in order with delimiters; the channel is **bounded** to cap backlog.
+- **`AgentChatService`:** Validates task/agent liveness and **API vs CLI** backend; **persists** turns to `.opensprint/active/<taskId>/chat-log.jsonl` (JSONL: `id`, ISO `timestamp`, `role`, `content`, `attempt`); pushes to the active loop's channel; exposes **history** and **`supportsChat`**. `ActiveAgentsService` holds the channel reference for the running API agent only.
+- **Real-time:** WebSocket types **`agent.chat.send`** (client→server), **`agent.chat.received`**, **`agent.chat.response`**, **`agent.chat.unsupported`** (defensive for CLI). Execute **status/active task** payloads should reliably include **`worktreePath`** where applicable.
+- **Frontend:** **Open in Editor** on `TaskDetailHeader` and kanban task cards (`BuildEpicCard`); Execute sidebar **Output | Chat** tabs reusing **`PrdChatPanel`** patterns (draft persistence, Enter / Shift+Enter, delivery indicator).
 
 ## Data Model
 
-Add optional structured failure detail fields for quality-gate and merge failures.
+**Global settings:** Extend `GlobalSettings` with optional **`preferredEditor`**: `'vscode' | 'cursor' | 'auto'` (default/auto behavior as implemented).
 
-- **Task metadata (`extra`)** may include:
-  - `failedGateCommand`
-  - `failedGateReason`
-  - `failedGateOutputSnippet`
-  - `worktreePath`
-  - optional environment classification marker (for example `environmentSetup: true` or equivalent subtype field)
-- **Event log payloads** for `merge.failed`, `task.requeued`, and `task.blocked` may include the same structured fields to preserve actionable diagnostics in history and notifications.
-- **Failure type model** recognizes `environment_setup` for deterministic setup failures after repair attempts.
-- No schema migration is required when these values are stored in existing extensible JSON fields.
+**Chat log (file-backed, no core DB migration):** `.opensprint/active/<taskId>/chat-log.jsonl` — one JSON object per line with `id`, `timestamp`, `role` (`user` | `assistant`), `content`, `attempt` (execution attempt number). Undelivered user messages may be recorded when the agent completes before delivery (per product rules).
 
-**Self-improvement and agent enhancement**
+**WebSocket / shared types:** Extend `WebSocketEventType` (or equivalent) with **`agent.chat.send`**, **`agent.chat.received`**, **`agent.chat.response`**, **`agent.chat.unsupported`**.
 
-- **Project settings:** Add `runAgentEnhancementExperiments?: boolean` (default false).
-- **Behavior versions:** New store (table or namespaced records) for promoted and candidate behavior bundles (general/role instructions, template overrides) with version id and timestamps.
-- **Experiment runs:** Per-run metadata: project id, timestamp, mode (audit_only | audit_and_experiments), stage/status, outcome (no_changes | tasks_created | candidate_rejected | promotion_pending | promoted | failed), summary, optional promoted version id or pending candidate id.
-- **Execute sessions:** Optional replay metadata (base_commit_sha, behavior_version, template_version) in assignment or run context.
-- **Notifications:** Support kind `self_improvement_approval` with payload for project id and optional candidate id (and deep-link info).
+**Execute telemetry:** Active task / execute status events include **`worktreePath`** consistently when a worktree exists, supporting editor open and diagnostics.
 
 ## API Contracts
 
-No new REST endpoints are required for quality-gate/diagnostics.
+The statement that **no new REST endpoints are required for quality-gate diagnostics** remains true for merge/gate failures; **additional REST and WebSocket contracts** apply to Execute inspect/chat:
 
-- Existing task/execution diagnostics responses should expose structured quality-gate failure detail when present, either as a dedicated object (for example `qualityGateDetail`) or embedded in existing diagnostic payloads.
-- Structured detail should carry at least:
-  - `failedGateCommand`
-  - `failedGateReason`
-  - `failedGateOutputSnippet`
-  - `worktreePath`
-- Event-stream payloads (including `merge.failed`, `task.requeued`, `task.blocked`) should include these fields in `data` so real-time UI and notifications can show actionable diagnostics.
-- Backward compatibility requirement: consumers must ignore unknown fields.
-
-**Self-improvement**
-
-- **Project settings GET/PATCH:** Include `runAgentEnhancementExperiments` in request/response; PATCH validates boolean.
-- **GET `/projects/:id/self-improvement/status`:** Response includes idle | running_audit | running_experiments | awaiting_approval; when running, optional `stage` (e.g. collecting_replay_cases | generating_candidate | replaying | scoring | promoting); when awaiting approval, optional `pendingCandidateId` and summary fields.
-- **GET `/projects/:id/self-improvement/history`:** List of runs (timestamp, mode, outcome, summary, optional promotedVersionId or pendingCandidateId); pagination or limit (e.g. last 20).
-- **POST `/projects/:id/self-improvement/approve`:** Promote pending candidate; returns updated status and history entry.
-- **POST `/projects/:id/self-improvement/reject`:** Reject pending candidate; returns updated status and history entry.
-- **POST `/projects/:id/self-improvement/rollback`:** Body `{ "behaviorVersionId": "..." }`; revert active agent behavior to specified promoted version; returns updated status.
-- **Notifications/events:** Payload for `self_improvement_approval` includes project id, candidate id, and deep-link info (e.g. path to project settings and fragment/query for self-improvement card).
+- **`GET` / `PUT /api/global-settings`:** Include **`preferredEditor`** (`vscode` | `cursor` | `auto`); validate on write.
+- **`POST /api/projects/:projectId/tasks/:taskId/open-editor`:** Returns `{ worktreePath, editor, opened }` when the task is actively executing and the path exists; **404** if task/worktree missing, **409** if not in an executable in-progress state. *(Exact path prefix must match the product's `/api` routing convention.)*
+- **`GET .../tasks/:taskId/chat-history`:** Query `attempt` (optional); response `{ messages[], attempt, chatSupported }`.
+- **`GET .../tasks/:taskId/chat-support`:** Response `{ supported, backend, reason | null }` for gating the Chat tab.
+- **WebSocket:** Client **`agent.chat.send`** `{ taskId, message }`; server **`agent.chat.received`**, **`agent.chat.response`**, **`agent.chat.unsupported`** with task and message identifiers as specified in the implementation plan. Consumers **ignore unknown fields** for forward compatibility.
 
 ## Non-Functional Requirements
 
-| Category    | Requirement                                                                                                                                                                        |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Reliability | Deterministic repository/environment failures must fail fast and block with remediation after at most one automated repair attempt; avoid repeated requeue loops for setup issues. |
-| Performance | Dependency integrity preflight must use a fast check (`npm ls`) with bounded timeout (target 15-30s) before agent execution.                                                       |
-| Usability   | Failure messaging for quality-gate/test failures must prioritize actionable diagnostics (failed command + first compiler/test error) with optional expanded detail.                |
-| Operability | Structured failure details must be persisted in task/event diagnostics to support debugging, notifications, and post-mortem analysis.                                              |
-| Operability | Only one self-improvement run per project at a time; experiment failures mark run as Failed with no partial promotion; approval and rollback are explicit user/API actions.        |
+| Category | Requirement |
+| -------- | ----------- |
+| Usability | Execute **Output** and **Chat** share familiar Sketch/Plan chat patterns (bubbles, keyboard shortcuts, draft persistence, clear disabled states for non-running tasks and CLI backends). |
+| Reliability | User chat messages are **queued at turn boundaries**; **bounded** pending queue prevents unbounded memory; if the agent finishes before delivery, persisted history reflects **undelivered** user messages per product rules. |
+| Compatibility | **Open in Editor** degrades gracefully: missing CLI → install guidance + **copy path**; **branches** mode warns about **shared checkout**; multiple browser tabs deduplicate by **message id**. |
+| Security / privacy | Chat content is stored **locally** under `.opensprint/active/<taskId>/` (JSONL) alongside assignment artifacts—treat as sensitive project data in backups and retention policies. |
 
 ## Open Questions
 

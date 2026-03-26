@@ -161,6 +161,10 @@ export function WorkflowSettingsContent({
     queryFn: () => api.projects.getSelfImprovementHistory(projectId, 20),
   });
   const historyRuns: SelfImprovementHistoryEntry[] = historyQuery.data ?? [];
+  /** Avoid duplicating the latest run timestamp: Recent runs lists it with outcome; settings lastRunAt is fallback when history is empty. */
+  const showLastRunInSchedule =
+    Boolean(draftSettings.selfImprovementLastRunAt) && historyRuns.length === 0;
+  const showNextRunInSchedule = Boolean(draftSettings.nextRunAt);
 
   const runNowMutation = useMutation({
     mutationFn: () => api.projects.runSelfImprovement(projectId),
@@ -1185,12 +1189,12 @@ export function WorkflowSettingsContent({
               </div>
             )}
 
-            {(draftSettings.selfImprovementLastRunAt || draftSettings.nextRunAt) && (
+            {(showLastRunInSchedule || showNextRunInSchedule) && (
               <p
                 className="text-xs text-theme-muted flex flex-nowrap items-center gap-x-3"
                 data-testid="self-improvement-run-schedule"
               >
-                {draftSettings.selfImprovementLastRunAt && (
+                {showLastRunInSchedule && draftSettings.selfImprovementLastRunAt && (
                   <span data-testid="self-improvement-last-run">
                     Last run:{" "}
                     {new Date(draftSettings.selfImprovementLastRunAt).toLocaleString(undefined, {
@@ -1199,7 +1203,7 @@ export function WorkflowSettingsContent({
                     })}
                   </span>
                 )}
-                {draftSettings.nextRunAt && (
+                {showNextRunInSchedule && draftSettings.nextRunAt && (
                   <span data-testid="self-improvement-next-run">
                     Next run:{" "}
                     {new Date(draftSettings.nextRunAt).toLocaleString(undefined, {

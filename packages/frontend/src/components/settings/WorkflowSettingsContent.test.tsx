@@ -380,15 +380,33 @@ describe("WorkflowSettingsContent", () => {
 
     it("does not duplicate last run / outcome in a summary grid when only history exists", async () => {
       vi.mocked(api.projects.getSelfImprovementHistory).mockResolvedValue(sampleHistory);
-      renderWorkflowContent();
+      renderWorkflowContent({
+        selfImprovementLastRunAt: "2026-03-20T14:00:00.000Z",
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId("self-improvement-recent-runs")).toBeInTheDocument();
       });
 
       expect(screen.queryByTestId("self-improvement-summary-row")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("self-improvement-last-run")).not.toBeInTheDocument();
       const outcomeBadges = screen.getAllByTestId("history-outcome-badge");
       expect(outcomeBadges[0]).toHaveTextContent("Tasks created");
+    });
+
+    it("shows Next run in schedule but not Last run when history exists and both timestamps are set", async () => {
+      vi.mocked(api.projects.getSelfImprovementHistory).mockResolvedValue(sampleHistory);
+      renderWorkflowContent({
+        selfImprovementLastRunAt: "2026-03-20T14:00:00.000Z",
+        nextRunAt: "2026-03-25T08:00:00.000Z",
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("self-improvement-recent-runs")).toBeInTheDocument();
+      });
+
+      expect(screen.queryByTestId("self-improvement-last-run")).not.toBeInTheDocument();
+      expect(screen.getByTestId("self-improvement-next-run")).toHaveTextContent("Next run:");
     });
 
     it("renders active behavior version in summary when present", async () => {
