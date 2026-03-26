@@ -161,7 +161,6 @@ export function WorkflowSettingsContent({
     queryFn: () => api.projects.getSelfImprovementHistory(projectId, 20),
   });
   const historyRuns: SelfImprovementHistoryEntry[] = historyQuery.data ?? [];
-  const lastRun: SelfImprovementHistoryEntry | undefined = historyRuns[0];
 
   const runNowMutation = useMutation({
     mutationFn: () => api.projects.runSelfImprovement(projectId),
@@ -1212,21 +1211,12 @@ export function WorkflowSettingsContent({
               </p>
             )}
 
-            {lastRun && (
+            {(draftSettings.selfImprovementActiveBehaviorVersionId ||
+              draftSettings.selfImprovementPendingCandidateId) && (
               <div
                 className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs border-t border-theme-border pt-2"
                 data-testid="self-improvement-summary-row"
               >
-                <span className="text-theme-muted">Last run</span>
-                <span className="text-theme-text" data-testid="summary-last-run">
-                  {formatTimestamp(lastRun.timestamp)}
-                </span>
-
-                <span className="text-theme-muted">Last outcome</span>
-                <span className="text-theme-text" data-testid="summary-last-outcome">
-                  {OUTCOME_LABELS[lastRun.outcome]}
-                </span>
-
                 {draftSettings.selfImprovementActiveBehaviorVersionId && (
                   <>
                     <span className="text-theme-muted">Active agent behavior version</span>

@@ -378,16 +378,17 @@ describe("WorkflowSettingsContent", () => {
       expect(summaries[1]).toHaveTextContent("No actionable findings");
     });
 
-    it("renders summary row with last run and last outcome", async () => {
+    it("does not duplicate last run / outcome in a summary grid when only history exists", async () => {
       vi.mocked(api.projects.getSelfImprovementHistory).mockResolvedValue(sampleHistory);
       renderWorkflowContent();
 
       await waitFor(() => {
-        expect(screen.getByTestId("self-improvement-summary-row")).toBeInTheDocument();
+        expect(screen.getByTestId("self-improvement-recent-runs")).toBeInTheDocument();
       });
 
-      expect(screen.getByTestId("summary-last-run")).toBeInTheDocument();
-      expect(screen.getByTestId("summary-last-outcome")).toHaveTextContent("Tasks created");
+      expect(screen.queryByTestId("self-improvement-summary-row")).not.toBeInTheDocument();
+      const outcomeBadges = screen.getAllByTestId("history-outcome-badge");
+      expect(outcomeBadges[0]).toHaveTextContent("Tasks created");
     });
 
     it("renders active behavior version in summary when present", async () => {
@@ -428,14 +429,15 @@ describe("WorkflowSettingsContent", () => {
       expect(screen.queryByTestId("self-improvement-recent-runs")).not.toBeInTheDocument();
     });
 
-    it("does not render active version or pending promotion when not set", async () => {
+    it("does not render summary grid when history exists but no active version or pending promotion", async () => {
       vi.mocked(api.projects.getSelfImprovementHistory).mockResolvedValue(sampleHistory);
       renderWorkflowContent();
 
       await waitFor(() => {
-        expect(screen.getByTestId("self-improvement-summary-row")).toBeInTheDocument();
+        expect(screen.getByTestId("self-improvement-recent-runs")).toBeInTheDocument();
       });
 
+      expect(screen.queryByTestId("self-improvement-summary-row")).not.toBeInTheDocument();
       expect(screen.queryByTestId("summary-active-version")).not.toBeInTheDocument();
       expect(screen.queryByTestId("summary-pending-promotion")).not.toBeInTheDocument();
     });
@@ -794,7 +796,7 @@ describe("WorkflowSettingsContent", () => {
       renderWorkflowContent();
 
       await waitFor(() => {
-        expect(screen.getByTestId("self-improvement-summary-row")).toBeInTheDocument();
+        expect(screen.getByTestId("self-improvement-recent-runs")).toBeInTheDocument();
       });
 
       expect(screen.queryByTestId("self-improvement-rollback-section")).not.toBeInTheDocument();
