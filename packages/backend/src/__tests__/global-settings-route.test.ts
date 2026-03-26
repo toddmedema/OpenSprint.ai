@@ -12,7 +12,11 @@ import {
   getGlobalSettings,
   setGlobalSettingsPathForTesting,
 } from "../services/global-settings.service.js";
-import { ensureLocalSessionToken } from "../services/local-session-auth.service.js";
+import {
+  ensureLocalSessionToken,
+  setLocalSessionTokenForTesting,
+  VITEST_DEFAULT_LOCAL_SESSION_TOKEN,
+} from "../services/local-session-auth.service.js";
 import { withLocalSessionAuth } from "./local-auth-test-helpers.js";
 
 vi.mock("../db/app-db.js", () => ({
@@ -56,6 +60,7 @@ vi.mock("../services/database-runtime.service.js", () => ({
 }));
 
 function createGlobalSettingsApp() {
+  setLocalSessionTokenForTesting(VITEST_DEFAULT_LOCAL_SESSION_TOKEN);
   ensureLocalSessionToken();
   const app = express();
   app.use(express.json());

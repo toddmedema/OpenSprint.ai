@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   setLocalSessionTokenForTesting,
   ensureLocalSessionToken,
+  VITEST_DEFAULT_LOCAL_SESSION_TOKEN,
   originIsTrustedLocalhost,
   refererIsTrustedLocalhost,
   requestHasLocalSessionCredential,
@@ -13,7 +14,8 @@ describe("local-session-auth.service", () => {
   });
 
   afterEach(() => {
-    setLocalSessionTokenForTesting(null);
+    // Restore the default Vitest token so other suites in the same worker see a predictable bearer.
+    setLocalSessionTokenForTesting(VITEST_DEFAULT_LOCAL_SESSION_TOKEN);
     ensureLocalSessionToken();
   });
 

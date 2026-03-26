@@ -9,6 +9,18 @@ const LOCALHOST_ORIGIN_RE =
 
 let sessionToken: string | null = null;
 
+/**
+ * Fixed token when running tests (Vitest or NODE_ENV=test).
+ * Exported so test files can reset shared session state between suites.
+ */
+export const VITEST_DEFAULT_LOCAL_SESSION_TOKEN = "vitest-local-session-auth-token";
+
+function isTestProcess(): boolean {
+  if (process.env.NODE_ENV === "test") return true;
+  const v = process.env.VITEST;
+  return v !== undefined && v !== "" && v !== "0" && v !== "false";
+}
+
 function hashToken(value: string): Buffer {
   return createHash("sha256").update(value, "utf8").digest();
 }
@@ -23,8 +35,8 @@ function tokensEqual(a: string, b: string): boolean {
 /** Idempotent: generates a random token in production/dev, fixed token in Vitest. */
 export function ensureLocalSessionToken(): void {
   if (sessionToken !== null) return;
-  if (process.env.VITEST === "true" || process.env.NODE_ENV === "test") {
-    sessionToken = "vitest-local-session-auth-token";
+  if (isTestProcess()) {
+    sessionToken = VITEST_DEFAULT_LOCAL_SESSION_TOKEN;
     return;
   }
   sessionToken = randomBytes(32).toString("base64url");
