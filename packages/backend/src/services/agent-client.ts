@@ -47,6 +47,7 @@ import {
   AnthropicAgenticAdapter,
   OpenAIAgenticAdapter,
   GeminiAgenticAdapter,
+  PendingMessageQueue,
 } from "./agentic-loop.js";
 import {
   buildOpenAIPromptCacheKey,
@@ -930,7 +931,7 @@ export class AgentClient {
     agentRole?: string,
     outputLogPath?: string,
     projectId?: string
-  ): { kill: () => void; pid: number | null } {
+  ): { kill: () => void; pid: number | null; pendingMessages: PendingMessageQueue | null } {
     if (config.type === "claude") {
       return this.spawnClaudeWithTaskFile(
         config,
@@ -992,7 +993,22 @@ export class AgentClient {
       );
     }
     if (config.type === "cursor" && projectId) {
-      return this.spawnCursorWithTaskFileAsync(
+      return {
+        ...this.spawnCursorWithTaskFileAsync(
+          config,
+          taskFilePath,
+          cwd,
+          onOutput,
+          onExit,
+          agentRole,
+          outputLogPath,
+          projectId
+        ),
+        pendingMessages: null,
+      };
+    }
+    return {
+      ...this.doSpawnWithTaskFile(
         config,
         taskFilePath,
         cwd,
@@ -1000,20 +1016,11 @@ export class AgentClient {
         onExit,
         agentRole,
         outputLogPath,
-        projectId
-      );
-    }
-    return this.doSpawnWithTaskFile(
-      config,
-      taskFilePath,
-      cwd,
-      onOutput,
-      onExit,
-      agentRole,
-      outputLogPath,
-      undefined,
-      undefined
-    );
+        undefined,
+        undefined
+      ),
+      pendingMessages: null,
+    };
   }
 
   /**
@@ -1169,10 +1176,12 @@ export class AgentClient {
     agentRole?: string,
     outputLogPath?: string,
     projectId?: string
-  ): { kill: () => void; pid: number | null } {
+  ): { kill: () => void; pid: number | null; pendingMessages: PendingMessageQueue } {
     let aborted = false;
-    const handle: { kill: () => void; pid: number | null } = {
+    const pendingMessages = new PendingMessageQueue();
+    const handle: { kill: () => void; pid: number | null; pendingMessages: PendingMessageQueue } = {
       pid: null,
+      pendingMessages,
       kill() {
         aborted = true;
       },
@@ -1308,6 +1317,7 @@ export class AgentClient {
                   return aborted;
                 },
               },
+              pendingMessages,
             });
             fullContent = result.content;
             const lastCacheMetric = result.cacheMetrics.at(-1);
@@ -1373,10 +1383,12 @@ export class AgentClient {
     agentRole?: string,
     outputLogPath?: string,
     projectId?: string
-  ): { kill: () => void; pid: number | null } {
+  ): { kill: () => void; pid: number | null; pendingMessages: PendingMessageQueue } {
     let aborted = false;
-    const handle: { kill: () => void; pid: number | null } = {
+    const pendingMessages = new PendingMessageQueue();
+    const handle: { kill: () => void; pid: number | null; pendingMessages: PendingMessageQueue } = {
       pid: null,
+      pendingMessages,
       kill() {
         aborted = true;
       },
@@ -1469,6 +1481,7 @@ export class AgentClient {
                 return aborted;
               },
             },
+            pendingMessages,
           });
 
           if (aborted) return;
@@ -1530,10 +1543,12 @@ export class AgentClient {
     agentRole?: string,
     outputLogPath?: string,
     projectId?: string
-  ): { kill: () => void; pid: number | null } {
+  ): { kill: () => void; pid: number | null; pendingMessages: PendingMessageQueue } {
     let aborted = false;
-    const handle: { kill: () => void; pid: number | null } = {
+    const pendingMessages = new PendingMessageQueue();
+    const handle: { kill: () => void; pid: number | null; pendingMessages: PendingMessageQueue } = {
       pid: null,
+      pendingMessages,
       kill() {
         aborted = true;
       },
@@ -1618,6 +1633,7 @@ export class AgentClient {
                 return aborted;
               },
             },
+            pendingMessages,
           });
 
           if (aborted) return;
@@ -1674,7 +1690,8 @@ export class AgentClient {
     cwd: string,
     onOutput: (chunk: string) => void,
     onExit: (code: number | null) => void | Promise<void>,
-    outputLogPath?: string
+    outputLogPath?: string,
+    pendingMessages?: PendingMessageQueue
   ): { kill: () => void; pid: number | null } {
     let aborted = false;
     const handle: { kill: () => void; pid: number | null } = {
@@ -1732,6 +1749,7 @@ export class AgentClient {
               return aborted;
             },
           },
+          pendingMessages,
         });
         if (aborted) return;
         log.info(`${provider.providerLabel} coding agent completed`, {
@@ -1809,8 +1827,9 @@ export class AgentClient {
     agentRole?: string,
     outputLogPath?: string,
     _projectId?: string
-  ): { kill: () => void; pid: number | null } {
-    return this.spawnLocalOpenAIProviderWithTaskFile(
+  ): { kill: () => void; pid: number | null; pendingMessages: PendingMessageQueue } {
+    const pendingMessages = new PendingMessageQueue();
+    const inner = this.spawnLocalOpenAIProviderWithTaskFile(
       {
         providerKey: "lmstudio",
         providerLabel: "LM Studio",
@@ -1823,8 +1842,10 @@ export class AgentClient {
       cwd,
       onOutput,
       onExit,
-      outputLogPath
+      outputLogPath,
+      pendingMessages
     );
+    return { ...inner, pendingMessages };
   }
 
   /**
@@ -1840,8 +1861,9 @@ export class AgentClient {
     agentRole?: string,
     outputLogPath?: string,
     _projectId?: string
-  ): { kill: () => void; pid: number | null } {
+  ): { kill: () => void; pid: number | null; pendingMessages: PendingMessageQueue } {
     void agentRole;
+    const pendingMessages = new PendingMessageQueue();
     const model = config.model?.trim();
     if (!model) {
       const emitMissingModel = () => {
@@ -1851,10 +1873,11 @@ export class AgentClient {
       queueMicrotask(emitMissingModel);
       return {
         pid: null,
+        pendingMessages,
         kill() {},
       };
     }
-    return this.spawnLocalOpenAIProviderWithTaskFile(
+    const inner = this.spawnLocalOpenAIProviderWithTaskFile(
       {
         providerKey: "ollama",
         providerLabel: "Ollama",
@@ -1867,8 +1890,10 @@ export class AgentClient {
       cwd,
       onOutput,
       onExit,
-      outputLogPath
+      outputLogPath,
+      pendingMessages
     );
+    return { ...inner, pendingMessages };
   }
 
   /**

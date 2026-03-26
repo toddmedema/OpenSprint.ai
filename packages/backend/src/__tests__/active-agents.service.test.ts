@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { activeAgentsService } from "../services/active-agents.service.js";
+import { PendingMessageQueue } from "../services/agentic-loop.js";
 
 describe("ActiveAgentsService", () => {
   beforeEach(() => {
@@ -265,6 +266,95 @@ describe("ActiveAgentsService", () => {
         label: "PRD draft",
         startedAt: "2026-02-16T10:00:00.000Z",
       });
+    });
+  });
+
+  describe("registerChannel / getChannel", () => {
+    it("stores and retrieves a pending-messages channel for a task", () => {
+      const queue = new PendingMessageQueue();
+      activeAgentsService.registerChannel("task-ch-1", queue, "claude");
+
+      const entry = activeAgentsService.getChannel("task-ch-1");
+      expect(entry).toBeDefined();
+      expect(entry!.pendingMessages).toBe(queue);
+      expect(entry!.backendType).toBe("claude");
+    });
+
+    it("returns undefined for unregistered task", () => {
+      expect(activeAgentsService.getChannel("nonexistent")).toBeUndefined();
+    });
+
+    it("overwrites channel when re-registered", () => {
+      const queue1 = new PendingMessageQueue();
+      const queue2 = new PendingMessageQueue();
+      activeAgentsService.registerChannel("task-ch-2", queue1, "openai");
+      activeAgentsService.registerChannel("task-ch-2", queue2, "google");
+
+      const entry = activeAgentsService.getChannel("task-ch-2");
+      expect(entry!.pendingMessages).toBe(queue2);
+      expect(entry!.backendType).toBe("google");
+    });
+
+    it("supports pushing messages through the registered channel", () => {
+      const queue = new PendingMessageQueue();
+      activeAgentsService.registerChannel("task-ch-3", queue, "claude");
+
+      const entry = activeAgentsService.getChannel("task-ch-3");
+      const accepted = entry!.pendingMessages.push("Hello from user");
+      expect(accepted).toBe(true);
+      expect(entry!.pendingMessages.size).toBe(1);
+
+      const drained = entry!.pendingMessages.drain();
+      expect(drained).toHaveLength(1);
+      expect(drained[0].message).toBe("Hello from user");
+    });
+  });
+
+  describe("unregister cleans up channels", () => {
+    it("removes the channel when the agent is unregistered", () => {
+      const queue = new PendingMessageQueue();
+      activeAgentsService.register(
+        "task-cleanup-1",
+        "proj-1",
+        "coding",
+        "coder",
+        "Task with channel",
+        "2026-02-16T10:00:00.000Z"
+      );
+      activeAgentsService.registerChannel("task-cleanup-1", queue, "claude");
+
+      expect(activeAgentsService.getChannel("task-cleanup-1")).toBeDefined();
+
+      activeAgentsService.unregister("task-cleanup-1");
+
+      expect(activeAgentsService.getChannel("task-cleanup-1")).toBeUndefined();
+      expect(activeAgentsService.list()).toHaveLength(0);
+    });
+
+    it("does not affect channels of other tasks", () => {
+      const queue1 = new PendingMessageQueue();
+      const queue2 = new PendingMessageQueue();
+      activeAgentsService.registerChannel("task-a", queue1, "openai");
+      activeAgentsService.registerChannel("task-b", queue2, "google");
+
+      activeAgentsService.unregister("task-a");
+
+      expect(activeAgentsService.getChannel("task-a")).toBeUndefined();
+      expect(activeAgentsService.getChannel("task-b")).toBeDefined();
+      expect(activeAgentsService.getChannel("task-b")!.pendingMessages).toBe(queue2);
+    });
+
+    it("is safe to unregister a task with no channel", () => {
+      activeAgentsService.register(
+        "task-no-channel",
+        "proj-1",
+        "coding",
+        "coder",
+        "No channel",
+        "2026-02-16T10:00:00.000Z"
+      );
+
+      expect(() => activeAgentsService.unregister("task-no-channel")).not.toThrow();
     });
   });
 });

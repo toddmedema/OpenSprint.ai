@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import OpenAI from "openai";
 import { AgentClient } from "../services/agent-client.js";
+import { PendingMessageQueue } from "../services/agentic-loop.js";
 import type { AgentConfig } from "@opensprint/shared";
 import "../services/agent-process-registry.js";
 
@@ -2654,6 +2655,329 @@ describe("AgentClient", () => {
       expect(mockKill).toHaveBeenCalledWith(-7777, "SIGTERM");
       mockKill.mockRestore();
       await fs.rm(tmpDir, { recursive: true, force: true });
+    });
+  });
+
+  describe("pendingMessages channel", () => {
+    it("returns a PendingMessageQueue for Claude API spawn", async () => {
+      const fs = await import("fs/promises");
+      const path = await import("path");
+      const os = await import("os");
+      const tmpDir = path.join(os.tmpdir(), `agent-client-pm-claude-${Date.now()}`);
+      const taskDir = path.join(tmpDir, ".opensprint/active/os-pm-claude.1");
+      await fs.mkdir(taskDir, { recursive: true });
+      const taskFilePath = path.join(taskDir, "prompt.md");
+      await fs.writeFile(taskFilePath, "# Task\n\nTest pending messages", "utf-8");
+
+      mockGetNextKey.mockResolvedValue({
+        key: "sk-ant-claude-pm",
+        keyId: "k1",
+        source: "global",
+      });
+      mockAnthropicStream.mockImplementation(() =>
+        createMockAnthropicMessageStream({
+          content: [{ type: "text", text: "Claude done." }],
+        })
+      );
+
+      const onOutput = vi.fn();
+      const onExit = vi.fn();
+      const config: AgentConfig = { type: "claude", model: "claude-sonnet-4", cliCommand: null };
+
+      const result = client.spawnWithTaskFile(
+        config,
+        taskFilePath,
+        tmpDir,
+        onOutput,
+        onExit,
+        "coder",
+        undefined,
+        "proj-pm"
+      );
+
+      expect(result.pendingMessages).toBeInstanceOf(PendingMessageQueue);
+      expect(result.pendingMessages).not.toBeNull();
+
+      await vi.waitFor(
+        () => {
+          expect(onExit).toHaveBeenCalledWith(0);
+        },
+        { timeout: 2000 }
+      );
+
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it("returns a PendingMessageQueue for OpenAI API spawn", async () => {
+      const fs = await import("fs/promises");
+      const path = await import("path");
+      const os = await import("os");
+      const tmpDir = path.join(os.tmpdir(), `agent-client-pm-openai-${Date.now()}`);
+      const taskDir = path.join(tmpDir, ".opensprint/active/os-pm-openai.1");
+      await fs.mkdir(taskDir, { recursive: true });
+      const taskFilePath = path.join(taskDir, "prompt.md");
+      await fs.writeFile(taskFilePath, "# Task\n\nTest pending messages", "utf-8");
+
+      mockGetNextKey.mockResolvedValue({ key: "sk-openai-pm", keyId: "k1", source: "global" });
+      mockOpenAICreate.mockImplementation(async () => ({
+        choices: [{ message: { content: "OpenAI done.", tool_calls: [] } }],
+      }));
+
+      const onOutput = vi.fn();
+      const onExit = vi.fn();
+      const config: AgentConfig = { type: "openai", model: "gpt-4o-mini", cliCommand: null };
+
+      const result = client.spawnWithTaskFile(
+        config,
+        taskFilePath,
+        tmpDir,
+        onOutput,
+        onExit,
+        "coder",
+        undefined,
+        "proj-pm"
+      );
+
+      expect(result.pendingMessages).toBeInstanceOf(PendingMessageQueue);
+
+      await vi.waitFor(
+        () => {
+          expect(onExit).toHaveBeenCalledWith(0);
+        },
+        { timeout: 2000 }
+      );
+
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it("returns a PendingMessageQueue for Google Gemini API spawn", async () => {
+      const fs = await import("fs/promises");
+      const path = await import("path");
+      const os = await import("os");
+      const tmpDir = path.join(os.tmpdir(), `agent-client-pm-google-${Date.now()}`);
+      const taskDir = path.join(tmpDir, ".opensprint/active/os-pm-google.1");
+      await fs.mkdir(taskDir, { recursive: true });
+      const taskFilePath = path.join(taskDir, "prompt.md");
+      await fs.writeFile(taskFilePath, "# Task\n\nTest pending messages", "utf-8");
+
+      mockGetNextKey.mockResolvedValue({ key: "gemini-pm-key", keyId: "k1", source: "global" });
+      mockGeminiGenerateContent.mockResolvedValue({
+        candidates: [{ content: { parts: [{ text: "Gemini done." }] } }],
+      });
+
+      const onOutput = vi.fn();
+      const onExit = vi.fn();
+      const config: AgentConfig = { type: "google", model: "gemini-1.5-flash", cliCommand: null };
+
+      const result = client.spawnWithTaskFile(
+        config,
+        taskFilePath,
+        tmpDir,
+        onOutput,
+        onExit,
+        "coder",
+        undefined,
+        "proj-pm"
+      );
+
+      expect(result.pendingMessages).toBeInstanceOf(PendingMessageQueue);
+
+      await vi.waitFor(
+        () => {
+          expect(onExit).toHaveBeenCalledWith(0);
+        },
+        { timeout: 2000 }
+      );
+
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it("returns a PendingMessageQueue for LM Studio spawn", async () => {
+      const fs = await import("fs/promises");
+      const path = await import("path");
+      const os = await import("os");
+      const tmpDir = path.join(os.tmpdir(), `agent-client-pm-lmstudio-${Date.now()}`);
+      const taskDir = path.join(tmpDir, ".opensprint/active/os-pm-lm.1");
+      await fs.mkdir(taskDir, { recursive: true });
+      const taskFilePath = path.join(taskDir, "prompt.md");
+      await fs.writeFile(taskFilePath, "# Task\n\nTest pending messages", "utf-8");
+
+      mockOpenAICreate.mockImplementation(async () => ({
+        choices: [{ message: { content: "LM Studio done.", tool_calls: [] } }],
+      }));
+
+      const onOutput = vi.fn();
+      const onExit = vi.fn();
+      const config: AgentConfig = {
+        type: "lmstudio",
+        model: "local",
+        cliCommand: null,
+        baseUrl: "http://localhost:1234",
+      };
+
+      const result = client.spawnWithTaskFile(
+        config,
+        taskFilePath,
+        tmpDir,
+        onOutput,
+        onExit,
+        "coder"
+      );
+
+      expect(result.pendingMessages).toBeInstanceOf(PendingMessageQueue);
+
+      await vi.waitFor(
+        () => {
+          expect(onExit).toHaveBeenCalledWith(0);
+        },
+        { timeout: 2000 }
+      );
+
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it("returns a PendingMessageQueue for Ollama spawn", async () => {
+      const fs = await import("fs/promises");
+      const path = await import("path");
+      const os = await import("os");
+      const tmpDir = path.join(os.tmpdir(), `agent-client-pm-ollama-${Date.now()}`);
+      const taskDir = path.join(tmpDir, ".opensprint/active/os-pm-ollama.1");
+      await fs.mkdir(taskDir, { recursive: true });
+      const taskFilePath = path.join(taskDir, "prompt.md");
+      await fs.writeFile(taskFilePath, "# Task\n\nTest pending messages", "utf-8");
+
+      mockOpenAICreate.mockImplementation(async () => ({
+        choices: [{ message: { content: "Ollama done.", tool_calls: [] } }],
+      }));
+
+      const onOutput = vi.fn();
+      const onExit = vi.fn();
+      const config: AgentConfig = {
+        type: "ollama",
+        model: "llama3.2",
+        cliCommand: null,
+        baseUrl: "http://localhost:11434",
+      };
+
+      const result = client.spawnWithTaskFile(
+        config,
+        taskFilePath,
+        tmpDir,
+        onOutput,
+        onExit,
+        "coder"
+      );
+
+      expect(result.pendingMessages).toBeInstanceOf(PendingMessageQueue);
+
+      await vi.waitFor(
+        () => {
+          expect(onExit).toHaveBeenCalledWith(0);
+        },
+        { timeout: 2000 }
+      );
+
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it("returns null pendingMessages for Claude CLI spawn", async () => {
+      const fs = await import("fs/promises");
+      const path = await import("path");
+      const os = await import("os");
+      const tmpDir = path.join(os.tmpdir(), `agent-client-pm-claude-cli-${Date.now()}`);
+      const taskDir = path.join(tmpDir, ".opensprint/active/os-pm-ccli.1");
+      await fs.mkdir(taskDir, { recursive: true });
+      const taskFilePath = path.join(taskDir, "prompt.md");
+      await fs.writeFile(taskFilePath, "# Task\n\nTest CLI no channel", "utf-8");
+
+      const mockChild = {
+        killed: false,
+        kill: vi.fn(),
+        pid: 90001,
+        stdout: { on: vi.fn(), removeAllListeners: vi.fn() },
+        stderr: { on: vi.fn(), removeAllListeners: vi.fn() },
+        on: vi.fn(() => ({ on: vi.fn(), removeAllListeners: vi.fn() })),
+        removeAllListeners: vi.fn(),
+      };
+      mockSpawn.mockReturnValue(mockChild);
+
+      const config: AgentConfig = {
+        type: "claude-cli",
+        model: "claude-sonnet-4",
+        cliCommand: null,
+      };
+
+      const result = client.spawnWithTaskFile(
+        config,
+        taskFilePath,
+        tmpDir,
+        vi.fn(),
+        vi.fn(),
+        "coder"
+      );
+
+      expect(result.pendingMessages).toBeNull();
+
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it("returns null pendingMessages for Cursor CLI spawn", async () => {
+      const fs = await import("fs/promises");
+      const path = await import("path");
+      const os = await import("os");
+      const tmpDir = path.join(os.tmpdir(), `agent-client-pm-cursor-${Date.now()}`);
+      const taskDir = path.join(tmpDir, ".opensprint/active/os-pm-cursor.1");
+      await fs.mkdir(taskDir, { recursive: true });
+      const taskFilePath = path.join(taskDir, "prompt.md");
+      await fs.writeFile(taskFilePath, "# Task\n\nTest CLI no channel", "utf-8");
+
+      const mockChild = {
+        killed: false,
+        kill: vi.fn(),
+        stdout: { on: vi.fn() },
+        stderr: { on: vi.fn() },
+        on: vi.fn(() => ({ on: vi.fn() })),
+      };
+      mockSpawn.mockReturnValue(mockChild);
+
+      const config: AgentConfig = { type: "cursor", model: null, cliCommand: null };
+
+      const result = client.spawnWithTaskFile(
+        config,
+        taskFilePath,
+        tmpDir,
+        vi.fn(),
+        vi.fn(),
+        "coder"
+      );
+
+      expect(result.pendingMessages).toBeNull();
+
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it("returns null pendingMessages for Custom CLI spawn", () => {
+      const mockChild = {
+        killed: false,
+        kill: vi.fn(),
+        stdout: { on: vi.fn() },
+        stderr: { on: vi.fn() },
+        on: vi.fn(() => ({ on: vi.fn() })),
+      };
+      mockSpawn.mockReturnValue(mockChild);
+
+      const config: AgentConfig = { type: "custom", model: null, cliCommand: "my-agent" };
+
+      const result = client.spawnWithTaskFile(
+        config,
+        "/proj/.opensprint/active/os-custom.1/prompt.md",
+        "/proj",
+        vi.fn(),
+        vi.fn(),
+        "coder"
+      );
+
+      expect(result.pendingMessages).toBeNull();
     });
   });
 });

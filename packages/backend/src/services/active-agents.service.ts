@@ -1,5 +1,12 @@
 import type { ActiveAgent, AgentRole } from "@opensprint/shared";
 import { getAgentNameForRole } from "@opensprint/shared";
+import type { PendingMessageQueue } from "./agentic-loop.js";
+
+/** Per-task channel reference for live chat message injection. */
+export interface AgentChannelEntry {
+  pendingMessages: PendingMessageQueue;
+  backendType: string;
+}
 
 /** Internal entry stored in the registry (includes projectId for filtering) */
 export interface ActiveAgentEntry {
@@ -27,6 +34,8 @@ export class ActiveAgentsService {
   private agents = new Map<string, ActiveAgentEntry>();
   /** Per-role monotonic index for assigning stable names (never decremented when agents unregister). */
   private nextIndexByRole = new Map<string, number>();
+  /** Per-task pending-messages channel for live chat injection. */
+  private channels = new Map<string, AgentChannelEntry>();
 
   /**
    * Register an active agent.
@@ -72,10 +81,31 @@ export class ActiveAgentsService {
 
   /**
    * Unregister an active agent by id.
+   * Also removes any associated pending-messages channel.
    * Safe to call if the agent was never registered.
    */
   unregister(id: string): void {
     this.agents.delete(id);
+    this.channels.delete(id);
+  }
+
+  /**
+   * Register a pending-messages channel for a task so other services
+   * (e.g. AgentChatService) can push live user messages into the agentic loop.
+   */
+  registerChannel(
+    id: string,
+    pendingMessages: PendingMessageQueue,
+    backendType: string
+  ): void {
+    this.channels.set(id, { pendingMessages, backendType });
+  }
+
+  /**
+   * Get the channel entry for a task, if one is registered.
+   */
+  getChannel(id: string): AgentChannelEntry | undefined {
+    return this.channels.get(id);
   }
 
   /**

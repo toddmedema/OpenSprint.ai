@@ -218,6 +218,8 @@ export interface InvokeCodingAgentOptions {
 export interface CodingAgentHandle {
   kill: () => void;
   pid: number | null;
+  /** Bounded queue for injecting live user messages into the agentic loop (API backends only). */
+  pendingMessages?: import("./agentic-loop.js").PendingMessageQueue | null;
 }
 
 export type MergerPhase = "rebase_before_merge" | "merge_to_main" | "push_rebase";
@@ -467,7 +469,7 @@ export class AgentService {
           }
         : originalOnExit;
 
-    return this.agentClient.spawnWithTaskFile(
+    const handle = this.agentClient.spawnWithTaskFile(
       config,
       promptPath,
       options.cwd,
@@ -477,6 +479,12 @@ export class AgentService {
       options.outputLogPath,
       options.projectId
     );
+
+    if (tracking && handle.pendingMessages) {
+      activeAgentsService.registerChannel(tracking.id, handle.pendingMessages, config.type);
+    }
+
+    return handle;
   }
 
   /**
