@@ -29,7 +29,7 @@ export function SettingsPage() {
       >
         <SettingsTopBar saveStatus={saveStatus} />
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-          <div className="flex-1 min-h-0 overflow-y-auto max-w-[1440px] mx-auto w-full px-4 sm:px-6 pt-4 pb-6 sm:pb-8">
+          <div className="flex-1 min-h-0 overflow-y-auto max-w-[1440px] mx-auto w-full px-4 sm:px-6 pt-0 pb-6 sm:pb-8">
             <GlobalSettingsContent onSaveStateChange={setSaveStatus} />
           </div>
         </div>

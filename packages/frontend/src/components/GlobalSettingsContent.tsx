@@ -522,8 +522,9 @@ export function GlobalSettingsContent({ onSaveStateChange }: GlobalSettingsConte
   }, [upgradePostgresUrl, queryClient]);
 
   return (
-    <div className="space-y-6" data-testid="global-settings-content">
+    <div className="flex flex-col" data-testid="global-settings-content">
       <GlobalSettingsSubTabsBar activeTab={panelTab} onTabChange={handlePanelTabChange} />
+      <div className="space-y-6 pt-[15px]">
       {agentConfigError && (
         <p
           className="text-sm text-theme-error-text"
@@ -918,6 +919,7 @@ export function GlobalSettingsContent({ onSaveStateChange }: GlobalSettingsConte
           modelRefreshTrigger={modelRefreshTrigger}
         />
       )}
+      </div>
     </div>
   );
 }
