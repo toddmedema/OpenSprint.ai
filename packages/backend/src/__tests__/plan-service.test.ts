@@ -891,6 +891,47 @@ describe("PlanService createWithRetry usage", () => {
     );
   });
 
+  it("shipPlan second time does not create a new version when latest snapshot differs only by CRLF from plan content", async () => {
+    mockTaskStoreCreateMany.mockResolvedValue([
+      { id: "epic-123.1", title: "Task A", type: "task" },
+      { id: "epic-123.2", title: "Task B", type: "task" },
+    ]);
+    mockTaskStoreAddDependencies.mockResolvedValue(undefined);
+    mockTaskStoreListAll.mockResolvedValue([
+      { id: "epic-123", status: "blocked", type: "epic" },
+      { id: "epic-123.1", status: "open", type: "task" },
+      { id: "epic-123.2", status: "open", type: "task" },
+    ]);
+
+    const canonical = "# Same Content\n\n## Overview\n\nUnchanged.";
+    const plan = await planService.createPlan(projectId, {
+      title: "Same Content Plan",
+      content: canonical,
+      complexity: "low",
+      tasks: [
+        { title: "Task A", description: "First", priority: 0, dependsOn: [] },
+        { title: "Task B", description: "Second", priority: 1, dependsOn: ["Task A"] },
+      ],
+    });
+    const planId = plan.metadata.planId;
+
+    await planService.shipPlan(projectId, planId);
+    expect(mockPlanVersionInsert).toHaveBeenCalledTimes(1);
+    mockPlanVersionInsert.mockClear();
+    mockPlanUpdateVersionNumbers.mockClear();
+
+    const key = `${projectId}:${planId}`;
+    const versions = mockPlanVersionsByKey.get(key);
+    const v1 = versions?.find((v) => v.version_number === 1);
+    expect(v1).toBeDefined();
+    v1!.content = canonical.replace(/\n/g, "\r\n");
+
+    await planService.shipPlan(projectId, planId);
+
+    expect(mockPlanVersionInsert).not.toHaveBeenCalled();
+    expect(mockPlanVersionSetExecutedVersion).toHaveBeenCalledWith(projectId, planId, 1);
+  });
+
   it("generateAndCreateTasks (via shipPlan) uses createMany for generated tasks under epic", async () => {
     mockInvokePlanningAgent.mockImplementation((opts: { tracking?: { label?: string } }) => {
       if (opts.tracking?.label === "Task generation") {

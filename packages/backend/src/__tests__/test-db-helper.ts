@@ -237,6 +237,7 @@ const FULL_TRUNCATE_TABLES = [
   "project_behavior_state",
   "behavior_versions",
   "open_questions",
+  "prd_snapshots",
   "prd_metadata",
   "project_conversations",
   "planning_runs",

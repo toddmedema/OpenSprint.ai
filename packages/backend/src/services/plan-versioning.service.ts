@@ -3,7 +3,10 @@
  * Encapsulates all version table and plan version-number logic; used by PlanCrudService (update) and PlanShipService (ship).
  */
 import type { Plan } from "@opensprint/shared";
-import { getEpicTitleFromPlanContent } from "./plan/planner-normalize.js";
+import {
+  getEpicTitleFromPlanContent,
+  normalizePlanMarkdownContent,
+} from "./plan/planner-normalize.js";
 import { ensurePlanHasAtLeastOneVersion as ensurePlanHasAtLeastOneVersionImpl } from "./plan/plan-versioning.js";
 import { titleFromFirstHeading } from "./migrate-plan-versions.service.js";
 
@@ -181,7 +184,10 @@ export async function getContentAndVersionForShip(
       planId,
       latest.version_number
     );
-    if (fullLatest.content === plan.content) {
+    if (
+      normalizePlanMarkdownContent(fullLatest.content) ===
+      normalizePlanMarkdownContent(plan.content)
+    ) {
       return {
         versionContent: plan.content,
         versionToExecute: latest.version_number,

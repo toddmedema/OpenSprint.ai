@@ -28,6 +28,12 @@ export default async function globalSetup() {
   }
 
   if (process.env.TEST_DATABASE_URL) {
+    // Workers may not inherit env from this process; test-db-helper reads RUN_ID_FILE for
+    // worker-scoped Postgres schemas so parallel integration tests stay isolated in CI.
+    const runId = process.env[RUN_ID_ENV];
+    if (runId) {
+      await fs.writeFile(RUN_ID_FILE, runId, "utf-8");
+    }
     return;
   }
 

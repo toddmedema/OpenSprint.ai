@@ -80,6 +80,11 @@ describe.skipIf(!prdPostgresOk)("PRD REST API", () => {
   });
 
   beforeEach(async () => {
+    const taskStoreMod = (await import("../services/task-store.service.js")) as unknown as {
+      _resetSharedDb?: () => void | Promise<void>;
+    };
+    await taskStoreMod._resetSharedDb?.();
+
     app = createApp();
     projectService = new ProjectService();
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-prd-route-test-"));
