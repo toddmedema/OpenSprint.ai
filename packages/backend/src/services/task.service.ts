@@ -27,7 +27,7 @@ import { BranchManager } from "./branch-manager.js";
 import { FeedbackService } from "./feedback.service.js";
 import type { StoredTask } from "./task-store.service.js";
 import { resolveEpicId } from "./task-store.service.js";
-import { getMergeStageFromIssue } from "./task-store-helpers.js";
+import { getMergeStageFromIssue, validateAssigneeChange } from "./task-store-helpers.js";
 import { createLogger } from "../utils/logger.js";
 import { parseTaskLastExecutionSummary } from "./task-execution-summary.js";
 import { resolveBaseBranch } from "../utils/git-repo-state.js";
@@ -784,6 +784,12 @@ export class TaskService {
     if (assigneeValue !== undefined) updatePayload.assignee = assigneeValue;
     if (Object.keys(updatePayload).length === 0) {
       return this.getTask(projectId, taskId);
+    }
+    // Check assignee lock before other assignee validations so in-progress tasks
+    // report the specific ASSIGNEE_LOCKED error rather than a generic INVALID_INPUT.
+    if (assigneeValue !== undefined) {
+      const currentIssue = await this.taskStore.show(projectId, taskId);
+      validateAssigneeChange(currentIssue.status, updatePayload, taskId);
     }
     // When assigning to a human (non-agent), require enableHumanTeammates and optionally add to teamMembers.
     if (assigneeValue && assigneeValue.length > 0 && !isAgentAssignee(assigneeValue)) {

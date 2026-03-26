@@ -202,7 +202,9 @@ interface LegacyDeploymentInput extends Record<string, unknown> {
  */
 function migrateDeploymentConfig(raw: unknown): DeploymentConfig {
   const input = (raw ?? DEFAULT_DEPLOYMENT_CONFIG) as LegacyDeploymentInput & DeploymentConfig;
-  const mode = input.mode ?? "custom";
+  const mode =
+    input.mode ??
+    (input.easProjectId || input.expoConfig?.projectId || input.expoToken ? "expo" : "custom");
   // Legacy migration: expoConfig.projectId → easProjectId when mode is expo
   const easProjectId =
     input.easProjectId ??

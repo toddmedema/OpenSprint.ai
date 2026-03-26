@@ -235,6 +235,55 @@ describe("Settings lifecycle — service-level", { retry: 2 }, () => {
     expect(projectPersisted).not.toHaveProperty("apiKeys");
   });
 
+  it("deployment mode=expo persists through save → reload → save round-trip", async () => {
+    const repoPath = path.join(tempDir, "deploy-mode");
+    const project = await projectService.createProject({
+      name: "Deploy Mode",
+      repoPath,
+      simpleComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+      complexComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    await projectService.updateSettings(project.id, {
+      deployment: { mode: "expo", expoConfig: { channel: "preview" } },
+    });
+
+    const after = await projectService.getSettings(project.id);
+    expect(after.deployment.mode).toBe("expo");
+
+    const persisted = await readProjectFromGlobalStore(tempDir, project.id);
+    expect((persisted.deployment as Record<string, unknown>).mode).toBe("expo");
+
+    await projectService.updateSettings(project.id, { testFramework: "vitest" });
+    const afterUnrelated = await projectService.getSettings(project.id);
+    expect(afterUnrelated.deployment.mode).toBe("expo");
+  });
+
+  it("deployment mode=expo survives pushValidationTimingSample without reversion", async () => {
+    const repoPath = path.join(tempDir, "deploy-timing");
+    const project = await projectService.createProject({
+      name: "Deploy Timing",
+      repoPath,
+      simpleComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+      complexComplexityAgent: { type: "cursor", model: null, cliCommand: null },
+      deployment: { mode: "expo" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    const before = await projectService.getSettings(project.id);
+    expect(before.deployment.mode).toBe("expo");
+
+    await projectService.recordValidationDuration(project.id, "scoped", 15_000);
+
+    const after = await projectService.getSettings(project.id);
+    expect(after.deployment.mode).toBe("expo");
+
+    const persisted = await readProjectFromGlobalStore(tempDir, project.id);
+    expect((persisted.deployment as Record<string, unknown>).mode).toBe("expo");
+  });
+
   it("round-trip: save new shape → read → save again → output is identical (idempotent)", async () => {
     const repoPath = path.join(tempDir, "round-trip");
     const project = await projectService.createProject({
@@ -814,5 +863,45 @@ describe("Settings API lifecycle", { retry: 2 }, () => {
     expect(res.status).toBe(400);
     expect(res.body.error?.code).toBe("INVALID_INPUT");
     expect(res.body.error?.message).toMatch(/runAgentEnhancementExperiments|boolean/);
+  });
+
+  it("PUT /api/v1/projects/:id/settings persists deployment mode=expo through round-trip (save → reload → verify)", async () => {
+    const putRes = await request(app)
+      .put(`${API_PREFIX}/projects/${projectId}/settings`)
+      .send({
+        deployment: {
+          mode: "expo",
+          expoConfig: { channel: "preview" },
+        },
+      });
+
+    expect(putRes.status).toBe(200);
+    expect(putRes.body.data.deployment.mode).toBe("expo");
+
+    const getRes = await request(app).get(`${API_PREFIX}/projects/${projectId}/settings`);
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.data.deployment.mode).toBe("expo");
+
+    const settings = await readProjectFromGlobalStore(tempDir, projectId);
+    expect((settings.deployment as Record<string, unknown>).mode).toBe("expo");
+
+    const putAgain = await request(app)
+      .put(`${API_PREFIX}/projects/${projectId}/settings`)
+      .send({ maxConcurrentCoders: 2 });
+    expect(putAgain.status).toBe(200);
+    expect(putAgain.body.data.deployment.mode).toBe("expo");
+  });
+
+  it("PUT deliver/settings mode=expo persists and GET project settings returns it unchanged", async () => {
+    const putRes = await request(app)
+      .put(`${API_PREFIX}/projects/${projectId}/deliver/settings`)
+      .send({ mode: "expo" });
+
+    expect(putRes.status).toBe(200);
+    expect(putRes.body.data.deployment.mode).toBe("expo");
+
+    const getRes = await request(app).get(`${API_PREFIX}/projects/${projectId}/settings`);
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.data.deployment.mode).toBe("expo");
   });
 });

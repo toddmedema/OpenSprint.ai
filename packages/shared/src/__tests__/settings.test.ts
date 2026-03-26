@@ -1217,6 +1217,82 @@ describe("mergeDeploymentConfigPatch / deploymentConfigForApiResponse", () => {
   });
 });
 
+describe("parseSettings — deployment mode inference from Expo fields", () => {
+  it("infers mode='expo' when mode is missing but easProjectId is present", () => {
+    const parsed = parseSettings({
+      simpleComplexityAgent: lowAgent,
+      complexComplexityAgent: highAgent,
+      deployment: { easProjectId: "abc123" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+      testFramework: null,
+    });
+    expect(parsed.deployment.mode).toBe("expo");
+    expect(parsed.deployment.easProjectId).toBe("abc123");
+  });
+
+  it("infers mode='expo' when mode is missing but expoConfig.projectId is present", () => {
+    const parsed = parseSettings({
+      simpleComplexityAgent: lowAgent,
+      complexComplexityAgent: highAgent,
+      deployment: { expoConfig: { projectId: "proj-1" } },
+      hilConfig: DEFAULT_HIL_CONFIG,
+      testFramework: null,
+    });
+    expect(parsed.deployment.mode).toBe("expo");
+  });
+
+  it("infers mode='expo' when mode is missing but expoToken is present", () => {
+    const parsed = parseSettings({
+      simpleComplexityAgent: lowAgent,
+      complexComplexityAgent: highAgent,
+      deployment: { expoToken: "my-token" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+      testFramework: null,
+    });
+    expect(parsed.deployment.mode).toBe("expo");
+    expect(parsed.deployment.expoToken).toBe("my-token");
+  });
+
+  it("defaults to mode='custom' when mode and all Expo fields are missing", () => {
+    const parsed = parseSettings({
+      simpleComplexityAgent: lowAgent,
+      complexComplexityAgent: highAgent,
+      deployment: {},
+      hilConfig: DEFAULT_HIL_CONFIG,
+      testFramework: null,
+    });
+    expect(parsed.deployment.mode).toBe("custom");
+  });
+
+  it("preserves explicit mode='expo' through round-trip", () => {
+    const parsed = parseSettings({
+      simpleComplexityAgent: lowAgent,
+      complexComplexityAgent: highAgent,
+      deployment: { mode: "expo", expoConfig: { channel: "preview" } },
+      hilConfig: DEFAULT_HIL_CONFIG,
+      testFramework: null,
+    });
+    expect(parsed.deployment.mode).toBe("expo");
+
+    const reparsed = parseSettings({
+      ...parsed,
+      deployment: parsed.deployment,
+    });
+    expect(reparsed.deployment.mode).toBe("expo");
+  });
+
+  it("preserves explicit mode='custom' even when Expo fields are present", () => {
+    const parsed = parseSettings({
+      simpleComplexityAgent: lowAgent,
+      complexComplexityAgent: highAgent,
+      deployment: { mode: "custom", easProjectId: "abc123" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+      testFramework: null,
+    });
+    expect(parsed.deployment.mode).toBe("custom");
+  });
+});
+
 describe("parseSettings validation timing helpers", () => {
   it("preserves valid timeout overrides and sanitizes timing samples", () => {
     const parsed = parseSettings({

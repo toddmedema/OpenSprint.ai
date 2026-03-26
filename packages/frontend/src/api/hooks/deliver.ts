@@ -79,6 +79,7 @@ export function useUpdateDeliverSettings(projectId: string) {
       api.deliver.updateSettings(projectId, deployment),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.deliver.status(projectId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.projects.settings(projectId) });
     },
   });
 }
