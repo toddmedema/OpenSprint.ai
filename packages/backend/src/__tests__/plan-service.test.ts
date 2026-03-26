@@ -2293,6 +2293,32 @@ describe("PlanService createWithRetry usage", () => {
     expect(after.lastExecutedVersionNumber).toBeUndefined();
   });
 
+  it("updatePlan creates a new version when editing the currently executed version, even with no tasks", async () => {
+    mockTaskStoreListAll.mockResolvedValue([]);
+    const plan = await planService.createPlan(projectId, {
+      title: "Executed Current Plan",
+      content: "# Executed Current Plan\n\nInitial.",
+      complexity: "low",
+    });
+    const planId = plan.metadata.planId as string;
+    const proj = mockPlanStore.get(projectId);
+    const row = proj?.get(planId);
+    expect(row).toBeDefined();
+    // Simulate that v1 has already been executed.
+    row!.current_version_number = 1;
+    row!.last_executed_version_number = 1;
+
+    await planService.updatePlan(projectId, planId, { content: "# Executed Current Plan\n\nEdited." });
+
+    const versions = await mockListPlanVersions(projectId, planId);
+    const numbers = versions.map((v) => v.version_number).sort((a, b) => a - b);
+    expect(numbers).toEqual([1, 2]);
+    const after = await planService.getPlan(projectId, planId);
+    expect(after.currentVersionNumber).toBe(2);
+    expect(after.lastExecutedVersionNumber).toBe(1);
+    expect(after.content).toBe("# Executed Current Plan\n\nEdited.");
+  });
+
   it("updatePlan leaves last_executed_version_number unchanged", async () => {
     mockTaskStoreListAll.mockResolvedValue([]);
     const plan = await planService.createPlan(projectId, {

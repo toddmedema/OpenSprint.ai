@@ -75,8 +75,8 @@ export async function ensurePlanHasAtLeastOneVersion(
 }
 
 /**
- * Update the current plan version in place (no new version). Use when the current version has no tasks yet.
- * Rule: create a new plan version only when the current version already has ≥1 task; otherwise modify in place.
+ * Update the current plan version in place (no new version).
+ * Use only when the current version has no tasks and is not already the executed version.
  * Ensures at least one version exists, then updates that version's content/title. Returns the version number (unchanged).
  * Caller must call store.planUpdateContent(projectId, planId, newContent, versionNumber).
  */
@@ -95,7 +95,9 @@ export async function updateCurrentVersionInPlace(
 }
 
 /**
- * Create a new plan version for an update. Use only when the current version already has ≥1 task (otherwise caller should use updateCurrentVersionInPlace).
+ * Create a new plan version for an update.
+ * Use when the current version has tasks or when the current version is already executed.
+ * (Otherwise caller should use updateCurrentVersionInPlace.)
  * If no versions exist, creates v1 from current row content, then creates nextVersion from newContent.
  * Returns the version number that was written for newContent. Caller must call store.planUpdateContent(projectId, planId, newContent, nextVersion).
  */

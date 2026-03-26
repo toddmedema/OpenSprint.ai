@@ -164,7 +164,10 @@ export class PlanService {
     return this.planCrudService.createPlan(projectId, body);
   }
 
-  /** Update a Plan's markdown. Creates a new plan version only when the current version has tasks; otherwise updates in place. */
+  /**
+   * Update a Plan's markdown.
+   * Creates a new version when the current version has tasks or is already executed; otherwise updates in place.
+   */
   async updatePlan(projectId: string, planId: string, body: { content: string }): Promise<Plan> {
     return this.planCrudService.updatePlan(projectId, planId, body);
   }

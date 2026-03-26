@@ -56,6 +56,22 @@ const notificationsTaskStoreMod = await import("../services/task-store.service.j
 const notificationsPostgresOk =
   (notificationsTaskStoreMod as { _postgresAvailable?: boolean })._postgresAvailable ?? false;
 
+async function rmWithRetries(targetPath: string, attempts = 5): Promise<void> {
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      await fs.rm(targetPath, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      const code = (error as { code?: string } | null)?.code;
+      const retryable = code === "ENOTEMPTY" || code === "EBUSY" || code === "EPERM";
+      if (!retryable || i === attempts - 1) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50 * (i + 1)));
+    }
+  }
+}
+
 describe.skipIf(!notificationsPostgresOk)("Notifications REST API", () => {
   let app: ReturnType<typeof createApp>;
   let projectService: ProjectService;
@@ -91,7 +107,7 @@ describe.skipIf(!notificationsPostgresOk)("Notifications REST API", () => {
     setProjectIndexPathForTesting(null);
     setSettingsStorePathForTesting(null);
     process.env.HOME = originalHome;
-    await fs.rm(tempDir, { recursive: true, force: true });
+    await rmWithRetries(tempDir);
   });
 
   it("GET /projects/:id/notifications returns empty list when no notifications", async () => {

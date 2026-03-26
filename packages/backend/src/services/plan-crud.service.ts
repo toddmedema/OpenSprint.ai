@@ -485,7 +485,11 @@ export class PlanCrudService {
     return plan;
   }
 
-  /** Update a Plan's markdown. Creates a new plan version only when the current version already has tasks; otherwise updates in place. */
+  /**
+   * Update a Plan's markdown.
+   * Creates a new version when the current version has tasks OR when the current version is already executed.
+   * Otherwise updates the current version in place.
+   */
   async updatePlan(projectId: string, planId: string, body: { content: string }): Promise<Plan> {
     const row = await this.taskStore.planGet(projectId, planId);
     if (!row) {
@@ -496,6 +500,8 @@ export class PlanCrudService {
 
     const epicId = (row.metadata?.epicId as string) ?? "";
     const currentVersion = row.current_version_number ?? 1;
+    const isCurrentVersionExecuted =
+      row.last_executed_version_number != null && row.last_executed_version_number === currentVersion;
     const { total: taskCount } = epicId
       ? await this.countTasks(projectId, epicId, currentVersion)
       : { total: 0 };
@@ -506,8 +512,9 @@ export class PlanCrudService {
     };
     const normalizedContent = normalizePlanMarkdownContent(body.content);
 
+    const shouldCreateNewVersion = taskCount > 0 || isCurrentVersionExecuted;
     const nextVersion =
-      taskCount > 0
+      shouldCreateNewVersion
         ? await createVersionOnUpdate(
             projectId,
             planId,

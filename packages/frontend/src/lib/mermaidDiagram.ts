@@ -20,7 +20,11 @@ export async function renderMermaidDiagrams(
     startOnLoad: false,
     securityLevel: "strict",
     theme: resolved === "dark" ? "dark" : "default",
+    // Keep Mermaid parse/render failures local to each mount; otherwise Mermaid
+    // can inject a global "Syntax error in text" banner into the page.
+    suppressErrorRendering: true,
   });
+  mermaid.parseError = () => undefined;
 
   let seq = 0;
   for (const mount of mounts) {
