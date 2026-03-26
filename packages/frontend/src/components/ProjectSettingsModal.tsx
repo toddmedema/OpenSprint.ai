@@ -24,6 +24,7 @@ import type {
   Project,
   ProjectSettings,
   AgentType,
+  AgentTimeoutValue,
   AiAutonomyLevel,
   DeploymentConfig,
   DeploymentMode,
@@ -36,10 +37,12 @@ import type {
 } from "@opensprint/shared";
 import {
   AI_AUTONOMY_LEVELS,
+  AGENT_TIMEOUT_OPTIONS,
   DEFAULT_AI_AUTONOMY_LEVEL,
   DEFAULT_REVIEW_MODE,
   GLOBAL_DEFAULT_AGENT_UI_LABEL,
   getDeploymentTargetsForUi,
+  normalizeAgentTimeoutMs,
   AUTO_DEPLOY_TRIGGER_OPTIONS,
   type AutoDeployTrigger,
 } from "@opensprint/shared";
@@ -88,6 +91,15 @@ const LOCAL_PROVIDER_MODEL_REQUIRED_MESSAGE =
   "Select a model before saving LM Studio or Ollama settings.";
 
 const EXPO_ACCESS_TOKEN_MASK = "••••••••";
+
+function timeoutToSelectValue(raw: unknown): string {
+  const normalized = normalizeAgentTimeoutMs(raw);
+  return normalized === null ? "never" : String(normalized);
+}
+
+function selectValueToTimeout(value: string): AgentTimeoutValue {
+  return value === "never" ? null : normalizeAgentTimeoutMs(Number(value));
+}
 
 function parseTabFromSearch(search: string): SettingsSubTab | null {
   const params = new URLSearchParams(search);
@@ -1043,7 +1055,7 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                           )}
                           {simpleInherited ? (
                             <p className="text-sm text-theme-muted flex-1 min-w-[200px] self-end pb-1">
-                              Provider and model follow global Settings → Agent Config.
+                              Provider, model, and timeout follow global Settings → Agent Config.
                             </p>
                           ) : simpleComplexityAgent.type !== "custom" ? (
                             <div className="flex-1 min-w-[140px]">
@@ -1096,6 +1108,36 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                               />
                             </div>
                           )}
+                          <div className="flex-1 min-w-[140px]">
+                            <label
+                              htmlFor="simple-timeout-select"
+                              className="block text-xs font-medium text-theme-muted mb-1"
+                            >
+                              Agent timeout
+                            </label>
+                            <select
+                              id="simple-timeout-select"
+                              className="input w-full"
+                              value={timeoutToSelectValue(simpleComplexityAgent.timeoutMs)}
+                              onChange={(e) =>
+                                updateSimpleComplexityAgent(
+                                  { timeoutMs: selectValueToTimeout(e.target.value) },
+                                  { immediate: false }
+                                )
+                              }
+                              onBlur={scheduleSaveOnBlur}
+                              disabled={simpleInherited}
+                            >
+                              {AGENT_TIMEOUT_OPTIONS.map((option) => (
+                                <option
+                                  key={option.value === null ? "never" : String(option.value)}
+                                  value={option.value === null ? "never" : String(option.value)}
+                                >
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                         </div>
                         {renderProviderPrerequisite("simple", "Simple", simpleComplexityAgent.type)}
                         {/* Row 2: Complex */}
@@ -1187,7 +1229,7 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                           )}
                           {complexInherited ? (
                             <p className="text-sm text-theme-muted flex-1 min-w-[200px] self-end pb-1">
-                              Provider and model follow global Settings → Agent Config.
+                              Provider, model, and timeout follow global Settings → Agent Config.
                             </p>
                           ) : complexComplexityAgent.type !== "custom" ? (
                             <div className="flex-1 min-w-[140px]">
@@ -1240,6 +1282,36 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                               />
                             </div>
                           )}
+                          <div className="flex-1 min-w-[140px]">
+                            <label
+                              htmlFor="complex-timeout-select"
+                              className="block text-xs font-medium text-theme-muted mb-1"
+                            >
+                              Agent timeout
+                            </label>
+                            <select
+                              id="complex-timeout-select"
+                              className="input w-full"
+                              value={timeoutToSelectValue(complexComplexityAgent.timeoutMs)}
+                              onChange={(e) =>
+                                updateComplexComplexityAgent(
+                                  { timeoutMs: selectValueToTimeout(e.target.value) },
+                                  { immediate: false }
+                                )
+                              }
+                              onBlur={scheduleSaveOnBlur}
+                              disabled={complexInherited}
+                            >
+                              {AGENT_TIMEOUT_OPTIONS.map((option) => (
+                                <option
+                                  key={option.value === null ? "never" : String(option.value)}
+                                  value={option.value === null ? "never" : String(option.value)}
+                                >
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                         </div>
                         {renderProviderPrerequisite(
                           "complex",

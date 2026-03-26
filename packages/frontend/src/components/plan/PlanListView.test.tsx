@@ -5,7 +5,12 @@ import { render, screen, within } from "@testing-library/react";
 import { PlanListView } from "./PlanListView";
 import type { Plan } from "@opensprint/shared";
 
-function makePlan(planId: string, status: Plan["status"], taskCount = 0): Plan {
+function makePlan(
+  planId: string,
+  status: Plan["status"],
+  taskCount = 0,
+  hasGeneratedPlanTasksForCurrentVersion = taskCount > 0
+): Plan {
   return {
     metadata: {
       planId,
@@ -18,6 +23,7 @@ function makePlan(planId: string, status: Plan["status"], taskCount = 0): Plan {
     taskCount,
     doneTaskCount: 0,
     dependencyCount: 0,
+    hasGeneratedPlanTasksForCurrentVersion,
   };
 }
 
@@ -85,6 +91,27 @@ describe("PlanListView", () => {
     expect(screen.getByTestId("plan-list-generate-tasks")).toBeInTheDocument();
   });
 
+  it("shows Generate tasks for planning plan with feedback-only tasks", () => {
+    const plans = [makePlan("planning-feature", "planning", 1, false)];
+    render(
+      <PlanListView
+        plans={plans}
+        selectedPlanId={null}
+        executingPlanId={null}
+        reExecutingPlanId={null}
+        planTasksPlanIds={[]}
+        executeError={null}
+        onSelectPlan={vi.fn()}
+        onShip={vi.fn()}
+        onPlanTasks={vi.fn()}
+        onReship={vi.fn()}
+        onClearError={vi.fn()}
+      />
+    );
+    expect(screen.getByTestId("plan-list-generate-tasks")).toBeInTheDocument();
+    expect(screen.queryByTestId("plan-list-execute")).not.toBeInTheDocument();
+  });
+
   it("shows Generating tasks while plan tasks are in flight", () => {
     const plans = [makePlan("planning-feature", "planning", 0)];
     render(
@@ -127,5 +154,30 @@ describe("PlanListView", () => {
     );
     expect(screen.getByTestId("plan-list-mark-complete")).toHaveTextContent(/Approve/);
     expect(screen.getByTestId("plan-list-go-to-evaluate")).toHaveTextContent(/Review/);
+  });
+
+  it("hides task counts for planning rows and shows them otherwise", () => {
+    const plans = [makePlan("planning-feature", "planning", 2, false), makePlan("building-feature", "building", 2)];
+    render(
+      <PlanListView
+        plans={plans}
+        selectedPlanId={null}
+        executingPlanId={null}
+        reExecutingPlanId={null}
+        planTasksPlanIds={[]}
+        executeError={null}
+        onSelectPlan={vi.fn()}
+        onShip={vi.fn()}
+        onPlanTasks={vi.fn()}
+        onReship={vi.fn()}
+        onClearError={vi.fn()}
+      />
+    );
+
+    const planningRow = screen.getByTestId("plan-list-row-planning-feature");
+    const buildingRow = screen.getByTestId("plan-list-row-building-feature");
+
+    expect(within(planningRow).queryByText("0/2 tasks")).not.toBeInTheDocument();
+    expect(within(buildingRow).getByText("0/2 tasks")).toBeInTheDocument();
   });
 });

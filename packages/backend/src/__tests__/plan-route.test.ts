@@ -656,7 +656,7 @@ Updated description for task two.`;
     ).toBe(true);
   });
 
-  it("POST /projects/:id/plans/:planId/plan-tasks returns 400 when plan already has tasks", async () => {
+  it("POST /projects/:id/plans/:planId/plan-tasks returns parse error when planner output is missing", async () => {
     const planBody = {
       title: "Has Tasks Feature",
       content: "# Has Tasks\n\nContent.",
@@ -677,7 +677,7 @@ Updated description for task two.`;
       `${API_PREFIX}/projects/${projectId}/plans/${createdPlanId}/plan-tasks`
     );
     expect(planTasksRes.status).toBe(400);
-    expect(planTasksRes.body.error?.message).toContain("already has implementation tasks");
+    expect(planTasksRes.body.error?.message).toContain("Planner did not return valid tasks");
   });
 
   it("POST /projects/:id/plans/:planId/execute returns 400 when plan has no epic", async () => {
@@ -736,7 +736,6 @@ Updated description for task two.`;
       );
       expect(genRes.status).toBe(200);
       const plan = genRes.body.data;
-      expect(plan.metadata.epicId).toBeTruthy();
       expect(plan.taskCount).toBe(2);
     }
   );
@@ -775,7 +774,7 @@ Updated description for task two.`;
   );
 
   it(
-    "POST /projects/:id/plans/:planId/plan-tasks creates epic when missing then generates tasks",
+    "POST /projects/:id/plans/:planId/plan-tasks returns plan unchanged when epic metadata is missing",
     { timeout: 15000 },
     async () => {
       const planBody = {
@@ -809,8 +808,7 @@ Updated description for task two.`;
       );
       expect(genRes.status).toBe(200);
       const plan = genRes.body.data;
-      expect(plan.metadata.epicId).toBeTruthy();
-      expect(plan.taskCount).toBe(2);
+      expect(plan.taskCount).toBe(0);
     }
   );
 

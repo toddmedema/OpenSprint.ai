@@ -154,6 +154,7 @@ const mockGenerate = vi.fn().mockResolvedValue({
     taskCount: 2,
     doneTaskCount: 0,
     dependencyCount: 0,
+    hasGeneratedPlanTasksForCurrentVersion: true,
   },
 });
 const mockNotificationResolve = vi.fn().mockResolvedValue({});
@@ -168,6 +169,7 @@ const mockPlanTasks = vi.fn().mockResolvedValue({
   taskCount: 2,
   doneTaskCount: 0,
   dependencyCount: 0,
+  hasGeneratedPlanTasksForCurrentVersion: true,
 });
 const mockMarkPlanComplete = vi.fn().mockResolvedValue({
   metadata: {
@@ -714,6 +716,7 @@ describe("PlanPhase Redux integration", () => {
       status: "planning" as const,
       taskCount: 2,
       doneTaskCount: 0,
+      hasGeneratedPlanTasksForCurrentVersion: true,
     };
     const planB = {
       ...basePlan,
@@ -721,6 +724,7 @@ describe("PlanPhase Redux integration", () => {
       status: "planning" as const,
       taskCount: 1,
       doneTaskCount: 0,
+      hasGeneratedPlanTasksForCurrentVersion: true,
     };
     const tasks = [
       {
@@ -1278,6 +1282,7 @@ describe("PlanPhase dynamic plan button label", () => {
       taskCount: 0,
       doneTaskCount: 0,
       metadata: { ...basePlan.metadata },
+      hasGeneratedPlanTasksForCurrentVersion: false,
     };
     mockPlansList.mockResolvedValue({ plans: [planningPlan], edges: [] });
     const store = createStore([planningPlan], undefined, []);
@@ -1300,6 +1305,7 @@ describe("PlanPhase dynamic plan button label", () => {
       taskCount: 0,
       doneTaskCount: 0,
       metadata: { ...basePlan.metadata },
+      hasGeneratedPlanTasksForCurrentVersion: false,
     };
     mockPlansList.mockResolvedValue({ plans: [planningPlan], edges: [] });
     const store = createStore([planningPlan], undefined, [], {
@@ -1328,6 +1334,7 @@ describe("PlanPhase dynamic plan button label", () => {
       taskCount: 2,
       doneTaskCount: 0,
       metadata: { ...basePlan.metadata },
+      hasGeneratedPlanTasksForCurrentVersion: true,
     };
     mockPlansList.mockResolvedValue({ plans: [planningPlan], edges: [] });
     const store = createStore([planningPlan]);
@@ -1373,6 +1380,7 @@ describe("PlanPhase dynamic plan button label", () => {
       taskCount: 0,
       doneTaskCount: 0,
       metadata: { ...basePlan.metadata },
+      hasGeneratedPlanTasksForCurrentVersion: false,
     };
     mockPlansList.mockResolvedValue({ plans: [planningPlan], edges: [] });
     const store = createStore([planningPlan], undefined, [], {
@@ -1405,8 +1413,13 @@ describe("PlanPhase dynamic plan button label", () => {
       taskCount: 0,
       doneTaskCount: 0,
       metadata: { ...basePlan.metadata },
+      hasGeneratedPlanTasksForCurrentVersion: false,
     };
-    const planWithTasks = { ...planningPlan, taskCount: 2 };
+    const planWithTasks = {
+      ...planningPlan,
+      taskCount: 2,
+      hasGeneratedPlanTasksForCurrentVersion: true,
+    };
     mockPlansList.mockResolvedValue({ plans: [planningPlan], edges: [] });
     const initialStore = createStore([planningPlan], undefined, [], { selectedPlanId: null });
     const initialRender = render(
@@ -1445,6 +1458,7 @@ describe("PlanPhase dynamic plan button label", () => {
       taskCount: 2,
       doneTaskCount: 0,
       metadata: { ...basePlan.metadata },
+      hasGeneratedPlanTasksForCurrentVersion: true,
     };
     mockPlansList.mockResolvedValue({ plans: [planningPlan], edges: [] });
     const initialStore = createStore([planningPlan], undefined, undefined, {
@@ -1485,6 +1499,7 @@ describe("PlanPhase dynamic plan button label", () => {
       status: "planning" as const,
       taskCount: 2,
       doneTaskCount: 0,
+      hasGeneratedPlanTasksForCurrentVersion: true,
       metadata: {
         ...basePlan.metadata,
         planId: "re-exec-plan",
@@ -1514,6 +1529,42 @@ describe("PlanPhase dynamic plan button label", () => {
     expect(await screen.findByTestId("plan-list-execute")).toBeInTheDocument();
     expect(screen.queryByTestId("plan-list-generate-tasks")).not.toBeInTheDocument();
   });
+
+  it("keeps Generate Tasks when planning plan has feedback-attached tasks but generation not run", async () => {
+    const planningPlan = {
+      ...basePlan,
+      status: "planning" as const,
+      taskCount: 1,
+      doneTaskCount: 0,
+      metadata: { ...basePlan.metadata },
+      hasGeneratedPlanTasksForCurrentVersion: false,
+    };
+    const feedbackTask = [
+      {
+        id: "epic-1.9",
+        title: "Feedback ticket",
+        epicId: "epic-1",
+        kanbanColumn: "ready" as const,
+        priority: 1,
+        assignee: null,
+      },
+    ];
+    mockPlansList.mockResolvedValue({ plans: [planningPlan], edges: [] });
+    const store = createStore([planningPlan], undefined, feedbackTask, {
+      selectedPlanId: "archive-test-feature",
+    });
+    render(
+      <MemoryRouter>
+        <Provider store={store}>
+          <PlanPhase projectId="proj-1" />
+        </Provider>
+      </MemoryRouter>,
+      { wrapper: PlanPhaseWrapper }
+    );
+    expect(await screen.findByTestId("plan-list-generate-tasks")).toBeInTheDocument();
+    expect(screen.queryByTestId("plan-list-execute")).not.toBeInTheDocument();
+    expect(screen.getByTestId("plan-tasks-button-sidebar")).toBeInTheDocument();
+  });
 });
 
 describe("Generate All Tasks button", () => {
@@ -1533,6 +1584,7 @@ describe("Generate All Tasks button", () => {
       status: "planning" as const,
       taskCount: 0,
       doneTaskCount: 0,
+      hasGeneratedPlanTasksForCurrentVersion: false,
     };
     const planB = {
       ...basePlan,
@@ -1544,6 +1596,7 @@ describe("Generate All Tasks button", () => {
       status: "planning" as const,
       taskCount: 0,
       doneTaskCount: 0,
+      hasGeneratedPlanTasksForCurrentVersion: false,
     };
     mockPlansList.mockResolvedValue({ plans: [planA, planB], edges: [] });
     const store = createStore([planA, planB], undefined, []);
@@ -1572,6 +1625,7 @@ describe("Generate All Tasks button", () => {
       status: "planning" as const,
       taskCount: 0,
       doneTaskCount: 0,
+      hasGeneratedPlanTasksForCurrentVersion: false,
     };
     const planWithTasks = {
       ...basePlan,
@@ -1583,6 +1637,7 @@ describe("Generate All Tasks button", () => {
       status: "planning" as const,
       taskCount: 1,
       doneTaskCount: 0,
+      hasGeneratedPlanTasksForCurrentVersion: true,
     };
     const tasksForB = [
       {
@@ -1621,6 +1676,7 @@ describe("Generate All Tasks button", () => {
       status: "planning" as const,
       taskCount: 0,
       doneTaskCount: 0,
+      hasGeneratedPlanTasksForCurrentVersion: false,
     };
     const planB = {
       ...basePlan,
@@ -1632,6 +1688,7 @@ describe("Generate All Tasks button", () => {
       status: "planning" as const,
       taskCount: 0,
       doneTaskCount: 0,
+      hasGeneratedPlanTasksForCurrentVersion: false,
     };
     mockPlansList.mockResolvedValue({ plans: [planA, planB], edges: [] });
     mockPlanTasks.mockResolvedValue({ ...planA, taskCount: 2 });
@@ -1668,6 +1725,7 @@ describe("Generate All Tasks button", () => {
       status: "planning" as const,
       taskCount: 0,
       doneTaskCount: 0,
+      hasGeneratedPlanTasksForCurrentVersion: false,
     };
     const planB = {
       ...basePlan,
@@ -1679,6 +1737,7 @@ describe("Generate All Tasks button", () => {
       status: "planning" as const,
       taskCount: 0,
       doneTaskCount: 0,
+      hasGeneratedPlanTasksForCurrentVersion: false,
     };
     mockPlansList.mockResolvedValue({ plans: [planA, planB], edges: [] });
     let inFlight = 0;
@@ -1720,6 +1779,7 @@ describe("Generate All Tasks button", () => {
       status: "planning" as const,
       taskCount: 0,
       doneTaskCount: 0,
+      hasGeneratedPlanTasksForCurrentVersion: false,
     };
     const planB = {
       ...basePlan,
@@ -1731,6 +1791,7 @@ describe("Generate All Tasks button", () => {
       status: "planning" as const,
       taskCount: 0,
       doneTaskCount: 0,
+      hasGeneratedPlanTasksForCurrentVersion: false,
     };
     const edges = [{ from: "plan-a", to: "plan-b", type: "blocks" as const }];
     mockPlansList.mockResolvedValue({ plans: [planA, planB], edges });
@@ -1784,6 +1845,7 @@ describe("Execute All button", () => {
       status: "planning" as const,
       taskCount: 1,
       doneTaskCount: 0,
+      hasGeneratedPlanTasksForCurrentVersion: true,
     };
     const planB = {
       ...basePlan,
@@ -1795,6 +1857,7 @@ describe("Execute All button", () => {
       status: "planning" as const,
       taskCount: 1,
       doneTaskCount: 0,
+      hasGeneratedPlanTasksForCurrentVersion: true,
     };
     const executeTasks = [
       {
@@ -1841,6 +1904,7 @@ describe("Execute All button", () => {
       status: "planning" as const,
       taskCount: 1,
       doneTaskCount: 0,
+      hasGeneratedPlanTasksForCurrentVersion: true,
     };
     const planB = {
       ...basePlan,
@@ -1852,6 +1916,7 @@ describe("Execute All button", () => {
       status: "planning" as const,
       taskCount: 0,
       doneTaskCount: 0,
+      hasGeneratedPlanTasksForCurrentVersion: false,
     };
     const executeTasks = [
       {
@@ -1890,6 +1955,7 @@ describe("Execute All button", () => {
       status: "planning" as const,
       taskCount: 1,
       doneTaskCount: 0,
+      hasGeneratedPlanTasksForCurrentVersion: true,
     };
     const planB = {
       ...basePlan,
@@ -1901,6 +1967,7 @@ describe("Execute All button", () => {
       status: "planning" as const,
       taskCount: 1,
       doneTaskCount: 0,
+      hasGeneratedPlanTasksForCurrentVersion: true,
     };
     const executeTasks = [
       {
@@ -1998,6 +2065,7 @@ describe("PlanPhase executePlan thunk", () => {
         ...basePlan,
         status: "planning" as const,
         metadata: { ...basePlan.metadata },
+        hasGeneratedPlanTasksForCurrentVersion: true,
       },
     ];
     mockPlansList.mockResolvedValue({ plans, edges: [] });
@@ -2029,6 +2097,7 @@ describe("PlanPhase executePlan thunk", () => {
         status: "planning" as const,
         metadata: { ...basePlan.metadata },
         lastExecutedVersionNumber: 1,
+        hasGeneratedPlanTasksForCurrentVersion: true,
       },
     ];
     mockPlansList.mockResolvedValue({ plans, edges: [] });
@@ -2142,6 +2211,7 @@ describe("PlanPhase executePlan thunk", () => {
         ...basePlan,
         status: "planning" as const,
         metadata: { ...basePlan.metadata },
+        hasGeneratedPlanTasksForCurrentVersion: true,
       },
     ];
     mockPlansList.mockResolvedValue({ plans, edges: [] });
@@ -2191,7 +2261,12 @@ describe("PlanPhase Execute loading and double-click prevention", () => {
         })
     );
     const plans = [
-      { ...basePlan, status: "planning" as const, metadata: { ...basePlan.metadata } },
+      {
+        ...basePlan,
+        status: "planning" as const,
+        metadata: { ...basePlan.metadata },
+        hasGeneratedPlanTasksForCurrentVersion: true,
+      },
     ];
     const store = createStore(plans);
     const user = userEvent.setup();
@@ -2227,7 +2302,12 @@ describe("PlanPhase Execute loading and double-click prevention", () => {
         })
     );
     const plans = [
-      { ...basePlan, status: "planning" as const, metadata: { ...basePlan.metadata } },
+      {
+        ...basePlan,
+        status: "planning" as const,
+        metadata: { ...basePlan.metadata },
+        hasGeneratedPlanTasksForCurrentVersion: true,
+      },
     ];
     const store = createStore(plans);
     const user = userEvent.setup();
@@ -2257,7 +2337,12 @@ describe("PlanPhase Execute loading and double-click prevention", () => {
     mockGetCrossEpicDependencies.mockResolvedValue({ prerequisitePlanIds: [] });
     mockExecute.mockImplementation(() => new Promise<void>((r) => setTimeout(r, 100)));
     const plans = [
-      { ...basePlan, status: "planning" as const, metadata: { ...basePlan.metadata } },
+      {
+        ...basePlan,
+        status: "planning" as const,
+        metadata: { ...basePlan.metadata },
+        hasGeneratedPlanTasksForCurrentVersion: true,
+      },
     ];
     const store = createStore(plans);
     const user = userEvent.setup();
@@ -2281,11 +2366,23 @@ describe("PlanPhase Execute loading and double-click prevention", () => {
     mockGetCrossEpicDependencies.mockResolvedValue({ prerequisitePlanIds: [] });
     mockExecute.mockRejectedValue(new Error("Agent spawn failed"));
     mockPlansList.mockResolvedValue({
-      plans: [{ ...basePlan, status: "planning" as const, metadata: { ...basePlan.metadata } }],
+      plans: [
+        {
+          ...basePlan,
+          status: "planning" as const,
+          metadata: { ...basePlan.metadata },
+          hasGeneratedPlanTasksForCurrentVersion: true,
+        },
+      ],
       edges: [],
     });
     const plans = [
-      { ...basePlan, status: "planning" as const, metadata: { ...basePlan.metadata } },
+      {
+        ...basePlan,
+        status: "planning" as const,
+        metadata: { ...basePlan.metadata },
+        hasGeneratedPlanTasksForCurrentVersion: true,
+      },
     ];
     const store = createStore(plans);
     const user = userEvent.setup();
@@ -2320,7 +2417,12 @@ describe("PlanPhase Execute loading and double-click prevention", () => {
     mockGetCrossEpicDependencies.mockResolvedValue({ prerequisitePlanIds: [] });
     mockExecute.mockRejectedValue(new Error("Fail"));
     const plans = [
-      { ...basePlan, status: "planning" as const, metadata: { ...basePlan.metadata } },
+      {
+        ...basePlan,
+        status: "planning" as const,
+        metadata: { ...basePlan.metadata },
+        hasGeneratedPlanTasksForCurrentVersion: true,
+      },
     ];
     const store = createStore(plans);
     const user = userEvent.setup();
@@ -2347,7 +2449,12 @@ describe("PlanPhase Execute loading and double-click prevention", () => {
     mockGetCrossEpicDependencies.mockResolvedValue({ prerequisitePlanIds: [] });
     mockExecute.mockRejectedValue(new Error("Fail"));
     const plans = [
-      { ...basePlan, status: "planning" as const, metadata: { ...basePlan.metadata } },
+      {
+        ...basePlan,
+        status: "planning" as const,
+        metadata: { ...basePlan.metadata },
+        hasGeneratedPlanTasksForCurrentVersion: true,
+      },
     ];
     const store = createStore(plans);
     const user = userEvent.setup();
@@ -2375,7 +2482,12 @@ describe("PlanPhase Execute loading and double-click prevention", () => {
       prerequisitePlanIds: ["user-auth"],
     });
     const plans = [
-      { ...basePlan, status: "planning" as const, metadata: { ...basePlan.metadata } },
+      {
+        ...basePlan,
+        status: "planning" as const,
+        metadata: { ...basePlan.metadata },
+        hasGeneratedPlanTasksForCurrentVersion: true,
+      },
     ];
     const store = createStore(plans);
     const user = userEvent.setup();

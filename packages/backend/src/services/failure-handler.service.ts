@@ -243,7 +243,7 @@ export class FailureHandlerService {
       /api key/i,
       /unauthorized/i,
       /rate limit/i,
-      /timed out after 5 minutes/i,
+      /timed out after \d+ minutes/i,
     ];
     return fatalPatterns.some((pattern) => pattern.test(reason));
   }

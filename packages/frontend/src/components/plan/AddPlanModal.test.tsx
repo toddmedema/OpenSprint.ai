@@ -58,7 +58,7 @@ describe("AddPlanModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("calls onGenerate with trimmed description and closes immediately", () => {
+  it("calls onGenerate with trimmed description and closes after success", async () => {
     const onClose = vi.fn();
     const onGenerate = vi.fn().mockResolvedValue(true);
     render(<AddPlanModal projectId={defaultProjectId} onGenerate={onGenerate} onClose={onClose} />);
@@ -69,12 +69,15 @@ describe("AddPlanModal", () => {
     const generateButton = screen.getByTestId("generate-plan-button");
     fireEvent.click(generateButton);
 
-    expect(onGenerate).toHaveBeenCalledWith("Add dark mode");
-    expect(onGenerate).toHaveBeenCalledTimes(1);
-    expect(onClose).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(onGenerate).toHaveBeenCalledWith("Add dark mode");
+    });
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
   });
 
-  it("closes immediately even when onGenerate would resolve false", () => {
+  it("closes immediately even when onGenerate resolves false", async () => {
     const onClose = vi.fn();
     const onGenerate = vi.fn().mockResolvedValue(false);
     render(<AddPlanModal projectId={defaultProjectId} onGenerate={onGenerate} onClose={onClose} />);
@@ -83,7 +86,9 @@ describe("AddPlanModal", () => {
     fireEvent.change(input, { target: { value: "Feature text" } });
     fireEvent.click(screen.getByTestId("generate-plan-button"));
 
-    expect(onGenerate).toHaveBeenCalledWith("Feature text");
+    await waitFor(() => {
+      expect(onGenerate).toHaveBeenCalledWith("Feature text");
+    });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

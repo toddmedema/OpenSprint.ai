@@ -405,6 +405,7 @@ export class AgentService {
         conversationHistory,
         onChunk,
         projectId: options.projectId,
+        timeoutMs: config.timeoutMs,
       });
       const content = response?.content ?? "";
       return { content };

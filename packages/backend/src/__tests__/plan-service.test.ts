@@ -1850,6 +1850,13 @@ describe("PlanService createWithRetry usage", () => {
         expect.objectContaining({ title: "Plan Tasks B", parentId: "epic-456" }),
       ])
     );
+    expect(mockPlanUpdateMetadata).toHaveBeenCalledWith(
+      projectId,
+      planId,
+      expect.objectContaining({
+        lastTaskGenerationVersionNumber: 1,
+      })
+    );
     expect(mockTaskStoreAddDependencies).toHaveBeenCalled();
 
     // AC4: Task generation results reflected in UI via WebSocket updates.
@@ -2057,6 +2064,68 @@ describe("PlanService createWithRetry usage", () => {
     expect(plan.taskCount).toBe(0);
     expect(plan.status).toBe("planning");
     expect(plan.currentVersionNumber).toBe(2);
+    expect(plan.hasGeneratedPlanTasksForCurrentVersion).toBe(false);
+  });
+
+  it("getPlan marks generation complete when metadata version matches current version", async () => {
+    const planId = "generated-version-match";
+    const epicId = "epic-generated";
+    const metadata = {
+      planId,
+      epicId,
+      shippedAt: null,
+      complexity: "medium",
+      lastTaskGenerationVersionNumber: 2,
+    };
+    await mockPlanInsert(projectId, planId, {
+      content: "# Generated Match\n\n## Overview\n\nContent.",
+      metadata: JSON.stringify(metadata),
+    });
+    const proj = mockPlanStore.get(projectId);
+    const row = proj?.get(planId);
+    expect(row).toBeDefined();
+    row!.current_version_number = 2;
+    mockTaskStoreListAll.mockResolvedValue([
+      { id: epicId, status: "blocked", type: "epic" },
+      { id: `${epicId}.1`, status: "open", type: "task", sourcePlanVersionNumber: 2 },
+    ]);
+    mockTaskStoreShow.mockResolvedValue({ status: "blocked" });
+
+    const plan = await planService.getPlan(projectId, planId);
+
+    expect(plan.hasGeneratedPlanTasksForCurrentVersion).toBe(true);
+    expect(plan.lastTaskGenerationVersionNumber).toBe(2);
+  });
+
+  it("getPlan keeps generation incomplete for planning plans with feedback-only tasks", async () => {
+    const planId = "feedback-only-planning";
+    const epicId = "epic-feedback";
+    const metadata = {
+      planId,
+      epicId,
+      shippedAt: null,
+      complexity: "medium",
+    };
+    await mockPlanInsert(projectId, planId, {
+      content: "# Feedback Only\n\n## Overview\n\nContent.",
+      metadata: JSON.stringify(metadata),
+    });
+    mockTaskStoreListAll.mockResolvedValue([
+      { id: epicId, status: "blocked", type: "epic" },
+      {
+        id: `${epicId}.1`,
+        status: "open",
+        type: "task",
+        sourcePlanVersionNumber: 1,
+        sourceFeedbackIds: ["fb-1"],
+      },
+    ]);
+    mockTaskStoreShow.mockResolvedValue({ status: "blocked" });
+
+    const plan = await planService.getPlan(projectId, planId);
+
+    expect(plan.taskCount).toBe(1);
+    expect(plan.hasGeneratedPlanTasksForCurrentVersion).toBe(false);
   });
 
   it("getPlan status: building when epic is open and tasks pending", async () => {

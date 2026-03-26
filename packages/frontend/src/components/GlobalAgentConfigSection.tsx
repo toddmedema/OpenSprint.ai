@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { ModelSelect } from "./ModelSelect";
 import { api } from "../api/client";
-import type { AgentConfig, AgentType } from "@opensprint/shared";
+import type { AgentConfig, AgentType, AgentTimeoutValue } from "@opensprint/shared";
+import { AGENT_TIMEOUT_OPTIONS, normalizeAgentTimeoutMs } from "@opensprint/shared";
 import { DEFAULT_LMSTUDIO_BASE_URL, DEFAULT_OLLAMA_BASE_URL } from "../lib/localModelProviders";
 
 /** Env + API key flags for global agent prerequisite banners */
@@ -209,6 +210,14 @@ export function GlobalAgentConfigSection({
     return null;
   };
 
+  const timeoutToSelectValue = (raw: AgentConfig["timeoutMs"]): string => {
+    const normalized = normalizeAgentTimeoutMs(raw);
+    return normalized === null ? "never" : String(normalized);
+  };
+
+  const selectValueToTimeout = (value: string): AgentTimeoutValue =>
+    value === "never" ? null : normalizeAgentTimeoutMs(Number(value));
+
   return (
     <div className="space-y-6" data-testid="global-agent-config-section">
       <div>
@@ -332,6 +341,32 @@ export function GlobalAgentConfigSection({
                 />
               </div>
             )}
+            <div className="flex-1 min-w-[140px]">
+              <label
+                htmlFor="global-simple-timeout-select"
+                className="block text-xs font-medium text-theme-muted mb-1"
+              >
+                Agent timeout
+              </label>
+              <select
+                id="global-simple-timeout-select"
+                className="input w-full"
+                value={timeoutToSelectValue(simpleAgent.timeoutMs)}
+                onChange={(e) =>
+                  onUpdateSimple({ timeoutMs: selectValueToTimeout(e.target.value) }, { immediate: false })
+                }
+                onBlur={scheduleSaveOnBlur}
+              >
+                {AGENT_TIMEOUT_OPTIONS.map((option) => (
+                  <option
+                    key={option.value === null ? "never" : String(option.value)}
+                    value={option.value === null ? "never" : String(option.value)}
+                  >
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           {renderProviderPrerequisite("simple", simpleAgent.type)}
 
@@ -445,6 +480,35 @@ export function GlobalAgentConfigSection({
                 />
               </div>
             )}
+            <div className="flex-1 min-w-[140px]">
+              <label
+                htmlFor="global-complex-timeout-select"
+                className="block text-xs font-medium text-theme-muted mb-1"
+              >
+                Agent timeout
+              </label>
+              <select
+                id="global-complex-timeout-select"
+                className="input w-full"
+                value={timeoutToSelectValue(complexAgent.timeoutMs)}
+                onChange={(e) =>
+                  onUpdateComplex(
+                    { timeoutMs: selectValueToTimeout(e.target.value) },
+                    { immediate: false }
+                  )
+                }
+                onBlur={scheduleSaveOnBlur}
+              >
+                {AGENT_TIMEOUT_OPTIONS.map((option) => (
+                  <option
+                    key={option.value === null ? "never" : String(option.value)}
+                    value={option.value === null ? "never" : String(option.value)}
+                  >
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           {renderProviderPrerequisite("complex", complexAgent.type)}
         </div>

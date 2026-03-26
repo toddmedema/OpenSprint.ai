@@ -147,6 +147,16 @@ export class PlanCrudService {
   }
 
   /**
+   * Resolve last plan task-generation version from metadata.
+   * Supports camelCase and snake_case for compatibility.
+   */
+  private static getLastTaskGenerationVersion(metadata: Record<string, unknown>): number | undefined {
+    const raw =
+      metadata.lastTaskGenerationVersionNumber ?? metadata.last_task_generation_version_number;
+    return typeof raw === "number" && raw >= 1 ? raw : undefined;
+  }
+
+  /**
    * Count tasks under an epic (implementation tasks only).
    * When versionNumber is set, counts only tasks for that plan version (version-aware).
    */
@@ -249,6 +259,11 @@ export class PlanCrudService {
       : (await this.buildDependencyEdgesFromProject(projectId)).filter((e) => e.to === planId)
           .length;
 
+    const lastTaskGenerationVersionNumber =
+      PlanCrudService.getLastTaskGenerationVersion(row.metadata);
+    const hasGeneratedPlanTasksForCurrentVersion =
+      lastTaskGenerationVersionNumber != null && lastTaskGenerationVersionNumber === currentVersion;
+
     return {
       metadata,
       content,
@@ -259,6 +274,8 @@ export class PlanCrudService {
       lastModified,
       currentVersionNumber: row.current_version_number ?? 1,
       lastExecutedVersionNumber: row.last_executed_version_number ?? undefined,
+      lastTaskGenerationVersionNumber,
+      hasGeneratedPlanTasksForCurrentVersion,
     };
   }
 

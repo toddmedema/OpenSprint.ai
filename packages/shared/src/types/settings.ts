@@ -8,6 +8,11 @@ export interface AgentConfig {
   model: string | null;
   cliCommand: string | null;
   /**
+   * Timeout for a single agent invocation.
+   * null => no timeout ("never"), undefined => use default.
+   */
+  timeoutMs?: AgentTimeoutValue;
+  /**
    * Local provider server URL.
    * - LM Studio default (applied in backend/frontend): http://localhost:1234
    * - Ollama default (applied in backend/frontend): http://localhost:11434
@@ -17,6 +22,33 @@ export interface AgentConfig {
 
 /** Agent configuration input for project creation */
 export type AgentConfigInput = AgentConfig;
+
+export type AgentTimeoutValue = number | null;
+
+export const DEFAULT_AGENT_TIMEOUT_MS = 900000;
+
+export const AGENT_TIMEOUT_OPTIONS: Array<{ value: AgentTimeoutValue; label: string }> = [
+  { value: 300000, label: "5 minutes" },
+  { value: 900000, label: "15 minutes" },
+  { value: 1800000, label: "30 minutes" },
+  { value: 3600000, label: "1 hour" },
+  { value: null, label: "Never" },
+];
+
+export function normalizeAgentTimeoutMs(raw: unknown): AgentTimeoutValue {
+  if (raw === null) return null;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return DEFAULT_AGENT_TIMEOUT_MS;
+  const rounded = Math.round(raw);
+  if (
+    rounded === 300000 ||
+    rounded === 900000 ||
+    rounded === 1800000 ||
+    rounded === 3600000
+  ) {
+    return rounded as Exclude<AgentTimeoutValue, null>;
+  }
+  return DEFAULT_AGENT_TIMEOUT_MS;
+}
 
 /** Deployment mode */
 export type DeploymentMode = "expo" | "custom";

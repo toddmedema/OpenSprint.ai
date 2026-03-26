@@ -79,6 +79,7 @@ const planWithV1ExecutedV2Current = {
   dependencyCount: 0,
   currentVersionNumber: 2,
   lastExecutedVersionNumber: 1,
+  hasGeneratedPlanTasksForCurrentVersion: true,
 };
 
 const v1Content = {
@@ -254,7 +255,8 @@ describe("E2E: Plan version flow (execute, edit, version dropdown, Execute vN)",
     expect(screen.getByText("V1 body content only.")).toBeInTheDocument();
 
     // Click Execute v1 (on the EpicCard in the main area)
-    const executeV1Btn = screen.getByRole("button", { name: "Execute v1" });
+    const executeV1Btn =
+      screen.queryByTestId("execute-button") ?? screen.getByTestId("plan-list-execute");
     await user.click(executeV1Btn);
 
     // Confirm execution was called with version_number: 1 (uses v1 content on backend)

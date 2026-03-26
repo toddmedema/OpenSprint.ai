@@ -482,7 +482,12 @@ describe("EpicCard", () => {
   });
 
   it("shows Execute button when plan status is planning and has child tasks", () => {
-    const plan: Plan = { ...basePlan, status: "planning", taskCount: 2 };
+    const plan: Plan = {
+      ...basePlan,
+      status: "planning",
+      taskCount: 2,
+      hasGeneratedPlanTasksForCurrentVersion: true,
+    };
     renderWithStore(
       <EpicCard
         plan={plan}
@@ -507,6 +512,7 @@ describe("EpicCard", () => {
       status: "planning",
       taskCount: 2,
       lastExecutedVersionNumber: 7,
+      hasGeneratedPlanTasksForCurrentVersion: true,
     };
     renderWithStore(
       <EpicCard
@@ -528,7 +534,12 @@ describe("EpicCard", () => {
   it("calls onShip when Execute is clicked", async () => {
     const onShip = vi.fn();
     const user = userEvent.setup();
-    const plan: Plan = { ...basePlan, status: "planning", taskCount: 2 };
+    const plan: Plan = {
+      ...basePlan,
+      status: "planning",
+      taskCount: 2,
+      hasGeneratedPlanTasksForCurrentVersion: true,
+    };
     renderWithStore(
       <EpicCard
         plan={plan}
@@ -671,7 +682,12 @@ describe("EpicCard", () => {
   });
 
   it("shows spinner inside Execute button when plan is executing", () => {
-    const plan: Plan = { ...basePlan, status: "planning", taskCount: 2 };
+    const plan: Plan = {
+      ...basePlan,
+      status: "planning",
+      taskCount: 2,
+      hasGeneratedPlanTasksForCurrentVersion: true,
+    };
     renderWithStore(
       <EpicCard
         plan={plan}
@@ -691,7 +707,12 @@ describe("EpicCard", () => {
   });
 
   it("does not show spinner when a different plan is executing", () => {
-    const plan: Plan = { ...basePlan, status: "planning", taskCount: 2 };
+    const plan: Plan = {
+      ...basePlan,
+      status: "planning",
+      taskCount: 2,
+      hasGeneratedPlanTasksForCurrentVersion: true,
+    };
     renderWithStore(
       <EpicCard
         plan={plan}
@@ -711,7 +732,12 @@ describe("EpicCard", () => {
   });
 
   it("disables Execute button when any plan is executing", () => {
-    const plan: Plan = { ...basePlan, status: "planning", taskCount: 2 };
+    const plan: Plan = {
+      ...basePlan,
+      status: "planning",
+      taskCount: 2,
+      hasGeneratedPlanTasksForCurrentVersion: true,
+    };
     renderWithStore(
       <EpicCard
         plan={plan}
@@ -731,7 +757,12 @@ describe("EpicCard", () => {
   });
 
   it("shows inline error when executeError matches this plan", () => {
-    const plan: Plan = { ...basePlan, status: "planning", taskCount: 2 };
+    const plan: Plan = {
+      ...basePlan,
+      status: "planning",
+      taskCount: 2,
+      hasGeneratedPlanTasksForCurrentVersion: true,
+    };
     renderWithStore(
       <EpicCard
         plan={plan}
@@ -753,7 +784,12 @@ describe("EpicCard", () => {
   });
 
   it("does not show inline error when executeError is for a different plan", () => {
-    const plan: Plan = { ...basePlan, status: "planning", taskCount: 2 };
+    const plan: Plan = {
+      ...basePlan,
+      status: "planning",
+      taskCount: 2,
+      hasGeneratedPlanTasksForCurrentVersion: true,
+    };
     renderWithStore(
       <EpicCard
         plan={plan}
@@ -776,7 +812,12 @@ describe("EpicCard", () => {
   it("calls onClearError when inline error dismiss button is clicked", async () => {
     const onClearError = vi.fn();
     const user = userEvent.setup();
-    const plan: Plan = { ...basePlan, status: "planning", taskCount: 2 };
+    const plan: Plan = {
+      ...basePlan,
+      status: "planning",
+      taskCount: 2,
+      hasGeneratedPlanTasksForCurrentVersion: true,
+    };
     renderWithStore(
       <EpicCard
         plan={plan}
@@ -799,7 +840,12 @@ describe("EpicCard", () => {
   });
 
   it("does not show inline error when executeError is null", () => {
-    const plan: Plan = { ...basePlan, status: "planning", taskCount: 2 };
+    const plan: Plan = {
+      ...basePlan,
+      status: "planning",
+      taskCount: 2,
+      hasGeneratedPlanTasksForCurrentVersion: true,
+    };
     renderWithStore(
       <EpicCard
         plan={plan}
@@ -819,7 +865,12 @@ describe("EpicCard", () => {
   });
 
   it("Execute button is enabled when no plan is executing and no error", () => {
-    const plan: Plan = { ...basePlan, status: "planning", taskCount: 2 };
+    const plan: Plan = {
+      ...basePlan,
+      status: "planning",
+      taskCount: 2,
+      hasGeneratedPlanTasksForCurrentVersion: true,
+    };
     renderWithStore(
       <EpicCard
         plan={plan}
@@ -895,7 +946,12 @@ describe("EpicCard", () => {
   });
 
   it("shows all tasks for epic from Redux (epic-blocked: filter by epicId only)", () => {
-    const plan: Plan = { ...basePlan, status: "planning", taskCount: 2 };
+    const plan: Plan = {
+      ...basePlan,
+      status: "planning",
+      taskCount: 2,
+      hasGeneratedPlanTasksForCurrentVersion: true,
+    };
     const tasksFromStore: Task[] = tasks.slice(0, 2).map((t) => ({
       ...t,
       kanbanColumn: "planning" as const,
@@ -917,7 +973,12 @@ describe("EpicCard", () => {
   });
 
   it("shows friendly message when executeError contains no epic", () => {
-    const plan: Plan = { ...basePlan, status: "planning", taskCount: 2 };
+    const plan: Plan = {
+      ...basePlan,
+      status: "planning",
+      taskCount: 2,
+      hasGeneratedPlanTasksForCurrentVersion: true,
+    };
     renderWithStore(
       <EpicCard
         plan={plan}

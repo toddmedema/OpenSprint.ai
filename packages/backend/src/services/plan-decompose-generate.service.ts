@@ -237,7 +237,7 @@ export class PlanDecomposeGenerateService {
       await taskStore.update(projectId, epicId, { status: "blocked" });
     }
 
-    if (plan.taskCount > 0) {
+    if (plan.hasGeneratedPlanTasksForCurrentVersion) {
       throw new AppError(
         400,
         ErrorCodes.INVALID_INPUT,
@@ -256,6 +256,11 @@ export class PlanDecomposeGenerateService {
       tasksGenerated = genResult.count;
       parseFailureReason = genResult.parseFailureReason;
       if (tasksGenerated > 0) {
+        const generatedForVersion = plan.currentVersionNumber ?? 1;
+        await taskStore.planUpdateMetadata(projectId, planId, {
+          ...plan.metadata,
+          lastTaskGenerationVersionNumber: generatedForVersion,
+        } as unknown as Record<string, unknown>);
         const updatedPlan = await this.deps.getPlan(projectId, planId);
         await this.autoReviewPlanAgainstRepo(projectId, [updatedPlan]);
       }

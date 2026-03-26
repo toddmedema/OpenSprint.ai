@@ -142,6 +142,7 @@ export function EpicCard({
   autoExecutePlans = false,
 }: EpicCardProps) {
   const config = statusConfig[plan.status] ?? defaultStatus;
+  const hasGeneratedTasksForCurrentVersion = plan.hasGeneratedPlanTasksForCurrentVersion === true;
 
   return (
     <div
@@ -161,7 +162,7 @@ export function EpicCard({
       {/* Full-card loading overlay: optimistic plans (Generate Plan) or plan tasks in progress */}
       {(isOptimistic ||
         (plan.status === "planning" &&
-          plan.taskCount === 0 &&
+          !hasGeneratedTasksForCurrentVersion &&
           planTasksPlanIds.includes(plan.metadata.planId))) && (
         <div
           className="absolute inset-0 z-10 flex items-center justify-center bg-theme-surface/80 backdrop-blur-[1px]"
@@ -211,7 +212,7 @@ export function EpicCard({
         {/* Action buttons */}
         {plan.status === "planning" && (
           <>
-            {plan.taskCount === 0 && !autoExecutePlans ? (
+            {!hasGeneratedTasksForCurrentVersion && !autoExecutePlans ? (
               <div className="space-y-2">
                 <p className="text-xs text-theme-muted">
                   No tasks yet. Generate tasks from this plan, or use the AI chat to refine it
@@ -231,7 +232,7 @@ export function EpicCard({
                   </button>
                 )}
               </div>
-            ) : plan.taskCount > 0 || autoExecutePlans ? (
+            ) : hasGeneratedTasksForCurrentVersion || autoExecutePlans ? (
               <button
                 type="button"
                 onClick={(e) => {
@@ -241,7 +242,7 @@ export function EpicCard({
                 disabled={
                   !!executingPlanId ||
                   (autoExecutePlans &&
-                    plan.taskCount === 0 &&
+                    !hasGeneratedTasksForCurrentVersion &&
                     (planTasksPlanIds.includes(plan.metadata.planId) || isOptimistic))
                 }
                 className="btn-primary text-xs w-full py-2 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg font-medium inline-flex items-center justify-center"
@@ -249,7 +250,7 @@ export function EpicCard({
               >
                 {executingPlanId === plan.metadata.planId ||
                 (autoExecutePlans &&
-                  plan.taskCount === 0 &&
+                  !hasGeneratedTasksForCurrentVersion &&
                   planTasksPlanIds.includes(plan.metadata.planId)) ? (
                   <>
                     <svg
@@ -273,7 +274,8 @@ export function EpicCard({
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                       />
                     </svg>
-                    {plan.taskCount === 0 && planTasksPlanIds.includes(plan.metadata.planId)
+                    {!hasGeneratedTasksForCurrentVersion &&
+                    planTasksPlanIds.includes(plan.metadata.planId)
                       ? "Generating tasks…"
                       : "Executing…"}
                   </>

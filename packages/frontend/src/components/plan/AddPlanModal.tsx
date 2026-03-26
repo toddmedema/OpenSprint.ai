@@ -1,4 +1,4 @@
-import { useState, useRef, useLayoutEffect } from "react";
+import { useState, useRef, useLayoutEffect, useEffect } from "react";
 import { CloseButton } from "../CloseButton";
 import { useSubmitShortcut } from "../../hooks/useSubmitShortcut";
 import { useModalA11y } from "../../hooks/useModalA11y";
@@ -14,26 +14,43 @@ export interface AddPlanModalProps {
 export function AddPlanModal({ projectId, onGenerate, onClose }: AddPlanModalProps) {
   const draftKey = planIdeaDraftStorageKey(projectId);
   const [featureDescription, setFeatureDescription] = useState(() => loadTextDraft(draftKey));
-  const { beginSend, onSuccess } = useOptimisticTextDraft(
+  const { beginSend, onSuccess, onFailure } = useOptimisticTextDraft(
     draftKey,
     featureDescription,
     setFeatureDescription
   );
   const containerRef = useRef<HTMLDivElement>(null);
   const featureInputRef = useRef<HTMLTextAreaElement>(null);
+  const mountedRef = useRef(true);
   useModalA11y({ containerRef, onClose, isOpen: true, initialFocusRef: featureInputRef });
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useLayoutEffect(() => {
     setFeatureDescription(loadTextDraft(draftKey));
   }, [draftKey]);
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     const description = featureDescription.trim();
     if (!description) return;
     beginSend(description);
-    onSuccess();
     onClose();
-    void onGenerate(description);
+    try {
+      const ok = await onGenerate(description);
+      if (ok) {
+        onSuccess();
+      } else {
+        // Modal closes immediately after submit; avoid setState on unmounted component.
+        if (mountedRef.current) onFailure();
+      }
+    } catch {
+      if (mountedRef.current) onFailure();
+    }
   };
 
   const onKeyDown = useSubmitShortcut(handleGenerate, {

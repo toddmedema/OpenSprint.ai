@@ -68,6 +68,10 @@ export interface Plan {
   currentVersionNumber?: number;
   /** Version number that was last executed; present when versioning is used */
   lastExecutedVersionNumber?: number;
+  /** Version number for which plan task generation last ran (if tracked). */
+  lastTaskGenerationVersionNumber?: number;
+  /** True when task generation has run for currentVersionNumber. */
+  hasGeneratedPlanTasksForCurrentVersion?: boolean;
 }
 
 /** Dependency edge between Plans for the dependency graph */

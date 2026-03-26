@@ -67,17 +67,20 @@ function PlanListRow({
   const isMarkCompletePending = markCompletePendingPlanId === plan.metadata.planId;
   const planId = plan.metadata.planId;
   const isExecuting = executingPlanId === planId;
+  const hasGeneratedTasksForCurrentVersion = plan.hasGeneratedPlanTasksForCurrentVersion === true;
   const isPlanningTasks =
-    plan.status === "planning" && plan.taskCount === 0 && planTasksPlanIds.includes(planId);
+    plan.status === "planning" &&
+    !hasGeneratedTasksForCurrentVersion &&
+    planTasksPlanIds.includes(planId);
   const showGenerateTasks =
     plan.status === "planning" &&
-    plan.taskCount === 0 &&
+    !hasGeneratedTasksForCurrentVersion &&
     !autoExecutePlans &&
     !planTasksPlanIds.includes(planId);
   const showExecute =
     plan.status === "planning" &&
-    (plan.taskCount > 0 ||
-      (autoExecutePlans && (planTasksPlanIds.includes(planId) || plan.taskCount === 0)));
+    (hasGeneratedTasksForCurrentVersion ||
+      (autoExecutePlans && (planTasksPlanIds.includes(planId) || !hasGeneratedTasksForCurrentVersion)));
   const showMarkComplete = plan.status === "in_review" && onMarkComplete;
   const showReship =
     plan.status === "complete" &&
@@ -107,13 +110,14 @@ function PlanListRow({
           >
             {formatPlanIdAsTitle(planId)}
           </span>
-          <span className="shrink-0 text-xs text-theme-muted">
-            {plan.taskCount > 0
-              ? `${plan.doneTaskCount}/${plan.taskCount} tasks`
-              : isPlanningTasks
-                ? "Generating tasks..."
-                : "No tasks"}
-          </span>
+          {plan.status !== "planning" && (
+            <span className="shrink-0 text-xs text-theme-muted">
+              {plan.taskCount > 0 ? `${plan.doneTaskCount}/${plan.taskCount} tasks` : "No tasks"}
+            </span>
+          )}
+          {plan.status === "planning" && isPlanningTasks && (
+            <span className="shrink-0 text-xs text-theme-muted">Generating tasks...</span>
+          )}
         </button>
         <span
           className="shrink-0 flex items-center gap-1.5"
@@ -142,13 +146,14 @@ function PlanListRow({
                 onShip(planId, plan.lastExecutedVersionNumber);
               }}
               disabled={
-                !!executingPlanId || (autoExecutePlans && plan.taskCount === 0 && isPlanningTasks)
+                !!executingPlanId ||
+                (autoExecutePlans && !hasGeneratedTasksForCurrentVersion && isPlanningTasks)
               }
               className="shrink-0 text-xs font-medium text-brand-600 hover:bg-theme-info-bg px-2 py-1 rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               data-testid="plan-list-execute"
             >
-              {isExecuting || (autoExecutePlans && plan.taskCount === 0 && isPlanningTasks)
-                ? plan.taskCount === 0 && isPlanningTasks
+              {isExecuting || (autoExecutePlans && !hasGeneratedTasksForCurrentVersion && isPlanningTasks)
+                ? !hasGeneratedTasksForCurrentVersion && isPlanningTasks
                   ? "Generating tasks…"
                   : "Executing…"
                 : plan.lastExecutedVersionNumber != null

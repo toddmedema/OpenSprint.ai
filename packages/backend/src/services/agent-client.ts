@@ -8,6 +8,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { GoogleGenAI } from "@google/genai";
 import type { AgentConfig, ApiKeyProvider } from "@opensprint/shared";
+import { DEFAULT_AGENT_TIMEOUT_MS, normalizeAgentTimeoutMs } from "@opensprint/shared";
 import { AppError } from "../middleware/error-handler.js";
 import { ErrorCodes } from "../middleware/error-codes.js";
 import {
@@ -91,6 +92,18 @@ function shouldMirrorChildProcessOutput(): boolean {
   if (override === "0") return false;
   if (process.env.VITEST) return false;
   return typeof process.stdout?.isTTY === "boolean" && process.stdout.isTTY;
+}
+
+function resolveInvokeTimeoutMs(options: AgentInvokeOptions): number | null {
+  if (Object.prototype.hasOwnProperty.call(options, "timeoutMs")) {
+    return normalizeAgentTimeoutMs(options.timeoutMs);
+  }
+  return normalizeAgentTimeoutMs(options.config.timeoutMs);
+}
+
+function formatTimeoutLabel(timeoutMs: number): string {
+  if (timeoutMs === 60 * 60 * 1000) return "1 hour";
+  return `${Math.round(timeoutMs / 60_000)} minutes`;
 }
 
 /** Cursor CLI install instructions for Unix and Windows (avoids bash-not-found on Windows). */
@@ -683,7 +696,7 @@ function formatAgentError(
 
   // Timeout
   if (lower.includes("timeout") || lower.includes("etimedout")) {
-    return `Agent timed out after 5 minutes. ${raw}`;
+    return `Agent timed out. ${raw}`;
   }
 
   // API key / 401
@@ -840,6 +853,8 @@ export interface AgentInvokeOptions {
   projectId?: string;
   /** Provider-specific prompt caching context */
   promptCacheContext?: PromptCacheContext;
+  /** Optional timeout override (null = never). */
+  timeoutMs?: number | null;
 }
 
 export interface AgentResponse {
@@ -2222,7 +2237,10 @@ export class AgentClient {
     }
 
     try {
-      const stdout = await this.runClaudeAgentSpawn(child, { processGroup: true });
+      const stdout = await this.runClaudeAgentSpawn(child, {
+        processGroup: true,
+        timeoutMs: resolveInvokeTimeoutMs(options),
+      });
       const content = stdout.trim();
       if (options.onChunk) {
         options.onChunk(content);
@@ -2392,10 +2410,11 @@ export class AgentClient {
    * Uses SIGTERM first (allows cleanup), then SIGKILL after 3s if process ignores SIGTERM. */
   private runClaudeAgentSpawn(
     child: ReturnType<typeof spawn>,
-    options?: { processGroup?: boolean }
+    options?: { processGroup?: boolean; timeoutMs?: number | null }
   ): Promise<string> {
     return new Promise((resolve, reject) => {
-      const TIMEOUT_MS = 300_000;
+      const TIMEOUT_MS =
+        options?.timeoutMs === undefined ? DEFAULT_AGENT_TIMEOUT_MS : options.timeoutMs;
       let stdout = "";
       let stderr = "";
 
@@ -2411,31 +2430,34 @@ export class AgentClient {
           child.kill(signal);
         }
       };
-      const timeout = setTimeout(() => {
-        if (child.killed) return;
-        killChild("SIGTERM");
-        setTimeout(() => killChild("SIGKILL"), 3000);
-        if (stdout.trim()) {
-          resolve(stdout.trim());
-        } else {
-          reject(
-            new AppError(
-              504,
-              ErrorCodes.AGENT_INVOKE_FAILED,
-              `Claude CLI timed out after ${TIMEOUT_MS / 1000}s. stderr: ${stderr.slice(0, 500)}`,
-              {
-                agentType: "claude",
-                isTimeout: true,
-                stderr: stderr.slice(0, 500),
+      const timeout =
+        TIMEOUT_MS === null
+          ? null
+          : setTimeout(() => {
+              if (child.killed) return;
+              killChild("SIGTERM");
+              setTimeout(() => killChild("SIGKILL"), 3000);
+              if (stdout.trim()) {
+                resolve(stdout.trim());
+              } else {
+                reject(
+                  new AppError(
+                    504,
+                    ErrorCodes.AGENT_INVOKE_FAILED,
+                    `Claude CLI timed out after ${formatTimeoutLabel(TIMEOUT_MS)}. stderr: ${stderr.slice(0, 500)}`,
+                    {
+                      agentType: "claude",
+                      isTimeout: true,
+                      stderr: stderr.slice(0, 500),
+                    }
+                  )
+                );
               }
-            )
-          );
-        }
-      }, TIMEOUT_MS);
+            }, TIMEOUT_MS);
 
       // Attach close/error first so we handle early exit (e.g. ENOENT) before data listeners
       child.on("close", (code) => {
-        clearTimeout(timeout);
+        if (timeout) clearTimeout(timeout);
         if (code === 0 || stdout.trim()) {
           resolve(stdout.trim());
         } else {
@@ -2444,7 +2466,7 @@ export class AgentClient {
       });
 
       child.on("error", (err) => {
-        clearTimeout(timeout);
+        if (timeout) clearTimeout(timeout);
         reject(err);
       });
 
@@ -2469,6 +2491,7 @@ export class AgentClient {
     const cursorModel = resolveCursorModel(config.model);
     const args = ["-p", "--force", "--trust", "--mode", "ask", fullPrompt];
     if (cursorModel !== null) args.splice(1, 0, "--model", cursorModel);
+    const timeoutMs = resolveInvokeTimeoutMs(options);
 
     const triedKeyIds = new Set<string>();
     let lastError: unknown;
@@ -2524,7 +2547,7 @@ export class AgentClient {
       });
 
       try {
-        const content = await this.runCursorAgentSpawn(args, cwd, key);
+        const content = await this.runCursorAgentSpawn(args, cwd, key, timeoutMs);
         log.info("Cursor CLI completed", { outputLen: content.length });
         if (projectId && keyId !== ENV_FALLBACK_KEY_ID) {
           await clearLimitHit(projectId, "CURSOR_API_KEY", keyId, source);
@@ -2563,7 +2586,9 @@ export class AgentClient {
           : Boolean(execShape.killed && execShape.signal === "SIGTERM");
 
         const raw = isTimeout
-          ? `The Cursor agent timed out after 5 minutes. Try a faster model (e.g. sonnet-4.6-thinking) in Settings, or use Claude instead.`
+          ? `The Cursor agent timed out after ${
+              timeoutMs === null ? "the configured timeout" : formatTimeoutLabel(timeoutMs)
+            }. Try a faster model (e.g. sonnet-4.6-thinking) in Settings, or use Claude instead.`
           : isAppErr
             ? error.message
             : execShape.stderr ||
@@ -2587,9 +2612,14 @@ export class AgentClient {
   }
 
   /** Run Cursor agent via spawn; stream stdout/stderr to terminal and collect output */
-  private runCursorAgentSpawn(args: string[], cwd: string, cursorApiKey: string): Promise<string> {
+  private runCursorAgentSpawn(
+    args: string[],
+    cwd: string,
+    cursorApiKey: string,
+    timeoutMs: number | null
+  ): Promise<string> {
     return new Promise((resolve, reject) => {
-      const TIMEOUT_MS = 300_000;
+      const TIMEOUT_MS = timeoutMs;
       let stdout = "";
       let stderr = "";
 
@@ -2615,29 +2645,32 @@ export class AgentClient {
         );
       };
 
-      const timeout = setTimeout(() => {
-        if (child.killed) return;
-        child.kill("SIGTERM");
-        setTimeout(() => {
-          if (!child.killed) child.kill("SIGKILL");
-        }, 3000);
-        if (stdout.trim()) {
-          resolve(stdout.trim());
-        } else {
-          reject(
-            new AppError(
-              504,
-              ErrorCodes.AGENT_INVOKE_FAILED,
-              `Cursor CLI timed out after ${TIMEOUT_MS / 1000}s. stderr: ${stderr.slice(0, 500)}`,
-              {
-                agentType: "cursor",
-                isTimeout: true,
-                stderr: stderr.slice(0, 500),
+      const timeout =
+        TIMEOUT_MS === null
+          ? null
+          : setTimeout(() => {
+              if (child.killed) return;
+              child.kill("SIGTERM");
+              setTimeout(() => {
+                if (!child.killed) child.kill("SIGKILL");
+              }, 3000);
+              if (stdout.trim()) {
+                resolve(stdout.trim());
+              } else {
+                reject(
+                  new AppError(
+                    504,
+                    ErrorCodes.AGENT_INVOKE_FAILED,
+                    `Cursor CLI timed out after ${formatTimeoutLabel(TIMEOUT_MS)}. stderr: ${stderr.slice(0, 500)}`,
+                    {
+                      agentType: "cursor",
+                      isTimeout: true,
+                      stderr: stderr.slice(0, 500),
+                    }
+                  )
+                );
               }
-            )
-          );
-        }
-      }, TIMEOUT_MS);
+            }, TIMEOUT_MS);
 
       const safeWrite = (stream: NodeJS.WriteStream, data: string | Buffer) => {
         try {
@@ -2667,7 +2700,7 @@ export class AgentClient {
       });
 
       child.on("close", (code) => {
-        clearTimeout(timeout);
+        if (timeout) clearTimeout(timeout);
         cleanupCursorEnv();
         if (child.pid) unregisterAgentProcess(child.pid);
         const output = stdout.trim();
@@ -2720,7 +2753,7 @@ export class AgentClient {
       });
 
       child.on("error", (err) => {
-        clearTimeout(timeout);
+        if (timeout) clearTimeout(timeout);
         cleanupCursorEnv();
         if (child.pid) unregisterAgentProcess(child.pid);
         reject(err);
@@ -3182,9 +3215,10 @@ export class AgentClient {
     }
 
     try {
+      const timeoutMs = resolveInvokeTimeoutMs(options);
       const { stdout } = await execAsync(`${config.cliCommand} "${prompt.replace(/"/g, '\\"')}"`, {
         cwd: options.cwd || process.cwd(),
-        timeout: 300_000,
+        ...(timeoutMs !== null && { timeout: timeoutMs }),
         maxBuffer: 10 * 1024 * 1024,
       });
 

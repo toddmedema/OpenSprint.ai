@@ -99,6 +99,10 @@ const EMPTY_ACTIVE_AGENTS: {
 }[] = [];
 const EMPTY_AUDITOR_OUTPUT_BY_PLAN_ID = Object.freeze({}) as Record<string, string>;
 
+function hasGeneratedPlanTasksForCurrentVersion(plan: Plan): boolean {
+  return plan.hasGeneratedPlanTasksForCurrentVersion === true;
+}
+
 /** Auditor live output section — status indicator + streaming output (reuses Execute UX patterns). */
 function PlanAuditorOutputSection({
   planId,
@@ -321,6 +325,12 @@ export function PlanPhase({
     (s) => selectTasksForEpic(s, selectedPlan?.metadata.epicId),
     shallowEqual
   );
+  const selectedPlanNeedsTaskGeneration =
+    selectedPlan != null &&
+    selectedPlan.status === "planning" &&
+    !hasGeneratedPlanTasksForCurrentVersion(selectedPlan);
+  const selectedPlanTasksGenerating =
+    selectedPlan != null && (planTasksPlanIds ?? []).includes(selectedPlan.metadata.planId);
 
   /* ── Local UI state (preserved by mount-all) ── */
   const [addPlanModalOpen, setAddPlanModalOpen] = useState(false);
@@ -629,9 +639,11 @@ export function PlanPhase({
     };
   }, [dependencyGraph, statusFilter, searchQuery]);
 
-  /** Plans that show "Generate Tasks" (planning status, zero tasks). Used for "Generate All Tasks" button. */
+  /** Plans that should show "Generate Tasks" (planning status, generation not yet run for current version). */
   const plansWithNoTasks = useMemo(() => {
-    return plans.filter((p) => p.status === "planning" && p.taskCount === 0);
+    return plans.filter(
+      (p) => p.status === "planning" && !hasGeneratedPlanTasksForCurrentVersion(p)
+    );
   }, [plans]);
 
   /** Plan IDs for "Generate All Tasks" in dependency order (foundational first), or current order if no edges. */
@@ -643,9 +655,9 @@ export function PlanPhase({
     return ids;
   }, [plansWithNoTasks, dependencyGraph?.edges]);
 
-  /** Plans that show "Execute" (planning, has ≥1 task). Used for "Execute All" button. */
+  /** Plans that should show "Execute" (planning + task generation already run for current version). */
   const plansReadyToExecute = useMemo(() => {
-    return plans.filter((p) => p.status === "planning" && p.taskCount > 0);
+    return plans.filter((p) => p.status === "planning" && hasGeneratedPlanTasksForCurrentVersion(p));
   }, [plans]);
 
   /** Plan IDs for "Execute All" in dependency order (foundational first). */
@@ -657,7 +669,7 @@ export function PlanPhase({
     return ids;
   }, [plansReadyToExecute, dependencyGraph?.edges]);
 
-  /** When autoExecutePlans: all planning plans in dependency order (no-task plans get generate+execute, others just execute). */
+  /** When autoExecutePlans: all planning plans in dependency order (non-generated plans get generate+execute, others execute). */
   const plansEligibleForExecuteAllOrderedIds = useMemo(() => {
     const ids = plans.filter((p) => p.status === "planning").map((p) => p.metadata.planId);
     if (dependencyGraph?.edges?.length) {
@@ -773,7 +785,7 @@ export function PlanPhase({
 
   /** When autoExecutePlans: generate tasks then execute in one step for a single plan. */
   const handleShipOrGenerateAndShip = async (plan: Plan) => {
-    if (plan.taskCount === 0) {
+    if (!hasGeneratedPlanTasksForCurrentVersion(plan)) {
       dispatch(setExecutingPlanId(plan.metadata.planId));
       const result = await dispatch(planTasks({ projectId, planId: plan.metadata.planId }));
       if (!planTasks.fulfilled.match(result)) {
@@ -887,7 +899,7 @@ export function PlanPhase({
   };
 
   /**
-   * Queue all plans with no tasks (dependency order: foundational first in the shared queue).
+   * Queue all plans that still need generation (dependency order: foundational first in the shared queue).
    * Append every id before calling `processQueue` once so the worker pool sees the full queue and
    * `batchConcurrency` is not stuck at 1 (calling `enqueuePlan` in a loop used to start processing
    * after only the first id was appended).
@@ -947,7 +959,7 @@ export function PlanPhase({
     }
   };
 
-  /** When autoExecutePlans: generate-then-execute for no-task plans, execute for rest; in dependency order. */
+  /** When autoExecutePlans: generate-then-execute for non-generated plans, execute for generated ones; in dependency order. */
   const handleExecuteAllOrGenerateAndExecute = async () => {
     if (
       plansEligibleForExecuteAllOrderedIds.length === 0 ||
@@ -961,7 +973,7 @@ export function PlanPhase({
       for (const planId of plansEligibleForExecuteAllOrderedIds) {
         const plan = plans.find((p) => p.metadata.planId === planId);
         if (!plan) continue;
-        if (plan.taskCount === 0) {
+        if (!hasGeneratedPlanTasksForCurrentVersion(plan)) {
           const ptResult = await dispatch(planTasks({ projectId, planId }));
           if (!planTasks.fulfilled.match(ptResult)) {
             dispatch(
@@ -983,10 +995,10 @@ export function PlanPhase({
       const items: PlanExecuteBatchItem[] = [];
       for (const planId of plansEligibleForExecuteAllOrderedIds) {
         const p = freshPlans.find((x) => x.metadata.planId === planId);
-        if (!p || p.taskCount === 0) {
+        if (!p || !hasGeneratedPlanTasksForCurrentVersion(p)) {
           dispatch(
             addNotification({
-              message: "A plan still has no tasks after generation; cannot execute all.",
+              message: "A plan is still not generated after task generation; cannot execute all.",
               severity: "error",
             })
           );
@@ -1516,7 +1528,7 @@ export function PlanPhase({
                       contentClassName="px-4 pt-0"
                     >
                       <div className="space-y-2">
-                        {selectedPlanTasks.length === 0 ? (
+                        {selectedPlanNeedsTaskGeneration && (
                           <div className="space-y-2">
                             {!autoExecutePlans && (
                               <p className="text-sm text-theme-muted">
@@ -1530,19 +1542,16 @@ export function PlanPhase({
                                 onClick={() =>
                                   selectedPlan && handleShipOrGenerateAndShip(selectedPlan)
                                 }
-                                disabled={
-                                  !!executingPlanId ||
-                                  (planTasksPlanIds ?? []).includes(selectedPlan.metadata.planId)
-                                }
+                                disabled={!!executingPlanId || selectedPlanTasksGenerating}
                                 className="btn-primary text-sm w-full py-2 rounded-lg font-medium inline-flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
                                 data-testid="execute-button-sidebar"
                               >
-                                {(planTasksPlanIds ?? []).includes(selectedPlan.metadata.planId) ||
+                                {selectedPlanTasksGenerating ||
                                 executingPlanId === selectedPlan.metadata.planId
                                   ? "Generating & executing…"
                                   : "Execute"}
                               </button>
-                            ) : (planTasksPlanIds ?? []).includes(selectedPlan.metadata.planId) ? (
+                            ) : selectedPlanTasksGenerating ? (
                               <p
                                 className="text-sm text-theme-muted"
                                 aria-busy="true"
@@ -1562,6 +1571,9 @@ export function PlanPhase({
                               </button>
                             )}
                           </div>
+                        )}
+                        {selectedPlanTasks.length === 0 && !selectedPlanNeedsTaskGeneration ? (
+                          <p className="text-sm text-theme-muted">No tasks yet.</p>
                         ) : (
                           selectedPlanTasks.map((task) => (
                             <button

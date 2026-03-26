@@ -14,6 +14,7 @@ import {
 } from "./settings/GlobalSettingsSubTabsBar";
 import type {
   AgentConfig,
+  AgentTimeoutValue,
   ApiKeyEntry,
   ApiKeys,
   ApiKeyUpdateEntry,
@@ -21,7 +22,7 @@ import type {
   MaskedApiKeyEntry,
   MaskedApiKeys,
 } from "@opensprint/shared";
-import { API_KEY_PROVIDERS, DEFAULT_AGENT_CONFIG } from "@opensprint/shared";
+import { API_KEY_PROVIDERS, DEFAULT_AGENT_CONFIG, normalizeAgentTimeoutMs } from "@opensprint/shared";
 import type { SaveStatus } from "./SaveIndicator";
 import { MIN_SAVE_SPINNER_MS } from "../lib/constants";
 import {
@@ -46,10 +47,12 @@ const LOCAL_PROVIDER_MODEL_REQUIRED_MESSAGE =
   "Select a model before saving LM Studio or Ollama settings.";
 
 function toPutAgent(agent: AgentConfig): AgentConfig {
+  const timeoutMs = normalizeAgentTimeoutMs(agent.timeoutMs) as AgentTimeoutValue;
   const base: AgentConfig = {
     type: agent.type,
     model: agent.model || null,
     cliCommand: agent.cliCommand || null,
+    timeoutMs,
   };
   if (agent.type === "lmstudio" || agent.type === "ollama") {
     return {
