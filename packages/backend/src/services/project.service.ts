@@ -334,7 +334,10 @@ function toCanonicalSettings(s: ProjectSettings): ProjectSettings {
     autoExecutePlans: s.autoExecutePlans === true,
     runAgentEnhancementExperiments: s.runAgentEnhancementExperiments === true,
     ...(s.selfImprovementReviewMode && { selfImprovementReviewMode: s.selfImprovementReviewMode }),
-    ...(s.selfImprovementReviewAngles && s.selfImprovementReviewAngles.length > 0 && { selfImprovementReviewAngles: s.selfImprovementReviewAngles }),
+    ...(s.selfImprovementReviewerAgents &&
+      s.selfImprovementReviewerAgents.length > 0 && {
+        selfImprovementReviewerAgents: s.selfImprovementReviewerAgents,
+      }),
     ...(s.selfImprovementIncludeGeneralReview === true && { selfImprovementIncludeGeneralReview: true }),
     ...(s.selfImprovementPendingCandidateId && {
       selfImprovementPendingCandidateId: s.selfImprovementPendingCandidateId,

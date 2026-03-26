@@ -394,7 +394,10 @@ describe("ProjectSettingsModal", () => {
     await userEvent.click(workflowTab);
 
     await screen.findByText("Code Review mode");
-    const generalCheckbox = screen.getByRole("checkbox", { name: /^General$/i });
+    const codeReviewMultiselect = screen.getByTestId("review-agents-multiselect");
+    const generalCheckbox = within(codeReviewMultiselect).getByRole("checkbox", {
+      name: /^General$/i,
+    });
     expect(generalCheckbox).toBeChecked();
     expect(generalCheckbox).toBeDisabled();
   });
@@ -409,7 +412,10 @@ describe("ProjectSettingsModal", () => {
     await userEvent.click(workflowTab);
 
     await screen.findByText("Code Review mode");
-    const securityCheckbox = screen.getByRole("checkbox", { name: /Security implications/i });
+    const codeReviewMultiselect = screen.getByTestId("review-agents-multiselect");
+    const securityCheckbox = within(codeReviewMultiselect).getByRole("checkbox", {
+      name: /Security implications/i,
+    });
     expect(securityCheckbox).toBeChecked();
     expect(securityCheckbox).toBeDisabled();
   });
@@ -424,7 +430,8 @@ describe("ProjectSettingsModal", () => {
     await userEvent.click(workflowTab);
 
     await screen.findByText("Code Review mode");
-    expect(screen.getByText("Review angles")).toBeInTheDocument();
+    const qualityCard = screen.getByTestId("workflow-quality-gates-card");
+    expect(within(qualityCard).getByText("Review angles")).toBeInTheDocument();
     const multiselect = screen.getByTestId("review-agents-multiselect");
     expect(multiselect).toBeInTheDocument();
     expect(
@@ -436,7 +443,9 @@ describe("ProjectSettingsModal", () => {
     expect(within(multiselect).getByText("Security implications")).toBeInTheDocument();
     expect(within(multiselect).getByText("Performance impact")).toBeInTheDocument();
 
-    const securityCheckbox = screen.getByRole("checkbox", { name: /Security implications/i });
+    const securityCheckbox = within(multiselect).getByRole("checkbox", {
+      name: /Security implications/i,
+    });
     await userEvent.click(securityCheckbox);
 
     await waitFor(() =>
@@ -464,9 +473,14 @@ describe("ProjectSettingsModal", () => {
     await userEvent.click(workflowTab);
 
     await screen.findByText("Code Review mode");
-    const generalCheckbox = screen.getByRole("checkbox", { name: /^General$/i });
-    const securityCheckbox = screen.getByRole("checkbox", { name: /Security implications/i });
-    const designCheckbox = screen.getByRole("checkbox", {
+    const codeReviewMultiselect = screen.getByTestId("review-agents-multiselect");
+    const generalCheckbox = within(codeReviewMultiselect).getByRole("checkbox", {
+      name: /^General$/i,
+    });
+    const securityCheckbox = within(codeReviewMultiselect).getByRole("checkbox", {
+      name: /Security implications/i,
+    });
+    const designCheckbox = within(codeReviewMultiselect).getByRole("checkbox", {
       name: /Design, UX and accessibility/i,
     });
     expect(generalCheckbox).toBeChecked();
@@ -504,7 +518,8 @@ describe("ProjectSettingsModal", () => {
     await userEvent.click(workflowTab);
 
     await screen.findByText("Code Review mode");
-    const performanceCheckbox = screen.getByRole("checkbox", {
+    const codeReviewMultiselect = screen.getByTestId("review-agents-multiselect");
+    const performanceCheckbox = within(codeReviewMultiselect).getByRole("checkbox", {
       name: /Performance impact/i,
     });
     expect(performanceCheckbox).toBeChecked();
@@ -537,7 +552,8 @@ describe("ProjectSettingsModal", () => {
     await userEvent.click(workflowTab);
 
     await screen.findByText("Code Review mode");
-    const performanceCheckbox = screen.getByRole("checkbox", {
+    const codeReviewMultiselect = screen.getByTestId("review-agents-multiselect");
+    const performanceCheckbox = within(codeReviewMultiselect).getByRole("checkbox", {
       name: /Performance impact/i,
     });
     await userEvent.click(performanceCheckbox);
@@ -570,7 +586,10 @@ describe("ProjectSettingsModal", () => {
     await userEvent.click(workflowTab);
 
     await screen.findByText("Code Review mode");
-    const securityCheckbox = screen.getByRole("checkbox", { name: /Security implications/i });
+    const codeReviewMultiselect = screen.getByTestId("review-agents-multiselect");
+    const securityCheckbox = within(codeReviewMultiselect).getByRole("checkbox", {
+      name: /Security implications/i,
+    });
     expect(securityCheckbox).toBeChecked();
     await userEvent.click(securityCheckbox);
 
@@ -599,8 +618,11 @@ describe("ProjectSettingsModal", () => {
     await userEvent.click(workflowTab);
 
     await screen.findByText("Code Review mode");
-    const securityCheckbox = screen.getByRole("checkbox", { name: /Security implications/i });
-    const testCoverageCheckbox = screen.getByRole("checkbox", {
+    const codeReviewMultiselect = screen.getByTestId("review-agents-multiselect");
+    const securityCheckbox = within(codeReviewMultiselect).getByRole("checkbox", {
+      name: /Security implications/i,
+    });
+    const testCoverageCheckbox = within(codeReviewMultiselect).getByRole("checkbox", {
       name: /Validating test coverage/i,
     });
     expect(securityCheckbox).toBeChecked();
@@ -617,7 +639,10 @@ describe("ProjectSettingsModal", () => {
     await userEvent.click(workflowTab);
 
     await screen.findByText("Code Review mode");
-    const securityCheckbox = screen.getByRole("checkbox", { name: /Security implications/i });
+    const codeReviewMultiselect = screen.getByTestId("review-agents-multiselect");
+    const securityCheckbox = within(codeReviewMultiselect).getByRole("checkbox", {
+      name: /Security implications/i,
+    });
     expect(securityCheckbox).toHaveClass("border-0");
   });
 
@@ -656,6 +681,64 @@ describe("ProjectSettingsModal", () => {
         "proj-1",
         expect.objectContaining({
           selfImprovementFrequency: "daily",
+        })
+      )
+    );
+  });
+
+  it("sends null for selfImprovementReviewMode when inheriting code review mode", async () => {
+    mockGetSettings.mockResolvedValue({
+      ...mockSettings,
+      reviewMode: "always",
+      selfImprovementReviewMode: "never",
+    });
+    mockUpdateSettings.mockResolvedValue({});
+
+    renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
+    await waitForModalReady();
+
+    const workflowTab = screen.getByRole("button", { name: "Workflow" });
+    await userEvent.click(workflowTab);
+
+    const siModeSelect = await screen.findByTestId("self-improvement-review-mode-select");
+    await userEvent.selectOptions(siModeSelect, "__inherit__");
+
+    await waitFor(() =>
+      expect(mockUpdateSettings).toHaveBeenCalledWith(
+        "proj-1",
+        expect.objectContaining({
+          selfImprovementReviewMode: null,
+        })
+      )
+    );
+  });
+
+  it("sends null for self-improvement reviewer fields when resetting to code review defaults", async () => {
+    mockGetSettings.mockResolvedValue({
+      ...mockSettings,
+      reviewMode: "always",
+      reviewAngles: ["security"],
+      includeGeneralReview: true,
+      selfImprovementReviewerAgents: ["performance"],
+      selfImprovementIncludeGeneralReview: false,
+    });
+    mockUpdateSettings.mockResolvedValue({});
+
+    renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
+    await waitForModalReady();
+
+    const workflowTab = screen.getByRole("button", { name: "Workflow" });
+    await userEvent.click(workflowTab);
+
+    await screen.findByTestId("si-review-reset-btn");
+    await userEvent.click(screen.getByTestId("si-review-reset-btn"));
+
+    await waitFor(() =>
+      expect(mockUpdateSettings).toHaveBeenCalledWith(
+        "proj-1",
+        expect.objectContaining({
+          selfImprovementReviewerAgents: null,
+          selfImprovementIncludeGeneralReview: null,
         })
       )
     );

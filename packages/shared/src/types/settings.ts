@@ -416,16 +416,23 @@ export function getSelfImprovementReviewMode(settings: ProjectSettings): ReviewM
 }
 
 /**
- * Resolve the effective review angles for self-improvement.
- * Returns selfImprovementReviewAngles when explicitly set; otherwise falls back to reviewAngles.
+ * Resolve the effective self-improvement reviewer agents (review angles).
+ * Returns selfImprovementReviewerAgents when explicitly set; otherwise falls back to reviewAngles.
  */
+export function getSelfImprovementReviewerAgents(
+  settings: ProjectSettings
+): ReviewAngle[] | undefined {
+  if (settings.selfImprovementReviewerAgents !== undefined) {
+    return settings.selfImprovementReviewerAgents;
+  }
+  return settings.reviewAngles;
+}
+
+/** @deprecated Use getSelfImprovementReviewerAgents */
 export function getSelfImprovementReviewAngles(
   settings: ProjectSettings
 ): ReviewAngle[] | undefined {
-  if (settings.selfImprovementReviewAngles !== undefined) {
-    return settings.selfImprovementReviewAngles;
-  }
-  return settings.reviewAngles;
+  return getSelfImprovementReviewerAgents(settings);
 }
 
 /**
@@ -831,9 +838,12 @@ export interface ProjectSettings {
   runAgentEnhancementExperiments?: boolean;
   /** Review mode for self-improvement reviewer. When unset, falls back to reviewMode. */
   selfImprovementReviewMode?: ReviewMode;
-  /** Review angles for self-improvement reviewer. When unset, falls back to reviewAngles. */
-  selfImprovementReviewAngles?: ReviewAngle[];
-  /** When true with selfImprovementReviewAngles non-empty, run one general review plus one per angle for self-improvement. When unset, falls back to includeGeneralReview. */
+  /**
+   * Selected self-improvement reviewer agents (same values as code review review angles).
+   * When unset, falls back to reviewAngles.
+   */
+  selfImprovementReviewerAgents?: ReviewAngle[];
+  /** When true with selfImprovementReviewerAgents non-empty, run one general review plus one per angle for self-improvement. When unset, falls back to includeGeneralReview. */
   selfImprovementIncludeGeneralReview?: boolean;
   /** Candidate behavior version awaiting human decision (approve/reject). */
   selfImprovementPendingCandidateId?: string;
@@ -888,10 +898,17 @@ export type ProjectSettingsApiUpdate = Partial<
     | "complexComplexityAgent"
     | "simpleComplexityAgentInherited"
     | "complexComplexityAgentInherited"
+    | "selfImprovementReviewMode"
+    | "selfImprovementReviewerAgents"
+    | "selfImprovementIncludeGeneralReview"
   >
 > & {
   simpleComplexityAgent?: AgentConfig | null;
   complexComplexityAgent?: AgentConfig | null;
+  /** `null` clears the project override so code review settings apply (inherit). */
+  selfImprovementReviewMode?: ReviewMode | null;
+  selfImprovementReviewerAgents?: ReviewAngle[] | null;
+  selfImprovementIncludeGeneralReview?: boolean | null;
 };
 
 /** Planning agent roles — Dreamer/Analyst use fixed tiers; others inherit plan complexity */
@@ -1174,7 +1191,9 @@ export function parseSettings(raw: unknown): ProjectSettings {
       r?.selfImprovementReviewMode === "on-failure-only"
         ? (r.selfImprovementReviewMode as ReviewMode)
         : undefined,
-    selfImprovementReviewAngles: parseReviewAngles(r?.selfImprovementReviewAngles),
+    selfImprovementReviewerAgents:
+      parseReviewAngles(r?.selfImprovementReviewerAgents) ??
+      parseReviewAngles(r?.selfImprovementReviewAngles),
     selfImprovementIncludeGeneralReview:
       r?.selfImprovementIncludeGeneralReview === true ? true : undefined,
   };
@@ -1234,8 +1253,13 @@ export function parseSettings(raw: unknown): ProjectSettings {
   const {
     apiKeys: _omitApiKeys,
     maxTotalConcurrentAgents: _omitMaxTotalRaw,
+    selfImprovementReviewAngles: _omitLegacySelfImprovementReviewAngles,
     ...rest
-  } = r as Partial<ProjectSettings> & { apiKeys?: unknown };
+  } = r as Partial<ProjectSettings> & {
+    apiKeys?: unknown;
+    /** Legacy persisted key; migrated to selfImprovementReviewerAgents */
+    selfImprovementReviewAngles?: unknown;
+  };
   if (simpleObj && typeof simpleObj === "object" && complexObj && typeof complexObj === "object") {
     const simple = simpleObj as AgentConfig;
     const complex = complexObj as AgentConfig;

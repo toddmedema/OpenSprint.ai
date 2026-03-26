@@ -17,6 +17,9 @@ import {
   MAX_TOTAL_CONCURRENT_AGENTS_CAP,
   REVIEW_AGENT_OPTIONS,
   SELF_IMPROVEMENT_FREQUENCY_OPTIONS,
+  getSelfImprovementReviewMode,
+  getSelfImprovementReviewerAgents,
+  getSelfImprovementIncludeGeneralReview,
   normalizeWorktreeBaseBranch,
 } from "@opensprint/shared";
 import { api } from "../../api/client";
@@ -37,6 +40,9 @@ type WorkflowPersistOverrides = Partial<{
   includeGeneralReview?: boolean;
   selfImprovementFrequency?: SelfImprovementFrequency;
   runAgentEnhancementExperiments?: boolean;
+  selfImprovementReviewMode?: ReviewMode;
+  selfImprovementReviewerAgents?: ReviewAngle[];
+  selfImprovementIncludeGeneralReview?: boolean;
   gitWorkingMode: GitWorkingMode;
   mergeStrategy: MergeStrategy;
   worktreeBaseBranch: string;
@@ -773,6 +779,248 @@ export function WorkflowSettingsContent({
               />
               <span className="text-sm text-theme-text">Run experiments to enhance agents</span>
             </label>
+
+            {/* Self-Improvement Review agent selector */}
+            <div data-testid="self-improvement-review-section">
+              <h4 className="text-sm font-semibold text-theme-text mb-1">
+                Self-Improvement Review
+              </h4>
+              <p className="text-xs text-theme-muted mb-3">
+                Configure which review mode and angles to use when the self-improvement audit reviews
+                recent code changes. When not customized, these inherit the code review settings
+                above.
+              </p>
+
+              {/* Review mode dropdown */}
+              <div className="flex items-center justify-between gap-4 mb-3">
+                <div className="min-w-0 flex-1">
+                  <span className="block text-xs font-medium text-theme-muted">Review mode</span>
+                </div>
+                <select
+                  data-testid="self-improvement-review-mode-select"
+                  className="input w-48 shrink-0"
+                  value={
+                    draftSettings.selfImprovementReviewMode ??
+                    "__inherit__"
+                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "__inherit__") {
+                      applySettingsUpdate((s) => {
+                        const next = { ...s };
+                        delete next.selfImprovementReviewMode;
+                        return next;
+                      });
+                      void persistSettings(undefined, {
+                        selfImprovementReviewMode: undefined,
+                      });
+                    } else {
+                      const mode = val as ReviewMode;
+                      applySettingsUpdate((s) => ({
+                        ...s,
+                        selfImprovementReviewMode: mode,
+                      }));
+                      void persistSettings(undefined, {
+                        selfImprovementReviewMode: mode,
+                      });
+                    }
+                  }}
+                >
+                  <option value="__inherit__">
+                    Use code review setting (
+                    {getSelfImprovementReviewMode({
+                      ...draftSettings,
+                      selfImprovementReviewMode: undefined,
+                    })}
+                    )
+                  </option>
+                  <option value="never">Never</option>
+                  <option value="always">Always</option>
+                  <option value="on-failure-only">On Failure Only</option>
+                </select>
+              </div>
+
+              {/* Review angles multi-select */}
+              <div role="group" aria-labelledby="self-improvement-reviewer-agents-heading">
+                <span
+                  id="self-improvement-reviewer-agents-heading"
+                  className="block text-xs font-medium text-theme-muted mb-2"
+                >
+                  Review angles
+                </span>
+                {(() => {
+                  const hasExplicitAngles =
+                    draftSettings.selfImprovementReviewerAgents !== undefined ||
+                    draftSettings.selfImprovementIncludeGeneralReview !== undefined;
+                  const effectiveAngles = getSelfImprovementReviewerAgents(draftSettings) ?? [];
+                  const effectiveIncludeGeneral =
+                    getSelfImprovementIncludeGeneralReview(draftSettings);
+                  const angles = hasExplicitAngles
+                    ? (draftSettings.selfImprovementReviewerAgents ?? [])
+                    : effectiveAngles;
+                  const includeGeneral = hasExplicitAngles
+                    ? (draftSettings.selfImprovementIncludeGeneralReview ?? false)
+                    : effectiveIncludeGeneral;
+
+                  return (
+                    <>
+                      {!hasExplicitAngles && (
+                        <p className="text-xs text-theme-muted mb-2">
+                          Using code review angles.{" "}
+                          <button
+                            type="button"
+                            className="text-brand-600 hover:underline"
+                            data-testid="si-review-customize-btn"
+                            onClick={() => {
+                              const fromCodeReview =
+                                lastReviewAnglesRef.current ??
+                                draftSettings.reviewAngles ??
+                                [];
+                              const includeGeneral =
+                                draftSettings.includeGeneralReview ?? false;
+                              applySettingsUpdate((s) => ({
+                                ...s,
+                                selfImprovementReviewerAgents: fromCodeReview,
+                                selfImprovementIncludeGeneralReview: includeGeneral,
+                              }));
+                              void persistSettings(undefined, {
+                                selfImprovementReviewerAgents: fromCodeReview,
+                                selfImprovementIncludeGeneralReview: includeGeneral,
+                              });
+                            }}
+                          >
+                            Customize
+                          </button>
+                        </p>
+                      )}
+                      {hasExplicitAngles && (
+                        <p className="text-xs text-theme-muted mb-2">
+                          Custom angles set.{" "}
+                          <button
+                            type="button"
+                            className="text-brand-600 hover:underline"
+                            data-testid="si-review-reset-btn"
+                            onClick={() => {
+                              applySettingsUpdate((s) => {
+                                const next = { ...s };
+                                delete next.selfImprovementReviewerAgents;
+                                delete next.selfImprovementIncludeGeneralReview;
+                                return next;
+                              });
+                              void persistSettings(undefined, {
+                                selfImprovementReviewerAgents: undefined,
+                                selfImprovementIncludeGeneralReview: undefined,
+                              });
+                            }}
+                          >
+                            Reset to code review defaults
+                          </button>
+                        </p>
+                      )}
+                      <div
+                        className="flex flex-wrap gap-2"
+                        data-testid="self-improvement-reviewer-agents-multiselect"
+                      >
+                        {REVIEW_AGENT_OPTIONS.map((opt) => {
+                          const isGeneral = opt.value === GENERAL_REVIEW_OPTION;
+                          const angleValue: ReviewAngle | null = isGeneral
+                            ? null
+                            : (opt.value as ReviewAngle);
+                          const generalSelected =
+                            angles.length === 0 || includeGeneral;
+                          const selected = isGeneral
+                            ? generalSelected
+                            : angleValue !== null && angles.includes(angleValue);
+                          const selectedCount =
+                            (generalSelected ? 1 : 0) + angles.length;
+                          const wouldLeaveZero = selected && selectedCount === 1;
+                          const disabled = wouldLeaveZero || !hasExplicitAngles;
+                          return (
+                            <label
+                              key={opt.value}
+                              htmlFor={`si-review-agent-${opt.value}`}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-sm ${
+                                disabled
+                                  ? "cursor-not-allowed opacity-90"
+                                  : "cursor-pointer hover:border-theme-muted"
+                              } ${
+                                selected
+                                  ? "border-brand-600 bg-brand-50 dark:bg-brand-900/20"
+                                  : "border-theme-border"
+                              }`}
+                            >
+                              <input
+                                id={`si-review-agent-${opt.value}`}
+                                type="checkbox"
+                                checked={selected}
+                                disabled={disabled}
+                                onChange={() => {
+                                  if (disabled) return;
+                                  if (isGeneral) {
+                                    if (selected) {
+                                      applySettingsUpdate((s) => ({
+                                        ...s,
+                                        selfImprovementIncludeGeneralReview: false,
+                                      }));
+                                      void persistSettings(undefined, {
+                                        selfImprovementIncludeGeneralReview: false,
+                                      });
+                                    } else {
+                                      applySettingsUpdate((s) => ({
+                                        ...s,
+                                        selfImprovementIncludeGeneralReview: true,
+                                      }));
+                                      void persistSettings(undefined, {
+                                        selfImprovementIncludeGeneralReview: true,
+                                      });
+                                    }
+                                  } else {
+                                    const current = angles;
+                                    const next: ReviewAngle[] = selected
+                                      ? current.filter((a) => a !== angleValue)
+                                      : angleValue
+                                        ? [...current, angleValue]
+                                        : current;
+                                    if (
+                                      next.length === 0 &&
+                                      selected &&
+                                      !includeGeneral
+                                    )
+                                      return;
+                                    const wasGeneralOnly =
+                                      current.length === 0 && generalSelected;
+                                    applySettingsUpdate((s) => {
+                                      const nextSettings: ProjectSettings = {
+                                        ...s,
+                                        selfImprovementReviewerAgents:
+                                          next.length > 0 ? next : undefined,
+                                      };
+                                      if (wasGeneralOnly)
+                                        nextSettings.selfImprovementIncludeGeneralReview =
+                                          true;
+                                      return nextSettings;
+                                    });
+                                    void persistSettings(undefined, {
+                                      selfImprovementReviewerAgents:
+                                        next.length > 0 ? next : [],
+                                      ...(wasGeneralOnly && {
+                                        selfImprovementIncludeGeneralReview: true,
+                                      }),
+                                    });
+                                  }
+                                }}
+                                className="rounded border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-0 disabled:cursor-not-allowed"
+                              />
+                              <span className="text-theme-text">{opt.label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
 
             <div
               className="flex items-center gap-2 text-xs text-theme-muted"

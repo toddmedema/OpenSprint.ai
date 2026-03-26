@@ -1,16 +1,22 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import fs from "fs/promises";
+import os from "node:os";
 import path from "path";
 import { PrdService } from "../services/prd.service.js";
 import { SPEC_MD, prdToSpecMarkdown } from "@opensprint/shared";
 
+/** Isolated repo path per test — avoids ENOENT flakes from a fixed /tmp directory. */
+const { prdTestRepo } = vi.hoisted(() => ({ prdTestRepo: { repoPath: "" } }));
+
 vi.mock("../services/project.service.js", () => ({
   ProjectService: vi.fn().mockImplementation(() => ({
-    getProject: vi.fn().mockResolvedValue({
-      id: "test-project",
-      name: "Test",
-      repoPath: "/tmp/opensprint-test-prd",
-    }),
+    getProject: vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        id: "test-project",
+        name: "Test",
+        repoPath: prdTestRepo.repoPath,
+      })
+    ),
     getProjectByRepoPath: vi.fn().mockResolvedValue(null),
   })),
 }));
@@ -114,8 +120,7 @@ vi.mock("../services/git-commit-queue.service.js", () => ({
 // Shared module-level prdMetadataStore / prdSnapshotsStore must not be touched concurrently.
 describe.sequential("PrdService", () => {
   let prdService: PrdService;
-  const repoPath = "/tmp/opensprint-test-prd";
-  const specPath = path.join(repoPath, SPEC_MD);
+  let specPath: string;
 
   const mockPrd = {
     version: 1,
@@ -150,6 +155,8 @@ describe.sequential("PrdService", () => {
   beforeEach(async () => {
     for (const k of Object.keys(prdMetadataStore)) delete prdMetadataStore[k];
     for (const k of Object.keys(prdSnapshotsStore)) delete prdSnapshotsStore[k];
+    prdTestRepo.repoPath = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-test-prd-"));
+    specPath = path.join(prdTestRepo.repoPath, SPEC_MD);
     prdService = new PrdService();
     await fs.mkdir(path.dirname(specPath), { recursive: true });
     await fs.writeFile(specPath, prdToSpecMarkdown(mockPrd as never), "utf-8");
@@ -159,7 +166,9 @@ describe.sequential("PrdService", () => {
 
   afterEach(async () => {
     try {
-      await fs.rm(repoPath, { recursive: true, force: true });
+      if (prdTestRepo.repoPath) {
+        await fs.rm(prdTestRepo.repoPath, { recursive: true, force: true });
+      }
     } catch {
       // ignore
     }

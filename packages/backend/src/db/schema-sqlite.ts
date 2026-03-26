@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS task_dependencies (
 
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_project_id_status ON tasks(project_id, status);
 CREATE INDEX IF NOT EXISTS idx_tasks_assignee ON tasks(assignee) WHERE assignee IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_deps_task ON task_dependencies(task_id);
 CREATE INDEX IF NOT EXISTS idx_deps_depends ON task_dependencies(depends_on_id);

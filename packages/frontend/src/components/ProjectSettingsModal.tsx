@@ -101,6 +101,11 @@ function selectValueToTimeout(value: string): AgentTimeoutValue {
   return value === "never" ? null : normalizeAgentTimeoutMs(Number(value));
 }
 
+/** True when `key` was set on the patch object (including explicit `undefined`, for inherit/reset). */
+function patchDefines<T extends object, K extends keyof T>(patch: T | undefined, key: K): boolean {
+  return patch != null && Object.prototype.hasOwnProperty.call(patch, key);
+}
+
 function parseTabFromSearch(search: string): SettingsSubTab | null {
   const params = new URLSearchParams(search);
   const t = params.get(TAB_PARAM);
@@ -349,6 +354,9 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
       teamMembers: Array<{ id: string; name: string }>;
       selfImprovementFrequency?: SelfImprovementFrequency;
       runAgentEnhancementExperiments?: boolean;
+      selfImprovementReviewMode?: ReviewMode;
+      selfImprovementReviewerAgents?: ReviewAngle[];
+      selfImprovementIncludeGeneralReview?: boolean;
     }>;
 
     const persistSettings = useCallback(
@@ -480,6 +488,39 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                 ? { runAgentEnhancementExperiments: overrides.runAgentEnhancementExperiments }
                 : effSettings?.runAgentEnhancementExperiments !== undefined
                   ? { runAgentEnhancementExperiments: effSettings.runAgentEnhancementExperiments }
+                  : {}),
+              ...(patchDefines(overrides, "selfImprovementReviewMode")
+                ? {
+                    selfImprovementReviewMode:
+                      overrides!.selfImprovementReviewMode === undefined
+                        ? null
+                        : overrides!.selfImprovementReviewMode,
+                  }
+                : effSettings?.selfImprovementReviewMode !== undefined
+                  ? { selfImprovementReviewMode: effSettings.selfImprovementReviewMode }
+                  : {}),
+              ...(patchDefines(overrides, "selfImprovementReviewerAgents")
+                ? {
+                    selfImprovementReviewerAgents:
+                      overrides!.selfImprovementReviewerAgents === undefined
+                        ? null
+                        : overrides!.selfImprovementReviewerAgents,
+                  }
+                : effSettings?.selfImprovementReviewerAgents !== undefined
+                  ? { selfImprovementReviewerAgents: effSettings.selfImprovementReviewerAgents }
+                  : {}),
+              ...(patchDefines(overrides, "selfImprovementIncludeGeneralReview")
+                ? {
+                    selfImprovementIncludeGeneralReview:
+                      overrides!.selfImprovementIncludeGeneralReview === undefined
+                        ? null
+                        : overrides!.selfImprovementIncludeGeneralReview,
+                  }
+                : effSettings?.selfImprovementIncludeGeneralReview !== undefined
+                  ? {
+                      selfImprovementIncludeGeneralReview:
+                        effSettings.selfImprovementIncludeGeneralReview,
+                    }
                   : {}),
             }),
           ]);

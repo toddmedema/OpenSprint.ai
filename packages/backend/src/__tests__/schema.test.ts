@@ -82,6 +82,37 @@ describe("schema", () => {
     }
   });
 
+  it("Postgres and SQLite schemas include composite index on tasks (project_id, status)", () => {
+    const expected =
+      "CREATE INDEX IF NOT EXISTS idx_tasks_project_id_status ON tasks(project_id, status)";
+    for (const dialect of ["postgres", "sqlite"] as const) {
+      const sql = getSchemaSql(dialect);
+      expect(sql).toContain(expected);
+    }
+    expect(SCHEMA_SQL).toContain("idx_tasks_project_id_status");
+    expect(SCHEMA_SQL_SQLITE).toContain("idx_tasks_project_id_status");
+  });
+
+  it("runSchema emits tasks composite index for Postgres and SQLite", async () => {
+    const indexStmt =
+      "CREATE INDEX IF NOT EXISTS idx_tasks_project_id_status ON tasks(project_id, status)";
+    for (const dialect of ["postgres", "sqlite"] as const) {
+      const statements: string[] = [];
+      await runSchema(
+        {
+          query: async (sql: string) => {
+            statements.push(sql);
+            if (sql.startsWith("PRAGMA table_info("))
+              return [{ name: "project_id" }, { name: "plan_id" }];
+            return [];
+          },
+        },
+        dialect
+      );
+      expect(statements.some((s) => s.includes(indexStmt))).toBe(true);
+    }
+  });
+
   it("Postgres and SQLite schemas include prd_snapshots table", () => {
     const pg = getSchemaSql("postgres");
     const sqlite = getSchemaSql("sqlite");

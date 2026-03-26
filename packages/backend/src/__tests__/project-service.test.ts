@@ -1006,6 +1006,45 @@ describe("ProjectService", () => {
     expect(settings.selfImprovementLastCommitSha).toBeUndefined();
   });
 
+  it("clears self-improvement overrides when client sends null", async () => {
+    const repoPath = path.join(tempDir, "si-clear-overrides");
+    const project = await projectService.createProject({
+      name: "SI Clear Overrides",
+      repoPath,
+      simpleComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      complexComplexityAgent: { type: "claude", model: null, cliCommand: null },
+      deployment: { mode: "custom" },
+      hilConfig: DEFAULT_HIL_CONFIG,
+    });
+
+    await projectService.updateSettings(project.id, {
+      reviewMode: "always",
+      reviewAngles: ["security"],
+      includeGeneralReview: true,
+      selfImprovementReviewMode: "never",
+      selfImprovementReviewerAgents: ["performance"],
+      selfImprovementIncludeGeneralReview: true,
+    } as Record<string, unknown>);
+
+    let loaded = await projectService.getSettings(project.id);
+    expect(loaded.selfImprovementReviewMode).toBe("never");
+    expect(loaded.selfImprovementReviewerAgents).toEqual(["performance"]);
+    expect(loaded.selfImprovementIncludeGeneralReview).toBe(true);
+
+    await projectService.updateSettings(project.id, {
+      selfImprovementReviewMode: null,
+      selfImprovementReviewerAgents: null,
+      selfImprovementIncludeGeneralReview: null,
+    } as Record<string, unknown>);
+
+    loaded = await projectService.getSettings(project.id);
+    expect(loaded.selfImprovementReviewMode).toBeUndefined();
+    expect(loaded.selfImprovementReviewerAgents).toBeUndefined();
+    expect(loaded.selfImprovementIncludeGeneralReview).toBeUndefined();
+    expect(loaded.reviewMode).toBe("always");
+    expect(loaded.reviewAngles).toEqual(["security"]);
+  });
+
   it("getSettingsWithRuntimeState returns nextRunAt when frequency is daily or weekly", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2025-06-11T14:30:00.000Z"));

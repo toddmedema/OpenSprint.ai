@@ -988,6 +988,143 @@ describe("WorkflowSettingsContent", () => {
     });
   });
 
+  describe("self-improvement review section", () => {
+    it("renders the self-improvement review section", () => {
+      renderWorkflowContent();
+      expect(screen.getByTestId("self-improvement-review-section")).toBeInTheDocument();
+      expect(screen.getByText("Self-Improvement Review")).toBeInTheDocument();
+    });
+
+    it("shows review mode dropdown defaulting to inherit", () => {
+      renderWorkflowContent();
+      const select = screen.getByTestId(
+        "self-improvement-review-mode-select"
+      ) as HTMLSelectElement;
+      expect(select.value).toBe("__inherit__");
+    });
+
+    it("shows review mode dropdown with explicit value when selfImprovementReviewMode is set", () => {
+      renderWorkflowContent({ selfImprovementReviewMode: "never" });
+      const select = screen.getByTestId(
+        "self-improvement-review-mode-select"
+      ) as HTMLSelectElement;
+      expect(select.value).toBe("never");
+    });
+
+    it("persists selfImprovementReviewMode when changed to an explicit value", () => {
+      const { persistSettings } = renderWorkflowContent();
+      fireEvent.change(screen.getByTestId("self-improvement-review-mode-select"), {
+        target: { value: "on-failure-only" },
+      });
+      expect(persistSettings).toHaveBeenCalledWith(undefined, {
+        selfImprovementReviewMode: "on-failure-only",
+      });
+    });
+
+    it("persists undefined selfImprovementReviewMode when switched back to inherit", () => {
+      const { persistSettings } = renderWorkflowContent({
+        selfImprovementReviewMode: "never",
+      });
+      fireEvent.change(screen.getByTestId("self-improvement-review-mode-select"), {
+        target: { value: "__inherit__" },
+      });
+      expect(persistSettings).toHaveBeenCalledWith(undefined, {
+        selfImprovementReviewMode: undefined,
+      });
+    });
+
+    it("shows 'Using code review angles' with Customize button when no explicit angles", () => {
+      renderWorkflowContent();
+      expect(screen.getByText(/Using code review angles/)).toBeInTheDocument();
+      expect(screen.getByTestId("si-review-customize-btn")).toBeInTheDocument();
+    });
+
+    it("angle checkboxes are disabled when in default (non-customized) mode", () => {
+      renderWorkflowContent();
+      const multiselect = screen.getByTestId("self-improvement-reviewer-agents-multiselect");
+      const checkboxes = multiselect.querySelectorAll("input[type=checkbox]");
+      checkboxes.forEach((cb) => expect(cb).toBeDisabled());
+    });
+
+    it("clicking Customize copies code review settings and enables angle editing", () => {
+      const { persistSettings } = renderWorkflowContent({
+        reviewAngles: ["security", "performance"],
+        includeGeneralReview: true,
+      });
+      fireEvent.click(screen.getByTestId("si-review-customize-btn"));
+      expect(persistSettings).toHaveBeenCalledWith(undefined, {
+        selfImprovementReviewerAgents: ["security", "performance"],
+        selfImprovementIncludeGeneralReview: true,
+      });
+    });
+
+    it("shows 'Custom angles set' with Reset button when explicit angles are present", () => {
+      renderWorkflowContent({
+        selfImprovementReviewerAgents: ["security"],
+        selfImprovementIncludeGeneralReview: false,
+      });
+      expect(screen.getByText(/Custom angles set/)).toBeInTheDocument();
+      expect(screen.getByTestId("si-review-reset-btn")).toBeInTheDocument();
+    });
+
+    it("clicking Reset clears self-improvement review angle settings", () => {
+      const { persistSettings } = renderWorkflowContent({
+        selfImprovementReviewerAgents: ["security"],
+        selfImprovementIncludeGeneralReview: false,
+      });
+      fireEvent.click(screen.getByTestId("si-review-reset-btn"));
+      expect(persistSettings).toHaveBeenCalledWith(undefined, {
+        selfImprovementReviewerAgents: undefined,
+        selfImprovementIncludeGeneralReview: undefined,
+      });
+    });
+
+    it("angle checkboxes are enabled when customized", () => {
+      renderWorkflowContent({
+        selfImprovementReviewerAgents: ["security"],
+        selfImprovementIncludeGeneralReview: true,
+      });
+      const multiselect = screen.getByTestId("self-improvement-reviewer-agents-multiselect");
+      const checkboxes = Array.from(multiselect.querySelectorAll("input[type=checkbox]"));
+      const enabledCount = checkboxes.filter((cb) => !(cb as HTMLInputElement).disabled).length;
+      expect(enabledCount).toBeGreaterThan(0);
+    });
+
+    it("toggling an angle checkbox persists self-improvement reviewer agents", () => {
+      const { persistSettings } = renderWorkflowContent({
+        selfImprovementReviewerAgents: ["security"],
+        selfImprovementIncludeGeneralReview: true,
+      });
+      const siSection = screen.getByTestId("self-improvement-reviewer-agents-multiselect");
+      const performanceCheckbox = siSection.querySelector(
+        "#si-review-agent-performance"
+      ) as HTMLInputElement;
+      fireEvent.click(performanceCheckbox);
+      expect(persistSettings).toHaveBeenCalledWith(
+        undefined,
+        expect.objectContaining({
+          selfImprovementReviewerAgents: expect.arrayContaining(["security", "performance"]),
+        })
+      );
+    });
+
+    it("shows inherited code review review mode label in dropdown", () => {
+      renderWorkflowContent({ reviewMode: "on-failure-only" });
+      const select = screen.getByTestId(
+        "self-improvement-review-mode-select"
+      ) as HTMLSelectElement;
+      const inheritOption = Array.from(select.options).find((o) =>
+        o.value === "__inherit__"
+      );
+      expect(inheritOption?.textContent).toContain("on-failure-only");
+    });
+
+    it("renders the review angles multiselect container", () => {
+      renderWorkflowContent();
+      expect(screen.getByTestId("self-improvement-reviewer-agents-multiselect")).toBeInTheDocument();
+    });
+  });
+
   describe("focus=self-improvement deep link", () => {
     it("scrolls self-improvement card into view when focus=self-improvement is in URL", async () => {
       const scrollIntoViewMock = vi.fn();
