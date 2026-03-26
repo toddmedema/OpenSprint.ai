@@ -32,8 +32,10 @@
     "react-markdown": "^10.1.0",
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.1.0",
+    "remark": "^15.0.1",
     "remark-gfm": "^4.0.1",
-    "turndown": "^7.2.0"
+    "turndown": "^7.2.0",
+    "unified": "^11.0.5"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
