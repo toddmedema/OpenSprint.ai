@@ -7,7 +7,12 @@ import { createApp } from "../app.js";
 import { ProjectService } from "../services/project.service.js";
 import { notificationService } from "../services/notification.service.js";
 import { taskStore } from "../services/task-store.service.js";
-import { setGlobalSettings } from "../services/global-settings.service.js";
+import {
+  setGlobalSettings,
+  setGlobalSettingsPathForTesting,
+} from "../services/global-settings.service.js";
+import { setProjectIndexPathForTesting } from "../services/project-index.js";
+import { setSettingsStorePathForTesting } from "../services/settings-store.service.js";
 import { API_PREFIX, DEFAULT_HIL_CONFIG } from "@opensprint/shared";
 import { cleanupTestProject } from "./test-project-cleanup.js";
 
@@ -63,6 +68,9 @@ describe.skipIf(!notificationsPostgresOk)("Notifications REST API", () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "opensprint-notifications-route-test-"));
     originalHome = process.env.HOME;
     process.env.HOME = tempDir;
+    setGlobalSettingsPathForTesting(path.join(tempDir, ".opensprint", "global-settings.json"));
+    setProjectIndexPathForTesting(path.join(tempDir, ".opensprint", "projects.json"));
+    setSettingsStorePathForTesting(path.join(tempDir, ".opensprint", "settings.json"));
 
     projectService = new ProjectService();
     const project = await projectService.createProject({
@@ -79,6 +87,9 @@ describe.skipIf(!notificationsPostgresOk)("Notifications REST API", () => {
 
   afterEach(async () => {
     await cleanupTestProject({ projectService, projectId });
+    setGlobalSettingsPathForTesting(null);
+    setProjectIndexPathForTesting(null);
+    setSettingsStorePathForTesting(null);
     process.env.HOME = originalHome;
     await fs.rm(tempDir, { recursive: true, force: true });
   });
