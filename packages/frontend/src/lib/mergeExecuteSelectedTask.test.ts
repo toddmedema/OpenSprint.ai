@@ -67,4 +67,18 @@ describe("mergeExecuteSelectedTaskData", () => {
     const store = baseTask({ id: "b", mergeGateState: "merging" });
     expect(mergeExecuteSelectedTaskData(detail, store)).toBe(detail);
   });
+
+  it("overlays lastExecutionSummary from Redux when present", () => {
+    const detail = baseTask({ lastExecutionSummary: "old summary" });
+    const store = baseTask({ lastExecutionSummary: "Merge paused: baseline failing" });
+    const merged = mergeExecuteSelectedTaskData(detail, store);
+    expect(merged?.lastExecutionSummary).toBe("Merge paused: baseline failing");
+  });
+
+  it("falls back to detail lastExecutionSummary when Redux value is null", () => {
+    const detail = baseTask({ lastExecutionSummary: "detail summary" });
+    const store = baseTask({ lastExecutionSummary: null });
+    const merged = mergeExecuteSelectedTaskData(detail, store);
+    expect(merged?.lastExecutionSummary).toBe("detail summary");
+  });
 });

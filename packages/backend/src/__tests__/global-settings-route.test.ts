@@ -103,6 +103,12 @@ describe("Global Settings API", () => {
       expect(res.body.data.databaseDialect).toBe("sqlite");
     });
 
+    it("returns preferredEditor defaulting to 'auto' when not configured", async () => {
+      const res = await request(app).get(`${API_PREFIX}/global-settings`);
+      expect(res.status).toBe(200);
+      expect(res.body.data.preferredEditor).toBe("auto");
+    });
+
     it("returns masked databaseUrl with password redacted", async () => {
       await setGlobalSettings({
         databaseUrl: "postgresql://user:secret123@db.example.com:5432/mydb",
@@ -245,7 +251,7 @@ describe("Global Settings API", () => {
       expect(res.body.error?.code).toBe("INVALID_INPUT");
     });
 
-    it("clears preferredEditor when null", async () => {
+    it("clears preferredEditor when null (reverts to default auto)", async () => {
       await withLocalSessionAuth(request(app).put(`${API_PREFIX}/global-settings`)).send({
         preferredEditor: "vscode",
       });
@@ -253,9 +259,19 @@ describe("Global Settings API", () => {
         preferredEditor: null,
       });
       expect(clear.status).toBe(200);
-      expect(clear.body.data.preferredEditor).toBeUndefined();
+      expect(clear.body.data.preferredEditor).toBe("auto");
       const disk = await getGlobalSettings();
-      expect(disk.preferredEditor).toBeUndefined();
+      expect(disk.preferredEditor).toBe("auto");
+    });
+
+    it("accepts all valid preferredEditor values", async () => {
+      for (const editor of ["vscode", "cursor", "auto"]) {
+        const res = await withLocalSessionAuth(request(app).put(`${API_PREFIX}/global-settings`)).send({
+          preferredEditor: editor,
+        });
+        expect(res.status).toBe(200);
+        expect(res.body.data.preferredEditor).toBe(editor);
+      }
     });
 
     it("clears global agent defaults when PUT sends null", async () => {

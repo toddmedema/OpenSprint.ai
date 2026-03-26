@@ -38,6 +38,7 @@ export const taskListReducers = {
       mergePausedUntil?: string | null;
       mergeWaitingOnMain?: boolean;
       mergeGateState?: MergeGateState | null;
+      lastExecutionSummary?: string | null;
     }>
   ) {
     ensureTasksState(state);
@@ -53,6 +54,7 @@ export const taskListReducers = {
       mergePausedUntil,
       mergeWaitingOnMain,
       mergeGateState,
+      lastExecutionSummary,
     } = action.payload;
     const task = state.tasksById[taskId];
     if (task) {
@@ -82,6 +84,7 @@ export const taskListReducers = {
           task.mergeGateState = mergeGateState;
         }
       }
+      if (lastExecutionSummary !== undefined) task.lastExecutionSummary = lastExecutionSummary;
     }
   },
   /** Live-update: add task from WebSocket task.created event. */

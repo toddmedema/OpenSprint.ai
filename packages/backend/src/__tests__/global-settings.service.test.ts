@@ -34,27 +34,27 @@ describe("global-settings.service", () => {
   }
 
   describe("getGlobalSettings", () => {
-    it("returns empty object when file does not exist", async () => {
+    it("returns default settings with preferredEditor 'auto' when file does not exist", async () => {
       const settings = await getGlobalSettings();
-      expect(settings).toEqual({});
+      expect(settings).toEqual({ preferredEditor: "auto" });
     });
 
-    it("returns empty object when file is corrupt", async () => {
+    it("returns default settings with preferredEditor 'auto' when file is corrupt", async () => {
       const dir = path.join(tempDir, ".opensprint");
       await fs.mkdir(dir, { recursive: true });
       await fs.writeFile(getFilePath(), "invalid json{", "utf-8");
 
       const settings = await getGlobalSettings();
-      expect(settings).toEqual({});
+      expect(settings).toEqual({ preferredEditor: "auto" });
     });
 
-    it("returns empty object when file is not an object", async () => {
+    it("returns default settings with preferredEditor 'auto' when file is not an object", async () => {
       const dir = path.join(tempDir, ".opensprint");
       await fs.mkdir(dir, { recursive: true });
       await fs.writeFile(getFilePath(), '["array"]', "utf-8");
 
       const settings = await getGlobalSettings();
-      expect(settings).toEqual({});
+      expect(settings).toEqual({ preferredEditor: "auto" });
     });
 
     it("returns settings from existing file", async () => {
@@ -381,6 +381,61 @@ describe("global-settings.service", () => {
       );
       const loaded = await getGlobalSettings();
       expect(loaded.simpleComplexityAgent).toBeUndefined();
+    });
+  });
+
+  describe("preferredEditor", () => {
+    it("defaults to 'auto' when file exists but preferredEditor is absent", async () => {
+      const dir = path.join(tempDir, ".opensprint");
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(getFilePath(), JSON.stringify({ useCustomCli: true }), "utf-8");
+
+      const settings = await getGlobalSettings();
+      expect(settings.preferredEditor).toBe("auto");
+    });
+
+    it("defaults to 'auto' when file has invalid preferredEditor value", async () => {
+      const dir = path.join(tempDir, ".opensprint");
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(
+        getFilePath(),
+        JSON.stringify({ preferredEditor: "vim" }),
+        "utf-8"
+      );
+
+      const settings = await getGlobalSettings();
+      expect(settings.preferredEditor).toBe("auto");
+    });
+
+    it("persists and reads back 'vscode'", async () => {
+      await updateGlobalSettings({ preferredEditor: "vscode" });
+      const settings = await getGlobalSettings();
+      expect(settings.preferredEditor).toBe("vscode");
+    });
+
+    it("persists and reads back 'cursor'", async () => {
+      await updateGlobalSettings({ preferredEditor: "cursor" });
+      const settings = await getGlobalSettings();
+      expect(settings.preferredEditor).toBe("cursor");
+    });
+
+    it("persists and reads back 'auto'", async () => {
+      await updateGlobalSettings({ preferredEditor: "auto" });
+      const settings = await getGlobalSettings();
+      expect(settings.preferredEditor).toBe("auto");
+    });
+
+    it("clears preferredEditor when update passes null (reverts to default auto)", async () => {
+      await updateGlobalSettings({ preferredEditor: "cursor" });
+      await updateGlobalSettings({ preferredEditor: null });
+      const settings = await getGlobalSettings();
+      expect(settings.preferredEditor).toBe("auto");
+    });
+
+    it("round-trips through setGlobalSettings", async () => {
+      await setGlobalSettings({ preferredEditor: "vscode" });
+      const settings = await getGlobalSettings();
+      expect(settings.preferredEditor).toBe("vscode");
     });
   });
 

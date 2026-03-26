@@ -41,8 +41,8 @@ export function setGlobalSettingsPathForTesting(testPath: string | null): void {
   globalSettingsPathForTesting = testPath;
 }
 
-/** Default empty settings */
-const DEFAULT: GlobalSettings = {};
+/** Default empty settings (preferredEditor defaults to "auto" per spec) */
+const DEFAULT: GlobalSettings = { preferredEditor: "auto" };
 
 function parseAgentConfigFromFile(raw: unknown): AgentConfig | undefined {
   const r = agentConfigSchema.safeParse(raw);
@@ -87,7 +87,7 @@ async function load(): Promise<GlobalSettings> {
             : undefined;
       const simpleComplexityAgent = parseAgentConfigFromFile(obj.simpleComplexityAgent);
       const complexComplexityAgent = parseAgentConfigFromFile(obj.complexComplexityAgent);
-      const preferredEditor = parsePreferredEditor(obj.preferredEditor);
+      const preferredEditor = parsePreferredEditor(obj.preferredEditor) ?? "auto";
       return {
         ...(apiKeys && { apiKeys }),
         ...(useCustomCli !== undefined && { useCustomCli }),
@@ -97,7 +97,7 @@ async function load(): Promise<GlobalSettings> {
         ...(showRunningAgentCountInMenuBar !== undefined && { showRunningAgentCountInMenuBar }),
         ...(simpleComplexityAgent && { simpleComplexityAgent }),
         ...(complexComplexityAgent && { complexComplexityAgent }),
-        ...(preferredEditor && { preferredEditor }),
+        preferredEditor,
       };
     }
   } catch {

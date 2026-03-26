@@ -1182,6 +1182,44 @@ describe("websocketMiddleware", () => {
       });
     });
 
+    it("task.updated passes lastExecutionSummary to Redux taskUpdated", async () => {
+      const store = createStore();
+      const { setTasks } = await import("../slices/executeSlice");
+      store.dispatch(
+        setTasks([
+          {
+            id: "task-1",
+            title: "Task 1",
+            kanbanColumn: "waiting_to_merge",
+            priority: 1,
+            assignee: null,
+            epicId: "epic-1",
+          },
+        ])
+      );
+      store.dispatch(wsConnect({ projectId: "proj-1" }));
+      wsInstance!.simulateOpen();
+      await vi.waitFor(() => store.getState().websocket.connected);
+
+      wsInstance!.simulateMessage({
+        type: "task.updated",
+        taskId: "task-1",
+        status: "open",
+        assignee: null,
+        kanbanColumn: "waiting_to_merge",
+        mergeGateState: "candidate_fix_needed",
+        lastExecutionSummary: "Merge paused: quality gates failing on main",
+      });
+
+      await vi.waitFor(() => {
+        const task = selectTasks(store.getState()).find((t) => t.id === "task-1");
+        expect(task?.mergeGateState).toBe("candidate_fix_needed");
+        expect(task?.lastExecutionSummary).toBe(
+          "Merge paused: quality gates failing on main"
+        );
+      });
+    });
+
     it("dispatches updateFeedbackItem on feedback.updated when event includes item (no refetch)", async () => {
       const store = createStore();
       store.dispatch(wsConnect({ projectId: "proj-1" }));

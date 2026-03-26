@@ -124,6 +124,28 @@ describe("buildTaskUpdatedServerEvent", () => {
     expect(ev.description).toBe("My Desc");
     expect(ev.blockReason).toBe("Merge Failure");
   });
+
+  it("includes lastExecutionSummary from stored task last_execution_summary", () => {
+    const task = baseOpenTask({
+      last_execution_summary: {
+        at: "2025-06-01T00:00:00Z",
+        attempt: 2,
+        outcome: "requeued",
+        phase: "merge",
+        summary: "Merge paused: baseline quality gates failing",
+        failureType: "merge_quality_gate",
+        blockReason: null,
+      },
+    });
+    const ev = buildTaskUpdatedServerEvent(task) as TaskUpdatedEvent;
+    expect(ev.lastExecutionSummary).toBe("Merge paused: baseline quality gates failing");
+  });
+
+  it("sets lastExecutionSummary to null when task has no execution summary", () => {
+    const task = baseOpenTask({ labels: [] });
+    const ev = buildTaskUpdatedServerEvent(task) as TaskUpdatedEvent;
+    expect(ev.lastExecutionSummary).toBeNull();
+  });
 });
 
 describe("wireTaskStoreEvents", () => {

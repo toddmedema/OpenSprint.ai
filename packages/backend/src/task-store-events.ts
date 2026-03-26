@@ -9,6 +9,7 @@ import {
   deriveMergeGateStateFromIssue,
   getMergePausedUntilFromIssue,
 } from "./services/merge-gate-state.js";
+import { parseTaskLastExecutionSummary } from "./services/task-execution-summary.js";
 import { taskStore, type StoredTask } from "./services/task-store.service.js";
 
 const WAITING_TO_MERGE_STAGES = ["quality_gate", "merge_to_main", "rebase_before_merge"] as const;
@@ -46,6 +47,9 @@ export function getAuthoritativeMergeWsFields(task: StoredTask): {
 /** Full `task.updated` payload from DB state — use for WS so clients always get merge fields (null clears stale UI). */
 export function buildTaskUpdatedServerEvent(task: StoredTask): ServerEvent {
   const merge = getAuthoritativeMergeWsFields(task);
+  const lastExecution = parseTaskLastExecutionSummary(
+    (task as Record<string, unknown>).last_execution_summary
+  );
   return {
     type: "task.updated",
     taskId: task.id,
@@ -59,6 +63,7 @@ export function buildTaskUpdatedServerEvent(task: StoredTask): ServerEvent {
     mergePausedUntil: merge.mergePausedUntil,
     mergeWaitingOnMain: merge.mergeWaitingOnMain,
     mergeGateState: merge.mergeGateState,
+    lastExecutionSummary: lastExecution?.summary ?? null,
   } as ServerEvent;
 }
 

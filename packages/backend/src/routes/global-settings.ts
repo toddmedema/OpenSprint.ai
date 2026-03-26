@@ -49,7 +49,7 @@ function buildResponse(settings: GlobalSettings) {
     showRunningAgentCountInMenuBar: settings.showRunningAgentCountInMenuBar !== false,
     ...(settings.simpleComplexityAgent && { simpleComplexityAgent: settings.simpleComplexityAgent }),
     ...(settings.complexComplexityAgent && { complexComplexityAgent: settings.complexComplexityAgent }),
-    ...(settings.preferredEditor && { preferredEditor: settings.preferredEditor }),
+    preferredEditor: settings.preferredEditor ?? "auto",
   };
 }
 

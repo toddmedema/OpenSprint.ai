@@ -49,6 +49,8 @@ export interface TaskUpdatedEvent {
    * Omitted for legacy/hand-built events that are not merge-authoritative.
    */
   mergeGateState?: MergeGateState | null;
+  /** Lightweight execution summary (merge/quality-gate). `null` clears a prior value. */
+  lastExecutionSummary?: string | null;
 }
 
 /** Minimal task payload for create/close events (relevant task data) */

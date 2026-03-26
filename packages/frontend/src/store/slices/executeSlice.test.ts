@@ -506,6 +506,38 @@ describe("executeSlice", () => {
       expect(task.mergeWaitingOnMain).toBe(false);
     });
 
+    it("taskUpdated applies lastExecutionSummary when provided", () => {
+      const store = createStore();
+      store.dispatch(setTasks([mockTask]));
+      store.dispatch(
+        taskUpdated({
+          taskId: "task-1",
+          status: "open",
+          kanbanColumn: "waiting_to_merge",
+          mergeGateState: "candidate_fix_needed",
+          lastExecutionSummary: "Merge paused: quality gates failing",
+        })
+      );
+      const task = selectTasks(store.getState())[0];
+      expect(task.lastExecutionSummary).toBe("Merge paused: quality gates failing");
+      expect(task.mergeGateState).toBe("candidate_fix_needed");
+    });
+
+    it("taskUpdated clears lastExecutionSummary when server sends null", () => {
+      const store = createStore();
+      store.dispatch(
+        setTasks([{ ...mockTask, lastExecutionSummary: "old summary" }])
+      );
+      store.dispatch(
+        taskUpdated({
+          taskId: "task-1",
+          lastExecutionSummary: null,
+        })
+      );
+      const task = selectTasks(store.getState())[0];
+      expect(task.lastExecutionSummary).toBeNull();
+    });
+
     it("setExecuteStatusPayload sweeps expired baseline merge pause (live execute.status ticks)", () => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date("2025-06-15T12:00:00.000Z"));

@@ -419,6 +419,7 @@ export const websocketMiddleware: Middleware = (storeApi) => {
             mergePausedUntil: event.mergePausedUntil,
             mergeWaitingOnMain: event.mergeWaitingOnMain,
             mergeGateState: event.mergeGateState,
+            lastExecutionSummary: event.lastExecutionSummary,
           })
         );
         const synced = syncTaskFromExecuteStateToQueryCache(qc, getState, projectId, event.taskId);

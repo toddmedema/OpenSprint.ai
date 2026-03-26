@@ -17,5 +17,6 @@ export function mergeExecuteSelectedTaskData(fromDetail: Task | null, fromStore:
     mergePausedUntil: fromStore.mergePausedUntil,
     mergeWaitingOnMain: fromStore.mergeWaitingOnMain,
     mergeGateState: fromStore.mergeGateState,
+    lastExecutionSummary: fromStore.lastExecutionSummary ?? base.lastExecutionSummary,
   };
 }
