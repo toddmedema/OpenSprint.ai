@@ -31,7 +31,9 @@ import {
   formatFailuresForPrompt,
   buildFailureReviewSystemSupplement,
   buildFailureReviewUserSupplement,
+  type CollectedFailure,
 } from "./self-improvement-failure-collector.service.js";
+import type { StoredTask } from "./task-store.types.js";
 import { createLogger } from "../utils/logger.js";
 import { shellExec } from "../utils/shell-exec.js";
 import { notificationService } from "./notification.service.js";
@@ -104,6 +106,50 @@ const MAX_SELF_IMPROVEMENT_TASKS_PER_RUN = 10;
 
 /** Minimum title length for an improvement task. Filters out junk from truncated or malformed agent output (e.g. single chars or "th"). */
 export const MIN_IMPROVEMENT_TITLE_LENGTH = 3;
+
+export const ROOT_CAUSE_PREFIX = "[Root Cause]";
+
+export function isRootCauseFixTask(title: string): boolean {
+  return title.trim().startsWith(ROOT_CAUSE_PREFIX);
+}
+
+export function extractRootCauseKey(title: string): string {
+  return title
+    .trim()
+    .replace(/^\[Root Cause\]\s*/i, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function buildFailurePatternSummary(failures: CollectedFailure[]): string {
+  if (failures.length === 0) return "";
+  const typeCounts = new Map<string, number>();
+  for (const f of failures) {
+    typeCounts.set(f.failureType, (typeCounts.get(f.failureType) ?? 0) + 1);
+  }
+  return [...typeCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([type, count]) => `${type}: ${count}`)
+    .join(", ");
+}
+
+export function enrichRootCauseDescription(
+  description: string | undefined,
+  sourceFailureTaskIds: string[],
+  failurePattern: string,
+): string {
+  const parts: string[] = [];
+  if (description) parts.push(description);
+  if (sourceFailureTaskIds.length > 0) {
+    parts.push("");
+    parts.push(`**Source failure tasks:** ${sourceFailureTaskIds.join(", ")}`);
+  }
+  if (failurePattern) {
+    parts.push(`**Failure pattern:** ${failurePattern}`);
+  }
+  return parts.join("\n");
+}
 
 /** True when item is a fallback/error task that should always be created (run failed or parse failed). */
 function isFallbackOrErrorTask(item: { title: string }): boolean {
@@ -829,10 +875,12 @@ Review the codebase and output a structured list of improvement tasks (JSON arra
         });
       }
     }
+    const sourceFailureTaskIds = failures.map((f) => f.taskId);
+    const failurePatternSummary = buildFailurePatternSummary(failures);
+
+    let existingTasks: StoredTask[] | null = null;
     let createdCount = 0;
     for (const item of itemsToCreate) {
-      // Self-improvement tasks must ALWAYS have complexity and priority assigned by an AI agent
-      // (main reviewer or enrichment agent). Never create with defaults.
       if (item._aiAssigned !== true) {
         log.error("Self-improvement task missing AI-assigned priority/complexity — skipping", {
           projectId,
@@ -856,12 +904,59 @@ Review the codebase and output a structured list of improvement tasks (JSON arra
         });
         continue;
       }
-      await this.taskStore.create(projectId, item.title, {
-        description: item.description,
-        priority,
-        complexity,
-        extra: { ...extraBase, aiAssignedPriority: true, aiAssignedComplexity: true },
-      });
+
+      if (isRootCauseFixTask(item.title)) {
+        const rootCauseKey = extractRootCauseKey(item.title);
+
+        if (existingTasks === null) {
+          existingTasks = await this.taskStore.listAll(projectId);
+        }
+
+        const duplicate = existingTasks.find((task) => {
+          if ((task.status as string) === "closed") return false;
+          const kind = (task as Record<string, unknown>).selfImprovementKind;
+          if (kind !== "root-cause-fix") return false;
+          const existing = (task as Record<string, unknown>).rootCauseKey;
+          return existing === rootCauseKey;
+        });
+
+        if (duplicate) {
+          log.info(
+            "Skipping duplicate root-cause fix task — open task with same root cause exists",
+            { projectId, runId, title: item.title, rootCauseKey, existingTaskId: duplicate.id },
+          );
+          continue;
+        }
+
+        const description = enrichRootCauseDescription(
+          item.description,
+          sourceFailureTaskIds,
+          failurePatternSummary,
+        );
+
+        const created = await this.taskStore.create(projectId, item.title, {
+          description,
+          priority,
+          complexity,
+          extra: {
+            ...extraBase,
+            selfImprovementKind: "root-cause-fix",
+            rootCauseKey,
+            sourceFailureTaskIds,
+            failurePattern: failurePatternSummary,
+            aiAssignedPriority: true,
+            aiAssignedComplexity: true,
+          },
+        });
+        existingTasks.push(created);
+      } else {
+        await this.taskStore.create(projectId, item.title, {
+          description: item.description,
+          priority,
+          complexity,
+          extra: { ...extraBase, aiAssignedPriority: true, aiAssignedComplexity: true },
+        });
+      }
       createdCount += 1;
     }
 

@@ -15,6 +15,7 @@ import {
 vi.mock("../services/task-store.service.js", () => ({
   taskStore: {
     create: vi.fn().mockResolvedValue({ id: "os-1", title: "Task" }),
+    listAll: vi.fn().mockResolvedValue([]),
     getDb: vi.fn().mockResolvedValue({
       query: vi.fn().mockResolvedValue([]),
     }),

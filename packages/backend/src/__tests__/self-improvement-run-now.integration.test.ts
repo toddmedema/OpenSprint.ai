@@ -36,6 +36,7 @@ const historyStore: Array<Record<string, unknown>> = [];
 vi.mock("../services/task-store.service.js", () => ({
   taskStore: {
     create: (...args: unknown[]) => mockTaskStoreCreate(...args),
+    listAll: vi.fn().mockResolvedValue([]),
     getDb: vi.fn().mockResolvedValue({ query: vi.fn().mockResolvedValue([]) }),
     insertSelfImprovementRunHistory: (...args: unknown[]) => {
       const record = args[0] as Record<string, unknown>;
