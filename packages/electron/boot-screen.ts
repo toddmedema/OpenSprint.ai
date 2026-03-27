@@ -76,12 +76,20 @@ export function renderBootHtml(
         margin: 0;
         color: #cbd5e1;
         font-size: 14px;
+        line-height: 1.4;
+        text-align: left;
+        word-break: break-word;
       }
-      .row {
+      .boot-status-row {
         margin-top: 16px;
         display: flex;
         align-items: center;
+        justify-content: flex-start;
         gap: 10px;
+        text-align: left;
+      }
+      .boot-status-row .spinner {
+        flex-shrink: 0;
       }
       .spinner {
         width: 16px;
@@ -106,10 +114,9 @@ export function renderBootHtml(
     <main class="boot">
       <section class="card">
         <h1 class="title">${appName}</h1>
-        <p class="status">${escaped}</p>
-        <div class="row">
+        <div class="boot-status-row" role="status" aria-live="polite">
           <div class="spinner" aria-hidden="true"></div>
-          <p class="status">Preparing local services...</p>
+          <p class="status">${escaped}</p>
         </div>
       </section>
     </main>

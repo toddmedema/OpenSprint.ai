@@ -9,10 +9,12 @@ describe("PhaseLoadingSpinner", () => {
     expect(spinner).toBeInTheDocument();
   });
 
-  it("uses animate-logo-pulse for loading indication (affected by prefers-reduced-motion)", () => {
-    render(<PhaseLoadingSpinner />);
-    const polygons = document.querySelectorAll(".animate-logo-pulse");
-    expect(polygons.length).toBe(3);
+  it("uses a left-aligned circular spinner (animate-spin) beside status text", () => {
+    render(<PhaseLoadingSpinner data-testid="spinner" />);
+    const row = screen.getByTestId("spinner");
+    const spin = row.querySelector(".animate-spin.rounded-full");
+    expect(spin).toBeTruthy();
+    expect(row).toHaveClass("flex-row");
   });
 
   it("accepts custom data-testid", () => {
@@ -20,7 +22,7 @@ describe("PhaseLoadingSpinner", () => {
     expect(screen.getByTestId("custom-spinner")).toBeInTheDocument();
   });
 
-  it("shows status text below logo by default", () => {
+  it("shows default status text to the right of the spinner", () => {
     render(<PhaseLoadingSpinner data-testid="spinner" />);
     expect(screen.getByTestId("spinner-status")).toHaveTextContent("Loading…");
   });

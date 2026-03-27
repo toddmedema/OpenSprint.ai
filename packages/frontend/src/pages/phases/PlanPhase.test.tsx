@@ -419,7 +419,7 @@ describe("PlanPhase Redux integration", () => {
     expect(store.getState().unreadPhase["proj-1"]?.plan).toBeFalsy();
   });
 
-  it("shows centered pulsing logo and Generating Plan… while decompose runs and list is empty", async () => {
+  it("shows centered spinner and Generating Plan… while decompose runs and list is empty", async () => {
     mockPlansDecompose.mockImplementation(() => new Promise(() => {}));
     const store = createStore([], undefined, undefined, { selectedPlanId: null });
 
@@ -437,7 +437,7 @@ describe("PlanPhase Redux integration", () => {
       expect(screen.getByTestId("plan-phase-loading")).toBeInTheDocument();
     });
     expect(screen.getByText("Generating Plan...")).toBeInTheDocument();
-    expect(document.querySelector(".animate-logo-pulse")).toBeTruthy();
+    expect(document.querySelector(".animate-spin")).toBeTruthy();
   });
 
   it("shows the current generated plan number out of the total while decompose progress arrives", async () => {

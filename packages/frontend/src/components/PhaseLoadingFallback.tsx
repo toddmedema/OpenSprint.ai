@@ -20,7 +20,7 @@ export function PhaseLoadingFallback({ phase }: { phase: ProjectPhase }) {
   }
 }
 
-/** Centered pulsing logo and status for initial/sketch loading. No bordered container or product name. */
+/** Same single-line spinner row as PhaseLoadingSpinner (sketch lazy-load path). */
 export function SketchLogoLoading({
   containerTestId = "phase-sketch-loading",
   spinnerTestId = "phase-sketch-loading-spinner",
@@ -32,40 +32,7 @@ export function SketchLogoLoading({
 } = {}) {
   return (
     <div className="flex flex-1 min-h-0 items-center justify-center" data-testid={containerTestId}>
-      <div
-        className="flex flex-col items-center justify-center gap-3"
-        data-testid={spinnerTestId}
-        role="status"
-        aria-label="Loading"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 80 80"
-          className="w-10 h-10"
-          aria-hidden
-        >
-          <polygon
-            points="4,10 36,40 4,70"
-            fill="#c7d2fe"
-            className="animate-logo-pulse [animation-delay:0ms]"
-          />
-          <polygon
-            points="22,10 54,40 22,70"
-            fill="#818cf8"
-            className="animate-logo-pulse [animation-delay:200ms]"
-          />
-          <polygon
-            points="40,10 72,40 40,70"
-            fill="#4f46e5"
-            className="animate-logo-pulse [animation-delay:400ms]"
-          />
-        </svg>
-        {status ? (
-          <p className="text-sm text-theme-muted" data-testid={`${spinnerTestId}-status`}>
-            {status}
-          </p>
-        ) : null}
-      </div>
+      <PhaseLoadingSpinner data-testid={spinnerTestId} aria-label="Loading" status={status} />
     </div>
   );
 }

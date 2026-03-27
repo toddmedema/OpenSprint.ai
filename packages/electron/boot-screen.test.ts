@@ -42,6 +42,19 @@ describe("renderBootHtml", () => {
     expect(html).toContain('<h1 class="title">My App</h1>');
   });
 
+  it("shows a single status row with spinner left of the status text", () => {
+    const html = renderBootHtml("Starting backend...", APP_NAME, "darwin");
+    expect(html).toContain('class="boot-status-row"');
+    expect(html).toContain('role="status"');
+    expect(html).toContain('aria-live="polite"');
+    expect(html).not.toContain("Preparing local services");
+    const rowMatch = html.match(
+      /class="boot-status-row"[\s\S]*?class="spinner"[\s\S]*?Starting backend/
+    );
+    expect(rowMatch).toBeTruthy();
+    expect((html.match(/class="status"/g) ?? []).length).toBe(1);
+  });
+
   it("BOOT_DRAG_TOP_HEIGHT_PX matches main app navbar height (48)", () => {
     expect(BOOT_DRAG_TOP_HEIGHT_PX).toBe(48);
   });
