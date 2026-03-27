@@ -718,17 +718,32 @@ export class TaskService {
         failedGateReason: null,
         failedGateOutputSnippet: null,
         worktreePath: null,
+        merge_quality_gate_paused_until: null,
       },
     });
 
-    // 6. Zero cumulative attempt counters
+    // 6. Clear merge-related labels so the task is treated as ready, not waiting_to_merge
     const labels = (issue.labels ?? []) as string[];
+    const mergeStageLabel = labels.find((l) => l.startsWith("merge_stage:"));
+    if (mergeStageLabel) {
+      await this.taskStore.removeLabel(projectId, taskId, mergeStageLabel);
+    }
+    const conflictFilesLabel = labels.find((l) => l.startsWith("conflict_files:"));
+    if (conflictFilesLabel) {
+      await this.taskStore.removeLabel(projectId, taskId, conflictFilesLabel);
+    }
+    const actualFilesLabel = labels.find((l) => l.startsWith("actual_files:"));
+    if (actualFilesLabel) {
+      await this.taskStore.removeLabel(projectId, taskId, actualFilesLabel);
+    }
+
+    // 7. Zero cumulative attempt counters
     const attemptsLabel = labels.find((l) => /^attempts:\d+$/.test(l));
     if (attemptsLabel) {
       await this.taskStore.removeLabel(projectId, taskId, attemptsLabel);
     }
 
-    // 7. Nudge orchestrator to pick up the task
+    // 8. Nudge orchestrator to pick up the task
     this.orchestrator.nudge(projectId);
 
     return this.getTask(projectId, taskId);

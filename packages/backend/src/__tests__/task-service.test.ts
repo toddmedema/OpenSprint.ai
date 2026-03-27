@@ -1381,6 +1381,7 @@ describe("TaskService", () => {
           failedGateReason: null,
           failedGateOutputSnippet: null,
           worktreePath: null,
+          merge_quality_gate_paused_until: null,
         },
       });
       expect(taskStore.removeLabel).toHaveBeenCalledWith("proj-1", "task-1", "attempts:3");
@@ -1493,6 +1494,126 @@ describe("TaskService", () => {
       await taskService.forceRetry("proj-1", "task-1");
 
       expect(taskStore.removeLabel).not.toHaveBeenCalled();
+    });
+
+    it("clears merge_stage label so task is treated as ready, not waiting_to_merge", async () => {
+      const { taskStore } = await import("../services/task-store.service.js");
+      vi.mocked(taskStore.show).mockResolvedValue({
+        id: "task-1",
+        title: "Merging Task",
+        status: "open",
+        issue_type: "task",
+        labels: ["merge_stage:quality_gate", "attempts:2"],
+        dependencies: [],
+      } as StoredTask);
+      vi.mocked(taskStore.update).mockResolvedValue(undefined as never);
+      vi.mocked(taskStore.removeLabel).mockResolvedValue(undefined as never);
+
+      await taskService.forceRetry("proj-1", "task-1");
+
+      expect(taskStore.removeLabel).toHaveBeenCalledWith(
+        "proj-1",
+        "task-1",
+        "merge_stage:quality_gate"
+      );
+      expect(taskStore.removeLabel).toHaveBeenCalledWith("proj-1", "task-1", "attempts:2");
+    });
+
+    it("clears conflict_files and actual_files labels", async () => {
+      const { taskStore } = await import("../services/task-store.service.js");
+      vi.mocked(taskStore.show).mockResolvedValue({
+        id: "task-1",
+        title: "Merge conflict task",
+        status: "open",
+        issue_type: "task",
+        labels: [
+          "merge_stage:merge_to_main",
+          'conflict_files:["src/index.ts"]',
+          'actual_files:["src/index.ts","src/utils.ts"]',
+        ],
+        dependencies: [],
+      } as StoredTask);
+      vi.mocked(taskStore.update).mockResolvedValue(undefined as never);
+      vi.mocked(taskStore.removeLabel).mockResolvedValue(undefined as never);
+
+      await taskService.forceRetry("proj-1", "task-1");
+
+      expect(taskStore.removeLabel).toHaveBeenCalledWith(
+        "proj-1",
+        "task-1",
+        "merge_stage:merge_to_main"
+      );
+      expect(taskStore.removeLabel).toHaveBeenCalledWith(
+        "proj-1",
+        "task-1",
+        'conflict_files:["src/index.ts"]'
+      );
+      expect(taskStore.removeLabel).toHaveBeenCalledWith(
+        "proj-1",
+        "task-1",
+        'actual_files:["src/index.ts","src/utils.ts"]'
+      );
+    });
+
+    it("clears merge_quality_gate_paused_until in extra", async () => {
+      const { taskStore } = await import("../services/task-store.service.js");
+      vi.mocked(taskStore.show).mockResolvedValue({
+        id: "task-1",
+        title: "Paused merge task",
+        status: "open",
+        issue_type: "task",
+        labels: ["merge_stage:quality_gate"],
+        merge_quality_gate_paused_until: new Date(Date.now() + 86400000).toISOString(),
+        dependencies: [],
+      } as StoredTask);
+      vi.mocked(taskStore.update).mockResolvedValue(undefined as never);
+      vi.mocked(taskStore.removeLabel).mockResolvedValue(undefined as never);
+
+      await taskService.forceRetry("proj-1", "task-1");
+
+      expect(taskStore.update).toHaveBeenCalledWith(
+        "proj-1",
+        "task-1",
+        expect.objectContaining({
+          status: "open",
+          extra: expect.objectContaining({
+            merge_quality_gate_paused_until: null,
+          }),
+        })
+      );
+    });
+
+    it("returned task has status open and kanbanColumn ready after force retry", async () => {
+      const { taskStore } = await import("../services/task-store.service.js");
+      vi.mocked(taskStore.show).mockResolvedValue({
+        id: "task-1",
+        title: "Blocked Task",
+        status: "blocked",
+        issue_type: "task",
+        labels: ["attempts:5"],
+        dependencies: [],
+      } as StoredTask);
+      vi.mocked(taskStore.update).mockResolvedValue(undefined as never);
+      vi.mocked(taskStore.removeLabel).mockResolvedValue(undefined as never);
+
+      mockTaskStoreState.listAll = [
+        {
+          id: "task-1",
+          title: "Blocked Task",
+          status: "open",
+          issue_type: "task",
+          labels: [],
+          dependencies: [],
+          created_at: "2024-01-01T00:00:00Z",
+          updated_at: "2024-01-01T00:00:00Z",
+        } as StoredTask,
+      ];
+
+      const result = await taskService.forceRetry("proj-1", "task-1");
+
+      expect(result.status).toBe("open");
+      expect(result.kanbanColumn).toBe("ready");
+      expect(result.assignee).toBeNull();
     });
   });
 
