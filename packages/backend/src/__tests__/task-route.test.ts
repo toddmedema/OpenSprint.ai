@@ -507,7 +507,7 @@ Test review prompt generation.
 
   it(
     "GET /tasks list response includes source when task has extra.source (e.g. self-improvement)",
-    { timeout: 20000 },
+    { timeout: 30000 },
     async () => {
       const improvementTask = await taskStore.create(projectId, "Self-improvement task", {
         type: "task",

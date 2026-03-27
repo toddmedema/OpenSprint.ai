@@ -15,6 +15,15 @@ import {
 } from "./opensprint-path-test-helper.js";
 import { withLocalSessionAuth } from "./local-auth-test-helpers.js";
 
+vi.mock("../services/database-runtime.service.js", () => ({
+  databaseRuntime: {
+    requireDatabase: vi.fn().mockResolvedValue(undefined),
+    requestReconnect: vi.fn(),
+    start: vi.fn(),
+    getStatus: vi.fn().mockResolvedValue({ ok: true, state: "connected" }),
+  },
+}));
+
 const { testClientRef } = vi.hoisted(() => ({
   testClientRef: { current: null as DbClient | null },
 }));
