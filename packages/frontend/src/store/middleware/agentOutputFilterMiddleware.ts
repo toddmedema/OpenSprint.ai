@@ -56,8 +56,20 @@ export const agentOutputFilterMiddleware: Middleware = () => {
       return next({ type: "@@agentOutputFilter/batched" });
     }
     if (setAgentOutputBackfill.match(action)) {
+      const { taskId } = action.payload;
+      // Discard buffered chunks for this task — the backfill supersedes them.
+      // Without this, stale buffered chunks flush after the backfill replaces
+      // state, causing duplicate trailing text.
+      buffer.delete(taskId);
+      if (buffer.size === 0 && flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+      }
+      // Reset incremental filter so subsequent WS chunks are not processed
+      // against stale partial-line state from before the backfill.
+      filter.reset();
       const filtered = filterAgentOutput(action.payload.output);
-      return next(setAgentOutputBackfill({ taskId: action.payload.taskId, output: filtered }));
+      return next(setAgentOutputBackfill({ taskId, output: filtered }));
     }
     return next(action);
   };
