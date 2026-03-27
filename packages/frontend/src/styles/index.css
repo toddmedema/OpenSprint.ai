@@ -12,7 +12,7 @@ html:not([data-theme]) {
   --ui-surface-muted: #f2f2f4;
   --ui-surface-code: #1f2937;
   --ui-text-primary: #1d1d1f;
-  --ui-text-secondary: #6e6e73;
+  --ui-text-secondary: #5c5c61;
   --ui-text-inverse: #f5f5f7;
   --ui-stroke-soft: #e5e5ea;
   --ui-stroke-strong: #d2d2d7;
@@ -21,8 +21,8 @@ html:not([data-theme]) {
   --ui-accent-strong: #005bb5;
   --ui-accent-tint: #e8f2ff;
   --ui-status-info: #0a84ff;
-  --ui-status-success: #30d158;
-  --ui-status-warning: #ff9f0a;
+  --ui-status-success: #1a7a36;
+  --ui-status-warning: #b45309;
   --ui-status-error: #ff453a;
   --ui-stroke-subtle: #ececf1;
   --ui-text-placeholder: #8e8e93;

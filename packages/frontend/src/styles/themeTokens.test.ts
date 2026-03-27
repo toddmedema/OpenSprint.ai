@@ -85,6 +85,85 @@ describe("scrollbar styling", () => {
   });
 });
 
+/* ---- WCAG AA contrast helpers ---- */
+
+function linearize(c: number): number {
+  const s = c / 255;
+  return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+}
+
+function relativeLuminance(hex: string): number {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return 0.2126 * linearize(r) + 0.7152 * linearize(g) + 0.0722 * linearize(b);
+}
+
+function contrastRatio(hex1: string, hex2: string): number {
+  const l1 = relativeLuminance(hex1);
+  const l2 = relativeLuminance(hex2);
+  const lighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function extractLightModeValue(css: string, varName: string): string | null {
+  const lightBlock = css.split('html[data-theme="dark"]')[0];
+  const re = new RegExp(
+    `${varName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}:\\s*(#[0-9a-fA-F]{6})`,
+  );
+  const m = lightBlock.match(re);
+  return m ? m[1] : null;
+}
+
+describe("WCAG AA color contrast (light mode)", () => {
+  const LIGHT_PAGE_BG = "#f5f5f7";
+  const LIGHT_RAISED_BG = "#ffffff";
+  const AA_NORMAL = 4.5;
+
+  it("--ui-text-secondary meets 4.5:1 on page background", () => {
+    const color = extractLightModeValue(cssContent, "--ui-text-secondary");
+    expect(color).toBeTruthy();
+    const ratio = contrastRatio(color!, LIGHT_PAGE_BG);
+    expect(ratio).toBeGreaterThanOrEqual(AA_NORMAL);
+  });
+
+  it("--ui-text-secondary meets 4.5:1 on raised surface", () => {
+    const color = extractLightModeValue(cssContent, "--ui-text-secondary");
+    expect(color).toBeTruthy();
+    const ratio = contrastRatio(color!, LIGHT_RAISED_BG);
+    expect(ratio).toBeGreaterThanOrEqual(AA_NORMAL);
+  });
+
+  it("--ui-status-warning meets 4.5:1 on raised surface", () => {
+    const color = extractLightModeValue(cssContent, "--ui-status-warning");
+    expect(color).toBeTruthy();
+    const ratio = contrastRatio(color!, LIGHT_RAISED_BG);
+    expect(ratio).toBeGreaterThanOrEqual(AA_NORMAL);
+  });
+
+  it("--ui-status-warning meets 4.5:1 on page background", () => {
+    const color = extractLightModeValue(cssContent, "--ui-status-warning");
+    expect(color).toBeTruthy();
+    const ratio = contrastRatio(color!, LIGHT_PAGE_BG);
+    expect(ratio).toBeGreaterThanOrEqual(AA_NORMAL);
+  });
+
+  it("--ui-status-success meets 4.5:1 on raised surface", () => {
+    const color = extractLightModeValue(cssContent, "--ui-status-success");
+    expect(color).toBeTruthy();
+    const ratio = contrastRatio(color!, LIGHT_RAISED_BG);
+    expect(ratio).toBeGreaterThanOrEqual(AA_NORMAL);
+  });
+
+  it("--ui-status-success meets 4.5:1 on page background", () => {
+    const color = extractLightModeValue(cssContent, "--ui-status-success");
+    expect(color).toBeTruthy();
+    const ratio = contrastRatio(color!, LIGHT_PAGE_BG);
+    expect(ratio).toBeGreaterThanOrEqual(AA_NORMAL);
+  });
+});
+
 describe("prefers-reduced-motion (WCAG 2.1 2.3.3)", () => {
   it("index.css defines @media (prefers-reduced-motion: reduce) to tone down animations", () => {
     expect(cssContent).toContain("@media (prefers-reduced-motion: reduce)");
