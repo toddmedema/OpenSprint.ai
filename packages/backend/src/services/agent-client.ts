@@ -1,5 +1,18 @@
 import { spawn, exec } from "child_process";
-import { readFileSync, openSync, closeSync, mkdirSync, appendFileSync, writeFileSync } from "fs";
+import {
+  readFileSync,
+  readSync,
+  openSync,
+  closeSync,
+  mkdirSync,
+  appendFileSync,
+  existsSync,
+  lstatSync,
+  readlinkSync,
+  readdirSync,
+  symlinkSync,
+  unlinkSync,
+} from "fs";
 import { open as fsOpen, stat as fsStat, readFile, rm as fsRm } from "fs/promises";
 import os from "os";
 import path from "path";
@@ -117,6 +130,7 @@ function getCursorCliInstallInstructions(): string {
 
 function getCursorCommandInvocation(args: string[]): { command: string; args: string[] } {
   if (process.platform !== "win32") {
+    repairCursorLaunchersIfNeeded();
     return { command: "agent", args };
   }
   // Cursor's Windows installer provides agent.cmd; run via cmd.exe so .cmd shims execute reliably.
@@ -124,6 +138,114 @@ function getCursorCommandInvocation(args: string[]): { command: string; args: st
     command: process.env.ComSpec?.trim() || "cmd.exe",
     args: ["/d", "/s", "/c", "agent", ...args],
   };
+}
+
+function readBinaryMagic(filePath: string): string | null {
+  try {
+    const fd = openSync(filePath, "r");
+    const header = Buffer.alloc(4);
+    const bytesRead = readSync(fd, header, 0, 4, 0);
+    closeSync(fd);
+    if (bytesRead < 4) return null;
+    return header.toString("hex");
+  } catch {
+    return null;
+  }
+}
+
+function isLikelyMachO(nodeBinaryPath: string): boolean {
+  // Mach-O and FAT magic values
+  const magic = readBinaryMagic(nodeBinaryPath);
+  if (!magic) return false;
+  return (
+    magic === "feedface" ||
+    magic === "feedfacf" ||
+    magic === "cefaedfe" ||
+    magic === "cffaedfe" ||
+    magic === "cafebabe" ||
+    magic === "cafebabf" ||
+    magic === "bebafeca" ||
+    magic === "bfbafeca"
+  );
+}
+
+function pointsToLinuxRuntime(launcherPath: string): boolean {
+  try {
+    if (!existsSync(launcherPath)) return false;
+    const stat = lstatSync(launcherPath);
+    if (!stat.isSymbolicLink()) return false;
+    const target = readlinkSync(launcherPath);
+    const resolvedTarget = path.resolve(path.dirname(launcherPath), target);
+    const targetDir = path.dirname(resolvedTarget);
+    const nodeBinaryPath = path.join(targetDir, "node");
+    const magic = readBinaryMagic(nodeBinaryPath);
+    return magic === "7f454c46"; // ELF
+  } catch {
+    return false;
+  }
+}
+
+function resolveBestMacCursorLauncher(): string | null {
+  const versionsDir = path.join(os.homedir(), ".local", "share", "cursor-agent", "versions");
+  try {
+    if (!existsSync(versionsDir)) return null;
+    const versions = readdirSync(versionsDir)
+      .map((name) => ({
+        name,
+        dir: path.join(versionsDir, name),
+      }))
+      .filter((entry) => existsSync(path.join(entry.dir, "cursor-agent")))
+      .sort((a, b) => b.name.localeCompare(a.name));
+
+    for (const version of versions) {
+      const nodeBinaryPath = path.join(version.dir, "node");
+      if (!isLikelyMachO(nodeBinaryPath)) continue;
+      return path.join(version.dir, "cursor-agent");
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function relinkLauncher(launcherPath: string, targetPath: string): void {
+  if (existsSync(launcherPath)) {
+    try {
+      unlinkSync(launcherPath);
+    } catch {
+      // Ignore unlink failures; caller will continue gracefully.
+    }
+  }
+  symlinkSync(targetPath, launcherPath);
+}
+
+function repairCursorLaunchersIfNeeded(): void {
+  // No-op outside macOS and in tests to avoid side effects.
+  if (process.platform !== "darwin" || process.env.VITEST) return;
+
+  const agentLauncher = path.join(os.homedir(), ".local", "bin", "agent");
+  const cursorAgentLauncher = path.join(os.homedir(), ".local", "bin", "cursor-agent");
+  const needsRepair =
+    pointsToLinuxRuntime(agentLauncher) || pointsToLinuxRuntime(cursorAgentLauncher);
+  if (!needsRepair) return;
+
+  const replacementTarget = resolveBestMacCursorLauncher();
+  if (!replacementTarget) {
+    log.warn("Cursor launcher repair skipped: no compatible macOS runtime found");
+    return;
+  }
+
+  try {
+    relinkLauncher(agentLauncher, replacementTarget);
+    relinkLauncher(cursorAgentLauncher, replacementTarget);
+    log.warn("Repaired Cursor launchers to compatible macOS runtime", {
+      replacementTarget,
+    });
+  } catch (err) {
+    log.warn("Failed to repair Cursor launchers automatically", {
+      err: getErrorMessage(err),
+    });
+  }
 }
 
 function buildCursorSpawnEnv(cursorApiKey?: string): {
@@ -140,24 +262,11 @@ function buildCursorSpawnEnv(cursorApiKey?: string): {
   const isolatedConfigDir = path.join(baseConfigDir, runConfigToken);
   mkdirSync(isolatedConfigDir, { recursive: true });
 
-  let nodeOptions = process.env.NODE_OPTIONS?.trim() || undefined;
-  let xdgConfigHome = process.env.XDG_CONFIG_HOME;
-  if (process.platform === "darwin") {
-    const hookPath = path.join(isolatedConfigDir, "opensprint-cursor-force-file-auth.cjs");
-    writeFileSync(hookPath, 'const os = require("node:os");\nos.platform = () => "linux";\n', {
-      mode: 0o600,
-    });
-    nodeOptions = [nodeOptions, `--require ${hookPath}`].filter(Boolean).join(" ");
-    xdgConfigHome = isolatedConfigDir;
-  }
-
   return {
     env: normalizeSpawnEnvPath({
       ...process.env,
       CURSOR_API_KEY: cursorApiKey,
       CURSOR_CONFIG_DIR: isolatedConfigDir,
-      NODE_OPTIONS: nodeOptions,
-      XDG_CONFIG_HOME: xdgConfigHome,
     }),
     isolatedConfigDir,
   };
