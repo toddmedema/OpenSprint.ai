@@ -7,6 +7,12 @@ export interface UseAutoScrollOptions {
   contentLength: number;
   /** Key that resets auto-scroll when changed (e.g. selectedTask) */
   resetKey: string;
+  /**
+   * When this key changes and auto-scroll is enabled, scroll to bottom
+   * without resetting user scroll-up state. Useful for tab/section visibility
+   * changes where the container becomes visible and should catch up.
+   */
+  triggerKey?: string | number;
 }
 
 export interface UseAutoScrollResult {
@@ -32,12 +38,14 @@ function scrollToBottom(el: HTMLElement): void {
 export function useAutoScroll({
   contentLength,
   resetKey,
+  triggerKey,
 }: UseAutoScrollOptions): UseAutoScrollResult {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [autoScrollEnabled, setAutoScrollEnabled] = useState(true);
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
   const prevContentLengthRef = useRef(0);
   const prevResetKeyRef = useRef(resetKey);
+  const prevTriggerKeyRef = useRef(triggerKey);
 
   // Reset auto-scroll when switching tasks/sessions.
   // Clearing prevContentLengthRef ensures existing content triggers
@@ -50,6 +58,21 @@ export function useAutoScroll({
       setShowJumpToBottom(false);
     }
   }, [resetKey]);
+
+  // When triggerKey changes and auto-scroll is enabled, scroll to bottom.
+  // Unlike resetKey, this preserves user scroll-up state — it only scrolls
+  // if the user hasn't intentionally scrolled away.
+  useEffect(() => {
+    if (triggerKey === undefined || triggerKey === prevTriggerKeyRef.current) return;
+    prevTriggerKeyRef.current = triggerKey;
+    if (!autoScrollEnabled) return;
+    const el = containerRef.current;
+    if (!el) return;
+    const rafId = requestAnimationFrame(() => {
+      scrollToBottom(el);
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, [triggerKey, autoScrollEnabled]);
 
   // Scroll to bottom when content grows and auto-scroll is enabled.
   // On initial mount or after reset, prevContentLengthRef is 0 so any

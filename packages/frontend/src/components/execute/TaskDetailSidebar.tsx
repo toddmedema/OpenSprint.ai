@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useAutoScroll } from "../../hooks/useAutoScroll";
 import type {
   AgentSession,
@@ -21,6 +21,10 @@ import { TaskDetailDescription } from "./TaskDetailDescription";
 import { TaskDetailFeedbackSections } from "./TaskDetailFeedbackSections";
 import { TaskDetailDiagnostics } from "./TaskDetailDiagnostics";
 import { TaskDetailAgentOutput } from "./TaskDetailAgentOutput";
+import { ExecuteOutputTabs } from "./ExecuteOutputTabs";
+import type { ExecuteOutputTab } from "./ExecuteOutputTabs";
+import { ExecuteAgentChatPanel } from "./ExecuteAgentChatPanel";
+import type { ExecuteChatMessage } from "./ExecuteAgentChatPanel";
 import { SidebarSectionNav } from "../layout/SidebarSectionNav";
 
 /** Compare task data excluding priority. When only priority changed, skip sidebar re-render (TaskPriorityDropdown handles it via Redux). */
@@ -100,6 +104,18 @@ export interface TaskDetailSidebarProps {
   /** When false, assignee is not editable (show as text only). */
   enableHumanTeammates?: boolean;
   callbacks: TaskDetailCallbacks;
+  /** Chat messages for the execute agent chat panel. */
+  chatMessages?: ExecuteChatMessage[];
+  /** Whether a chat response is pending. */
+  chatSending?: boolean;
+  /** Handler to send a chat message to the agent. */
+  onChatSend?: (message: string) => void | boolean | Promise<void | boolean>;
+  /** Draft storage key for chat input persistence. */
+  chatDraftStorageKey?: string;
+  /** Whether the agent's backend supports live chat. Defaults to true. */
+  chatSupported?: boolean;
+  /** Reason chat is unsupported (shown as notice). */
+  chatUnsupportedReason?: string;
 }
 
 /** Build active agent label(s) for the selected task. Handles multi-angle review: shows each reviewer with angle (e.g. "Reviewer (Security), Reviewer (Performance)"). */
@@ -167,6 +183,12 @@ function areTaskDetailSidebarPropsEqual(
   if (prev.agentOutput !== next.agentOutput) return false;
   if (prev.archivedSessions !== next.archivedSessions) return false;
   if (prev.completionState !== next.completionState) return false;
+  if (prev.chatMessages !== next.chatMessages) return false;
+  if (prev.chatSending !== next.chatSending) return false;
+  if (prev.onChatSend !== next.onChatSend) return false;
+  if (prev.chatDraftStorageKey !== next.chatDraftStorageKey) return false;
+  if (prev.chatSupported !== next.chatSupported) return false;
+  if (prev.chatUnsupportedReason !== next.chatUnsupportedReason) return false;
   return true;
 }
 
@@ -197,6 +219,12 @@ function TaskDetailSidebarInner({
   teamMembers = [],
   enableHumanTeammates = false,
   callbacks,
+  chatMessages = [],
+  chatSending = false,
+  onChatSend,
+  chatDraftStorageKey,
+  chatSupported = true,
+  chatUnsupportedReason,
 }: TaskDetailSidebarProps) {
   const { selectedTaskData, taskDetailLoading, taskDetailError } = taskDetail;
   const {
@@ -245,6 +273,29 @@ function TaskDetailSidebarInner({
     return showLoadingPlaceholder ? "Loading output…" : "Waiting for agent output...";
   }, [activeTaskState?.state, agentOutputText, archivedSessions, showLoadingPlaceholder]);
 
+  const [activeOutputTab, setActiveOutputTab] = useState<ExecuteOutputTab>("output");
+  const scrollTriggerCounterRef = useRef(0);
+  const [scrollTriggerKey, setScrollTriggerKey] = useState(0);
+
+  const handleOutputTabChange = useCallback((tab: ExecuteOutputTab) => {
+    setActiveOutputTab(tab);
+    scrollTriggerCounterRef.current += 1;
+    setScrollTriggerKey(scrollTriggerCounterRef.current);
+  }, []);
+
+  // Trigger scroll-to-bottom when the artifacts section is expanded
+  const prevArtifactsExpanded = useRef(artifactsSectionExpanded);
+  useEffect(() => {
+    if (artifactsSectionExpanded && !prevArtifactsExpanded.current) {
+      scrollTriggerCounterRef.current += 1;
+      setScrollTriggerKey(scrollTriggerCounterRef.current);
+    }
+    prevArtifactsExpanded.current = artifactsSectionExpanded;
+  }, [artifactsSectionExpanded]);
+
+  const outputTriggerKey = activeOutputTab === "output" ? scrollTriggerKey : undefined;
+  const chatTriggerKey = activeOutputTab === "chat" ? scrollTriggerKey : undefined;
+
   const {
     containerRef: liveOutputRef,
     showJumpToBottom,
@@ -253,6 +304,7 @@ function TaskDetailSidebarInner({
   } = useAutoScroll({
     contentLength: liveOutputContent.length,
     resetKey: selectedTask,
+    triggerKey: outputTriggerKey,
   });
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteLinkConfirm, setDeleteLinkConfirm] = useState<{
@@ -464,19 +516,37 @@ function TaskDetailSidebarInner({
           sectionNavId="execute-artifacts-section"
           sectionNavTitle={isDoneTask ? "Done Work Artifacts" : "Live agent output"}
         >
-          <TaskDetailAgentOutput
-            projectId={projectId}
-            taskDetailLoading={taskDetailLoading}
-            isDoneTask={isDoneTask}
-            archivedLoading={archivedLoading}
-            archivedSessions={archivedSessions}
-            liveOutputContent={liveOutputContent}
-            completionState={completionState}
-            wsConnected={wsConnected}
-            containerRef={liveOutputRef}
-            onScroll={handleLiveOutputScroll}
-            showJumpToBottom={showJumpToBottom}
-            jumpToBottom={jumpToBottom}
+          <ExecuteOutputTabs
+            onTabChange={handleOutputTabChange}
+            outputContent={
+              <TaskDetailAgentOutput
+                projectId={projectId}
+                taskDetailLoading={taskDetailLoading}
+                isDoneTask={isDoneTask}
+                archivedLoading={archivedLoading}
+                archivedSessions={archivedSessions}
+                liveOutputContent={liveOutputContent}
+                completionState={completionState}
+                wsConnected={wsConnected}
+                containerRef={liveOutputRef}
+                onScroll={handleLiveOutputScroll}
+                showJumpToBottom={showJumpToBottom}
+                jumpToBottom={jumpToBottom}
+              />
+            }
+            chatContent={
+              <ExecuteAgentChatPanel
+                messages={chatMessages}
+                sending={chatSending}
+                onSend={onChatSend ?? (() => {})}
+                draftStorageKey={chatDraftStorageKey}
+                agentRunning={activeTaskState?.state === "running"}
+                chatSupported={chatSupported}
+                chatUnsupportedReason={chatUnsupportedReason}
+                scrollResetKey={selectedTask}
+                scrollTriggerKey={chatTriggerKey}
+              />
+            }
           />
         </CollapsibleSection>
       </div>

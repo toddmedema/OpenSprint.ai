@@ -326,4 +326,194 @@ describe("useAutoScroll", () => {
     expect(result.current.showJumpToBottom).toBe(false);
     expect(mockEl.scrollTop).toBe(300);
   });
+
+  describe("triggerKey", () => {
+    it("scrolls to bottom when triggerKey changes and auto-scroll is enabled", () => {
+      const mockEl = makeMockEl();
+      const { result, rerender } = renderHook(
+        ({ contentLength, triggerKey }: { contentLength: number; triggerKey: number }) =>
+          useAutoScroll({ contentLength, resetKey: "task-1", triggerKey }),
+        { initialProps: { contentLength: 0, triggerKey: 0 } }
+      );
+
+      setRef(result, mockEl);
+
+      // Get content so prevContentLength is set
+      rerender({ contentLength: 100, triggerKey: 0 });
+      act(() => {
+        vi.advanceTimersToNextFrame();
+      });
+      expect(mockEl.scrollTop).toBe(300);
+
+      // Simulate being at top after DOM changes
+      mockEl.scrollTop = 0;
+
+      // Change triggerKey — should scroll to bottom since auto-scroll is enabled
+      rerender({ contentLength: 100, triggerKey: 1 });
+      act(() => {
+        vi.advanceTimersToNextFrame();
+      });
+      expect(mockEl.scrollTop).toBe(300);
+    });
+
+    it("does not scroll when triggerKey changes but auto-scroll is disabled", () => {
+      const mockEl = makeMockEl();
+      const { result, rerender } = renderHook(
+        ({ contentLength, triggerKey }: { contentLength: number; triggerKey: number }) =>
+          useAutoScroll({ contentLength, resetKey: "task-1", triggerKey }),
+        { initialProps: { contentLength: 0, triggerKey: 0 } }
+      );
+
+      setRef(result, mockEl);
+
+      rerender({ contentLength: 100, triggerKey: 0 });
+      act(() => {
+        vi.advanceTimersToNextFrame();
+      });
+
+      // User scrolls up — disables auto-scroll
+      mockEl.scrollTop = 0;
+      act(() => {
+        result.current.handleScroll();
+      });
+      expect(result.current.autoScrollEnabled).toBe(false);
+
+      // Change triggerKey — should NOT scroll because user opted out
+      rerender({ contentLength: 100, triggerKey: 1 });
+      act(() => {
+        vi.advanceTimersToNextFrame();
+      });
+      expect(mockEl.scrollTop).toBe(0);
+    });
+
+    it("does not scroll when triggerKey is unchanged", () => {
+      const mockEl = makeMockEl();
+      const { result, rerender } = renderHook(
+        ({ contentLength, triggerKey }: { contentLength: number; triggerKey: number }) =>
+          useAutoScroll({ contentLength, resetKey: "task-1", triggerKey }),
+        { initialProps: { contentLength: 0, triggerKey: 0 } }
+      );
+
+      setRef(result, mockEl);
+
+      rerender({ contentLength: 100, triggerKey: 0 });
+      act(() => {
+        vi.advanceTimersToNextFrame();
+      });
+      expect(mockEl.scrollTop).toBe(300);
+
+      mockEl.scrollTop = 0;
+
+      // Same triggerKey, same contentLength — should not scroll
+      rerender({ contentLength: 100, triggerKey: 0 });
+      act(() => {
+        vi.advanceTimersToNextFrame();
+      });
+      expect(mockEl.scrollTop).toBe(0);
+    });
+
+    it("does not reset user scroll-up state (unlike resetKey)", () => {
+      const mockEl = makeMockEl();
+      const { result, rerender } = renderHook(
+        ({ contentLength, triggerKey }: { contentLength: number; triggerKey: number }) =>
+          useAutoScroll({ contentLength, resetKey: "task-1", triggerKey }),
+        { initialProps: { contentLength: 0, triggerKey: 0 } }
+      );
+
+      setRef(result, mockEl);
+
+      rerender({ contentLength: 100, triggerKey: 0 });
+      act(() => {
+        vi.advanceTimersToNextFrame();
+      });
+
+      // User scrolls up
+      mockEl.scrollTop = 0;
+      act(() => {
+        result.current.handleScroll();
+      });
+      expect(result.current.autoScrollEnabled).toBe(false);
+      expect(result.current.showJumpToBottom).toBe(true);
+
+      // triggerKey changes but should NOT reset the user's scroll intent
+      rerender({ contentLength: 100, triggerKey: 1 });
+      act(() => {
+        vi.advanceTimersToNextFrame();
+      });
+      expect(result.current.autoScrollEnabled).toBe(false);
+      expect(result.current.showJumpToBottom).toBe(true);
+    });
+
+    it("works with string triggerKeys", () => {
+      const mockEl = makeMockEl();
+      const { result, rerender } = renderHook(
+        ({
+          contentLength,
+          triggerKey,
+        }: {
+          contentLength: number;
+          triggerKey: string;
+        }) => useAutoScroll({ contentLength, resetKey: "task-1", triggerKey }),
+        { initialProps: { contentLength: 0, triggerKey: "tab-output" } }
+      );
+
+      setRef(result, mockEl);
+
+      rerender({ contentLength: 100, triggerKey: "tab-output" });
+      act(() => {
+        vi.advanceTimersToNextFrame();
+      });
+      expect(mockEl.scrollTop).toBe(300);
+
+      mockEl.scrollTop = 0;
+
+      // Switch tab
+      rerender({ contentLength: 100, triggerKey: "tab-chat" });
+      act(() => {
+        vi.advanceTimersToNextFrame();
+      });
+      expect(mockEl.scrollTop).toBe(300);
+    });
+
+    it("does not interfere with content-length auto-scroll", () => {
+      const mockEl = makeMockEl();
+      const { result, rerender } = renderHook(
+        ({
+          contentLength,
+          triggerKey,
+        }: {
+          contentLength: number;
+          triggerKey: number;
+        }) => useAutoScroll({ contentLength, resetKey: "task-1", triggerKey }),
+        { initialProps: { contentLength: 0, triggerKey: 0 } }
+      );
+
+      setRef(result, mockEl);
+
+      // Content grows — should scroll
+      rerender({ contentLength: 100, triggerKey: 0 });
+      act(() => {
+        vi.advanceTimersToNextFrame();
+      });
+      expect(mockEl.scrollTop).toBe(300);
+
+      mockEl.scrollTop = 0;
+
+      // More content — should scroll again
+      rerender({ contentLength: 200, triggerKey: 0 });
+      act(() => {
+        vi.advanceTimersToNextFrame();
+      });
+      expect(mockEl.scrollTop).toBe(300);
+
+      mockEl.scrollTop = 0;
+
+      // triggerKey change also scrolls
+      rerender({ contentLength: 200, triggerKey: 1 });
+      act(() => {
+        vi.advanceTimersToNextFrame();
+      });
+      expect(mockEl.scrollTop).toBe(300);
+    });
+  });
 });
