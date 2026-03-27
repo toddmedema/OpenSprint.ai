@@ -36,7 +36,7 @@ export function GlobalSettingsSubTabsBar({
 
   return (
     <div
-      className="px-4 sm:px-6 flex items-center justify-center bg-theme-surface shrink-0"
+      className="px-4 sm:px-6 flex items-center justify-center bg-theme-surface shrink-0 border-b border-theme-border"
       style={{ height: NAVBAR_HEIGHT }}
       data-testid="global-settings-sub-tabs-bar"
     >

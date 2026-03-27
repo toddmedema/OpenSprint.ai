@@ -82,7 +82,7 @@ export function ProjectSettingsContent() {
     >
       {/* Execute-style topbar: tabs live here, not inside the modal */}
       <div
-        className="w-full shrink-0 border-b border-theme-border bg-theme-surface"
+        className={`w-full shrink-0 bg-theme-surface ${isGlobalLevel ? "" : "border-b border-theme-border"}`}
         data-testid="settings-topbar-navbar"
       >
         <SettingsTopBar projectId={project.id} saveStatus={saveStatus} />
