@@ -6,11 +6,11 @@ export const apiKeyProviderParamSchema = z.object({
 });
 
 export const migrateToPostgresBodySchema = z.object({
-  databaseUrl: z.string().min(1, { message: "databaseUrl is required" }),
+  databaseUrl: z.string().trim().min(1, { message: "databaseUrl is required" }),
 });
 
 export const setupTablesBodySchema = z.object({
-  databaseUrl: z.string().min(1, { message: "databaseUrl is required" }),
+  databaseUrl: z.string().trim().min(1, { message: "databaseUrl is required" }),
 });
 
 /** PUT /global-settings — partial updates */

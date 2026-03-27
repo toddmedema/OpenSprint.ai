@@ -550,7 +550,7 @@ describe("Global Settings API", () => {
         .send({ databaseUrl: "   " });
 
       expect(res.status).toBe(400);
-      expect(res.body.error?.code).toBe("INVALID_INPUT");
+      expect(res.body.error?.code).toBe("VALIDATION_ERROR");
       expect(res.body.error?.message).toMatch(/empty|string|required|min/i);
     });
 
