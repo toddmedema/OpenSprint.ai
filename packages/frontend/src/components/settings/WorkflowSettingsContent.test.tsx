@@ -1015,42 +1015,11 @@ describe("WorkflowSettingsContent", () => {
       expect(screen.getByText("Self-Improvement Review")).toBeInTheDocument();
     });
 
-    it("shows review mode dropdown defaulting to inherit", () => {
+    it("does not render a review mode dropdown in the self-improvement section", () => {
       renderWorkflowContent();
-      const select = screen.getByTestId(
-        "self-improvement-review-mode-select"
-      ) as HTMLSelectElement;
-      expect(select.value).toBe("__inherit__");
-    });
-
-    it("shows review mode dropdown with explicit value when selfImprovementReviewMode is set", () => {
-      renderWorkflowContent({ selfImprovementReviewMode: "never" });
-      const select = screen.getByTestId(
-        "self-improvement-review-mode-select"
-      ) as HTMLSelectElement;
-      expect(select.value).toBe("never");
-    });
-
-    it("persists selfImprovementReviewMode when changed to an explicit value", () => {
-      const { persistSettings } = renderWorkflowContent();
-      fireEvent.change(screen.getByTestId("self-improvement-review-mode-select"), {
-        target: { value: "on-failure-only" },
-      });
-      expect(persistSettings).toHaveBeenCalledWith(undefined, {
-        selfImprovementReviewMode: "on-failure-only",
-      });
-    });
-
-    it("persists undefined selfImprovementReviewMode when switched back to inherit", () => {
-      const { persistSettings } = renderWorkflowContent({
-        selfImprovementReviewMode: "never",
-      });
-      fireEvent.change(screen.getByTestId("self-improvement-review-mode-select"), {
-        target: { value: "__inherit__" },
-      });
-      expect(persistSettings).toHaveBeenCalledWith(undefined, {
-        selfImprovementReviewMode: undefined,
-      });
+      expect(
+        screen.queryByTestId("self-improvement-review-mode-select")
+      ).not.toBeInTheDocument();
     });
 
     it("shows 'Using code review angles' with Customize button when no explicit angles", () => {
@@ -1128,20 +1097,47 @@ describe("WorkflowSettingsContent", () => {
       );
     });
 
-    it("shows inherited code review review mode label in dropdown", () => {
-      renderWorkflowContent({ reviewMode: "on-failure-only" });
-      const select = screen.getByTestId(
-        "self-improvement-review-mode-select"
-      ) as HTMLSelectElement;
-      const inheritOption = Array.from(select.options).find((o) =>
-        o.value === "__inherit__"
-      );
-      expect(inheritOption?.textContent).toContain("on-failure-only");
+    it("code review section still has review mode dropdown", () => {
+      renderWorkflowContent();
+      expect(screen.getByTestId("review-mode-select")).toBeInTheDocument();
     });
 
     it("renders the review angles multiselect container", () => {
       renderWorkflowContent();
       expect(screen.getByTestId("self-improvement-reviewer-agents-multiselect")).toBeInTheDocument();
+    });
+
+    it("has exactly one review-mode-select in the entire page (Code Review only, not SI)", () => {
+      renderWorkflowContent();
+      const allReviewModeSelects = screen.getAllByTestId("review-mode-select");
+      expect(allReviewModeSelects).toHaveLength(1);
+      const qualityGatesCard = screen.getByTestId("workflow-quality-gates-card");
+      expect(qualityGatesCard).toContainElement(allReviewModeSelects[0]);
+    });
+
+    it("SI section contains reviewer agents but no review mode control", () => {
+      renderWorkflowContent({
+        selfImprovementReviewerAgents: ["security"],
+        selfImprovementIncludeGeneralReview: true,
+      });
+      const siSection = screen.getByTestId("self-improvement-section");
+      expect(siSection.querySelector("[data-testid='self-improvement-reviewer-agents-multiselect']")).toBeInTheDocument();
+      expect(siSection.querySelector("[data-testid='self-improvement-review-mode-select']")).not.toBeInTheDocument();
+      expect(siSection.querySelector("[data-testid='review-mode-select']")).not.toBeInTheDocument();
+    });
+
+    it("does not persist a selfImprovementReviewMode key when customizing SI angles", () => {
+      const { persistSettings } = renderWorkflowContent({
+        reviewAngles: ["security"],
+        includeGeneralReview: true,
+      });
+      fireEvent.click(screen.getByTestId("si-review-customize-btn"));
+      for (const call of persistSettings.mock.calls) {
+        const overrides = call[1];
+        if (overrides && typeof overrides === "object") {
+          expect(overrides).not.toHaveProperty("selfImprovementReviewMode");
+        }
+      }
     });
   });
 

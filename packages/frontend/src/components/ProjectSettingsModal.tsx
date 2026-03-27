@@ -354,7 +354,6 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
       teamMembers: Array<{ id: string; name: string }>;
       selfImprovementFrequency?: SelfImprovementFrequency;
       runAgentEnhancementExperiments?: boolean;
-      selfImprovementReviewMode?: ReviewMode;
       selfImprovementReviewerAgents?: ReviewAngle[];
       selfImprovementIncludeGeneralReview?: boolean;
     }>;
@@ -488,16 +487,6 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                 ? { runAgentEnhancementExperiments: overrides.runAgentEnhancementExperiments }
                 : effSettings?.runAgentEnhancementExperiments !== undefined
                   ? { runAgentEnhancementExperiments: effSettings.runAgentEnhancementExperiments }
-                  : {}),
-              ...(patchDefines(overrides, "selfImprovementReviewMode")
-                ? {
-                    selfImprovementReviewMode:
-                      overrides!.selfImprovementReviewMode === undefined
-                        ? null
-                        : overrides!.selfImprovementReviewMode,
-                  }
-                : effSettings?.selfImprovementReviewMode !== undefined
-                  ? { selfImprovementReviewMode: effSettings.selfImprovementReviewMode }
                   : {}),
               ...(patchDefines(overrides, "selfImprovementReviewerAgents")
                 ? {

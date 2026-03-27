@@ -333,7 +333,6 @@ function toCanonicalSettings(s: ProjectSettings): ProjectSettings {
     }),
     autoExecutePlans: s.autoExecutePlans === true,
     runAgentEnhancementExperiments: s.runAgentEnhancementExperiments === true,
-    ...(s.selfImprovementReviewMode && { selfImprovementReviewMode: s.selfImprovementReviewMode }),
     ...(s.selfImprovementReviewerAgents &&
       s.selfImprovementReviewerAgents.length > 0 && {
         selfImprovementReviewerAgents: s.selfImprovementReviewerAgents,

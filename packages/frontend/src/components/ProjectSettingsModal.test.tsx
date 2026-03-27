@@ -688,33 +688,6 @@ describe("ProjectSettingsModal", () => {
     );
   });
 
-  it("sends null for selfImprovementReviewMode when inheriting code review mode", async () => {
-    mockGetSettings.mockResolvedValue({
-      ...mockSettings,
-      reviewMode: "always",
-      selfImprovementReviewMode: "never",
-    });
-    mockUpdateSettings.mockResolvedValue({});
-
-    renderModal(<ProjectSettingsModal project={mockProject} onClose={onClose} />);
-    await waitForModalReady();
-
-    const workflowTab = screen.getByRole("button", { name: "Workflow" });
-    await userEvent.click(workflowTab);
-
-    const siModeSelect = await screen.findByTestId("self-improvement-review-mode-select");
-    await userEvent.selectOptions(siModeSelect, "__inherit__");
-
-    await waitFor(() =>
-      expect(mockUpdateSettings).toHaveBeenCalledWith(
-        "proj-1",
-        expect.objectContaining({
-          selfImprovementReviewMode: null,
-        })
-      )
-    );
-  });
-
   it("sends null for self-improvement reviewer fields when resetting to code review defaults", async () => {
     mockGetSettings.mockResolvedValue({
       ...mockSettings,

@@ -1021,24 +1021,20 @@ describe("ProjectService", () => {
       reviewMode: "always",
       reviewAngles: ["security"],
       includeGeneralReview: true,
-      selfImprovementReviewMode: "never",
       selfImprovementReviewerAgents: ["performance"],
       selfImprovementIncludeGeneralReview: true,
     } as Record<string, unknown>);
 
     let loaded = await projectService.getSettings(project.id);
-    expect(loaded.selfImprovementReviewMode).toBe("never");
     expect(loaded.selfImprovementReviewerAgents).toEqual(["performance"]);
     expect(loaded.selfImprovementIncludeGeneralReview).toBe(true);
 
     await projectService.updateSettings(project.id, {
-      selfImprovementReviewMode: null,
       selfImprovementReviewerAgents: null,
       selfImprovementIncludeGeneralReview: null,
     } as Record<string, unknown>);
 
     loaded = await projectService.getSettings(project.id);
-    expect(loaded.selfImprovementReviewMode).toBeUndefined();
     expect(loaded.selfImprovementReviewerAgents).toBeUndefined();
     expect(loaded.selfImprovementIncludeGeneralReview).toBeUndefined();
     expect(loaded.reviewMode).toBe("always");

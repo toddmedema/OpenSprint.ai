@@ -17,7 +17,6 @@ import {
   MAX_TOTAL_CONCURRENT_AGENTS_CAP,
   REVIEW_AGENT_OPTIONS,
   SELF_IMPROVEMENT_FREQUENCY_OPTIONS,
-  getSelfImprovementReviewMode,
   getSelfImprovementReviewerAgents,
   getSelfImprovementIncludeGeneralReview,
   normalizeWorktreeBaseBranch,
@@ -40,7 +39,6 @@ type WorkflowPersistOverrides = Partial<{
   includeGeneralReview?: boolean;
   selfImprovementFrequency?: SelfImprovementFrequency;
   runAgentEnhancementExperiments?: boolean;
-  selfImprovementReviewMode?: ReviewMode;
   selfImprovementReviewerAgents?: ReviewAngle[];
   selfImprovementIncludeGeneralReview?: boolean;
   gitWorkingMode: GitWorkingMode;
@@ -789,59 +787,10 @@ export function WorkflowSettingsContent({
                 Self-Improvement Review
               </h4>
               <p className="text-xs text-theme-muted mb-3">
-                Configure which review mode and angles to use when the self-improvement audit reviews
-                recent code changes. When not customized, these inherit the code review settings
+                Configure which review angles to use when the self-improvement audit reviews
+                recent code changes. When not customized, these inherit the code review angles
                 above.
               </p>
-
-              {/* Review mode dropdown */}
-              <div className="flex items-center justify-between gap-4 mb-3">
-                <div className="min-w-0 flex-1">
-                  <span className="block text-xs font-medium text-theme-muted">Review mode</span>
-                </div>
-                <select
-                  data-testid="self-improvement-review-mode-select"
-                  className="input w-48 shrink-0"
-                  value={
-                    draftSettings.selfImprovementReviewMode ??
-                    "__inherit__"
-                  }
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === "__inherit__") {
-                      applySettingsUpdate((s) => {
-                        const next = { ...s };
-                        delete next.selfImprovementReviewMode;
-                        return next;
-                      });
-                      void persistSettings(undefined, {
-                        selfImprovementReviewMode: undefined,
-                      });
-                    } else {
-                      const mode = val as ReviewMode;
-                      applySettingsUpdate((s) => ({
-                        ...s,
-                        selfImprovementReviewMode: mode,
-                      }));
-                      void persistSettings(undefined, {
-                        selfImprovementReviewMode: mode,
-                      });
-                    }
-                  }}
-                >
-                  <option value="__inherit__">
-                    Use code review setting (
-                    {getSelfImprovementReviewMode({
-                      ...draftSettings,
-                      selfImprovementReviewMode: undefined,
-                    })}
-                    )
-                  </option>
-                  <option value="never">Never</option>
-                  <option value="always">Always</option>
-                  <option value="on-failure-only">On Failure Only</option>
-                </select>
-              </div>
 
               {/* Review angles multi-select */}
               <div role="group" aria-labelledby="self-improvement-reviewer-agents-heading">

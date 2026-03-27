@@ -408,14 +408,6 @@ export const REVIEW_AGENT_OPTIONS: {
 }[] = [{ value: GENERAL_REVIEW_OPTION, label: "General" }, ...REVIEW_ANGLE_OPTIONS];
 
 /**
- * Resolve the effective review mode for self-improvement.
- * Returns selfImprovementReviewMode when explicitly set; otherwise falls back to reviewMode.
- */
-export function getSelfImprovementReviewMode(settings: ProjectSettings): ReviewMode {
-  return settings.selfImprovementReviewMode ?? settings.reviewMode ?? DEFAULT_REVIEW_MODE;
-}
-
-/**
  * Resolve the effective self-improvement reviewer agents (review angles).
  * Returns selfImprovementReviewerAgents when explicitly set; otherwise falls back to reviewAngles.
  */
@@ -862,8 +854,6 @@ export interface ProjectSettings {
   autoExecutePlans?: boolean;
   /** When true, self-improvement runs execute the experiment/promote pipeline; when false, runs are audit-only. Default: false. */
   runAgentEnhancementExperiments?: boolean;
-  /** Review mode for self-improvement reviewer. When unset, falls back to reviewMode. */
-  selfImprovementReviewMode?: ReviewMode;
   /**
    * Selected self-improvement reviewer agents (same values as code review review angles).
    * When unset, falls back to reviewAngles.
@@ -924,15 +914,12 @@ export type ProjectSettingsApiUpdate = Partial<
     | "complexComplexityAgent"
     | "simpleComplexityAgentInherited"
     | "complexComplexityAgentInherited"
-    | "selfImprovementReviewMode"
     | "selfImprovementReviewerAgents"
     | "selfImprovementIncludeGeneralReview"
   >
 > & {
   simpleComplexityAgent?: AgentConfig | null;
   complexComplexityAgent?: AgentConfig | null;
-  /** `null` clears the project override so code review settings apply (inherit). */
-  selfImprovementReviewMode?: ReviewMode | null;
   selfImprovementReviewerAgents?: ReviewAngle[] | null;
   selfImprovementIncludeGeneralReview?: boolean | null;
 };
@@ -1211,12 +1198,6 @@ export function parseSettings(raw: unknown): ProjectSettings {
         ? (r.selfImprovementLastCommitSha as string).trim()
         : undefined,
     autoExecutePlans: r?.autoExecutePlans === true,
-    selfImprovementReviewMode:
-      r?.selfImprovementReviewMode === "always" ||
-      r?.selfImprovementReviewMode === "never" ||
-      r?.selfImprovementReviewMode === "on-failure-only"
-        ? (r.selfImprovementReviewMode as ReviewMode)
-        : undefined,
     selfImprovementReviewerAgents:
       parseReviewAngles(r?.selfImprovementReviewerAgents) ??
       parseReviewAngles(r?.selfImprovementReviewAngles),

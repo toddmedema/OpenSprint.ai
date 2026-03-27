@@ -32,11 +32,9 @@ import {
   projectStoredDefinesComplexAgent,
   applyGlobalAgentDefaultsToRawRecord,
   omitInheritedAgentTiersForStore,
-  getSelfImprovementReviewMode,
   getSelfImprovementReviewerAgents,
   getSelfImprovementReviewAngles,
   getSelfImprovementIncludeGeneralReview,
-  DEFAULT_REVIEW_MODE,
   parsePreferredEditor,
   VALID_PREFERRED_EDITORS,
 } from "../types/settings.ts";
@@ -2117,36 +2115,6 @@ describe("getProvidersRequiringApiKeys", () => {
 });
 
 describe("self-improvement reviewer agent settings", () => {
-  describe("parseSettings — selfImprovementReviewMode", () => {
-    it("should be undefined when missing", () => {
-      const parsed = parseSettings({
-        simpleComplexityAgent: lowAgent,
-        complexComplexityAgent: highAgent,
-      });
-      expect(parsed.selfImprovementReviewMode).toBeUndefined();
-    });
-
-    it("should preserve valid selfImprovementReviewMode values", () => {
-      for (const mode of ["always", "never", "on-failure-only"] as const) {
-        const parsed = parseSettings({
-          simpleComplexityAgent: lowAgent,
-          complexComplexityAgent: highAgent,
-          selfImprovementReviewMode: mode,
-        });
-        expect(parsed.selfImprovementReviewMode).toBe(mode);
-      }
-    });
-
-    it("should ignore invalid selfImprovementReviewMode values", () => {
-      const parsed = parseSettings({
-        simpleComplexityAgent: lowAgent,
-        complexComplexityAgent: highAgent,
-        selfImprovementReviewMode: "invalid",
-      });
-      expect(parsed.selfImprovementReviewMode).toBeUndefined();
-    });
-  });
-
   describe("parseSettings — selfImprovementReviewerAgents", () => {
     it("should be undefined when missing", () => {
       const parsed = parseSettings({
@@ -2239,44 +2207,16 @@ describe("self-improvement reviewer agent settings", () => {
       const raw = {
         simpleComplexityAgent: lowAgent,
         complexComplexityAgent: highAgent,
-        selfImprovementReviewMode: "never" as const,
         selfImprovementReviewerAgents: ["security", "code_quality"] as ReviewAngle[],
         selfImprovementIncludeGeneralReview: true,
       };
       const parsed = parseSettings(raw);
-      expect(parsed.selfImprovementReviewMode).toBe("never");
       expect(parsed.selfImprovementReviewerAgents).toEqual(["security", "code_quality"]);
       expect(parsed.selfImprovementIncludeGeneralReview).toBe(true);
 
       const roundTripped = parseSettings(parsed);
-      expect(roundTripped.selfImprovementReviewMode).toBe("never");
       expect(roundTripped.selfImprovementReviewerAgents).toEqual(["security", "code_quality"]);
       expect(roundTripped.selfImprovementIncludeGeneralReview).toBe(true);
-    });
-  });
-
-  describe("getSelfImprovementReviewMode", () => {
-    it("returns selfImprovementReviewMode when set", () => {
-      const settings = makeSettings({ selfImprovementReviewMode: "never" });
-      expect(getSelfImprovementReviewMode(settings)).toBe("never");
-    });
-
-    it("falls back to reviewMode when selfImprovementReviewMode is unset", () => {
-      const settings = makeSettings({ reviewMode: "on-failure-only" });
-      expect(getSelfImprovementReviewMode(settings)).toBe("on-failure-only");
-    });
-
-    it("falls back to DEFAULT_REVIEW_MODE when both are unset", () => {
-      const settings = makeSettings({});
-      expect(getSelfImprovementReviewMode(settings)).toBe(DEFAULT_REVIEW_MODE);
-    });
-
-    it("prefers selfImprovementReviewMode over reviewMode", () => {
-      const settings = makeSettings({
-        reviewMode: "always",
-        selfImprovementReviewMode: "never",
-      });
-      expect(getSelfImprovementReviewMode(settings)).toBe("never");
     });
   });
 
