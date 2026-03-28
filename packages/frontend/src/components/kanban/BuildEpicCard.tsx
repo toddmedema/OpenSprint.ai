@@ -8,6 +8,7 @@ import { PriorityIcon } from "../PriorityIcon";
 import { ComplexityIcon } from "../ComplexityIcon";
 import { TaskStatusBadge, COLUMN_LABELS } from "./TaskStatusBadge";
 import { UptimeDisplay } from "../UptimeDisplay";
+import { OpenInEditorButton } from "../OpenInEditorButton";
 
 const VISIBLE_SUBTASKS = 3;
 /** Virtualize when expanded and task count exceeds this (avoids virtualization for small lists; improves testability in jsdom). */
@@ -24,6 +25,9 @@ const EpicTaskRow = memo(function EpicTaskRow({
   onTaskSelect,
   onUnblock,
   unblockInflightByTaskId,
+  projectId,
+  worktreePath,
+  isBranchesMode,
 }: {
   taskId: string;
   task?: Task;
@@ -31,6 +35,9 @@ const EpicTaskRow = memo(function EpicTaskRow({
   onTaskSelect: (taskId: string) => void;
   onUnblock?: (taskId: string) => void;
   unblockInflightByTaskId?: Readonly<Record<string, number>>;
+  projectId?: string;
+  worktreePath?: string | null;
+  isBranchesMode?: boolean;
 }) {
   const taskFromRedux = useAppSelector((s) => selectTaskById(s, taskId), shallowEqual);
   const task = taskProp ?? taskFromRedux;
@@ -84,6 +91,16 @@ const EpicTaskRow = memo(function EpicTaskRow({
             </span>
           ) : null}
         </button>
+        {projectId && (task.kanbanColumn === "in_progress" || task.kanbanColumn === "in_review") && (
+          <OpenInEditorButton
+            projectId={projectId}
+            taskId={task.id}
+            isInProgress
+            worktreePath={worktreePath ?? null}
+            isBranchesMode={isBranchesMode}
+            variant="icon"
+          />
+        )}
         {task.kanbanColumn === "blocked" && onUnblock && (
           <button
             type="button"
@@ -140,6 +157,12 @@ export interface BuildEpicCardProps {
   taskIdToStartedAt?: Record<string, string>;
   /** When provided, scrolls the selected task into view when expanded. */
   selectedTaskId?: string | null;
+  /** Project ID for open-in-editor functionality. */
+  projectId?: string;
+  /** Map of task ID to worktree path for in-progress tasks. */
+  taskIdToWorktreePath?: Readonly<Record<string, string | null>>;
+  /** When true, shows shared-checkout badge on open-in-editor buttons. */
+  isBranchesMode?: boolean;
 }
 
 export function BuildEpicCard({
@@ -156,6 +179,9 @@ export function BuildEpicCard({
   onViewPlan,
   taskIdToStartedAt = {},
   selectedTaskId,
+  projectId,
+  taskIdToWorktreePath = {},
+  isBranchesMode = false,
 }: BuildEpicCardProps) {
   const [expanded, setExpanded] = useState(false);
   const taskListRef = useRef<HTMLDivElement>(null);
@@ -303,6 +329,9 @@ export function BuildEpicCard({
                           onTaskSelect={onTaskSelect}
                           onUnblock={onUnblock}
                           unblockInflightByTaskId={unblockInflightByTaskId}
+                          projectId={projectId}
+                          worktreePath={taskIdToWorktreePath[t.id]}
+                          isBranchesMode={isBranchesMode}
                         />
                       </ul>
                     </div>
@@ -321,6 +350,9 @@ export function BuildEpicCard({
                   onTaskSelect={onTaskSelect}
                   onUnblock={onUnblock}
                   unblockInflightByTaskId={unblockInflightByTaskId}
+                  projectId={projectId}
+                  worktreePath={taskIdToWorktreePath[t.id]}
+                  isBranchesMode={isBranchesMode}
                 />
               ))}
             </ul>

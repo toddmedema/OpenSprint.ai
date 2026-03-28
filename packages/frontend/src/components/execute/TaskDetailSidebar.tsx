@@ -103,6 +103,8 @@ export interface TaskDetailSidebarProps {
   teamMembers?: Array<{ id: string; name: string }>;
   /** When false, assignee is not editable (show as text only). */
   enableHumanTeammates?: boolean;
+  /** True when the project uses branches mode (shared checkout warning for Open in Editor). */
+  isBranchesMode?: boolean;
   callbacks: TaskDetailCallbacks;
   /** Chat messages for the execute agent chat panel. */
   chatMessages?: ExecuteChatMessage[];
@@ -173,6 +175,7 @@ function areTaskDetailSidebarPropsEqual(
     prev.openQuestionNotification !== next.openQuestionNotification ||
     prev.teamMembers !== next.teamMembers ||
     prev.enableHumanTeammates !== next.enableHumanTeammates ||
+    prev.isBranchesMode !== next.isBranchesMode ||
     cb(prev).onOpenQuestionResolved !== cb(next).onOpenQuestionResolved ||
     cb(prev).onMarkDone !== cb(next).onMarkDone ||
     cb(prev).onUnblock !== cb(next).onUnblock ||
@@ -220,6 +223,7 @@ function TaskDetailSidebarInner({
   openQuestionNotification,
   teamMembers = [],
   enableHumanTeammates = false,
+  isBranchesMode = false,
   callbacks,
   chatMessages = [],
   chatSending = false,
@@ -398,6 +402,11 @@ function TaskDetailSidebarInner({
         setDeleteLinkConfirm={setDeleteLinkConfirm}
         removeLinkRemovingId={removeLinkRemovingId}
         onRemoveLink={handleRemoveLink}
+        projectId={projectId}
+        taskId={selectedTask}
+        isInProgressTask={isInProgressTask}
+        worktreePath={activeTaskState?.worktreePath ?? null}
+        isBranchesMode={isBranchesMode}
       />
 
       <div ref={sidebarScrollRef} className="flex-1 overflow-y-auto min-h-0">

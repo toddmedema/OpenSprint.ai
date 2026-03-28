@@ -50,4 +50,130 @@ describe("TaskDetailHeader", () => {
 
     expect(screen.queryByTestId("sidebar-delete-task-dialog")).not.toBeInTheDocument();
   });
+
+  describe("Open in Editor button", () => {
+    it("renders the open-editor button when projectId and taskId are provided", () => {
+      render(
+        <TaskDetailHeader
+          {...baseProps}
+          projectId="proj-1"
+          taskId="os-1234.1"
+          isInProgressTask
+          worktreePath="/tmp/worktree/os-1234.1"
+        />
+      );
+      const btn = screen.getByTestId("open-editor-btn");
+      expect(btn).toBeInTheDocument();
+      expect(btn).not.toBeDisabled();
+    });
+
+    it("does not render the open-editor button when projectId or taskId is missing", () => {
+      render(<TaskDetailHeader {...baseProps} />);
+      expect(screen.queryByTestId("open-editor-btn")).not.toBeInTheDocument();
+    });
+
+    it("is enabled when task is in progress and worktreePath is present", () => {
+      render(
+        <TaskDetailHeader
+          {...baseProps}
+          projectId="proj-1"
+          taskId="os-1234.1"
+          isInProgressTask
+          worktreePath="/tmp/worktree/os-1234.1"
+        />
+      );
+      const btn = screen.getByTestId("open-editor-btn");
+      expect(btn).not.toBeDisabled();
+      expect(btn).toHaveAttribute("title", "Open in editor");
+    });
+
+    it("is disabled with 'Task not in progress' tooltip when task is not in progress", () => {
+      render(
+        <TaskDetailHeader
+          {...baseProps}
+          projectId="proj-1"
+          taskId="os-1234.1"
+          isInProgressTask={false}
+          worktreePath="/tmp/worktree/os-1234.1"
+        />
+      );
+      const btn = screen.getByTestId("open-editor-btn");
+      expect(btn).toBeDisabled();
+      expect(btn).toHaveAttribute("title", "Task not in progress");
+    });
+
+    it("is disabled with 'No active worktree' tooltip when worktreePath is null", () => {
+      render(
+        <TaskDetailHeader
+          {...baseProps}
+          projectId="proj-1"
+          taskId="os-1234.1"
+          isInProgressTask
+          worktreePath={null}
+        />
+      );
+      const btn = screen.getByTestId("open-editor-btn");
+      expect(btn).toBeDisabled();
+      expect(btn).toHaveAttribute("title", "No active worktree");
+    });
+
+    it("shows 'Shared checkout' badge in branches mode for in-progress task", () => {
+      render(
+        <TaskDetailHeader
+          {...baseProps}
+          projectId="proj-1"
+          taskId="os-1234.1"
+          isInProgressTask
+          worktreePath="/tmp/repo-root"
+          isBranchesMode
+        />
+      );
+      const badge = screen.getByTestId("shared-checkout-badge");
+      expect(badge).toBeInTheDocument();
+      expect(badge).toHaveTextContent("Shared checkout");
+    });
+
+    it("does not show 'Shared checkout' badge when not in branches mode", () => {
+      render(
+        <TaskDetailHeader
+          {...baseProps}
+          projectId="proj-1"
+          taskId="os-1234.1"
+          isInProgressTask
+          worktreePath="/tmp/worktree/os-1234.1"
+          isBranchesMode={false}
+        />
+      );
+      expect(screen.queryByTestId("shared-checkout-badge")).not.toBeInTheDocument();
+    });
+
+    it("does not show 'Shared checkout' badge when task is not in progress even in branches mode", () => {
+      render(
+        <TaskDetailHeader
+          {...baseProps}
+          projectId="proj-1"
+          taskId="os-1234.1"
+          isInProgressTask={false}
+          worktreePath="/tmp/repo-root"
+          isBranchesMode
+        />
+      );
+      expect(screen.queryByTestId("shared-checkout-badge")).not.toBeInTheDocument();
+    });
+
+    it("shows 'Open shared checkout in editor' tooltip in branches mode", () => {
+      render(
+        <TaskDetailHeader
+          {...baseProps}
+          projectId="proj-1"
+          taskId="os-1234.1"
+          isInProgressTask
+          worktreePath="/tmp/repo-root"
+          isBranchesMode
+        />
+      );
+      const btn = screen.getByTestId("open-editor-btn");
+      expect(btn).toHaveAttribute("title", "Open shared checkout in editor");
+    });
+  });
 });

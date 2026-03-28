@@ -488,6 +488,120 @@ describe("BuildEpicCard", () => {
     expect(screen.getByTitle("Failures")).toBeInTheDocument();
   });
 
+  describe("Open in Editor button", () => {
+    it("shows open-editor button for in-progress tasks when projectId and worktreePath are provided", () => {
+      const tasks = [
+        createMockTask({ id: "epic-1.1", title: "Active Task", kanbanColumn: "in_progress" }),
+      ];
+      renderWithStore(
+        <BuildEpicCard
+          epicId="epic-1"
+          epicTitle="Auth"
+          tasks={tasks}
+          onTaskSelect={vi.fn()}
+          projectId="proj-1"
+          taskIdToWorktreePath={{ "epic-1.1": "/tmp/worktree/epic-1.1" }}
+        />
+      );
+      const btn = screen.getByTestId("open-editor-btn-epic-1.1");
+      expect(btn).toBeInTheDocument();
+      expect(btn).not.toBeDisabled();
+    });
+
+    it("disables open-editor button when worktreePath is null", () => {
+      const tasks = [
+        createMockTask({ id: "epic-1.1", title: "Active Task", kanbanColumn: "in_progress" }),
+      ];
+      renderWithStore(
+        <BuildEpicCard
+          epicId="epic-1"
+          epicTitle="Auth"
+          tasks={tasks}
+          onTaskSelect={vi.fn()}
+          projectId="proj-1"
+          taskIdToWorktreePath={{ "epic-1.1": null }}
+        />
+      );
+      const btn = screen.getByTestId("open-editor-btn-epic-1.1");
+      expect(btn).toBeDisabled();
+      expect(btn).toHaveAttribute("title", "No active worktree");
+    });
+
+    it("does not show open-editor button for non-in-progress tasks", () => {
+      const tasks = [
+        createMockTask({ id: "epic-1.1", title: "Done Task", kanbanColumn: "done" }),
+        createMockTask({ id: "epic-1.2", title: "Ready Task", kanbanColumn: "ready" }),
+        createMockTask({ id: "epic-1.3", title: "Blocked Task", kanbanColumn: "blocked" }),
+      ];
+      renderWithStore(
+        <BuildEpicCard
+          epicId="epic-1"
+          epicTitle="Auth"
+          tasks={tasks}
+          onTaskSelect={vi.fn()}
+          projectId="proj-1"
+          taskIdToWorktreePath={{}}
+        />
+      );
+      expect(screen.queryByTestId("open-editor-btn-epic-1.1")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("open-editor-btn-epic-1.2")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("open-editor-btn-epic-1.3")).not.toBeInTheDocument();
+    });
+
+    it("does not show open-editor button when projectId is not provided", () => {
+      const tasks = [
+        createMockTask({ id: "epic-1.1", title: "Active Task", kanbanColumn: "in_progress" }),
+      ];
+      renderWithStore(
+        <BuildEpicCard
+          epicId="epic-1"
+          epicTitle="Auth"
+          tasks={tasks}
+          onTaskSelect={vi.fn()}
+        />
+      );
+      expect(screen.queryByTestId("open-editor-btn-epic-1.1")).not.toBeInTheDocument();
+    });
+
+    it("shows open-editor button for in_review tasks", () => {
+      const tasks = [
+        createMockTask({ id: "epic-1.1", title: "Review Task", kanbanColumn: "in_review" }),
+      ];
+      renderWithStore(
+        <BuildEpicCard
+          epicId="epic-1"
+          epicTitle="Auth"
+          tasks={tasks}
+          onTaskSelect={vi.fn()}
+          projectId="proj-1"
+          taskIdToWorktreePath={{ "epic-1.1": "/tmp/worktree/epic-1.1" }}
+        />
+      );
+      const btn = screen.getByTestId("open-editor-btn-epic-1.1");
+      expect(btn).toBeInTheDocument();
+      expect(btn).not.toBeDisabled();
+    });
+
+    it("shows disabled button with correct tooltip when worktreePath is missing from map", () => {
+      const tasks = [
+        createMockTask({ id: "epic-1.1", title: "Active Task", kanbanColumn: "in_progress" }),
+      ];
+      renderWithStore(
+        <BuildEpicCard
+          epicId="epic-1"
+          epicTitle="Auth"
+          tasks={tasks}
+          onTaskSelect={vi.fn()}
+          projectId="proj-1"
+          taskIdToWorktreePath={{}}
+        />
+      );
+      const btn = screen.getByTestId("open-editor-btn-epic-1.1");
+      expect(btn).toBeDisabled();
+      expect(btn).toHaveAttribute("title", "No active worktree");
+    });
+  });
+
   it("uses virtualized task list when expanded with many tasks (11+)", async () => {
     const user = userEvent.setup();
     const tasks = Array.from({ length: 15 }, (_, i) =>

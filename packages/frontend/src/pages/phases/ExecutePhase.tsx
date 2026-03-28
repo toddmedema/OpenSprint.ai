@@ -174,6 +174,14 @@ export function ExecutePhase({
   const forceRetryMutation = useForceRetryTask(projectId);
   const projectSettingsQuery = useProjectSettings(projectId);
 
+  const taskIdToWorktreePath = useMemo(() => {
+    const map: Record<string, string | null> = {};
+    for (const t of activeTasks) {
+      map[t.taskId] = t.worktreePath;
+    }
+    return map;
+  }, [activeTasks]);
+
   const taskDetailData = taskDetailQuery.data;
   const taskDetailLoading = taskDetailQuery.isFetching;
   const taskDetailError = taskDetailQuery.error
@@ -560,6 +568,9 @@ export function ExecutePhase({
                             taskIdToStartedAt={taskIdToStartedAt}
                             selectedTaskId={effectiveSelectedTask}
                             unblockInflightByTaskId={unblockInflightByTaskId}
+                            projectId={projectId}
+                            taskIdToWorktreePath={taskIdToWorktreePath}
+                            isBranchesMode={projectSettingsQuery.data?.gitWorkingMode === "branches"}
                           />
                         ))}
                       </div>
@@ -589,6 +600,9 @@ export function ExecutePhase({
                             taskIdToStartedAt={taskIdToStartedAt}
                             selectedTaskId={effectiveSelectedTask}
                             unblockInflightByTaskId={unblockInflightByTaskId}
+                            projectId={projectId}
+                            taskIdToWorktreePath={taskIdToWorktreePath}
+                            isBranchesMode={projectSettingsQuery.data?.gitWorkingMode === "branches"}
                           />
                         ))}
                       </div>
@@ -618,6 +632,9 @@ export function ExecutePhase({
                             taskIdToStartedAt={taskIdToStartedAt}
                             selectedTaskId={effectiveSelectedTask}
                             unblockInflightByTaskId={unblockInflightByTaskId}
+                            projectId={projectId}
+                            taskIdToWorktreePath={taskIdToWorktreePath}
+                            isBranchesMode={projectSettingsQuery.data?.gitWorkingMode === "branches"}
                           />
                         ))}
                       </div>
@@ -648,6 +665,9 @@ export function ExecutePhase({
                             taskIdToStartedAt={taskIdToStartedAt}
                             selectedTaskId={effectiveSelectedTask}
                             unblockInflightByTaskId={unblockInflightByTaskId}
+                            projectId={projectId}
+                            taskIdToWorktreePath={taskIdToWorktreePath}
+                            isBranchesMode={projectSettingsQuery.data?.gitWorkingMode === "branches"}
                           />
                         ))}
                       </div>
@@ -692,6 +712,9 @@ export function ExecutePhase({
                       taskIdToStartedAt={taskIdToStartedAt}
                       selectedTaskId={effectiveSelectedTask}
                       unblockInflightByTaskId={unblockInflightByTaskId}
+                      projectId={projectId}
+                      taskIdToWorktreePath={taskIdToWorktreePath}
+                      isBranchesMode={projectSettingsQuery.data?.gitWorkingMode === "branches"}
                     />
                   ))}
                 </div>
@@ -781,6 +804,7 @@ export function ExecutePhase({
             }}
             teamMembers={projectSettingsQuery.data?.teamMembers ?? []}
             enableHumanTeammates={projectSettingsQuery.data?.enableHumanTeammates ?? false}
+            isBranchesMode={projectSettingsQuery.data?.gitWorkingMode === "branches"}
             callbacks={{
               onClose: handleClose,
               onMarkDone: handleMarkDone,

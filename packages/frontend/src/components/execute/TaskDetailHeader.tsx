@@ -2,6 +2,7 @@ import React from "react";
 import { CloseButton } from "../CloseButton";
 import { shouldRightAlignDropdown } from "../../lib/dropdownViewport";
 import { useModalA11y } from "../../hooks/useModalA11y";
+import { OpenInEditorButton } from "../OpenInEditorButton";
 
 export interface TaskDetailHeaderProps {
   title: string;
@@ -33,6 +34,16 @@ export interface TaskDetailHeaderProps {
   >;
   removeLinkRemovingId: string | null;
   onRemoveLink: (targetId: string) => Promise<void>;
+  /** Project ID for the open-editor API call. */
+  projectId?: string;
+  /** Task ID for the open-editor API call. */
+  taskId?: string;
+  /** Whether the task is currently being worked on by an agent. */
+  isInProgressTask?: boolean;
+  /** Worktree path from the active task slot; null when not available. */
+  worktreePath?: string | null;
+  /** True when the project uses branches mode (shared checkout warning). */
+  isBranchesMode?: boolean;
 }
 
 export function TaskDetailHeader({
@@ -55,6 +66,11 @@ export function TaskDetailHeader({
   setDeleteLinkConfirm,
   removeLinkRemovingId,
   onRemoveLink,
+  projectId,
+  taskId,
+  isInProgressTask = false,
+  worktreePath,
+  isBranchesMode = false,
 }: TaskDetailHeaderProps) {
   const [actionsMenuOpen, setActionsMenuOpen] = React.useState(false);
   const [actionsMenuAlignRight, setActionsMenuAlignRight] = React.useState(false);
@@ -134,6 +150,16 @@ export function TaskDetailHeader({
             {title}
           </h3>
         </div>
+        {projectId && taskId && (
+          <OpenInEditorButton
+            projectId={projectId}
+            taskId={taskId}
+            isInProgress={isInProgressTask}
+            worktreePath={worktreePath ?? null}
+            isBranchesMode={isBranchesMode}
+            variant="sm"
+          />
+        )}
         {hasActions && (
           <div ref={actionsMenuRef} className="relative shrink-0">
             <button
