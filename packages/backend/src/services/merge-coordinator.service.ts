@@ -576,15 +576,11 @@ export class MergeCoordinatorService {
   }): string {
     const command = params.command?.trim();
     const worktreePath = params.worktreePath?.trim();
-    const validationWorkspace = params.validationWorkspace?.trim();
     const commandStep = command
       ? `then rerun ${command} before retrying merge.`
       : "then rerun the failing quality gate before retrying merge.";
-    const isValidationWorkspace =
-      validationWorkspace === "baseline" || validationWorkspace === "merged_candidate";
-    const relinkStep = isValidationWorkspace ? "" : ", re-link worktree node_modules";
     return compactExecutionText(
-      `Run npm ci${worktreePath ? ` in ${worktreePath}` : " in the repository root"}${relinkStep}, ${commandStep}`,
+      `Run npm ci${worktreePath ? ` in ${worktreePath}` : " in the repository root"}, ${commandStep}`,
       500
     );
   }

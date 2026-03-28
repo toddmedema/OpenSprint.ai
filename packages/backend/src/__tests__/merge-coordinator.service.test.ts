@@ -1100,7 +1100,7 @@ describe("MergeCoordinatorService", () => {
     expect(blockedEvent).toBeDefined();
     expect(blockedEvent?.data).toEqual(
       expect.objectContaining({
-        nextAction: expect.stringContaining("re-link worktree node_modules"),
+        nextAction: expect.stringContaining("Run npm ci"),
       })
     );
   });
