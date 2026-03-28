@@ -465,4 +465,17 @@ export class PrdService {
     if (!row || row.content == null) return null;
     return String(row.content);
   }
+
+  /**
+   * List all snapshot version numbers for a project, sorted ascending.
+   * Useful for discovering which versions are available for diffing.
+   */
+  async listSnapshotVersions(projectId: string): Promise<number[]> {
+    const client = await taskStore.getDb();
+    const rows = await client.query(
+      "SELECT version FROM prd_snapshots WHERE project_id = $1 ORDER BY version ASC",
+      [projectId]
+    );
+    return rows.map((r) => Number((r as { version: number }).version));
+  }
 }

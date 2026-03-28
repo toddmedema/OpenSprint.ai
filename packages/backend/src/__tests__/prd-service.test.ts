@@ -54,6 +54,17 @@ vi.mock("../services/task-store.service.js", () => ({
           }
           return null;
         }),
+        query: vi.fn().mockImplementation(async (sql: string, params?: unknown[]) => {
+          if (sql.includes("prd_snapshots") && params?.[0] != null) {
+            const projectId = String(params[0]);
+            const prefix = `${projectId}:`;
+            return Object.entries(prdSnapshotsStore)
+              .filter(([key]) => key.startsWith(prefix))
+              .map(([, row]) => ({ version: row.version }))
+              .sort((a, b) => a.version - b.version);
+          }
+          return [];
+        }),
       })
     ),
     runWrite: vi
@@ -346,5 +357,33 @@ describe.sequential("PrdService", () => {
   it("getSnapshot returns null when version has no snapshot", async () => {
     const content = await prdService.getSnapshot("test-project", 999);
     expect(content).toBeNull();
+  });
+
+  it("listSnapshotVersions returns empty array when no snapshots exist", async () => {
+    const versions = await prdService.listSnapshotVersions("test-project");
+    expect(versions).toEqual([]);
+  });
+
+  it("listSnapshotVersions returns versions in ascending order after multiple updates", async () => {
+    await prdService.updateSection("test-project", "executive_summary", "v1 content", "sketch");
+    await prdService.updateSection("test-project", "executive_summary", "v2 content", "sketch");
+    await prdService.updateSection("test-project", "executive_summary", "v3 content", "sketch");
+
+    const versions = await prdService.listSnapshotVersions("test-project");
+    expect(versions).toEqual([1, 2, 3]);
+  });
+
+  it("listSnapshotVersions only returns versions for the requested project", async () => {
+    await prdService.updateSection("test-project", "executive_summary", "content", "sketch");
+
+    prdSnapshotsStore["other-project:1"] = {
+      project_id: "other-project",
+      version: 1,
+      content: "other",
+      created_at: new Date().toISOString(),
+    };
+
+    const versions = await prdService.listSnapshotVersions("test-project");
+    expect(versions).toEqual([1]);
   });
 });

@@ -31,7 +31,7 @@ type SectionParams = { projectId: string; section: string };
 interface PrdRouterDeps {
   prdService: Pick<
     PrdService,
-    "getPrd" | "getHistory" | "getSnapshot" | "getSection" | "updateSection"
+    "getPrd" | "getHistory" | "getSnapshot" | "listSnapshotVersions" | "getSection" | "updateSection"
   >;
   chatService: Pick<ChatService, "addDirectEditMessage">;
 }
@@ -140,11 +140,15 @@ export function createPrdRouter({ prdService, chatService }: PrdRouterDeps): Rou
       const body: ApiResponse<{
         fromVersion: string;
         toVersion: string;
+        fromContent: string;
+        toContent: string;
         diff: { lines: typeof diff.lines; summary: typeof diff.summary };
       }> = {
         data: {
           fromVersion: String(fromVersion),
           toVersion: resolvedToVersion,
+          fromContent,
+          toContent,
           diff: { lines: diff.lines, summary: diff.summary },
         },
       };
@@ -200,9 +204,16 @@ export function createPrdRouter({ prdService, chatService }: PrdRouterDeps): Rou
 
       const body: ApiResponse<{
         requestId: string;
+        fromContent: string;
+        toContent: string;
         diff: { lines: typeof diff.lines; summary: typeof diff.summary };
       }> = {
-        data: { requestId, diff: { lines: diff.lines, summary: diff.summary } },
+        data: {
+          requestId,
+          fromContent: currentSpec,
+          toContent: proposedSpec,
+          diff: { lines: diff.lines, summary: diff.summary },
+        },
       };
       res.json(body);
     })

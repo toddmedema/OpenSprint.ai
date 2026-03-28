@@ -38,6 +38,7 @@ function createInjectedServices(): AppServices {
       getPrd: vi.fn().mockResolvedValue(prd),
       getHistory: vi.fn().mockResolvedValue([]),
       getSnapshot: vi.fn().mockResolvedValue(null),
+      listSnapshotVersions: vi.fn().mockResolvedValue([]),
       getSection: vi.fn().mockResolvedValue({ content: "", version: 0, updatedAt: null }),
       updateSection: vi.fn(),
     } as unknown as AppServices["prdService"],

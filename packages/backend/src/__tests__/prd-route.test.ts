@@ -176,6 +176,10 @@ describe.skipIf(!prdPostgresOk)("PRD REST API", () => {
       expect(res.body.data).toBeDefined();
       expect(res.body.data.fromVersion).toBe("1");
       expect(res.body.data.toVersion).toBe("current");
+      expect(typeof res.body.data.fromContent).toBe("string");
+      expect(typeof res.body.data.toContent).toBe("string");
+      expect(res.body.data.fromContent).toContain("First version");
+      expect(res.body.data.toContent).toContain("Second version");
       expect(res.body.data.diff).toBeDefined();
       expect(res.body.data.diff.lines).toBeDefined();
       expect(Array.isArray(res.body.data.diff.lines)).toBe(true);
@@ -248,6 +252,10 @@ describe.skipIf(!prdPostgresOk)("PRD REST API", () => {
       expect(res.status).toBe(200);
       expect(res.body.data).toBeDefined();
       expect(res.body.data.requestId).toBe(notif.id);
+      expect(typeof res.body.data.fromContent).toBe("string");
+      expect(typeof res.body.data.toContent).toBe("string");
+      expect(res.body.data.fromContent).toContain("Current content");
+      expect(res.body.data.toContent).toContain("Proposed content");
       expect(res.body.data.diff).toBeDefined();
       expect(res.body.data.diff.lines).toBeDefined();
       expect(Array.isArray(res.body.data.diff.lines)).toBe(true);
