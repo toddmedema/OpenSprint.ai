@@ -1,7 +1,7 @@
 import { useState, useRef, useLayoutEffect, useCallback } from "react";
 import { ChatInput } from "../ChatInput";
 import { MarkdownChatBubble } from "../MarkdownChatBubble";
-import { ChatIcon, SparklesIcon } from "../icons/PrdIcons";
+import { ChatIcon } from "../icons/PrdIcons";
 import { loadTextDraft } from "../../lib/agentInputDraftStorage";
 import { useOptimisticTextDraft } from "../../hooks/useOptimisticTextDraft";
 import { useAutoScroll } from "../../hooks/useAutoScroll";
@@ -146,12 +146,6 @@ export function ExecuteAgentChatPanel({
       className="flex flex-col h-full min-h-0"
       data-testid="execute-agent-chat-panel"
     >
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 shrink-0">
-        <SparklesIcon className="w-4 h-4 text-brand-500 shrink-0" />
-        <span className="text-sm font-semibold text-theme-text">Chat with Coder</span>
-      </div>
-
       {/* Unsupported notice */}
       {!chatSupported && (
         <div

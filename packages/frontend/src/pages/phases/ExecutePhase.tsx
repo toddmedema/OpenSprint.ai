@@ -105,6 +105,7 @@ export function ExecutePhase({
     return stored === "kanban" || stored === "timeline" ? stored : "timeline";
   });
   const [artifactsSectionExpanded, setArtifactsSectionExpanded] = useState(true);
+  const [chatSectionExpanded, setChatSectionExpanded] = useState(true);
   const [descriptionSectionExpanded, setDescriptionSectionExpanded] = useState(true);
   const [diagnosticsSectionExpanded, setDiagnosticsSectionExpanded] = useState(true);
   const [sourceFeedbackExpanded, setSourceFeedbackExpanded] = useState<Record<string, boolean>>({});
@@ -771,6 +772,8 @@ export function ExecutePhase({
               setDescriptionSectionExpanded,
               artifactsSectionExpanded,
               setArtifactsSectionExpanded,
+              chatSectionExpanded,
+              setChatSectionExpanded,
               diagnosticsSectionExpanded,
               setDiagnosticsSectionExpanded,
               sourceFeedbackExpanded,

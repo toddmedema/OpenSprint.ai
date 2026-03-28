@@ -20,11 +20,10 @@ beforeEach(() => {
 });
 
 describe("ExecuteAgentChatPanel", () => {
-  it("renders the panel with header", () => {
+  it("renders the panel", () => {
     render(<ExecuteAgentChatPanel {...defaultProps} />);
 
     expect(screen.getByTestId("execute-agent-chat-panel")).toBeInTheDocument();
-    expect(screen.getByText("Chat with Coder")).toBeInTheDocument();
   });
 
   it("shows empty state when no messages", () => {

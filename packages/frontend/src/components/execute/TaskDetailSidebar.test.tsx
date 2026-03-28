@@ -98,6 +98,8 @@ function createMinimalProps(overrides: Record<string, unknown> = {}) {
     setDescriptionSectionExpanded: vi.fn(),
     artifactsSectionExpanded: true,
     setArtifactsSectionExpanded: vi.fn(),
+    chatSectionExpanded: true,
+    setChatSectionExpanded: vi.fn(),
     diagnosticsSectionExpanded: true,
     setDiagnosticsSectionExpanded: vi.fn(),
     sourceFeedbackExpanded: {} as Record<string, boolean>,
@@ -156,6 +158,10 @@ function createMinimalProps(overrides: Record<string, unknown> = {}) {
       >,
       artifactsSectionExpanded: flat.artifactsSectionExpanded as boolean,
       setArtifactsSectionExpanded: flat.setArtifactsSectionExpanded as React.Dispatch<
+        React.SetStateAction<boolean>
+      >,
+      chatSectionExpanded: flat.chatSectionExpanded as boolean,
+      setChatSectionExpanded: flat.setChatSectionExpanded as React.Dispatch<
         React.SetStateAction<boolean>
       >,
       diagnosticsSectionExpanded: flat.diagnosticsSectionExpanded as boolean,
@@ -2478,6 +2484,7 @@ describe("TaskDetailSidebar", () => {
     const setSourceFeedbackExpanded = vi.fn();
     const setDescriptionSectionExpanded = vi.fn();
     const setArtifactsSectionExpanded = vi.fn();
+    const setChatSectionExpanded = vi.fn();
     const setDiagnosticsSectionExpanded = vi.fn();
     const props = createMinimalProps({
       selectedTaskData: {
@@ -2514,6 +2521,8 @@ describe("TaskDetailSidebar", () => {
       setDescriptionSectionExpanded,
       artifactsSectionExpanded: true,
       setArtifactsSectionExpanded,
+      chatSectionExpanded: true,
+      setChatSectionExpanded,
       diagnosticsSectionExpanded: true,
       setDiagnosticsSectionExpanded,
     });
@@ -2532,6 +2541,9 @@ describe("TaskDetailSidebar", () => {
     const artifactsBtn = screen.getByRole("button", {
       name: /collapse live agent output/i,
     });
+    const chatBtn = screen.getByRole("button", {
+      name: /collapse chat with agent/i,
+    });
 
     await user.click(descBtn);
     expect(setDescriptionSectionExpanded).toHaveBeenCalledTimes(1);
@@ -2544,6 +2556,9 @@ describe("TaskDetailSidebar", () => {
 
     await user.click(artifactsBtn);
     expect(setArtifactsSectionExpanded).toHaveBeenCalledTimes(1);
+
+    await user.click(chatBtn);
+    expect(setChatSectionExpanded).toHaveBeenCalledTimes(1);
   });
 
   it("renders sidebar section nav and supports collapse-all/expand-all in Execute sidebar", async () => {
@@ -2561,6 +2576,7 @@ describe("TaskDetailSidebar", () => {
     const setSourceFeedbackExpanded = vi.fn();
     const setDescriptionSectionExpanded = vi.fn();
     const setArtifactsSectionExpanded = vi.fn();
+    const setChatSectionExpanded = vi.fn();
     const setDiagnosticsSectionExpanded = vi.fn();
     const props = createMinimalProps({
       selectedTaskData: {
@@ -2597,6 +2613,8 @@ describe("TaskDetailSidebar", () => {
       setDescriptionSectionExpanded,
       artifactsSectionExpanded: true,
       setArtifactsSectionExpanded,
+      chatSectionExpanded: true,
+      setChatSectionExpanded,
       diagnosticsSectionExpanded: true,
       setDiagnosticsSectionExpanded,
     });
@@ -2613,13 +2631,116 @@ describe("TaskDetailSidebar", () => {
     expect(setDescriptionSectionExpanded).toHaveBeenCalledWith(false);
     expect(setDiagnosticsSectionExpanded).toHaveBeenCalledWith(false);
     expect(setArtifactsSectionExpanded).toHaveBeenCalledWith(false);
+    expect(setChatSectionExpanded).toHaveBeenCalledWith(false);
     expect(setSourceFeedbackExpanded).toHaveBeenCalledWith({ "fb-1": false });
 
     await user.click(screen.getByTestId("sidebar-section-nav-expand-all"));
     expect(setDescriptionSectionExpanded).toHaveBeenCalledWith(true);
     expect(setDiagnosticsSectionExpanded).toHaveBeenCalledWith(true);
     expect(setArtifactsSectionExpanded).toHaveBeenCalledWith(true);
+    expect(setChatSectionExpanded).toHaveBeenCalledWith(true);
     expect(setSourceFeedbackExpanded).toHaveBeenCalledWith({ "fb-1": true });
+  });
+
+  it("renders Live agent output and Chat with agent as separate collapsible sections (no tab UI)", () => {
+    const props = createMinimalProps({
+      wsConnected: true,
+      isDoneTask: false,
+      agentOutput: ["Agent line 1"],
+      artifactsSectionExpanded: true,
+      chatSectionExpanded: true,
+    });
+
+    renderSidebar(props, { preloadedState: defaultPreloadedState });
+
+    const artifactsHeader = screen.getByRole("button", {
+      name: /collapse live agent output/i,
+    });
+    const chatHeader = screen.getByRole("button", {
+      name: /collapse chat with agent/i,
+    });
+    expect(artifactsHeader).toBeInTheDocument();
+    expect(chatHeader).toBeInTheDocument();
+
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+  });
+
+  it("Chat with agent section has its own scroll container", () => {
+    const props = createMinimalProps({
+      wsConnected: true,
+      isDoneTask: false,
+      agentOutput: ["Agent line 1"],
+      artifactsSectionExpanded: true,
+      chatSectionExpanded: true,
+    });
+
+    renderSidebar(props, { preloadedState: defaultPreloadedState });
+
+    const chatScrollContainer = screen.getByTestId("chat-section-scroll-container");
+    expect(chatScrollContainer).toBeInTheDocument();
+    expect(chatScrollContainer.className).toContain("overflow-hidden");
+
+    const outputScrollContainer = screen.getByTestId("live-output-scroll-container");
+    expect(outputScrollContainer).toBeInTheDocument();
+    expect(outputScrollContainer.className).toContain("overflow-y-auto");
+  });
+
+  it("Chat with agent section is hidden when chatSectionExpanded is false", () => {
+    const props = createMinimalProps({
+      wsConnected: true,
+      isDoneTask: false,
+      agentOutput: ["Agent line 1"],
+      artifactsSectionExpanded: true,
+      chatSectionExpanded: false,
+    });
+
+    renderSidebar(props, { preloadedState: defaultPreloadedState });
+
+    expect(screen.queryByTestId("chat-section-scroll-container")).not.toBeInTheDocument();
+    expect(screen.getByTestId("live-output-scroll-container")).toBeInTheDocument();
+  });
+
+  it("both sections appear in the section nav dropdown with correct titles", async () => {
+    mockGet.mockResolvedValue({
+      id: "fb-1",
+      text: "Add feature",
+      category: "feature",
+      mappedPlanId: null,
+      createdTaskIds: [],
+      status: "pending",
+      createdAt: "2026-02-17T10:00:00Z",
+    });
+    const props = createMinimalProps({
+      selectedTaskData: {
+        id: "epic-1.1",
+        title: "Task with desc & feedback",
+        epicId: "epic-1",
+        kanbanColumn: "in_progress" as const,
+        priority: 0,
+        assignee: null,
+        type: "task" as const,
+        status: "in_progress" as const,
+        labels: [],
+        dependencies: [],
+        description: "Description content",
+        sourceFeedbackId: "fb-1",
+        createdAt: "",
+        updatedAt: "",
+      },
+      artifactsSectionExpanded: true,
+      chatSectionExpanded: true,
+    });
+
+    renderSidebar(props, { preloadedState: defaultPreloadedState });
+
+    await screen.findByText("Add feature");
+
+    const select = screen.getByTestId("sidebar-section-nav-select");
+    const options = Array.from(select.querySelectorAll("option")).map((o) => o.textContent);
+
+    expect(options).toContain("Live agent output");
+    expect(options).toContain("Chat with agent");
   });
 
   it("visual regression: Description, Source Feedback, Live Output headers have identical structure (no unintended style differences)", async () => {
