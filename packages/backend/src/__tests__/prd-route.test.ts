@@ -218,6 +218,59 @@ describe.skipIf(!prdPostgresOk)("PRD REST API", () => {
       expect(res.status).toBe(400);
       expect(res.body.error?.code).toBe("VALIDATION_ERROR");
     });
+
+    it("returns 200 with no add/remove lines when from and to are identical (same snapshot)", async () => {
+      await request(app)
+        .put(`${API_PREFIX}/projects/${projectId}/prd/executive_summary`)
+        .send({ content: "Stable body" });
+
+      const res = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/prd/diff?fromVersion=1&toVersion=1`
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.fromVersion).toBe("1");
+      expect(res.body.data.toVersion).toBe("1");
+      expect(res.body.data.fromContent).toBe(res.body.data.toContent);
+      expect(res.body.data.diff.summary.additions).toBe(0);
+      expect(res.body.data.diff.summary.deletions).toBe(0);
+      expect(res.body.data.diff.lines.every((l: { type: string }) => l.type === "context")).toBe(
+        true
+      );
+    });
+
+    it("returns 404 when toVersion snapshot is missing", async () => {
+      await request(app)
+        .put(`${API_PREFIX}/projects/${projectId}/prd/executive_summary`)
+        .send({ content: "Only v1" });
+
+      const res = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/prd/diff?fromVersion=1&toVersion=5`
+      );
+
+      expect(res.status).toBe(404);
+      expect(res.body.error?.code).toBe("NOT_FOUND");
+      expect(res.body.error?.message).toContain("5");
+    });
+
+    it("treats omitted toVersion like current (same as explicit current)", async () => {
+      await request(app)
+        .put(`${API_PREFIX}/projects/${projectId}/prd/executive_summary`)
+        .send({ content: "Once" });
+
+      const omitted = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/prd/diff?fromVersion=1`
+      );
+      const explicit = await request(app).get(
+        `${API_PREFIX}/projects/${projectId}/prd/diff?fromVersion=1&toVersion=current`
+      );
+
+      expect(omitted.status).toBe(200);
+      expect(explicit.status).toBe(200);
+      expect(omitted.body.data.toVersion).toBe("current");
+      expect(explicit.body.data.toVersion).toBe("current");
+      expect(omitted.body.data.toContent).toBe(explicit.body.data.toContent);
+    });
   });
 
   describe("GET /projects/:id/prd/proposed-diff", () => {
