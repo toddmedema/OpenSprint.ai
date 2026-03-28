@@ -1,8 +1,7 @@
 import { useState, useRef, useLayoutEffect, useCallback } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { AGENT_ROLE_LABELS, type AgentRole } from "@opensprint/shared";
 import { ChatInput } from "../ChatInput";
+import { MarkdownChatBubble } from "../MarkdownChatBubble";
 import { ChatIcon, ChevronLeftIcon, ChevronRightIcon, SparklesIcon } from "../icons/PrdIcons";
 import { CloseButton } from "../CloseButton";
 import { formatSectionKey } from "../../lib/formatting";
@@ -61,9 +60,7 @@ function ChatBubble({ msg }: { msg: ChatMessage }) {
         {isUser ? (
           <p className="whitespace-pre-wrap">{msg.content}</p>
         ) : (
-          <div className="prose-chat-bubble">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-          </div>
+          <MarkdownChatBubble content={msg.content} />
         )}
       </div>
     </div>

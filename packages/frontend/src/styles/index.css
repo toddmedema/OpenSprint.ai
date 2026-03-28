@@ -493,6 +493,10 @@ html[data-theme="dark"] {
     @apply prose-code:before:content-none prose-code:after:content-none;
     /* Links */
     @apply prose-a:text-inherit prose-a:underline;
+    /* Long code blocks scroll horizontally instead of overflowing */
+    & pre {
+      overflow-x: auto;
+    }
   }
 
   html[data-theme="dark"] .prose.prose-execute-task {

@@ -1,7 +1,6 @@
 import { useState, useRef, useLayoutEffect, useCallback } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { ChatInput } from "../ChatInput";
+import { MarkdownChatBubble } from "../MarkdownChatBubble";
 import { ChatIcon, SparklesIcon } from "../icons/PrdIcons";
 import { loadTextDraft } from "../../lib/agentInputDraftStorage";
 import { useOptimisticTextDraft } from "../../hooks/useOptimisticTextDraft";
@@ -61,9 +60,7 @@ function ExecuteChatBubble({ msg }: { msg: ExecuteChatMessage }) {
             )}
           </span>
         ) : (
-          <div className="prose-chat-bubble">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-          </div>
+          <MarkdownChatBubble content={msg.content} />
         )}
       </div>
     </div>

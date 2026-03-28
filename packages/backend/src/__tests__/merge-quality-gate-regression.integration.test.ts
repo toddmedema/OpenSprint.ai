@@ -230,32 +230,12 @@ describe("Cross-service quality-gate regression integration", () => {
             signal: null,
           };
         }
-        if (command === "git reset --hard HEAD" && options?.cwd === worktreePath) {
-          return {
-            stdout: "HEAD is now at deadbeef",
-            stderr: "",
-            executable: spec.command,
-            cwd: options?.cwd ?? worktreePath,
-            exitCode: 0,
-            signal: null,
-          };
-        }
-        if (command === "git clean -fd" && options?.cwd === worktreePath) {
-          return {
-            stdout: "Removing stale.tmp",
-            stderr: "",
-            executable: spec.command,
-            cwd: options?.cwd ?? worktreePath,
-            exitCode: 0,
-            signal: null,
-          };
-        }
-        if (command === "npm ci" && options?.cwd === worktreePath) {
+        if (command === "npm ci" && options?.cwd === repoPath) {
           return {
             stdout: "added 1 package",
             stderr: "",
             executable: spec.command,
-            cwd: options?.cwd ?? worktreePath,
+            cwd: options?.cwd ?? repoPath,
             exitCode: 0,
             signal: null,
           };
@@ -356,7 +336,8 @@ describe("Cross-service quality-gate regression integration", () => {
         (call) => call[0]?.command === "npm" && call[0]?.args?.join(" ") === "ci"
       )
     ).toHaveLength(1);
-    expect(symlinkSpy).not.toHaveBeenCalled();
+    expect(symlinkSpy).toHaveBeenCalledTimes(1);
+    expect(symlinkSpy).toHaveBeenCalledWith(repoPath, worktreePath);
     expect(mockTaskStoreUpdate).toHaveBeenCalledWith(
       projectId,
       taskId,
@@ -439,7 +420,7 @@ describe("Cross-service quality-gate regression integration", () => {
       item.summary.includes("repair:")
     );
     expect(mergeFailedTimelineEntry?.summary).toContain(
-      "repair: git reset --hard HEAD -> git clean -fd -> npm ci (failed)"
+      "repair: npm ci -> symlinkNodeModules (failed)"
     );
     expect(mergeFailedTimelineEntry?.summary).toContain("category: environment_setup");
     expect(diagnostics.latestQualityGateDetail).toEqual(

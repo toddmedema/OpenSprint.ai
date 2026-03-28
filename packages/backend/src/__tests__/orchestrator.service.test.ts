@@ -1622,14 +1622,13 @@ describe("OrchestratorService (slot-based model)", () => {
         expect(failure).toBeNull();
         expect(getExecutedCommands()).toEqual([
           "npm run lint",
-          "git reset --hard HEAD",
-          "git clean -fd",
           "npm ci",
           "npm ls --depth=0",
           "npm run lint",
           "npm run test",
         ]);
-        expect(mockSymlinkNodeModules).not.toHaveBeenCalled();
+        expect(mockSymlinkNodeModules).toHaveBeenCalledTimes(1);
+        expect(mockSymlinkNodeModules).toHaveBeenCalledWith(repoPath, worktreePath);
       } finally {
         process.env.NODE_ENV = previousNodeEnv;
       }
@@ -1667,8 +1666,6 @@ describe("OrchestratorService (slot-based model)", () => {
         });
         expect(getExecutedCommands()).toEqual([
           "npm run lint",
-          "git reset --hard HEAD",
-          "git clean -fd",
           "npm ci",
           "npm ls --depth=0",
           "npm run lint",
@@ -1710,8 +1707,6 @@ describe("OrchestratorService (slot-based model)", () => {
         });
         expect(getExecutedCommands()).toEqual([
           "npm run lint",
-          "git reset --hard HEAD",
-          "git clean -fd",
           "npm ci",
           "npm ls --depth=0",
           "npm run lint",
@@ -1758,18 +1753,16 @@ describe("OrchestratorService (slot-based model)", () => {
         });
         expect(getExecutedCommands()).toEqual([
           "npm run lint",
-          "git reset --hard HEAD",
-          "git clean -fd",
           "npm ci",
           "npm run lint",
         ]);
-        expect(mockSymlinkNodeModules).not.toHaveBeenCalled();
+        expect(mockSymlinkNodeModules).toHaveBeenCalledTimes(1);
       } finally {
         process.env.NODE_ENV = previousNodeEnv;
       }
     });
 
-    it("persists repair metadata and performs only one retry when gate retry still fails", async () => {
+    it("persists repair metadata and performs only one retry when symlink repair step fails", async () => {
       const previousNodeEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = "development";
       try {
@@ -1796,25 +1789,25 @@ describe("OrchestratorService (slot-based model)", () => {
             return makeCommandResult(spec, options.cwd);
           }
         );
+        mockSymlinkNodeModules.mockRejectedValueOnce(new Error("EPERM: symlink failed"));
+
         const failure = await runMergeQualityGates();
 
         expect(failure).toMatchObject({
           command: "npm run lint",
           category: "environment_setup",
           autoRepairAttempted: true,
-          autoRepairSucceeded: true,
-          autoRepairCommands: ["git reset --hard HEAD", "git clean -fd", "npm ci"],
+          autoRepairSucceeded: false,
+          autoRepairCommands: ["npm ci", "symlinkNodeModules"],
         });
         expect(failure?.autoRepairOutput).toContain("added 1 package");
+        expect(failure?.autoRepairOutput).toContain("[symlinkNodeModules] EPERM: symlink failed");
         expect(getExecutedCommands()).toEqual([
           "npm run lint",
-          "git reset --hard HEAD",
-          "git clean -fd",
           "npm ci",
-          "npm ls --depth=0",
           "npm run lint",
         ]);
-        expect(mockSymlinkNodeModules).not.toHaveBeenCalled();
+        expect(mockSymlinkNodeModules).toHaveBeenCalledTimes(1);
       } finally {
         process.env.NODE_ENV = previousNodeEnv;
       }

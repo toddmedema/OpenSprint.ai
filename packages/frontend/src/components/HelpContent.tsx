@@ -16,9 +16,8 @@ import {
   AGENT_ROLE_PHASES,
   AGENT_ROLE_DESCRIPTIONS,
 } from "@opensprint/shared";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { ChatInput } from "./ChatInput";
+import { MarkdownChatBubble } from "./MarkdownChatBubble";
 import { NavButton } from "./layout/NavButton";
 import { HelpAnalyticsChart } from "./HelpAnalyticsChart";
 import { api } from "../api/client";
@@ -243,9 +242,7 @@ function HelpChatBubble({ msg }: { msg: HelpChatMessage }) {
         {isUser ? (
           <p className="whitespace-pre-wrap">{msg.content}</p>
         ) : (
-          <div className="prose-chat-bubble prose-sm max-w-none">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-          </div>
+          <MarkdownChatBubble content={msg.content} />
         )}
       </div>
     </div>

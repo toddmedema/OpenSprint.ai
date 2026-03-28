@@ -10,6 +10,7 @@ import {
   type CommandSpec,
 } from "../utils/command-runner.js";
 import { getGitNoHooksPath } from "../utils/git-no-hooks.js";
+import { BranchManager } from "./branch-manager.js";
 import { getMergeQualityGateCommands } from "./merge-quality-gates.js";
 
 const log = createLogger("merge-quality-gate-runner");
@@ -578,7 +579,7 @@ async function prepareGateCommand(
 async function repairQualityGateEnvironment(
   options: MergeQualityGateRunOptions,
   validationWorkspace: MergeQualityGateFailure["validationWorkspace"],
-  deps: Required<Pick<MergeQualityGateRunnerDeps, "runCommand">>
+  deps: Required<Pick<MergeQualityGateRunnerDeps, "runCommand" | "symlinkNodeModules">>
 ): Promise<AutoRepairResult> {
   const outputParts: string[] = [];
   const commands: string[] = [];
@@ -645,42 +646,6 @@ async function repairQualityGateEnvironment(
       );
     }
   } else {
-    if (validationWorkspace === "task_worktree") {
-      // Task worktrees can drift into partially-corrupted states across retries.
-      // Rehydrate tracked files and remove stale untracked artifacts before npm ci.
-      commands.push("git reset --hard HEAD", "git clean -fd");
-      try {
-        await deps.runCommand(
-          {
-            command: "git",
-            args: ["reset", "--hard", "HEAD"],
-          },
-          {
-            cwd: worktreePath,
-            timeout: QUALITY_GATE_PRECHECK_TIMEOUT_MS,
-          }
-        );
-      } catch (err) {
-        recreateSucceeded = false;
-        outputParts.push(`[git reset --hard HEAD] ${getErrorMessage(err)}`);
-      }
-      try {
-        await deps.runCommand(
-          {
-            command: "git",
-            args: ["clean", "-fd"],
-          },
-          {
-            cwd: worktreePath,
-            timeout: QUALITY_GATE_PRECHECK_TIMEOUT_MS,
-          }
-        );
-      } catch (err) {
-        recreateSucceeded = false;
-        outputParts.push(`[git clean -fd] ${getErrorMessage(err)}`);
-      }
-    }
-
     // Non-baseline worktrees: restore missing tracked files (e.g. package.json)
     // from the git index. Unlike baseline repair which recreates the entire worktree,
     // this targeted checkout fixes corrupted/cleaned worktrees without losing changes.
@@ -742,7 +707,20 @@ async function repairQualityGateEnvironment(
     if (npmCiOutput) outputParts.push(`[npm ci @ ${installCwd}] ${npmCiOutput}`);
   }
 
-  let succeeded = recreateSucceeded && npmCiSucceeded;
+  const shouldRelinkNodeModules =
+    validationWorkspace !== "baseline" && validationWorkspace !== "merged_candidate";
+  let symlinkSucceeded = true;
+  if (shouldRelinkNodeModules) {
+    commands.push("symlinkNodeModules");
+    try {
+      await deps.symlinkNodeModules(options.repoPath, worktreePath);
+    } catch (err) {
+      symlinkSucceeded = false;
+      outputParts.push(`[symlinkNodeModules] ${getErrorMessage(err)}`);
+    }
+  }
+
+  let succeeded = recreateSucceeded && npmCiSucceeded && symlinkSucceeded;
 
   if (succeeded) {
     const criticalFiles = ["package.json"];
@@ -811,6 +789,13 @@ export async function runMergeQualityGates(
   const validationWorkspace =
     options.validationWorkspace ??
     (options.worktreePath === options.repoPath ? "repo_root" : "task_worktree");
+  const symlinkNodeModules =
+    deps.symlinkNodeModules ??
+    (async (repoPath: string, wtPath: string) => {
+      const branchManager = new BranchManager();
+      await branchManager.symlinkNodeModules(repoPath, wtPath);
+    });
+
   for (const command of commands) {
     const preparedOrFailure = await prepareGateCommand(
       options,
@@ -835,6 +820,7 @@ export async function runMergeQualityGates(
 
       const autoRepair = await repairQualityGateEnvironment(options, validationWorkspace, {
         runCommand,
+        symlinkNodeModules,
       });
       const retryPreparedOrFailure = await prepareGateCommand(
         { ...options, worktreePath: autoRepair.worktreePath },
@@ -898,6 +884,7 @@ export async function runMergeQualityGates(
 
     const autoRepair = await repairQualityGateEnvironment(options, validationWorkspace, {
       runCommand,
+      symlinkNodeModules,
     });
     const retryPreparedOrFailure = await prepareGateCommand(
       { ...options, worktreePath: autoRepair.worktreePath },
