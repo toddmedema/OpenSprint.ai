@@ -85,6 +85,21 @@ describe("PrdChatPanel", () => {
     expect(screen.queryByRole("button", { name: "Close chat panel" })).not.toBeInTheDocument();
   });
 
+  it("inline sidebar shows PRD chat placeholder without top border on composer block", () => {
+    render(
+      <PrdChatPanel
+        {...defaultProps}
+        variant="inline"
+        collapsed={false}
+        onCollapsedChange={vi.fn()}
+      />
+    );
+
+    const input = screen.getByPlaceholderText("Chat about your PRD");
+    const composerBlock = input.parentElement?.parentElement;
+    expect(composerBlock?.className).not.toMatch(/\bborder-t\b/);
+  });
+
   it("shows collapse button when inline and onCollapsedChange is provided", () => {
     const onCollapsedChange = vi.fn();
     render(
@@ -414,7 +429,7 @@ describe("PrdChatPanel", () => {
         />
       );
 
-      const input = screen.getByPlaceholderText(/Ask about your PRD/);
+      const input = screen.getByPlaceholderText("Chat about your PRD");
       await user.type(input, "Hello{Enter}");
 
       await waitFor(() => {
@@ -435,7 +450,7 @@ describe("PrdChatPanel", () => {
         />
       );
 
-      const input = screen.getByPlaceholderText(/Ask about your PRD/);
+      const input = screen.getByPlaceholderText("Chat about your PRD");
       await user.type(input, "Line one{Shift>}{Enter}{/Shift}Line two");
 
       expect(onSend).not.toHaveBeenCalled();
@@ -452,7 +467,7 @@ describe("PrdChatPanel", () => {
         />
       );
 
-      const input = screen.getByPlaceholderText(/Ask about your PRD/);
+      const input = screen.getByPlaceholderText("Chat about your PRD");
       expect(input).toHaveClass("resize-none");
       expect(input).toHaveClass("overflow-y-auto");
     });
@@ -467,7 +482,7 @@ describe("PrdChatPanel", () => {
         />
       );
 
-      const input = screen.getByPlaceholderText(/Ask about your PRD/);
+      const input = screen.getByPlaceholderText("Chat about your PRD");
       expect(input.tagName).toBe("TEXTAREA");
     });
 

@@ -260,7 +260,7 @@ export function PrdChatPanel({
             )}
 
             {/* Input */}
-            <div className="p-3 border-t border-theme-border shrink-0">
+            <div className="p-3 shrink-0">
               <ChatInput
                 value={chatInput}
                 onChange={setChatInput}
@@ -272,7 +272,7 @@ export function PrdChatPanel({
                     : undefined
                 }
                 placeholder={
-                  selectionContext ? "Comment on this selection..." : "Ask about your PRD..."
+                  selectionContext ? "Comment on this selection..." : "Chat about your PRD"
                 }
                 inputRef={inputRef}
                 aria-label="Discuss message"
@@ -387,7 +387,7 @@ export function PrdChatPanel({
               ? `Waiting on ${agentLabel} to finish current response`
               : undefined
           }
-          placeholder={selectionContext ? "Comment on this selection..." : "Ask about your PRD..."}
+          placeholder={selectionContext ? "Comment on this selection..." : "Chat about your PRD"}
           inputRef={inputRef}
           aria-label="Chat message"
         />

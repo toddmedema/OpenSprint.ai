@@ -918,7 +918,7 @@ describe("SketchPhase with sketchSlice", () => {
         });
 
         clearSelectionMock();
-        const chatInput = screen.getByPlaceholderText(/Ask about your PRD/);
+        const chatInput = screen.getByPlaceholderText("Chat about your PRD");
         await user.click(chatInput);
 
         await waitFor(() => {
