@@ -277,4 +277,42 @@ describe("DiffView", () => {
       expect(screen.getByTestId("diff-view")).toBeInTheDocument();
     });
   });
+
+  describe("rendered mode integration", () => {
+    it("shows rendered diff when toggled with fromContent and toContent", async () => {
+      const user = userEvent.setup();
+      render(
+        <DiffView
+          diff={sampleDiff}
+          fromContent="# Title\n\nOld paragraph."
+          toContent="# Title\n\nNew paragraph."
+        />,
+      );
+      await user.click(screen.getByRole("radio", { name: "Rendered" }));
+      expect(screen.getByTestId("diff-view-rendered")).toBeInTheDocument();
+      expect(screen.queryByTestId("diff-view-raw")).not.toBeInTheDocument();
+    });
+
+    it("shows placeholder when rendered mode lacks fromContent/toContent", async () => {
+      const user = userEvent.setup();
+      render(<DiffView diff={sampleDiff} />);
+      await user.click(screen.getByRole("radio", { name: "Rendered" }));
+      expect(screen.getByTestId("diff-view-rendered-placeholder")).toBeInTheDocument();
+    });
+
+    it("switches between rendered and raw modes", async () => {
+      const user = userEvent.setup();
+      render(
+        <DiffView
+          diff={sampleDiff}
+          fromContent="# Title"
+          toContent="# Title\n\nAdded."
+        />,
+      );
+      await user.click(screen.getByRole("radio", { name: "Rendered" }));
+      expect(screen.getByTestId("diff-view-rendered")).toBeInTheDocument();
+      await user.click(screen.getByRole("radio", { name: "Raw" }));
+      expect(screen.getByTestId("diff-view-raw")).toBeInTheDocument();
+    });
+  });
 });

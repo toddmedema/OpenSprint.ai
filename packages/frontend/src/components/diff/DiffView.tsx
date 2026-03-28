@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { RenderedDiffView } from "./RenderedDiffView";
 
 export type DiffLineType = "add" | "remove" | "context";
 
@@ -31,11 +32,20 @@ const LINE_ARIA: Record<DiffLineType, string> = {
   context: "Context line",
 };
 
-export function DiffView({ diff, defaultMode = "raw" }: DiffViewProps) {
+export function DiffView({
+  diff,
+  fromContent,
+  toContent,
+  defaultMode = "raw",
+}: DiffViewProps) {
   const [mode, setMode] = useState<DiffViewMode>(defaultMode);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [parseErrorFallback, setParseErrorFallback] = useState(false);
   const lineRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  const effectiveMode =
+    mode === "rendered" && parseErrorFallback ? "raw" : mode;
 
   const { lines, summary } = diff;
   const isCapped = lines.length > INITIAL_LINE_CAP && !expanded;
@@ -117,8 +127,18 @@ export function DiffView({ diff, defaultMode = "raw" }: DiffViewProps) {
         )}
       </div>
 
+      {/* Parse-error notice */}
+      {parseErrorFallback && (
+        <div
+          className="px-3 py-1.5 text-xs bg-theme-warning-bg text-theme-warning-text border-b border-theme-border"
+          data-testid="diff-view-parse-fallback-notice"
+        >
+          Markdown could not be parsed — showing raw diff.
+        </div>
+      )}
+
       {/* Content area */}
-      {mode === "raw" ? (
+      {effectiveMode === "raw" ? (
         <div
           className="font-mono text-xs overflow-x-auto max-h-[24rem] overflow-y-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-theme-ring focus-visible:ring-inset"
           role="textbox"
@@ -209,12 +229,18 @@ export function DiffView({ diff, defaultMode = "raw" }: DiffViewProps) {
             </>
           )}
         </div>
+      ) : fromContent != null && toContent != null ? (
+        <RenderedDiffView
+          fromContent={fromContent}
+          toContent={toContent}
+          onParseError={() => setParseErrorFallback(true)}
+        />
       ) : (
         <div
           className="p-4 text-sm text-theme-muted"
           data-testid="diff-view-rendered-placeholder"
         >
-          Rendered diff mode is not yet available.
+          Rendered diff requires fromContent and toContent.
         </div>
       )}
     </div>
