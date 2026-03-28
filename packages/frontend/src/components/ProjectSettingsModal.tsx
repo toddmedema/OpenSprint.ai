@@ -109,7 +109,7 @@ function patchDefines<T extends object, K extends keyof T>(patch: T | undefined,
 function parseTabFromSearch(search: string): SettingsSubTab | null {
   const params = new URLSearchParams(search);
   const t = params.get(TAB_PARAM);
-  const valid: SettingsSubTab[] = ["basics", "agents", "workflow", "deployment", "hil", "team"];
+  const valid: SettingsSubTab[] = ["basics", "agents", "workflow", "deployment", "hil", "team", "integrations"];
   if (t && valid.includes(t as SettingsSubTab)) return t as SettingsSubTab;
   return null;
 }
@@ -2102,6 +2102,14 @@ export const ProjectSettingsModal = forwardRef<ProjectSettingsModalRef, ProjectS
                         </button>
                       </>
                     )}
+                  </div>
+                )}
+
+                {activeTab === "integrations" && (
+                  <div className="space-y-4" data-testid="integrations-tab-content">
+                    <p className="text-sm text-theme-muted">
+                      Integrations settings coming soon
+                    </p>
                   </div>
                 )}
               </>

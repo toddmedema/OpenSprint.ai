@@ -20,6 +20,7 @@ const VALID_SUB_TABS: SettingsSubTab[] = [
   "deployment",
   "hil",
   "team",
+  "integrations",
 ];
 
 function parseTabFromSearch(search: string): SettingsSubTab {
