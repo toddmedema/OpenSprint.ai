@@ -14,6 +14,14 @@ import {
 } from "../../store/slices/executeSlice";
 import { wsSend } from "../../store/middleware/websocketMiddleware";
 import {
+  selectChatMessages,
+  selectChatSending,
+  selectChatSupport,
+  addOptimisticUserMessage,
+  fetchAgentChatHistory,
+  fetchAgentChatSupport,
+} from "../../store/slices/agentChatSlice";
+import {
   useTaskDetail,
   useArchivedSessions,
   useLiveOutputBackfill,
@@ -420,6 +428,37 @@ export function ExecutePhase({
     [tasks]
   );
 
+  // ── Agent chat state ──
+  const chatMessages = useAppSelector((s) =>
+    effectiveSelectedTask ? selectChatMessages(s, effectiveSelectedTask) : []
+  );
+  const chatSending = useAppSelector((s) =>
+    effectiveSelectedTask ? selectChatSending(s, effectiveSelectedTask) : false
+  );
+  const chatSupportInfo = useAppSelector((s) =>
+    effectiveSelectedTask ? selectChatSupport(s, effectiveSelectedTask) : { supported: true }
+  );
+
+  useEffect(() => {
+    if (!effectiveSelectedTask) return;
+    void dispatch(fetchAgentChatHistory({ projectId, taskId: effectiveSelectedTask }));
+    void dispatch(fetchAgentChatSupport({ projectId, taskId: effectiveSelectedTask }));
+  }, [dispatch, projectId, effectiveSelectedTask]);
+
+  const handleChatSend = useCallback(
+    (message: string) => {
+      if (!effectiveSelectedTask) return;
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      dispatch(addOptimisticUserMessage({ taskId: effectiveSelectedTask, tempId, content: message }));
+      dispatch(wsSend({ type: "agent.chat.send", taskId: effectiveSelectedTask, message }));
+    },
+    [dispatch, effectiveSelectedTask]
+  );
+
+  const chatDraftStorageKey = effectiveSelectedTask
+    ? `agent-chat-draft-${effectiveSelectedTask}`
+    : undefined;
+
   // Default to "All" when selected filter has no visible tasks (e.g. Blocked selected but no blocked tasks)
   useEffect(() => {
     if (loading || implTasks.length === 0) return;
@@ -805,6 +844,12 @@ export function ExecutePhase({
             teamMembers={projectSettingsQuery.data?.teamMembers ?? []}
             enableHumanTeammates={projectSettingsQuery.data?.enableHumanTeammates ?? false}
             isBranchesMode={projectSettingsQuery.data?.gitWorkingMode === "branches"}
+            chatMessages={chatMessages}
+            chatSending={chatSending}
+            onChatSend={handleChatSend}
+            chatDraftStorageKey={chatDraftStorageKey}
+            chatSupported={chatSupportInfo.supported}
+            chatUnsupportedReason={chatSupportInfo.reason}
             callbacks={{
               onClose: handleClose,
               onMarkDone: handleMarkDone,

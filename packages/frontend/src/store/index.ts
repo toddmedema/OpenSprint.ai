@@ -12,6 +12,7 @@ import deliverReducer from "./slices/deliverSlice";
 import notificationReducer from "./slices/notificationSlice";
 import openQuestionsReducer from "./slices/openQuestionsSlice";
 import unreadPhaseReducer from "./slices/unreadPhaseSlice";
+import agentChatReducer from "./slices/agentChatSlice";
 import { websocketMiddleware } from "./middleware/websocketMiddleware";
 import { agentOutputFilterMiddleware } from "./middleware/agentOutputFilterMiddleware";
 import { notificationListener } from "./listeners/notificationListener";
@@ -33,6 +34,7 @@ export const store = configureStore({
     notification: notificationReducer,
     openQuestions: openQuestionsReducer,
     unreadPhase: unreadPhaseReducer,
+    agentChat: agentChatReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

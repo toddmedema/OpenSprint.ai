@@ -4,6 +4,9 @@ import type {
   ServerEvent,
   ClientEvent,
   AgentCompletedEvent,
+  AgentChatReceivedEvent,
+  AgentChatResponseEvent,
+  AgentChatUnsupportedEvent,
   ExecuteStatusEvent,
   FeedbackMappedEvent,
   FeedbackUpdatedEvent,
@@ -44,6 +47,14 @@ import {
   setDecomposeProgress,
 } from "../slices/planSlice";
 import { setPhaseUnread } from "../slices/unreadPhaseSlice";
+import {
+  chatMessageReceived,
+  chatResponseReceived,
+  chatUnsupported,
+  resetChatSending,
+  fetchAgentChatHistory,
+  type AgentChatState,
+} from "../slices/agentChatSlice";
 import type { QueryClient } from "@tanstack/react-query";
 import { getQueryClient } from "../../queryClient";
 import { queryKeys } from "../../api/queryKeys";
@@ -459,6 +470,7 @@ export const websocketMiddleware: Middleware = (storeApi) => {
             reason: completed.reason,
           })
         );
+        d(resetChatSending({ taskId: completed.taskId }));
         break;
       }
 
@@ -634,6 +646,48 @@ export const websocketMiddleware: Middleware = (storeApi) => {
           break;
         }
         d(removeNotification({ projectId: ev.projectId, notificationId: ev.notificationId }));
+        break;
+      }
+
+      case "agent.chat.received": {
+        const chatRecv = event as AgentChatReceivedEvent;
+        const chatState = (getState() as { agentChat?: AgentChatState }).agentChat;
+        const msgs = chatState?.messagesByTaskId?.[chatRecv.taskId] ?? [];
+        const hasUndelivered = msgs.some((m) => m.role === "user" && !m.delivered);
+        d(
+          chatMessageReceived({
+            taskId: chatRecv.taskId,
+            messageId: chatRecv.messageId,
+            timestamp: chatRecv.timestamp,
+          })
+        );
+        if (!hasUndelivered) {
+          void d(fetchAgentChatHistory({ projectId, taskId: chatRecv.taskId }));
+        }
+        void qc.invalidateQueries({
+          queryKey: queryKeys.tasks.chatHistory(projectId, chatRecv.taskId),
+        });
+        break;
+      }
+
+      case "agent.chat.response": {
+        const chatResp = event as AgentChatResponseEvent;
+        d(
+          chatResponseReceived({
+            taskId: chatResp.taskId,
+            messageId: chatResp.messageId,
+            content: chatResp.content,
+          })
+        );
+        void qc.invalidateQueries({
+          queryKey: queryKeys.tasks.chatHistory(projectId, chatResp.taskId),
+        });
+        break;
+      }
+
+      case "agent.chat.unsupported": {
+        const chatUnsup = event as AgentChatUnsupportedEvent;
+        d(chatUnsupported({ taskId: chatUnsup.taskId, reason: chatUnsup.reason }));
         break;
       }
     }

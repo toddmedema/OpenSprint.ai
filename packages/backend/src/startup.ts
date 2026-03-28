@@ -20,6 +20,10 @@ import {
   startBlockedAutoRetry,
   stopBlockedAutoRetry,
 } from "./services/blocked-auto-retry.service.js";
+import {
+  startTodoistSyncScheduler,
+  stopTodoistSyncScheduler,
+} from "./services/todoist-sync-scheduler.service.js";
 import { initAppDb } from "./db/app-db.js";
 import type { AppDb } from "./db/app-db.js";
 import { databaseRuntime } from "./services/database-runtime.service.js";
@@ -156,6 +160,7 @@ export async function stopDatabaseFeatures(): Promise<void> {
   }
   stopNightlyDeployScheduler();
   stopSelfImprovementScheduler();
+  stopTodoistSyncScheduler();
   stopBlockedAutoRetry();
   watchdogService.stop();
   sessionRetentionService.stop();
@@ -202,6 +207,7 @@ export async function startDatabaseFeatures(
       databaseFeaturesStarted = true;
       startNightlyDeployScheduler();
       startSelfImprovementScheduler();
+      startTodoistSyncScheduler();
       await initAlwaysOnOrchestrator(projectService);
       await resumePlanExecuteBatchesOnStartup(
         new PlanService(projectService ?? new ProjectService())
