@@ -1277,12 +1277,13 @@ Updated description for task two.`;
       const planId = createRes.body.data.metadata.planId;
       const epicId = createRes.body.data.metadata.epicId;
 
-      await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/execute`);
-      await request(app)
+      const execRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/execute`);
+      expect(execRes.status).toBe(200);
+      const updateRes = await request(app)
         .put(`${API_PREFIX}/projects/${projectId}/plans/${planId}`)
         .send({ content: "# Re-execute Version\n\n## Overview\n\nEdited to v2." });
+      expect(updateRes.status).toBe(200);
 
-      const _project = await projectService.getProject(projectId);
       const allIssues = await taskStore.listAll(projectId);
       const planTasks = allIssues.filter(
         (i: { id: string; issue_type?: string; type?: string }) =>
@@ -1291,7 +1292,8 @@ Updated description for task two.`;
       for (const task of planTasks) {
         await taskStore.close(projectId, (task as { id: string }).id, "Done");
       }
-      await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/mark-complete`);
+      const markRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/mark-complete`);
+      expect(markRes.status).toBe(200);
 
       const reshipRes = await request(app)
         .post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/re-execute`)
@@ -1344,12 +1346,13 @@ Updated description for task two.`;
       const planId = createRes.body.data.metadata.planId;
       const epicId = createRes.body.data.metadata.epicId;
 
-      await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/execute`);
-      await request(app)
+      const execRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/execute`);
+      expect(execRes.status).toBe(200);
+      const updateRes = await request(app)
         .put(`${API_PREFIX}/projects/${projectId}/plans/${planId}`)
         .send({ content: "# Re-execute No Version\n\n## Overview\n\nEdited to v2." });
+      expect(updateRes.status).toBe(200);
 
-      const _project = await projectService.getProject(projectId);
       const allIssues = await taskStore.listAll(projectId);
       const planTasks = allIssues.filter(
         (i: { id: string; issue_type?: string; type?: string }) =>
@@ -1358,7 +1361,8 @@ Updated description for task two.`;
       for (const task of planTasks) {
         await taskStore.close(projectId, (task as { id: string }).id, "Done");
       }
-      await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/mark-complete`);
+      const markRes = await request(app).post(`${API_PREFIX}/projects/${projectId}/plans/${planId}/mark-complete`);
+      expect(markRes.status).toBe(200);
 
       // No body: backend must use last_executed_version_number for plan_old
       const reshipRes = await request(app).post(

@@ -113,6 +113,72 @@ describe("schema", () => {
     }
   });
 
+  it("Postgres schema includes integration_connections table", () => {
+    const sql = getSchemaSql("postgres");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS integration_connections");
+    expect(sql).toContain("access_token_enc");
+    expect(sql).toContain("refresh_token_enc");
+    expect(sql).toContain("provider_resource_id");
+    expect(sql).toContain("UNIQUE (project_id, provider)");
+    expect(sql).toContain("idx_integration_connections_project_id");
+    expect(sql).toContain("idx_integration_connections_project_provider_status");
+  });
+
+  it("SQLite schema includes integration_connections table", () => {
+    const sql = getSchemaSql("sqlite");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS integration_connections");
+    expect(sql).toContain("access_token_enc");
+    expect(sql).toContain("UNIQUE (project_id, provider)");
+    expect(sql).toContain("idx_integration_connections_project_id");
+    expect(sql).toContain("idx_integration_connections_project_provider_status");
+  });
+
+  it("Postgres schema includes integration_import_ledger with SERIAL PK", () => {
+    const sql = getSchemaSql("postgres");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS integration_import_ledger");
+    expect(sql).toContain("external_item_id");
+    expect(sql).toContain("feedback_id");
+    expect(sql).toContain("import_status");
+    expect(sql).toContain("retry_count");
+    expect(sql).toContain("UNIQUE (project_id, provider, external_item_id)");
+    expect(sql).toContain("idx_integration_import_ledger_project_provider_status");
+    const ledgerMatch = sql.match(/CREATE TABLE IF NOT EXISTS integration_import_ledger[^;]+/);
+    expect(ledgerMatch?.[0]).toContain("SERIAL PRIMARY KEY");
+  });
+
+  it("SQLite schema includes integration_import_ledger with AUTOINCREMENT PK", () => {
+    const sql = getSchemaSql("sqlite");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS integration_import_ledger");
+    expect(sql).toContain("UNIQUE (project_id, provider, external_item_id)");
+    expect(sql).toContain("idx_integration_import_ledger_project_provider_status");
+    const ledgerMatch = sql.match(/CREATE TABLE IF NOT EXISTS integration_import_ledger[^;]+/);
+    expect(ledgerMatch?.[0]).toContain("INTEGER PRIMARY KEY AUTOINCREMENT");
+  });
+
+  it("runSchema emits integration table statements for both dialects", async () => {
+    for (const dialect of ["postgres", "sqlite"] as const) {
+      const statements: string[] = [];
+      await runSchema(
+        {
+          query: async (sql: string) => {
+            statements.push(sql);
+            if (sql.startsWith("PRAGMA table_info("))
+              return [{ name: "project_id" }, { name: "plan_id" }];
+            return [];
+          },
+        },
+        dialect
+      );
+      expect(statements.some((s) => s.includes("integration_connections"))).toBe(true);
+      expect(statements.some((s) => s.includes("integration_import_ledger"))).toBe(true);
+      expect(
+        statements.some((s) =>
+          s.includes("idx_integration_import_ledger_project_provider_status")
+        )
+      ).toBe(true);
+    }
+  });
+
   it("Postgres and SQLite schemas include prd_snapshots table", () => {
     const pg = getSchemaSql("postgres");
     const sqlite = getSchemaSql("sqlite");

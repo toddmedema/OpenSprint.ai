@@ -374,6 +374,46 @@ CREATE TABLE IF NOT EXISTS project_behavior_state (
     project_id                    TEXT PRIMARY KEY,
     active_promoted_version_id    TEXT
 );
+
+-- Integration connections (provider-agnostic OAuth connections)
+CREATE TABLE IF NOT EXISTS integration_connections (
+    id                     TEXT PRIMARY KEY,
+    project_id             TEXT NOT NULL,
+    provider               TEXT NOT NULL,
+    provider_user_id       TEXT,
+    provider_user_email    TEXT,
+    provider_resource_id   TEXT,
+    provider_resource_name TEXT,
+    access_token_enc       TEXT NOT NULL,
+    refresh_token_enc      TEXT,
+    token_expires_at       TEXT,
+    scopes                 TEXT,
+    status                 TEXT NOT NULL DEFAULT 'active',
+    last_sync_at           TEXT,
+    last_error             TEXT,
+    config                 TEXT DEFAULT '{}',
+    created_at             TEXT NOT NULL,
+    updated_at             TEXT NOT NULL,
+    UNIQUE (project_id, provider)
+);
+CREATE INDEX IF NOT EXISTS idx_integration_connections_project_id ON integration_connections(project_id);
+CREATE INDEX IF NOT EXISTS idx_integration_connections_project_provider_status ON integration_connections(project_id, provider, status);
+
+-- Integration import ledger (tracks imported items for idempotency and delete-after-import)
+CREATE TABLE IF NOT EXISTS integration_import_ledger (
+    id               SERIAL PRIMARY KEY,
+    project_id       TEXT NOT NULL,
+    provider         TEXT NOT NULL,
+    external_item_id TEXT NOT NULL,
+    feedback_id      TEXT NOT NULL,
+    import_status    TEXT NOT NULL DEFAULT 'pending_delete',
+    last_error       TEXT,
+    retry_count      INTEGER NOT NULL DEFAULT 0,
+    created_at       TEXT NOT NULL,
+    updated_at       TEXT NOT NULL,
+    UNIQUE (project_id, provider, external_item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_integration_import_ledger_project_provider_status ON integration_import_ledger(project_id, provider, import_status);
 `;
 
 /** SQLite schema: SERIAL -> INTEGER PRIMARY KEY AUTOINCREMENT; ALTER ADD COLUMN IF NOT EXISTS supported in 3.35+. */
@@ -722,6 +762,46 @@ ALTER TABLE open_questions ADD COLUMN IF NOT EXISTS scope_change_metadata TEXT;
 ALTER TABLE open_questions ADD COLUMN IF NOT EXISTS responses TEXT;
 ALTER TABLE plans ADD COLUMN IF NOT EXISTS current_version_number INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE plans ADD COLUMN IF NOT EXISTS last_executed_version_number INTEGER;
+
+-- Integration connections (provider-agnostic OAuth connections)
+CREATE TABLE IF NOT EXISTS integration_connections (
+    id                     TEXT PRIMARY KEY,
+    project_id             TEXT NOT NULL,
+    provider               TEXT NOT NULL,
+    provider_user_id       TEXT,
+    provider_user_email    TEXT,
+    provider_resource_id   TEXT,
+    provider_resource_name TEXT,
+    access_token_enc       TEXT NOT NULL,
+    refresh_token_enc      TEXT,
+    token_expires_at       TEXT,
+    scopes                 TEXT,
+    status                 TEXT NOT NULL DEFAULT 'active',
+    last_sync_at           TEXT,
+    last_error             TEXT,
+    config                 TEXT DEFAULT '{}',
+    created_at             TEXT NOT NULL,
+    updated_at             TEXT NOT NULL,
+    UNIQUE (project_id, provider)
+);
+CREATE INDEX IF NOT EXISTS idx_integration_connections_project_id ON integration_connections(project_id);
+CREATE INDEX IF NOT EXISTS idx_integration_connections_project_provider_status ON integration_connections(project_id, provider, status);
+
+-- Integration import ledger (tracks imported items for idempotency and delete-after-import)
+CREATE TABLE IF NOT EXISTS integration_import_ledger (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id       TEXT NOT NULL,
+    provider         TEXT NOT NULL,
+    external_item_id TEXT NOT NULL,
+    feedback_id      TEXT NOT NULL,
+    import_status    TEXT NOT NULL DEFAULT 'pending_delete',
+    last_error       TEXT,
+    retry_count      INTEGER NOT NULL DEFAULT 0,
+    created_at       TEXT NOT NULL,
+    updated_at       TEXT NOT NULL,
+    UNIQUE (project_id, provider, external_item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_integration_import_ledger_project_provider_status ON integration_import_ledger(project_id, provider, import_status);
 `;
 
 /** Strip leading comment-only and empty lines so statements starting with "-- Comment\nCREATE ..." are executed. */

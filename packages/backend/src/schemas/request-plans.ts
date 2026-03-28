@@ -21,20 +21,20 @@ export const plansGenerateBodySchema = z.object({
 /** POST /plans — create plan; body is plan payload (title, content, etc.) */
 export const createPlanBodySchema = z.record(z.string(), z.unknown());
 
-export const planExecuteBodySchema = z
-  .object({
+export const planExecuteBodySchema = z.preprocess(
+  (val) => (val == null ? {} : val),
+  z.object({
     prerequisitePlanIds: z.array(z.string()).optional(),
     version_number: z.number().int().positive().optional(),
   })
-  .optional()
-  .default({});
+);
 
-export const planReexecuteBodySchema = z
-  .object({
+export const planReexecuteBodySchema = z.preprocess(
+  (val) => (val == null ? {} : val),
+  z.object({
     version_number: z.number().int().positive().optional(),
   })
-  .optional()
-  .default({});
+);
 
 export const planExecuteBatchBodySchema = z.object({
   items: z
