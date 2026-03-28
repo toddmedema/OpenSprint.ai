@@ -76,6 +76,13 @@ describe("GlobalSettingsContent", () => {
       databaseUrl: "postgresql://user:***@localhost:5432/opensprint",
       apiKeys: undefined,
     });
+    mockGlobalSettingsPut.mockImplementation((payload: Record<string, unknown>) =>
+      Promise.resolve({
+        databaseUrl: "postgresql://user:***@localhost:5432/opensprint",
+        apiKeys: undefined,
+        ...payload,
+      })
+    );
   });
 
   it("renders ApiKeysSection with all providers when keys not configured", async () => {
@@ -605,6 +612,51 @@ describe("GlobalSettingsContent", () => {
     );
 
     expect(onSaveStateChange).toHaveBeenCalledWith("saved");
+  });
+
+  it("renders Preferred editor section with auto as default", async () => {
+    renderGlobalSettingsContent();
+
+    await screen.findByText("Preferred editor");
+    expect(screen.getByTestId("preferred-editor-select")).toBeInTheDocument();
+    expect(screen.getByTestId("preferred-editor-select")).toHaveValue("auto");
+    expect(screen.getByText(/Which editor to open task worktrees in/)).toBeInTheDocument();
+  });
+
+  it("loads preferredEditor value from GET response", async () => {
+    mockGlobalSettingsGet.mockResolvedValue({
+      databaseUrl: "postgresql://user:***@localhost:5432/opensprint",
+      apiKeys: undefined,
+      preferredEditor: "cursor",
+    });
+
+    renderGlobalSettingsContent();
+
+    await screen.findByTestId("preferred-editor-select");
+    await waitFor(() => {
+      expect(screen.getByTestId("preferred-editor-select")).toHaveValue("cursor");
+    });
+  });
+
+  it("saves preferredEditor via PUT when changed", async () => {
+    mockGlobalSettingsPut.mockResolvedValue({
+      databaseUrl: "postgresql://user:***@localhost:5432/opensprint",
+      apiKeys: undefined,
+      preferredEditor: "vscode",
+    });
+
+    renderGlobalSettingsContent();
+
+    await screen.findByTestId("preferred-editor-select");
+    const select = screen.getByTestId("preferred-editor-select");
+    await act(async () => {
+      fireEvent.change(select, { target: { value: "vscode" } });
+    });
+
+    await waitFor(() => {
+      expect(mockGlobalSettingsPut).toHaveBeenCalledWith({ preferredEditor: "vscode" });
+    });
+    expect(select).toHaveValue("vscode");
   });
 
   it("renders General and Agent Config sub-tabs", async () => {

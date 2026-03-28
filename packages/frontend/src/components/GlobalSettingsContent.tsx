@@ -21,8 +21,9 @@ import type {
   ApiKeysUpdate,
   MaskedApiKeyEntry,
   MaskedApiKeys,
+  PreferredEditor,
 } from "@opensprint/shared";
-import { API_KEY_PROVIDERS, DEFAULT_AGENT_CONFIG, normalizeAgentTimeoutMs } from "@opensprint/shared";
+import { API_KEY_PROVIDERS, DEFAULT_AGENT_CONFIG, normalizeAgentTimeoutMs, VALID_PREFERRED_EDITORS } from "@opensprint/shared";
 import type { SaveStatus } from "./SaveIndicator";
 import { MIN_SAVE_SPINNER_MS } from "../lib/constants";
 import {
@@ -41,6 +42,12 @@ const RUNNING_AGENTS_DISPLAY_OPTIONS: { value: RunningAgentsDisplayMode; label: 
   { value: "count", label: "Count" },
   { value: "icons", label: "Icons" },
   { value: "both", label: "Both" },
+];
+
+const PREFERRED_EDITOR_OPTIONS: { value: PreferredEditor; label: string }[] = [
+  { value: "auto", label: "Auto-detect" },
+  { value: "vscode", label: "VS Code" },
+  { value: "cursor", label: "Cursor" },
 ];
 
 const LOCAL_PROVIDER_MODEL_REQUIRED_MESSAGE =
@@ -140,6 +147,7 @@ export function GlobalSettingsContent({ onSaveStateChange }: GlobalSettingsConte
   const [upgradePostgresUrl, setUpgradePostgresUrl] = useState("");
   const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [upgradeError, setUpgradeError] = useState<string | null>(null);
+  const [preferredEditor, setPreferredEditor] = useState<PreferredEditor>("auto");
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const [lastUpdateCheck, setLastUpdateCheck] = useState<string | null>(null);
   const [updateChecking, setUpdateChecking] = useState(false);
@@ -313,6 +321,7 @@ export function GlobalSettingsContent({ onSaveStateChange }: GlobalSettingsConte
         setApiKeys(res.apiKeys);
         setShowNotificationDotInMenuBar(res.showNotificationDotInMenuBar !== false);
         setShowRunningAgentCountInMenuBar(res.showRunningAgentCountInMenuBar !== false);
+        setPreferredEditor(res.preferredEditor ?? "auto");
         const nextSimple = res.simpleComplexityAgent ?? DEFAULT_AGENT_CONFIG;
         const nextComplex = res.complexComplexityAgent ?? DEFAULT_AGENT_CONFIG;
         setSimpleAgent(nextSimple);
@@ -795,6 +804,39 @@ export function GlobalSettingsContent({ onSaveStateChange }: GlobalSettingsConte
               className="input w-fit"
             >
               {RUNNING_AGENTS_DISPLAY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div data-testid="preferred-editor-section">
+            <h3 className="text-sm font-semibold text-theme-text">Preferred editor</h3>
+            <p className="text-xs text-theme-muted mb-3">
+              Which editor to open task worktrees in. Auto-detect checks your PATH for{" "}
+              <code className="text-xs">cursor</code> then <code className="text-xs">code</code>.
+            </p>
+            <select
+              value={preferredEditor}
+              onChange={async (e) => {
+                const value = e.target.value as PreferredEditor;
+                if (!VALID_PREFERRED_EDITORS.includes(value)) return;
+                setPreferredEditor(value);
+                const startTime = Date.now();
+                notifySaveState("saving");
+                try {
+                  const res = await api.globalSettings.put({ preferredEditor: value });
+                  setPreferredEditor(res.preferredEditor ?? value);
+                  scheduleSaveComplete(startTime);
+                } catch {
+                  setPreferredEditor(preferredEditor);
+                  scheduleSaveComplete(startTime);
+                }
+              }}
+              data-testid="preferred-editor-select"
+              className="input w-fit"
+            >
+              {PREFERRED_EDITOR_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
